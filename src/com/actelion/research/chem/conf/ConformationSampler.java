@@ -30,24 +30,25 @@ public class ConformationSampler extends DataProcessor {
 	private static final float	STANDARD_CYCLE_FACTOR = 0.2f;
 	private static final float	MINIMIZATION_REDUCTION_FACTOR = 20.0f;
 	private static final float	ATOM_BREAKOUT_STRAIN = 0.02f;
-	private static final float	WEAK_CONSTRAINT_STRAIN_LIMIT = 0.02f;
+	private static final float	WEAK_RULE_STRAIN_LIMIT = 0.02f;
 
 	private final StereoMolecule	mMol;
 	private final float[][][]		mDistance;
-	private final boolean[][]		mDistanceConstraintIsMinMax;
+	private final boolean[][]		mDistanceRuleIsMinMax;
 	private final BondLengthSet		mBondLengthSet;
 	private final BondAngleSet		mBondAngleSet;
-	private final ConformationConstraint[] mConstraint;
+	private final ConformationRule[] mRule;
 	private volatile boolean		mIsSMT;
 	private ThreadData				mThreadData;
 	private ConformerData[]			mConformer;
 	private AtomicInteger			mConformerSMTIndex;
 
 	/**
-	 * Generates a new ConformationSampler from the given molecule.
+	 * Instantiates a new ConformationSampler from the given molecule.
 	 * Explicit hydrogens are removed from the molecule, which stays
-	 * untouched otherwise. A set of constraints for the coordinate
-	 * generation is compiled during the construction.
+	 * untouched otherwise. A set of rules derived from x-ray crystal data
+	 * is compiled for the given molecule to be used for the coordinate
+	 * creation.
 	 * @param mol
 	 */
 	public ConformationSampler(final StereoMolecule mol) {
@@ -69,34 +70,15 @@ System.out.println("angle:"+a+"  in degrees:"+(a*180/Math.PI));
 		mBondAngleSet = new BondAngleSet(mol, mBondLengthSet);
 
 		mDistance = new float[mMol.getAtoms()][][];
-	    mDistanceConstraintIsMinMax = new boolean[mMol.getAtoms()][];
+	    mDistanceRuleIsMinMax = new boolean[mMol.getAtoms()][];
 
-		calculateDistanceConstraints();
+		calculateDistanceRules();
 
-		ArrayList<ConformationConstraint> constraintList = new ArrayList<ConformationConstraint>();
-		calculatePlaneConstraints(constraintList);
-///		calculateLineConstraints(constraintList);
-//		calculateStereoConstraints(constraintList);
-		mConstraint = constraintList.toArray(new ConformationConstraint[0]);
-		}
-
-	/**
-	 * Adapts the distance constraints by interpreting the first conformer
-	 * of the previous run.
-	 */
-	public void boostDistanceConstraints() {
-		for (int atom1=1; atom1<mMol.getAtoms(); atom1++) {
-			for (int atom2=0; atom2<atom1; atom2++) {
-				if (mDistanceConstraintIsMinMax[atom1][atom2]) {
-					float dx = mMol.getAtomX(atom2) - mMol.getAtomX(atom1);
-					float dy = mMol.getAtomY(atom2) - mMol.getAtomY(atom1);
-					float dz = mMol.getAtomZ(atom2) - mMol.getAtomZ(atom1);
-					float distance = (float)Math.sqrt(dx*dx+dy*dy+dz*dz);
-					if (mDistance[atom1][atom2][0] < distance)
-						mDistance[atom1][atom2][0] = distance - 0.5f;	// to relax piling up strains
-					}
-				}
-			}
+		ArrayList<ConformationRule> ruleList = new ArrayList<ConformationRule>();
+		calculatePlaneRules(ruleList);
+///		calculateLineRules(ruleList);
+//		calculateStereoRules(ruleList);
+		mRule = ruleList.toArray(new ConformationRule[0]);
 		}
 
 	/**
@@ -169,10 +151,10 @@ for (int i=0; i<mMol.getAtoms(); i++) {
 	System.out.println();
 	}
 
-System.out.println("Distance Constraints:");
+System.out.println("Distance Rules:");
 for (int i=1; i<mMol.getAtoms(); i++) {
 for (int j=0; j<i; j++) {
-if (mDistanceConstraintIsMinMax[i][j])
+if (mDistanceRuleIsMinMax[i][j])
 System.out.println("("+i+","+j+") min:"+mDistance[i][j][0]+" max:"+mDistance[i][j][1]);
 else {
 System.out.print("("+i+","+j+"):");
@@ -204,7 +186,7 @@ System.out.println();
 			optimize(conformer, threadData, mMol.getAtoms() * CYCLE_MULTIPLIER_BREAKOUT_PHASE, STANDARD_CYCLE_FACTOR, STANDARD_CYCLE_FACTOR);
 			}
 
-		disableConflictingWeakConstraints(conformer, threadData);
+		disableConflictingWeakRules(conformer, threadData);
 
 		optimize(conformer, threadData, mMol.getAtoms() * CYCLE_MULTIPLIER_OPTIMIZATION_PHASE, STANDARD_CYCLE_FACTOR, STANDARD_CYCLE_FACTOR);
 		optimize(conformer, threadData, mMol.getAtoms() * CYCLE_MULTIPLIER_MINIMIZATION_PHASE, STANDARD_CYCLE_FACTOR, STANDARD_CYCLE_FACTOR/MINIMIZATION_REDUCTION_FACTOR);
@@ -288,8 +270,8 @@ System.out.println();
 		}
 
 	private void optimize(ConformerData conformer, ThreadData threadData, int cycles, float startFactor, float endFactor) {
-		float otherConstraintLikelyhood = 0.05f * (float)mConstraint.length
-												/ (float)mMol.getAtoms();
+		float otherRuleLikelyhood = 0.05f * (float)mRule.length
+										  / (float)mMol.getAtoms();
 
 		float k = (float)Math.log(startFactor/endFactor)/(float)cycles;
 
@@ -298,26 +280,26 @@ System.out.println();
 
 		for (int cycle=0; cycle<cycles; cycle++) {
 			float cycleFactor = (float)Math.exp(-k*cycle);
-			if (mConstraint.length != 0 && threadData.random.nextFloat() < otherConstraintLikelyhood) {
-				int index = (int)(threadData.random.nextFloat() * mConstraint.length);
-				if (!threadData.isConstraintDisabled[index]) {
-					ConformationConstraint constraint =  mConstraint[index];
-					switch (constraint.type) {
-					case ConformationConstraint.PLANE_CONSTRAINT:
-					case ConformationConstraint.PLANE_CONSTRAINT_WEAK:
-						handlePlaneConstraint(conformer, constraint.atomList, 0.5f * cycleFactor);
+			if (mRule.length != 0 && threadData.random.nextFloat() < otherRuleLikelyhood) {
+				int index = (int)(threadData.random.nextFloat() * mRule.length);
+				if (!threadData.isRuleDisabled[index]) {
+					ConformationRule rule =  mRule[index];
+					switch (rule.type) {
+					case ConformationRule.PLANE_RULE:
+					case ConformationRule.PLANE_RULE_WEAK:
+						handlePlaneRule(conformer, rule.atomList, 0.5f * cycleFactor);
 						break;
-					case ConformationConstraint.LINE_CONSTRAINT:
-						handleLineConstraint(conformer, constraint.atomList, cycleFactor);
+					case ConformationRule.LINE_RULE:
+						handleLineRule(conformer, rule.atomList, cycleFactor);
 						break;
-					case ConformationConstraint.STEREO_CONSTRAINT:
-						handleStereoConstraint(conformer, constraint.atomList);
+					case ConformationRule.STEREO_RULE:
+						handleStereoRule(conformer, rule.atomList);
 						break;
 						}
 					}
 				}
 			else {
-				handleDistanceConstraint(conformer, threadData, cycleFactor);
+				handleDistanceRule(conformer, threadData, cycleFactor);
 				}
 
 			if (!mIsSMT && (cycle % 500 == 499))
@@ -366,17 +348,17 @@ System.out.println();
 		return atomCount;
 		}
 
-	private void disableConflictingWeakConstraints(ConformerData conformer, ThreadData threadData) {
+	private void disableConflictingWeakRules(ConformerData conformer, ThreadData threadData) {
 		calculateAtomStrains(conformer, threadData);
 
-		for (int i=0; i<mConstraint.length; i++) {
-			if (mConstraint[i].type == ConformationConstraint.PLANE_CONSTRAINT_WEAK) {
-				for (int j=0; j<mConstraint[i].atomList.length; j++) {
-					int atom = mConstraint[i].atomList[j];
-					if (threadData.atomStrain[atom] > WEAK_CONSTRAINT_STRAIN_LIMIT) {
-						threadData.isConstraintDisabled[i] = true;
-							// to escape from planarity already achieved by constraint
-						addRandomDistortion(conformer, threadData, mConstraint[i].atomList, 0.5f);
+		for (int i=0; i<mRule.length; i++) {
+			if (mRule[i].type == ConformationRule.PLANE_RULE_WEAK) {
+				for (int j=0; j<mRule[i].atomList.length; j++) {
+					int atom = mRule[i].atomList[j];
+					if (threadData.atomStrain[atom] > WEAK_RULE_STRAIN_LIMIT) {
+						threadData.isRuleDisabled[i] = true;
+							// to escape from planarity already achieved by a rule
+						addRandomDistortion(conformer, threadData, mRule[i].atomList, 0.5f);
 						break;
 						}
 					}
@@ -394,7 +376,7 @@ System.out.println();
 			}
 		}
 
-	private void handleDistanceConstraint(ConformerData conformer, ThreadData threadData, float cycleFactor) {
+	private void handleDistanceRule(ConformerData conformer, ThreadData threadData, float cycleFactor) {
 		int atom1 = (int)(threadData.random.nextFloat() * mMol.getAtoms());
 		int atom2 = (int)(threadData.random.nextFloat() * mMol.getAtoms());
 		while (atom2 == atom1)
@@ -412,7 +394,7 @@ System.out.println();
 		float distance = (float)Math.sqrt(dx*dx+dy*dy+dz*dz);
 
 		float distanceFactor = 0.0f;
-		if (mDistanceConstraintIsMinMax[atom1][atom2]) {
+		if (mDistanceRuleIsMinMax[atom1][atom2]) {
 			if (distance < mDistance[atom1][atom2][0]) {
 				distanceFactor = (distance-mDistance[atom1][atom2][0])/(2*mDistance[atom1][atom2][0]);
 				if (cycleFactor > 1.0f)
@@ -454,7 +436,7 @@ System.out.println();
 			}
 		}
 
-	private void handlePlaneConstraint(ConformerData conformer, int[] atomList, float cycleFactor) {
+	private void handlePlaneRule(ConformerData conformer, int[] atomList, float cycleFactor) {
 		float[][] A = new float[atomList.length][3];
 		for (int i=0; i<atomList.length; i++) {
 			A[i][0] = conformer.x[atomList[i]];
@@ -497,7 +479,7 @@ System.out.println();
 			}
 		}
 
-	private void handleLineConstraint(ConformerData conformer, int[] atomList, float cycleFactor) {
+	private void handleLineRule(ConformerData conformer, int[] atomList, float cycleFactor) {
 		float[][] A = new float[atomList.length][3];
 		for (int i=0; i<atomList.length; i++) {
 			A[i][0] = conformer.x[atomList[i]];
@@ -540,7 +522,7 @@ System.out.println();
 			}
 		}
 
-	private void handleStereoConstraint(ConformerData conformer, int[] atomList) {
+	private void handleStereoRule(ConformerData conformer, int[] atomList) {
 		float[] n = new float[3];
 		if (getStereoAngleCosine(conformer, atomList, n) > 0.0) {
 			// invert stereocenter by moving atomList[3] through plane of other atoms
@@ -569,7 +551,7 @@ System.out.println();
 								  * (getMinDistance(atomList[0], atomList[4])
 								   + getMinDistance(atomList[1], atomList[4])
 								   + getMinDistance(atomList[2], atomList[4]))
-								  + getMinDistance(atomList[3], atomList[4]);
+								   + getMinDistance(atomList[3], atomList[4]);
 
 			float neededMovement = (distance < 0.0) ? distance - neededDistance
 													 : distance + neededDistance;
@@ -584,11 +566,11 @@ System.out.println();
 			}
 		}
 
-	public void testStereoConstraint() {
+	public void testStereoRule() {
 		ConformerData conformer = mConformer[0];
-		for (ConformationConstraint constraint:mConstraint) {
-			if (constraint.type == ConformationConstraint.STEREO_CONSTRAINT) {
-				int[] atomList = constraint.atomList;
+		for (ConformationRule rule:mRule) {
+			if (rule.type == ConformationRule.STEREO_RULE) {
+				int[] atomList = rule.atomList;
 				float[] n = new float[3];
 				if (getStereoAngleCosine(conformer, atomList, n) > 0.0) {
 					// invert stereocenter by moving atomList[3] through plane of other atoms
@@ -643,7 +625,7 @@ System.out.println();
 				float dy = conformer.y[atom2] - conformer.y[atom1];
 				float dz = conformer.z[atom2] - conformer.z[atom1];
 				float distance = (float)Math.sqrt(dx*dx+dy*dy+dz*dz);
-				if (mDistanceConstraintIsMinMax[atom1][atom2]) {
+				if (mDistanceRuleIsMinMax[atom1][atom2]) {
 					if (distance < mDistance[atom1][atom2][0]) {
 						float strain = (mDistance[atom1][atom2][0] - distance) / 2.0f;
 						threadData.atomStrain[atom1] += (strain*strain);
@@ -672,18 +654,18 @@ System.out.println();
 				}
 			}
 
-		for (int i=0; i<mConstraint.length; i++) {
-			if (!threadData.isConstraintDisabled[i]) {
-				switch (mConstraint[i].type) {
-				case ConformationConstraint.PLANE_CONSTRAINT:
-				case ConformationConstraint.PLANE_CONSTRAINT_WEAK:
-					addPlaneStrain(conformer, threadData, mConstraint[i].atomList);
+		for (int i=0; i<mRule.length; i++) {
+			if (!threadData.isRuleDisabled[i]) {
+				switch (mRule[i].type) {
+				case ConformationRule.PLANE_RULE:
+				case ConformationRule.PLANE_RULE_WEAK:
+					addPlaneStrain(conformer, threadData, mRule[i].atomList);
 					break;
-				case ConformationConstraint.LINE_CONSTRAINT:
-					addLineStrain(conformer, threadData, mConstraint[i].atomList);
+				case ConformationRule.LINE_RULE:
+					addLineStrain(conformer, threadData, mRule[i].atomList);
 					break;
-				case ConformationConstraint.STEREO_CONSTRAINT:
-					addStereoStrain(conformer, threadData, mConstraint[i].atomList);
+				case ConformationRule.STEREO_RULE:
+					addStereoStrain(conformer, threadData, mRule[i].atomList);
 					break;
 					}
 				}
@@ -831,10 +813,10 @@ System.out.println();
 		return bondRingSize;
 		}
 
-	private void calculateDistanceConstraints() {
+	private void calculateDistanceRules() {
 		for (int atom=1; atom<mMol.getAtoms(); atom++) {
 			mDistance[atom] = new float[atom][];
-			mDistanceConstraintIsMinMax[atom] = new boolean[atom];
+			mDistanceRuleIsMinMax[atom] = new boolean[atom];
 			}
 
 					// distances with 1 bond between both atoms
@@ -979,13 +961,13 @@ System.out.println();
 							float angle2 = mBondAngleSet.getConnAngle(atom[1], j, bondConnIndex2);
 
 							float dx = mBondLengthSet.getLength(bond)
-						              - mBondLengthSet.getLength(bond1)*(float)Math.cos(angle1)
-						              - mBondLengthSet.getLength(bond2)*(float)Math.cos(angle2);
+						             - mBondLengthSet.getLength(bond1)*(float)Math.cos(angle1)
+						             - mBondLengthSet.getLength(bond2)*(float)Math.cos(angle2);
 							float[] distance = new float[dihedral.length];
 							for (int k=0; k<dihedral.length; k++) {
 							    float dha = (float)Math.PI*(0.5f+(float)dihedral[k])/180.0f;
 							    float dy = mBondLengthSet.getLength(bond2)*(float)Math.sin(angle2)*(float)Math.cos(dha)
-										  - mBondLengthSet.getLength(bond1)*(float)Math.sin(angle1);
+										 - mBondLengthSet.getLength(bond1)*(float)Math.sin(angle1);
 							    float dz = mBondLengthSet.getLength(bond2)*(float)Math.sin(angle2)*(float)Math.sin(dha);
 							    distance[k] = (float)Math.sqrt(dx*dx+dy*dy+dz*dz);
 								}
@@ -1032,12 +1014,12 @@ System.out.println();
 		    }
 
 		for (int atom=0; atom<mMol.getAtoms(); atom++)
-			calculateLongDistanceConstraints(atom);
+			calculateLongDistanceRules(atom);
 
-		calculateDisconnectedDistanceConstraints();
+		calculateDisconnectedDistanceRules();
 		}
 
-	private void calculateLongDistanceConstraints(int rootAtom) {
+	private void calculateLongDistanceRules(int rootAtom) {
 		int[] bondCount = new int[mMol.getAtoms()];
 		int[] graphAtom = new int[mMol.getAtoms()];
 		float[] distanceToRoot = new float[mMol.getAtoms()];
@@ -1063,7 +1045,7 @@ System.out.println();
 												  + mBondLengthSet.getLength(mMol.getConnBond(parent, i));
 
 						if (candidate < rootAtom && mDistance[rootAtom][candidate] == null) {
-						    mDistanceConstraintIsMinMax[rootAtom][candidate] = true;
+						    mDistanceRuleIsMinMax[rootAtom][candidate] = true;
 						    mDistance[rootAtom][candidate] = new float[2];
 							mDistance[rootAtom][candidate][0] = getVDWRadius(rootAtom) + getVDWRadius(candidate);
 							mDistance[rootAtom][candidate][1] = distanceToRoot[candidate];
@@ -1078,11 +1060,11 @@ System.out.println();
 			}
 		}
 
-	private void calculateDisconnectedDistanceConstraints() {
+	private void calculateDisconnectedDistanceRules() {
 		for (int atom1=1; atom1<mMol.getAtoms(); atom1++) {
 			for (int atom2=0; atom2<atom1; atom2++) {
 				if (mDistance[atom1][atom2] == null) {
-				    mDistanceConstraintIsMinMax[atom1][atom2] = true;
+				    mDistanceRuleIsMinMax[atom1][atom2] = true;
 				    mDistance[atom1][atom2] = new float[2];
 					mDistance[atom1][atom2][0] = getVDWRadius(atom1) + getVDWRadius(atom2);
 					mDistance[atom1][atom2][1] = Float.MAX_VALUE;
@@ -1096,7 +1078,7 @@ System.out.println();
         return (atomicNo < VDWRadii.VDW_RADIUS.length) ? VDWRadii.VDW_RADIUS[atomicNo] : 2.0f;
         }
 
-    private void calculatePlaneConstraints(ArrayList<ConformationConstraint> constraintList) {
+    private void calculatePlaneRules(ArrayList<ConformationRule> ruleList) {
 		boolean[] isFlatBond = new boolean[mMol.getBonds()];
 		int[] atomicNo = new int[2];
 		for (int bond=0; bond<mMol.getBonds(); bond++) {
@@ -1132,11 +1114,11 @@ System.out.println();
 				int[] atomList = new int[count];
 				for (int i=0; i<count; i++)
 					atomList[i] = fragmentAtom[i];
-				constraintList.add(new ConformationConstraint(ConformationConstraint.PLANE_CONSTRAINT, atomList));
+				ruleList.add(new ConformationRule(ConformationRule.PLANE_RULE, atomList));
 				}
 			}
 
-			// the following are only flat if not colliding with other constraints
+			// the following are only flat if not colliding with other rules
 		boolean[] tryFlatBond = new boolean[mMol.getBonds()];
 		for (int bond=0; bond<mMol.getBonds(); bond++) {
 			if (!mMol.isAromaticBond(bond)
@@ -1158,12 +1140,12 @@ System.out.println();
 				int[] atomList = new int[count];
 				for (int i=0; i<count; i++)
 					atomList[i] = fragmentAtom[i];
-				constraintList.add(new ConformationConstraint(ConformationConstraint.PLANE_CONSTRAINT_WEAK, atomList));
+				ruleList.add(new ConformationRule(ConformationRule.PLANE_RULE_WEAK, atomList));
 				}
 			}
 		}
 
-	private void calculateStereoConstraints(ArrayList<ConformationConstraint> constraintList) {
+	private void calculateStereoRules(ArrayList<ConformationRule> ruleList) {
 		for (int atom=0; atom<mMol.getAtoms(); atom++) {
 			int parity = mMol.getAtomParity(atom);
 			if (parity == Molecule.cAtomParity1 || parity == Molecule.cAtomParity2) {
@@ -1191,7 +1173,7 @@ System.out.println();
 					atomList[1] = temp;
 					}
 
-				constraintList.add(new ConformationConstraint(ConformationConstraint.STEREO_CONSTRAINT, atomList));
+				ruleList.add(new ConformationRule(ConformationRule.STEREO_RULE, atomList));
 				}
 			}
 		}
@@ -1265,7 +1247,7 @@ System.out.println();
 		return highest+1;
 		}
 
-	private void calculateLineConstraints(ArrayList<ConformationConstraint> constraintList) {
+	private void calculateLineRules(ArrayList<ConformationRule> ruleList) {
 	    boolean[] atomHandled = new boolean[mMol.getAtoms()];
 		int[] fragmentAtom = new int[mMol.getAtoms()];
 		for (int atom=0; atom<mMol.getAtoms(); atom++) {
@@ -1277,7 +1259,7 @@ System.out.println();
 					atomList[i] = fragmentAtom[i];
 					atomHandled[fragmentAtom[i]] = true;
 					}
-				constraintList.add(new ConformationConstraint(ConformationConstraint.LINE_CONSTRAINT, atomList));
+				ruleList.add(new ConformationRule(ConformationRule.LINE_RULE, atomList));
 				}
 			}
 		}
@@ -1322,11 +1304,11 @@ System.out.println();
 
 	private class ThreadData {
 		public float[] atomStrain;
-		public boolean[] isConstraintDisabled;
+		public boolean[] isRuleDisabled;
 		public Random random;
 
 		ThreadData(long randomSeed) {
-			isConstraintDisabled = new boolean[mConstraint.length];
+			isRuleDisabled = new boolean[mRule.length];
 			random = (randomSeed == 0) ? new Random() : new Random(randomSeed);
 			}
 		}
@@ -1341,16 +1323,16 @@ System.out.println();
 			}
 		}
 
-	private class ConformationConstraint {
-		public static final int PLANE_CONSTRAINT = 1;
-		public static final int PLANE_CONSTRAINT_WEAK = 2;
-		public static final int LINE_CONSTRAINT = 3;
-		public static final int STEREO_CONSTRAINT = 4;
+	private class ConformationRule {
+		public static final int PLANE_RULE = 1;
+		public static final int PLANE_RULE_WEAK = 2;
+		public static final int LINE_RULE = 3;
+		public static final int STEREO_RULE = 4;
 	
 		public int[]	atomList;
 		public int		type;
 	
-		ConformationConstraint(int type, int[] atomList) {
+		ConformationRule(int type, int[] atomList) {
 			this.type = type;
 			this.atomList = atomList;
 			}

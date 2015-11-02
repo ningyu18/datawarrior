@@ -21,6 +21,7 @@ package com.actelion.research.gui;
 import java.awt.*;
 import javax.swing.*;
 import com.actelion.research.chem.*;
+import com.actelion.research.chem.reaction.IReactionMapper;
 
 public class JDrawPanel extends JPanel {
     static final long serialVersionUID = 0x20061019;
@@ -48,6 +49,10 @@ public class JDrawPanel extends JPanel {
 		add(mToolBar, BorderLayout.WEST);
 	}
 
+    public void setMapper(IReactionMapper mapper)
+    {
+        mArea.setMapper(mapper);
+    }
 	public JDrawArea getDrawArea() {
 		return mArea;
 	}

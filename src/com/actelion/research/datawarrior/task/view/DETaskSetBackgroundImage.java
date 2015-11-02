@@ -51,6 +51,7 @@ import com.actelion.research.datawarrior.DEMainPane;
 import com.actelion.research.gui.FileHelper;
 import com.actelion.research.gui.clipboard.ImageClipboardHandler;
 import com.actelion.research.table.view.CompoundTableView;
+import com.actelion.research.table.view.JVisualization;
 import com.actelion.research.table.view.JVisualization2D;
 import com.actelion.research.table.view.VisualizationPanel2D;
 import com.actelion.research.util.BinaryDecoder;
@@ -65,10 +66,12 @@ public class DETaskSetBackgroundImage extends DETaskAbstractSetViewOptions {
 
 	private static Properties sRecentConfiguration;
 
-	private Frame		   mParentFrame;
-	private JCheckBox	   mCheckboxHideScale;
-	private JPanel		  mBackgroundImagePreview;
+	private Frame			mParentFrame;
+	private JCheckBox		mCheckboxHideScale;
+	private JPanel			mBackgroundImagePreview;
 	private BufferedImage	mBackgroundImage;
+	private boolean			mOriginalHideGrid;
+	private int				mOriginalScaleMode;
 
 	public DETaskSetBackgroundImage(Frame owner, DEMainPane mainPane, VisualizationPanel2D view) {
 		super(owner, mainPane, view);
@@ -206,7 +209,8 @@ public class DETaskSetBackgroundImage extends DETaskAbstractSetViewOptions {
 		byte[] image = visualization.getBackgroundImageData();
 		if (image != null) {
 			configuration.put(PROPERTY_IMAGE_DATA, BinaryEncoder.toString(image, 8));
-			configuration.put(PROPERTY_HIDE_SCALE, visualization.isScaleSuppressed() ? "true" : "false");
+			configuration.put(PROPERTY_HIDE_SCALE, (visualization.getScaleMode() == JVisualization.cScaleModeHideAll
+												 && visualization.isGridSuppressed() ? "true" : "false"));
 			}
 		}
 
@@ -266,12 +270,14 @@ public class DETaskSetBackgroundImage extends DETaskAbstractSetViewOptions {
 		String imageString = configuration.getProperty(PROPERTY_IMAGE_DATA);
 		if (imageString == null) {
 			visualization.setBackgroundImageData(null);
-			visualization.setSuppressScale(false, false);
+			visualization.setScaleMode(JVisualization.cScaleModeShowAll);
+			visualization.setSuppressGrid(false);
 			}
 		else {
 			visualization.setBackgroundImageData(BinaryDecoder.toBytes(imageString, 8));
 			boolean hideScale = "true".equals(configuration.getProperty(PROPERTY_HIDE_SCALE));
-			visualization.setSuppressScale(hideScale, hideScale);
+			visualization.setScaleMode(hideScale ? JVisualization.cScaleModeHideAll : JVisualization.cScaleModeShowAll);
+			visualization.setSuppressGrid(hideScale);
 			}
 		}
 	

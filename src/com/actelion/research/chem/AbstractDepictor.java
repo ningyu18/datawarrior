@@ -27,14 +27,55 @@ import java.util.ArrayList;
 import java.util.Arrays;
 
 public abstract class AbstractDepictor {
-    private static final Color BOND_BG_HILITE_COLOR = new Color(204,222,255);
+	/*
+	 * If displayMode includes cDModeColorizeAtomLabels, then all atom labels are drawn
+	 * in a default color, which may be overridden by explicit atom colors or atom error colors.
+	 * The default color affects the atom label and potentially shown implicit hydrogens,
+	 * while explicit atom colors and atom error colors affect half of the connected bonds
+	 * in addition.
+	 * Color values taken from jmol:
+	 * http://jmol.sourceforge.net/jscolors/#Atoms%20%28%27CPK%27%20colors,%20default%20element%20colors%29
+	 */
+	private static final int[] ATOM_LABEL_COLOR = {     0x00000000,
+		0x00FFFFFF, 0x00D9FFFF, 0x00CC80FF, 0x00C2FF00, 0x00FFB5B5, 0x00909090, 0x003050F8, 0x00FF0D0D,
+		0x0090E050, 0x00B3E3F5, 0x00AB5CF2, 0x008AFF00, 0x00BFA6A6, 0x00F0C8A0, 0x00FF8000, 0x00FFFF30,
+		0x001FF01F, 0x0080D1E3, 0x008F40D4, 0x003DFF00, 0x00E6E6E6, 0x00BFC2C7, 0x00A6A6AB, 0x008A99C7,
+		0x009C7AC7, 0x00E06633, 0x00F090A0, 0x0050D050, 0x00C88033, 0x007D80B0, 0x00C28F8F, 0x00668F8F,
+		0x00BD80E3, 0x00FFA100, 0x00A62929, 0x005CB8D1, 0x00702EB0, 0x0000FF00, 0x0094FFFF, 0x0094E0E0,
+		0x0073C2C9, 0x0054B5B5, 0x003B9E9E, 0x00248F8F, 0x000A7D8C, 0x00006985, 0x00C0C0C0, 0x00FFD98F,
+		0x00A67573, 0x00668080, 0x009E63B5, 0x00D47A00, 0x00940094, 0x00429EB0, 0x0057178F, 0x0000C900,
+		0x0070D4FF, 0x00FFFFC7, 0x00D9FFC7, 0x00C7FFC7, 0x00A3FFC7, 0x008FFFC7, 0x0061FFC7, 0x0045FFC7,
+		0x0030FFC7, 0x001FFFC7, 0x0000FF9C, 0x0000E675, 0x0000D452, 0x0000BF38, 0x0000AB24, 0x004DC2FF,
+		0x004DA6FF, 0x002194D6, 0x00267DAB, 0x00266696, 0x00175487, 0x00D0D0E0, 0x00FFD123, 0x00B8B8D0,
+		0x00A6544D, 0x00575961, 0x009E4FB5, 0x00AB5C00, 0x00754F45, 0x00428296, 0x00420066, 0x00007D00,
+		0x0070ABFA, 0x0000BAFF, 0x0000A1FF, 0x00008FFF, 0x000080FF, 0x00006BFF, 0x00545CF2, 0x00785CE3,
+		0x008A4FE3, 0x00A136D4, 0x00B31FD4, 0x00B31FBA, 0x00B30DA6, 0x00BD0D87, 0x00C70066, 0x00CC0059,
+		0x00D1004F, 0x00D90045, 0x00E00038, 0x00E6002E, 0x00EB0026, 0x00000000, 0x00000000, 0x00000000,
+		0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+		0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+		0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+		0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+		0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+		0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+		0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+		0x00000000, 0x00000000,
+		0x00C8C8C8, 0x00145AFF, 0x0000DCDC, 0x00E60A0A, 0x00E6E600, 0x0000DCDC, 0x00E60A0A, 0x00EBEBEB,
+		0x008282D2, 0x000F820F, 0x000F820F, 0x00145AFF, 0x00E6E600, 0x003232AA, 0x00DC9682, 0x00FA9600,
+		0x00FA9600, 0x00B45AB4, 0x003232AA, 0x000F820F
+		};
+
+	private static final Color BOND_BG_HILITE_COLOR = new Color(204,222,255);
     private static final Color BOND_FG_HILITE_COLOR = new Color(255, 85,  0);
     private static final float BOND_FG_HILITE_HUE = 20f/360f;	// orange-red
-    
+
+	// the minimum perceived brightness difference of color atom labels to the background
+    private static final float MIN_COLOR_BG_CONTRAST = 0.4f;
+   
     private static final int COLOR_UNDEFINED = -1;
     private static final int COLOR_HILITE_BOND_BG = -2;
     private static final int COLOR_HILITE_BOND_FG = -3;
     private static final int COLOR_OVERRULED = -4;
+    private static final int RGB_COLOR = -5;
 
     public static final int cOptAvBondLen = 24;
 	public static final int cColorGray = 1;	// avoid the Molecule.cAtomFlagsColor range
@@ -64,6 +105,8 @@ public abstract class AbstractDepictor {
 	public static final int cDModeShowSymmetrySimple = 0x0100;
     public static final int cDModeShowSymmetryDiastereotopic = 0x0200;
     public static final int cDModeShowSymmetryEnantiotopic = 0x0400;
+	public static final int	cDModeNoImplicitAtomLabelColors = 0x0800;
+	public static final int	cDModeNoStereoProblem = 0x1000;
 
 	private static final float cFactorTextSize = 0.6f;
 	private static final float cFactorChiralTextSize = 0.5f;
@@ -113,7 +156,7 @@ public abstract class AbstractDepictor {
 	 * Defines additional atom text to be displayed in top right
 	 * position of some/all atom label. If the atom is charged, then
 	 * the atom text follows the charge information.
-	 * @param null or String array matching atom indexes (may contain null entries)
+	 * @param atomText null or String array matching atom indexes (may contain null entries)
 	 */
 	public void setAtomText(String[] atomText) {
 		mAtomText = atomText;
@@ -269,7 +312,7 @@ public abstract class AbstractDepictor {
 		}
 
 
-	protected DepictorTransformation simpleValidateView(Rectangle2D.Float viewRect, int mode) {
+	 public DepictorTransformation simpleValidateView(Rectangle2D.Float viewRect, int mode) {
 	// returns incremental transformation that moves/scales already transformed molecule into viewRect
 		if (mMol.getAllAtoms() == 0)
 			return null;
@@ -292,8 +335,20 @@ public abstract class AbstractDepictor {
 		return t;
 		}
 
+    // This might be overridden by subclasses (e.g. SVG Depictor)
+    protected void onDrawBond(int atom1, int atom2,float x1, float y1,float x2, float y2)
+    {
+        // NOOP
+    }
 
-	private void simpleCalculateBounds() {
+    // This might be overridden by subclasses (e.g. SVG Depictor)
+    protected void onDrawAtom(int atom, String symbol,float x, float y)
+    {
+        // NOOP
+    }
+
+
+    private void simpleCalculateBounds() {
 		float minx = getAtomX(0);	// determine size of molecule
 		float maxx = getAtomX(0);
 		float miny = getAtomY(0);
@@ -422,12 +477,15 @@ public abstract class AbstractDepictor {
 		mG = g;
 		calculateParameters();
 
+		boolean explicitAtomColors = false;
 		mAtomColor = new int[mMol.getAllAtoms()];
 		for (int atom=0; atom<mMol.getAllAtoms(); atom++) {
 			mAtomColor[atom] = mMol.getAtomColor(atom);
+			if (mAtomColor[atom] != Molecule.cAtomColorBlack)
+				explicitAtomColors = true;
 			if (mMol.isSelectedAtom(atom))
 				mAtomColor[atom] = Molecule.cAtomColorRed;
-			if (mMol.getStereoProblem(atom))
+			if (mMol.getStereoProblem(atom) && (mDisplayMode & cDModeNoStereoProblem) == 0)
 				mAtomColor[atom] = Molecule.cAtomColorMagenta;
 			}
 
@@ -457,6 +515,13 @@ public abstract class AbstractDepictor {
 	    		mpDrawAtom(i, true);
 				setColor(mDefaultColor);
 				}
+			else if (!explicitAtomColors
+				  && ((mDisplayMode & cDModeNoImplicitAtomLabelColors) == 0)
+				  && mMol.getAtomicNo(i) < ATOM_LABEL_COLOR.length) {
+				setRGBColor(getContrastColor(ATOM_LABEL_COLOR[mMol.getAtomicNo(i)]));
+	    		mpDrawAtom(i, true);
+				setColor(mDefaultColor);
+				}
 			else {
 	    		mpDrawAtom(i, true);
 				}
@@ -467,6 +532,37 @@ public abstract class AbstractDepictor {
 
 		if (g instanceof Graphics)
 		    ((Graphics)g).setFont(oldFont);
+		}
+
+
+	private Color getContrastColor(int rgb) {
+		Color bg = (mOverruleBackground == null) ? Color.WHITE : mOverruleBackground;
+		float bgb = ColorHelper.perceivedBrightness(bg);
+		Color fg = new Color(rgb);
+		float fgb = ColorHelper.perceivedBrightness(fg);
+
+		// minConstrast is MIN_COLOR_BG_CONTRAST with white or black background and reduces
+		// to 0.5*MIN_COLOR_BG_CONTRAST when background brightness goes to 0.5
+		float minContrast = MIN_COLOR_BG_CONTRAST * (0.5f + Math.abs(0.5f - bgb));
+
+		float b1 = bgb - minContrast;	// lower edge of brightness avoidance zone
+		float b2 = bgb + minContrast;	// higher edge of brightness avoidance zone
+		boolean darken = (b1 <= 0f) ? false : (b2 >= 1.0f) ? true : fgb < bgb;
+		float factor = 1f / 255f * ((darken) ?
+				  1f-minContrast * brightnessShiftFunction(Math.max((bgb - fgb) / bgb, 0f))
+				: 1f+minContrast * brightnessShiftFunction(Math.max((fgb - bgb) / (1f - bgb), 0f)));
+
+		return new Color(factor * fg.getRed(), factor * fg.getGreen(), factor * fg.getBlue());
+		}
+
+
+	/**
+	 * Nonlinear function for adjusting color brightness depending on similarity to background brightness
+	 * @param d distance between color brightness and background brightness (0 ... 1)
+	 * @return
+	 */
+	private float brightnessShiftFunction(float d) {
+		return (1.0f/(0.5f+1.5f*d)-0.5f)/1.5f;
 		}
 
 
@@ -629,6 +725,8 @@ public abstract class AbstractDepictor {
 
 		int atom1 = mMol.getBondAtom(0,bnd);
 		int atom2 = mMol.getBondAtom(1,bnd);
+
+        onDrawBond(atom1,atom2,getAtomX(atom1),getAtomY(atom1),getAtomX(atom2),getAtomY(atom2));
 
 		if (mAlternativeCoords[atom1] == null) {
 			theLine.x1 = getAtomX(atom1);
@@ -1368,13 +1466,17 @@ public abstract class AbstractDepictor {
 	private void mpDrawAtom(int atom, boolean drawAtoms) {
 		float chax,chay,xdiff,ydiff,x,y;
 
+        if (drawAtoms)
+            onDrawAtom(atom,mMol.getAtomLabel(atom), getAtomX(atom), getAtomY(atom));
+
+
 		String propStr = null;
 		if (mMol.getAtomCharge(atom) != 0) {
 			String valStr = (Math.abs(mMol.getAtomCharge(atom)) == 1) ? ""
 			                    : String.valueOf(Math.abs(mMol.getAtomCharge(atom)));
 			propStr = (mMol.getAtomCharge(atom) < 0) ? valStr + "-" : valStr + "+";
 			}
-		if (mAtomText != null && (atom < mAtomText.length) && mAtomText[atom] != null)
+		if (mAtomText != null && (atom < mAtomText.length) && mAtomText[atom] != null && mAtomText[atom].length() > 0)
 			propStr = append(propStr, mAtomText[atom]);
 
 		String isoStr = null;
@@ -1563,7 +1665,7 @@ public abstract class AbstractDepictor {
 			atomStr = mMol.getAtomLabel(atom);
 
 		float labelWidth = 0.0f;
-		
+
 		if (atomStr != null) {
 			labelWidth = getStringWidth(atomStr);
 			mpDrawString(getAtomX(atom),getAtomY(atom),atomStr,drawAtoms,true);
@@ -1574,8 +1676,8 @@ public abstract class AbstractDepictor {
 
 		if (propStr != null) {
 			setTextSize((mpLabelSize*2+1)/3);
-			x = getAtomX(atom) + ((labelWidth + getStringWidth(propStr)) / 2.0f);
-			y = getAtomY(atom) - ((getTextSize()*3+4)/8);
+			x = getAtomX(atom) + ((labelWidth + getStringWidth(propStr)) / 2.0f + 1);
+			y = getAtomY(atom) - ((getTextSize()*4-4)/8);
 			mpDrawString(x,y,propStr,drawAtoms,true);
 			setTextSize(mpLabelSize);
 			}
@@ -1586,7 +1688,7 @@ public abstract class AbstractDepictor {
 		if (isoStr != null) {
 			setTextSize((mpLabelSize*2+1)/3);
 			x = getAtomX(atom) - ((labelWidth + getStringWidth(isoStr)) / 2.0f);
-			y = getAtomY(atom) - ((getTextSize()*3+4)/8);
+			y = getAtomY(atom) - ((getTextSize()*4-4)/8);
 			mpDrawString(x,y,isoStr,drawAtoms,true);
 			setTextSize(mpLabelSize);
 			}
@@ -1594,7 +1696,7 @@ public abstract class AbstractDepictor {
 		if (infoStr != null) {
 			setTextSize((mpLabelSize*2+1)/3);
 			x = getAtomX(atom) - ((labelWidth + getStringWidth(infoStr)) / 2.0f);
-			y = getAtomY(atom) + ((getTextSize()*3+4)/8);
+			y = getAtomY(atom) + ((getTextSize()*4+4)/8);
 			int theColor = mCurrentColor;
 			setColor(Molecule.cAtomColorRed);
 			mpDrawString(x,y,infoStr,drawAtoms,false);
@@ -1604,8 +1706,8 @@ public abstract class AbstractDepictor {
 
 		if (mapStr != null) {
 			setTextSize((mpLabelSize*2+1)/3);
-			x = getAtomX(atom) + ((labelWidth + getStringWidth(mapStr)) / 2.0f);
-			y = getAtomY(atom) + ((getTextSize()*3+4)/8);
+			x = getAtomX(atom) + ((labelWidth + getStringWidth(mapStr)) / 2.0f + 1);
+			y = getAtomY(atom) + ((getTextSize()*4+4)/8);
 			int theColor = mCurrentColor;
 			setColor(mMol.isAutoMappedAtom(atom) ? Molecule.cAtomColorDarkGreen : Molecule.cAtomColorDarkRed);
 			mpDrawString(x,y,mapStr,drawAtoms,true);
@@ -1629,7 +1731,7 @@ public abstract class AbstractDepictor {
 			return;
 
 		float hindrance[] = new float[4];
-		for (int i=0; i<mMol.getConnAtoms(atom); i++) {
+		for (int i=0; i<mMol.getAllConnAtoms(atom); i++) {
 			int bnd = mMol.getConnBond(atom,i);
 			for (int j=0; j<2; j++) {
 				if (mMol.getBondAtom(j,bnd) == atom) {
@@ -1711,7 +1813,7 @@ public abstract class AbstractDepictor {
 
 			if (hNoWidth > 0) {
 				x = chax + ((hydrogenWidth + hNoWidth) / 2.0f);
-				y = chay + (getTextSize() / 4.0f);
+				y = chay + ((getTextSize()*4+4)/8);
 				mpDrawString(x,y,hNoStr,drawAtoms,true);
 				setTextSize(mpLabelSize);
 				}
@@ -2069,6 +2171,20 @@ public abstract class AbstractDepictor {
 
 	protected void drawDot(float x, float y) {
 		fillCircle(x-mpDotDiameter/2, y-mpDotDiameter/2, mpDotDiameter);
+		}
+
+
+	private void setRGBColor(Color rgbColor) {
+		if (mOverruleForeground != null) {
+			if (mCurrentColor != COLOR_OVERRULED) {
+				mCurrentColor = COLOR_OVERRULED;
+			    setColor(mOverruleForeground);
+				}
+			return;
+			}
+
+		mCurrentColor = RGB_COLOR;
+		setColor(rgbColor);
 		}
 
 

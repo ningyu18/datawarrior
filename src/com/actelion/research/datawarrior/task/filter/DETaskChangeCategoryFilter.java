@@ -35,11 +35,6 @@ public class DETaskChangeCategoryFilter extends DEAbstractFilterTask {
 		}
 
 	@Override
-	public boolean supportsColumnSelection() {
-		return true;
-		}
-
-	@Override
 	public String getTaskName() {
 		return TASK_NAME;
 		}
@@ -66,7 +61,7 @@ public class DETaskChangeCategoryFilter extends DEAbstractFilterTask {
 		}
 
 	@Override
-	public Class<? extends JFilterPanel> getFilterClass() {
-		return JCategoryFilterPanel.class;
+	public int getFilterType() {
+		return JFilterPanel.FILTER_TYPE_CATEGORY;
 		}
 	}

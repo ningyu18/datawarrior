@@ -19,6 +19,7 @@
 package com.actelion.research.chem.reaction;
 
 
+// TODO Implement Index!
 public class ReactionSearcher {
 	public static final String cIndexVersion = "1.0.0";
 

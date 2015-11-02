@@ -1,19 +1,18 @@
 /*
-
-* @(#)ImageClipboardHandler.java
-
-*
-
-* Copyright 2006 Actelion Ltd. All Rights Reserved.
-
-*
-
-* This software is the proprietary information of Actelion Ltd.
-
-* Use is subject to license terms.
-
-*
-
+ * Project: DD_jfx
+ * @(#)ImageClipboardHandler.java
+ *
+ * Copyright (c) 1997- 2015
+ * Actelion Pharmaceuticals Ltd.
+ * Gewerbestrasse 16
+ * CH-4123 Allschwil, Switzerland
+ *
+ * All Rights Reserved.
+ *
+ * This software is the proprietary information of Actelion Pharmaceuticals, Ltd.
+ * Use is subject to license terms.
+ *
+ * Author: Christian Rufener
  */
 
 package com.actelion.research.gui.clipboard;

@@ -130,6 +130,8 @@ public class TreeGraphOptimizer {
 			int x = (bounds.width - (nodeList.length - 1) * levelWidth) / 2;
 	
 			double factor = Math.min(maxNeighborDistance, (int)((float)bounds.height / (relMax-relMin+2.0f)));
+			if (factor == 0.0)
+				factor = Math.min(maxNeighborDistance, (float)bounds.height / (relMax-relMin+2.0f));
 	
 			for (int l=0; l<nodeList.length; l++) {
 				for (int n=0; n<nodeList[l].length; n++) {
@@ -150,7 +152,9 @@ public class TreeGraphOptimizer {
 			int y = (bounds.height - (nodeList.length - 1) * levelHeight) / 2;
 	
 			double factor = Math.min(maxNeighborDistance, (int)((float)bounds.width / (relMax-relMin+2.0f)));
-	
+			if (factor == 0.0)
+				factor = Math.min(maxNeighborDistance, (float)bounds.width / (relMax-relMin+2.0f));
+
 			for (int l=0; l<nodeList.length; l++) {
 				for (int n=0; n<nodeList[l].length; n++) {
 					TreeVisualizationNode node = (TreeVisualizationNode)nodeList[l][n];

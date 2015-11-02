@@ -160,17 +160,86 @@ Here you can find more information on <a href="help/similarity.html">descriptors
 and <a href="help/similarity.html#WhichDescriptor">which kind of similarity</a> should be used for which purpose.</p>
 <br>
 
-<h3><a name="CompareFiles"></a>Comparing Structure Files</h3>
+<h3><a name="SearchReplace"></a>Search & Replace with Chemical Structures</h3>
+<p>
+Usually, <span class="keyword">Search & Replace</span> functionality is performed on text data.
+For this purpose the <span class="keyword">Search & Replace</span> dialog (left) lets you select a column,
+a text string to be searched for and another piece of text as a replacement string.
+You may also define, whether the search target shall be replaced in all rows, in all
+visible rows, or in the selected rows only.</p>
+<p align="center"><img src="help/img/chem/searchReplace.jpeg"></p>
+<p><center><i>Search & Replace dialogs for alphanumerial and structure columns.</i></center></p>
+<p>If the target column doesn't contain text but chemical structures, then the dialog changes
+and shows two substructure fields instead of text fields to define the search and replacement
+fragments (dialog on the right). For replacing one substructure by another,
+<span class="keyword">DataWarrior</span> needs to know, which attachment points on
+the search target match which atoms on the replacement fragment. This is defined by adding R-groups
+to both fragments. In oder to replace a phenyl group with a cyclohexyl substituent, one needs
+to draw phenyl-R1 and cyclohexyl-R1. Atoms of the search fragment, which don't carry an R-group,
+are considered not to carry any more substituents. To define linkers or scaffolds instead of
+single bonded substituents one needs to attach two or more R-groups to the search target
+and replacement fragment.
+</p>
+<br>
 
-<p>Sometimes the need arises to compare two rather big sets of compounds for overlaps, i.e.
+<h3><a name="Add2DCoords"></a>Unifying 2D Atom Coordinates</h3>
+<p>
+Typically, every column that contains chemical structures is accompanied by an invisible column
+with 2-dimensional atom coordinates, which allow <span class="keyword">DataWarrior</span> to
+draw chemical structures in their original orientation. When no 2-dimensional atom coordinates exist,
+e.g. if an input file contains 3-dimensional coordinates only or if the structures were created
+from Smiles codes, then <span class="keyword">DataWarrior</span> creates atom coordinates on the fly
+whenever a structure is displayed. If original atom coordinates are not satisfactory or if molecules
+with shared scaffolds shall always be drawn with the same scaffold orientation, then one should (re-)generate
+new atom coordinates for a given structure column. To create new atom coordinates select
+<span class="menu">Generate 2D Atom Coordinates...</span> from the <span class="menu">Chemistry</span> menu.
+A dialog opens where one can choose the structure column to be used.
+</p>
+<p align="center"><img src="help/img/chem/add2DCoords.jpeg"></p>
+<p><center><i>Options for 2D atom coordinate calculation and unification.</i></center></p>
+<p>
+If no further options are selected and OK is pressed, then <span class="keyword">DataWarrior</span>
+tries to generate atom coordinates for every structure individually. If, however, as in the example
+above, some scaffold are defined, then <span class="keyword">DataWarrior</span> checks every
+structure of the selected column, whether it contains any of the given scaffolds. If a scaffold is
+found then the corresponding atoms' coordinates are copied from the scaffold and the remaining atoms'
+coordinates are optimized around the scaffold without touching the scaffold's orientation.</p>
+<p>
+If <span class="menu">Automatically detect scaffolds...</span> is selected, then
+<span class="keyword">DataWarrior</span> still considers manually defined scaffolds, if there are any.
+In addition it processes all structures, which don't contain manually defined scaffolds.
+From these structures it compiles a unique list of unsubstituted scaffolds. Then it generates atom
+coordinates for every one of these scaffolds. Afterwards it processes all structures again. Every structure
+that contains a scaffold of the list will receive new atom coordinates that contain the scaffold's
+optimized coordinates. This ensures that compounds based on the same scaffold are always drawn in
+the same orientation.
+<br>
+The algorithm used for automatic scaffold location can be selected from among these:
+<ul>
+<li><span class="menu">Most central ring system</span>: Imagine one removes all atoms and bonds that
+are not part of any ring of a given molecule. In this case we retain all separated and unsubstituted
+ring systems of this molecule. The most central ring system is the one that is topologically closest
+to the center of the molecule.</li>
+<li><span class="menu">Murcko scaffold</span>: If we locate all ring systems of a molecule and add all
+atoms and bonds that directly connect different ring systems, and remove all other bonds and atoms,
+we retain the so-called Murcko scaffold. Basically it is the original molecule with all substituents
+removed that do not contain any ring.</li>
+</ul>
+Both options require the existence of at least one ring in the molecule. In molecules that don't
+contain rings no scaffold is found. Hence, newly created coordinates for these molecules won't be
+influenced by the list of found scaffolds.
+</p>
+<br>
+
+<h3><a name="CompareFiles"></a>Comparing Structure Files</h3>
+<p>
+Sometimes the need arises to compare two rather big sets of compounds for overlaps, i.e.
 for compounds in one set, which are matched by very similar compounds in the other set.
 Typically, this task is due whenever new compounds shall be purchased from some provider,
 which should be substantially different to the compounds one already owns. 
 </p>
-
 <p align="center"><img src="help/img/chem/compareFiles.jpeg"></p>
 <br>
-
 
 <h3><a name="SelectDiverse"></a>Selecting Diverse Compounds from Large Set</h3>
 <p>
@@ -487,7 +556,7 @@ multiple targets or measured under different conditions. If a second column cont
 the conditions, and if only values within the same category can be compared to each other, then you should
 select the category column here. Then SALI value will only be calculated from compatible experimental values.</p>
 <p><b>Similarity limit:</b> Usually <span class="menu">Automatic</span> does a good job. However, if you
-prefer getting more or less neighborship relationsips than the automatic process generates, then you may
+prefer getting more or less neighborship relationships than the automatic process generates, then you may
 disable the automatic setting and (moderately) update the threshold defining slider. If the limit is set too
 high then this may cause the 2D-scaling find too little similarity relationships. The final map may then not
 be much different from the initial state of randomly scattered molecules. If the limit is

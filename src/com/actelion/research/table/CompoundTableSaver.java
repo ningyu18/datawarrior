@@ -23,8 +23,9 @@ import java.awt.Toolkit;
 import java.awt.datatransfer.StringSelection;
 import java.io.BufferedWriter;
 import java.io.File;
-import java.io.FileWriter;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.OutputStreamWriter;
 import java.io.StringWriter;
 import java.io.Writer;
 import java.util.ArrayList;
@@ -299,7 +300,7 @@ public class CompoundTableSaver implements CompoundTableConstants,Runnable {
 
 	private void saveFile() {
 		try {
-			mDataWriter = new FileWriter(mFile);
+			mDataWriter = new OutputStreamWriter(new FileOutputStream(mFile),"UTF-8");
 			mToClipboard = false;
 			processData();
             }
@@ -392,12 +393,10 @@ public class CompoundTableSaver implements CompoundTableConstants,Runnable {
 			for (int i=0; i<selectedColumn.length; i++) {
                 int column = mTableModel.convertFromDisplayableColumnIndex(
                                   mTable.convertColumnIndexToModel(selectedColumn[i]));
-				theWriter.write(mTableModel.getColumnTitleNoAlias(column));
-                if (mDataType == FileHelper.cFileTypeTextTabDelimited) {
-                    String specialType = mTableModel.getColumnSpecialType(column);
-                    if (specialType != null)
-                        theWriter.write("["+specialType+"]");
-                    }
+                if (mDataType == FileHelper.cFileTypeTextTabDelimited)
+                    theWriter.write(mTableModel.getColumnTitleWithSpecialType(column));
+                else
+                	theWriter.write(mTableModel.getColumnTitleNoAlias(column));
 				if (i < selectedColumn.length-1)
 					theWriter.write("\t");
 				}
@@ -406,12 +405,10 @@ public class CompoundTableSaver implements CompoundTableConstants,Runnable {
             // now write displayable columns in table model order
             for (int column=0; column<mTableModel.getTotalColumnCount(); column++) {
                 if (mTableModel.isColumnDisplayable(column)) {
-                    theWriter.write(mTableModel.getColumnTitleNoAlias(column));
-                    if (mDataType == FileHelper.cFileTypeTextTabDelimited) {
-                        String specialType = mTableModel.getColumnSpecialType(column);
-                        if (specialType != null)
-                            theWriter.write("["+specialType+"]");
-                        }
+                    if (mDataType == FileHelper.cFileTypeTextTabDelimited)
+                        theWriter.write(mTableModel.getColumnTitleWithSpecialType(column));
+                    else
+                    	theWriter.write(mTableModel.getColumnTitleNoAlias(column));
                     if (tabs-- > 0)
                         theWriter.write("\t");
                     }
@@ -492,6 +489,7 @@ public class CompoundTableSaver implements CompoundTableConstants,Runnable {
         value = value.replace("\r\n", CompoundTableLoader.NEWLINE_STRING);
         value = value.replace("\n", CompoundTableLoader.NEWLINE_STRING);
         value = value.replace("\r", CompoundTableLoader.NEWLINE_STRING);
+        value = value.replace("\t", CompoundTableLoader.TAB_STRING);
         return value;
 		}
 
@@ -638,7 +636,8 @@ public class CompoundTableSaver implements CompoundTableConstants,Runnable {
 						}
 
 					String type = mTableModel.getColumnDetailType(column, detail);
-					HashMap<String,String> oldToNewKeyMap = mTableModel.getDetailHandler().embedDetails(keyList.toArray(), source, ReferenceResolver.MODE_DEFAULT, type, mProgressDialog);
+					CompoundTableDetailSpecification sourceSpec = new CompoundTableDetailSpecification(mTableModel, column, detail);
+					HashMap<String,String> oldToNewKeyMap = mTableModel.getDetailHandler().embedDetails(keyList.toArray(), sourceSpec, ReferenceResolver.MODE_DEFAULT, type, mProgressDialog);
 
 					if (oldToNewKeyMap != null) {
 						for (int row=0; row<mTableModel.getTotalRowCount(); row++) {

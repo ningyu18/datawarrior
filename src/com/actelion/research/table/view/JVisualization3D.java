@@ -123,6 +123,8 @@ public class JVisualization3D extends JVisualization implements ComponentListene
 												   { 1, 5 }, { 2, 4 }, { 2, 6 }, { 3, 5 },
 												   { 3, 6 }, { 4, 7 }, { 5, 7 }, { 6, 7 }, };
 
+	public static final String[] SCALE_MODE_TEXT = { "Show all scales", "Hide all scales" };
+
 	private static final int STEREO_CURSOR_WIDTH = 12;
 	private static final int STEREO_CURSOR_LENGTH = 40;
 	private static final int MAX_FONT_HEIGHT = 32;
@@ -267,11 +269,11 @@ public class JVisualization3D extends JVisualization implements ComponentListene
     public void paintComponent(Graphics g) {
 		boolean antialiasing = !mIsAdjusting;
 		mAAFactor = antialiasing ? 2 : 1;
-        mContentScaling = (int)sRetinaFactor * mAAFactor;
+        mContentScaling = (int)getContentScaleFactor() * mAAFactor;
 
 		Dimension panelSize = getSize();
-		Dimension renderSize = (sRetinaFactor == 1f) ? panelSize
-		        : new Dimension((int)(panelSize.width*sRetinaFactor), (int)(panelSize.height*sRetinaFactor));
+		Dimension renderSize = (getContentScaleFactor() == 1f) ? panelSize
+		        : new Dimension((int)(panelSize.width*getContentScaleFactor()), (int)(panelSize.height*getContentScaleFactor()));
         if (mG3D == null
 		 || mG3D.getRenderWidth() != panelSize.width*mContentScaling
 		 || mG3D.getRenderHeight() != panelSize.height*mContentScaling) {
@@ -326,18 +328,21 @@ public class JVisualization3D extends JVisualization implements ComponentListene
 			// font sizes are optimized for screen resolution are need to be scaled by fontScaling
         mCoordinatesValid = false;
 
-		mFontHeight = (int)(mRelativeFontSize * Math.max(Math.min((float)bounds.width/60f, 9f*fontScaling), 6f*fontScaling));
+		// font size limitations switched off also here for consistency reasons, TLS 10-Apr-2015
+		mFontHeight = (int)(mRelativeFontSize * bounds.width / 60f);
+//		mFontHeight = (int)(mRelativeFontSize * Math.max(Math.min((float)bounds.width/60f, 9f*fontScaling), 6f*fontScaling));
 
-		boolean antialiasing = !isPrinting;
+		boolean antialiasing = true;
 		mContentScaling = (antialiasing) ? 2 : 1;
+
+        Image image = paintAllOnImage(g, new Dimension(bounds.width, bounds.height), antialiasing, null);
 
 		if (isPrinting)
 			// fontScaling was also used to inflate bounds to gain resolution
 			// and has to be compensated by inverted scaling of the g2D
 		    ((Graphics2D)g).scale(1.0/fontScaling, 1.0/fontScaling);
 
-        Image image = paintAllOnImage(g, new Dimension(bounds.width, bounds.height), antialiasing, null);
-        g.drawImage(image, bounds.x, bounds.y, null);
+       	g.drawImage(image, bounds.x, bounds.y, null);
 
 		mCoordinatesValid = false;
 		}
@@ -638,6 +643,8 @@ public class JVisualization3D extends JVisualization implements ComponentListene
 		}
 
 	private void paintContent(Graphics g, Rectangle bounds, Rectangle clipRect) {
+		mHVCount = 1;	// we don't use view splitting in 3D-views
+
         if (mChartInfo == null) {
         	if (mChartType == cChartTypeBoxPlot
              || mChartType == cChartTypeWhiskerPlot)
@@ -665,7 +672,7 @@ public class JVisualization3D extends JVisualization implements ComponentListene
    		    mDepthOrderValid = true;
    			}
 
-		if (!(mSuppressGrid && mSuppressScale)) {
+		if (!(mSuppressGrid && mScaleMode == cScaleModeHideAll)) {
 	        calculateAxes();
 			drawFaces();
 			drawAxes();
@@ -735,7 +742,7 @@ public class JVisualization3D extends JVisualization implements ComponentListene
 		}
 
 	protected void drawMolecule(StereoMolecule mol, Color color, Rectangle2D.Float rect, int mode, int maxAVBL) {
-	    Depictor3D d = new Depictor3D(mol);
+	    Depictor3D d = new Depictor3D(mol, Depictor3D.cDModeSuppressChiralText);
 	    rect.x *= mContentScaling;
 	    rect.y *= mContentScaling;
 	    rect.width *= mContentScaling;
@@ -753,7 +760,7 @@ public class JVisualization3D extends JVisualization implements ComponentListene
         int y1 = clipRect.y;
         int x2 = x1 + clipRect.width - 1;
         int y2 = y1 + clipRect.height - 1;
-        int f = (int)sRetinaFactor;
+        int f = (int)getContentScaleFactor();
         g.drawImage(image, x1/f, y1/f, x2/f, y2/f, x1, y1, x2, y2, null);
     	}
 
@@ -771,7 +778,7 @@ public class JVisualization3D extends JVisualization implements ComponentListene
 			if (mol == null)
 				return null;
 
-			Depictor3D depictor = new Depictor3D(mol);
+			Depictor3D depictor = new Depictor3D(mol, Depictor3D.cDModeSuppressChiralText);
             depictor.validateView(mG3D, DEPICTOR_RECT, AbstractDepictor.cModeInflateToHighResAVBL+mContentScaling*Math.max(1, (int)(256*getLabelAVBL(vp, position, isTreeView))));
             Rectangle2D.Float bounds = depictor.getBoundingRect();
             size.width = bounds.width;
@@ -1067,7 +1074,7 @@ public class JVisualization3D extends JVisualization implements ComponentListene
 			}
 		else if (e.getType() == CompoundTableEvent.cChangeColumnData) {
 	        for (int axis=0; axis<mDimensions; axis++)
-	            if (mAxisIndex[axis] == e.getSpecifier())
+	            if (mAxisIndex[axis] == e.getColumn())
 	            	invalidateMetaCoordinates(axis);
 	        invalidateOffImage(false);
 			}
@@ -1470,7 +1477,7 @@ public class JVisualization3D extends JVisualization implements ComponentListene
                                       : new IDCodeParser(true).getCompactMolecule(
                                                                         idcode.substring(0, index),
                                                                         idcode.substring(index+1));
-                            new Depictor(mScaleMolecule[axis][i]).updateCoords(g,
+                            new Depictor(mScaleMolecule[axis][i], Depictor.cDModeSuppressChiralText).updateCoords(g,
                                                 new Rectangle2D.Float(-molsize/2, -molsize/2, molsize, molsize),
                                                 AbstractDepictor.cModeInflateToMaxAVBL
                                                 + (int)(molsize/3));    // maximum average bond length
@@ -1572,7 +1579,7 @@ public class JVisualization3D extends JVisualization implements ComponentListene
         }
 
     private void drawAxes() {
-    	if (!mSuppressScale) {
+    	if (mScaleMode != cScaleModeHideAll) {
 			for (int i=0; i<3; i++) {
 				int x1 = mScreenCorner[cCornerOfEdge[i][0]].x;
 				int x2 = mScreenCorner[cCornerOfEdge[i][1]].x;
@@ -1618,7 +1625,7 @@ public class JVisualization3D extends JVisualization implements ComponentListene
 
     	if (!mSuppressGrid) {
 			mG3D.setColix(Graphics3D.getColix(0xFF000000 | getContrastGrey(0.6f).getRGB()));
-			int firstEdge = mSuppressScale ? 0 : 3;
+			int firstEdge = (mScaleMode == cScaleModeHideAll) ? 0 : 3;
 			for (int i=firstEdge; i<12; i++)
 			    mG3D.drawLine(mScreenCorner[cCornerOfEdge[i][0]].x,
 				        	  mScreenCorner[cCornerOfEdge[i][0]].y,
@@ -1737,7 +1744,7 @@ public class JVisualization3D extends JVisualization implements ComponentListene
                     drawScaleLine(face, edge, axis, -1, edgePosition, label);
                 }
             else
-                drawScaleLine(face, edge, axis, -1, edgePosition, DoubleFormat.toString(theMarker, exponent));
+                drawScaleLine(face, edge, axis, -1, edgePosition, DoubleFormat.toShortString(theMarker, exponent));
 
             theMarker += gridSpacing;
             }
@@ -1823,7 +1830,7 @@ public class JVisualization3D extends JVisualization implements ComponentListene
             while ((float)theMarker < (start + length)) {
                 float log = (float)Math.log10(theMarker) + exponent;
                 float edgePosition = (log-axisStart) / axisLength * 2.0f - 1.0f;
-                drawScaleLine(face, edge, axis, -1, edgePosition, DoubleFormat.toString(theMarker, exponent));
+                drawScaleLine(face, edge, axis, -1, edgePosition, DoubleFormat.toShortString(theMarker, exponent));
                 theMarker += gridSpacing;
                 }
             }
@@ -1834,7 +1841,7 @@ public class JVisualization3D extends JVisualization implements ComponentListene
 		float max = (mAxisIndex[axis] == -1) ? mChartInfo.axisMax : mAxisVisMax[axis];
         if (value >= min && value <= max) {
             float edgePosition = (value-min) / (max - min) * 2.0f - 1.0f;
-            drawScaleLine(face, edge, axis, -1, edgePosition, DoubleFormat.toString(Math.pow(10, value), 3));
+            drawScaleLine(face, edge, axis, -1, edgePosition, DoubleFormat.toString(Math.pow(10, value), 3, true));
             }
         }
 
@@ -1907,7 +1914,7 @@ public class JVisualization3D extends JVisualization implements ComponentListene
 	            }
         	}
 
-        if (!mSuppressScale) {
+        if (mScaleMode != cScaleModeHideAll) {
 	        if (label != null && label.length() != 0) {
 	            applyZoomToFontSize(mScreenZoom * cLocation / s2.z);
 	            FontMetrics metrics = mG3D.getFont3DCurrent().fontMetrics;
@@ -1965,7 +1972,7 @@ public class JVisualization3D extends JVisualization implements ComponentListene
 			mMoleculeOffsetY[axis][index] = y;
 			}
 
-		new Depictor3D(mol).paint(g3D);
+		new Depictor3D(mol, Depictor3D.cDModeSuppressChiralText).paint(g3D);
 		mCurrentFontSize3D = -1;	// invalidate
 		}
 
@@ -2506,7 +2513,7 @@ public class JVisualization3D extends JVisualization implements ComponentListene
 				if (mol == null)
 					return;
 
-				depictor = new Depictor3D(mol);
+				depictor = new Depictor3D(mol, Depictor3D.cDModeSuppressChiralText);
                 depictor.validateView(mG3D, DEPICTOR_RECT, AbstractDepictor.cModeInflateToHighResAVBL+mContentScaling*Math.max(1, (int)(256*getLabelAVBL(vp, position, isTreeView))));
                 molRect = depictor.getBoundingRect();
                 w = (int)molRect.width;

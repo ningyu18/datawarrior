@@ -66,8 +66,8 @@ public class DETaskSaveSDFileAs extends DETaskAbstractSaveFile {
 	 * @param isVersion3 only used, if is interactive
 	 * @param isInteractive
 	 */
-	public DETaskSaveSDFileAs(DEFrame parent, boolean isInteractive) {
-		super(parent, "", isInteractive);
+	public DETaskSaveSDFileAs(DEFrame parent) {
+		super(parent, "");
 		}
 
 	@Override
@@ -187,7 +187,7 @@ public class DETaskSaveSDFileAs extends DETaskAbstractSaveFile {
 		Properties configuration = isInteractive() ? mPredefinedConfiguration : super.getDialogConfiguration();
 		configuration.setProperty(PROPERTY_STRUCTURE_COLUMN, (String)mComboBoxStructureColumn.getSelectedItem());
 		configuration.setProperty(PROPERTY_SD_VERSION, SD_VERSION_CODE[mComboBoxVersion.getSelectedIndex()]);
-		configuration.setProperty(PROPERTY_COORDINATE_MODE, COORDINATE_CODE[mComboBoxVersion.getSelectedIndex()]);
+		configuration.setProperty(PROPERTY_COORDINATE_MODE, COORDINATE_CODE[mComboBoxCoordinateMode.getSelectedIndex()]);
 		return configuration;
 		}
 

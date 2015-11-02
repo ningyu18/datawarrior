@@ -13,6 +13,7 @@ package com.actelion.research.chem.conf;
 
 import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.TreeMap;
 
@@ -26,23 +27,31 @@ public class TorsionDB {
     public static final int MODE_BINS = 8;
     public static final int MODE_ALL = 15;
 
+    private static final String DATABASE_COD = "cod/";
+    private static final String DATABASE_CSD = "csd/";
+
     public static final int TORSION_NOT_FOUND = -1;
     public static final int TORSION_GREEN = 0;
     public static final int TORSION_YELLOW = 1;
     public static final int TORSION_RED = 2;
 
-    private static final String cTorsionIDFile = "/resources/conformation/torsionID.txt";
-    private static final String cTorsionAngleFile = "/resources/conformation/torsionAngle.txt";
-    private static final String cTorsionRangeFile = "/resources/conformation/torsionRange.txt";
-    private static final String cTorsionFrequencyFile = "/resources/conformation/torsionFrequency.txt";
-    private static final String cTorsionBinsFile = "/resources/conformation/torsionBins.txt";
+    private static final String cBasePath = "/resources/";
+    private static final String cTorsionIDFile = "torsionID.txt";
+    private static final String cTorsionAngleFile = "torsionAngle.txt";
+    private static final String cTorsionRangeFile = "torsionRange.txt";
+    private static final String cTorsionFrequencyFile = "torsionFrequency.txt";
+    private static final String cTorsionBinsFile = "torsionBins.txt";
 
     private static final int MAX_SP_CHAIN_LENGTH = 15;
 
     private static TorsionDB sInstance;
+    private static String sDatabase;
     private int mSupportedModes;
     private TreeMap<String,TorsionInfo> mTreeMap;
 
+    /**
+     * @param mode
+     */
     public static void initialize(int mode) {
         if (sInstance == null) {
         	synchronized(TorsionDB.class) {
@@ -159,15 +168,11 @@ public class TorsionDB {
 	    	mSupportedModes |= mode;
 	
 	    	try {
-	            BufferedReader tr = new BufferedReader(new InputStreamReader(this.getClass().getResourceAsStream(cTorsionIDFile)));
-	            BufferedReader ar = ((mode & MODE_ANGLES) == 0) ? null
-	                              : new BufferedReader(new InputStreamReader(this.getClass().getResourceAsStream(cTorsionAngleFile)));
-	            BufferedReader rr = ((mode & MODE_RANGES) == 0) ? null
-	            				  : new BufferedReader(new InputStreamReader(this.getClass().getResourceAsStream(cTorsionRangeFile)));
-	            BufferedReader fr = ((mode & MODE_FREQUENCIES) == 0) ? null
-	                              : new BufferedReader(new InputStreamReader(this.getClass().getResourceAsStream(cTorsionFrequencyFile)));
-	            BufferedReader br = ((mode & MODE_BINS) == 0) ? null
-	                              : new BufferedReader(new InputStreamReader(this.getClass().getResourceAsStream(cTorsionBinsFile)));
+	            BufferedReader tr = openReader(cTorsionIDFile);
+	            BufferedReader ar = ((mode & MODE_ANGLES) == 0) ? null : openReader(cTorsionAngleFile);
+	            BufferedReader rr = ((mode & MODE_RANGES) == 0) ? null : openReader(cTorsionRangeFile);
+	            BufferedReader fr = ((mode & MODE_FREQUENCIES) == 0) ? null : openReader(cTorsionFrequencyFile);
+	            BufferedReader br = ((mode & MODE_BINS) == 0) ? null : openReader(cTorsionBinsFile);
 	
 	            String type = tr.readLine();
 	            while (type != null) {
@@ -221,6 +226,21 @@ public class TorsionDB {
 	        catch (IOException e) {}
     		}
         }
+
+    private BufferedReader openReader(String resourceName) throws IOException {
+    	if (sDatabase == null) {
+    		InputStream is = this.getClass().getResourceAsStream(cBasePath+DATABASE_CSD+resourceName);
+    		if (is != null) {
+    			sDatabase = DATABASE_CSD;
+    			return new BufferedReader(new InputStreamReader(is));
+    			}
+
+    		sDatabase = DATABASE_COD;
+    		}
+
+       	return new BufferedReader(new InputStreamReader(this.getClass().getResourceAsStream(
+   				cBasePath+sDatabase+resourceName)));
+    	}
 
     /**
      * Returns an array of maxima of the smoothened torsion histogram
@@ -306,7 +326,8 @@ public class TorsionDB {
      * assumed to lie on the third terminal sp3 position, when we have two real terminal atoms with
      * equal symmetry ranks. If bond is part of a consecutive sp-sp atom chain, then
      * the classifying fragment covers all linear atoms plus two end atoms not being member
-     * of the linear sp-atom strand.
+     * of the linear sp-atom strand. In this case torsionAtom (indexes 1,2) contains the two
+     * end-atoms of the linear atom strand, which are sp2- or sp3-hybridized.
      * @param mol source molecule
      * @param bond of which to determine torsion statistics
      * @param torsionAtom null or int[4] to receive torsion atoms

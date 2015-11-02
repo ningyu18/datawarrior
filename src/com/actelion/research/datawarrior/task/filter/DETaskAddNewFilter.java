@@ -23,6 +23,7 @@ import info.clearthought.layout.TableLayout;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Dimension;
+import java.awt.Frame;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.util.ArrayList;
@@ -66,7 +67,8 @@ import com.actelion.research.table.filter.JStringFilterPanel;
 public class DETaskAddNewFilter extends ConfigurableTask implements ActionListener {
 	public static final String TASK_NAME = "Create Filter";
 
-    private static final String[] FILTER_NAME = {
+	// Order matches the FILTER_JFilterPanel.FILTER_TYPE_??? types defined in JFilterPanel
+	protected static final String[] FILTER_NAME = {
     	"[Text]",
     	"[Slider]",
     	"[Category]",
@@ -78,7 +80,8 @@ public class DETaskAddNewFilter extends ConfigurableTask implements ActionListen
     	"[Category Browser]"
     	};
 
-    private static final String[] FILTER_CODE = {
+	// Order matches the FILTER_JFilterPanel.FILTER_TYPE_??? types defined in JFilterPanel
+    protected static final String[] FILTER_CODE = {
     	"text",
     	"slider",
     	"category",
@@ -90,7 +93,8 @@ public class DETaskAddNewFilter extends ConfigurableTask implements ActionListen
     	"browser"
     	};
 
-    private static final boolean[] FILTER_NEEDS_COLUMN = {
+	// Order matches the FILTER_JFilterPanel.FILTER_TYPE_??? types defined in JFilterPanel
+    protected static final boolean[] FILTER_NEEDS_COLUMN = {
     	true,
     	true,
     	true,
@@ -106,16 +110,6 @@ public class DETaskAddNewFilter extends ConfigurableTask implements ActionListen
     private static final String PROPERTY_FILTER_COUNT = "filterCount";
     private static final String PROPERTY_FILTER = "filter";
     
-    private static final int TYPE_STRING = 0;
-	private static final int TYPE_DOUBLE = 1;
-	private static final int TYPE_CATEGORY = 2;
-	private static final int TYPE_STRUCTURE = 3;
-	private static final int TYPE_SSS_LIST = 4;
-	private static final int TYPE_SIM_LIST = 5;
-    private static final int TYPE_REACTION = 6;
-    private static final int TYPE_ROWLIST = 7;
-    private static final int TYPE_CATEGORY_BROWSER = 8;
-
     private static Properties sRecentConfiguration;
 
 	private CompoundTableModel  mTableModel;
@@ -123,14 +117,29 @@ public class DETaskAddNewFilter extends ConfigurableTask implements ActionListen
 	private JList				mFilterList;
 	private JCheckBox			mCheckBox;
 	private JTextArea			mTextArea;
-	private boolean				mIsInteractive;
+	private int					mColumn,mFilterType;
 
-    public DETaskAddNewFilter(DEFrame parent, boolean isInteractive) {
+    public DETaskAddNewFilter(DEFrame parent, DEPruningPanel pruningPanel) {
 		super(parent, false);
 
-		mTableModel = parent.getTableModel();
-		mPruningPanel = parent.getMainFrame().getPruningPanel();
-		mIsInteractive = isInteractive;
+		mPruningPanel = pruningPanel;
+		mTableModel = pruningPanel.getTableModel();
+		mFilterType = -1;	// if interactive, then show dialog
+    	}
+
+    /**
+     * Instantiates this task interactively with a pre-defined configuration.
+     * @param parent
+     * @param column
+     * @param filterType
+     */
+    public DETaskAddNewFilter(Frame parent, DEPruningPanel pruningPanel, int column, int filterType) {
+		super(parent, false);
+    	
+		mPruningPanel = pruningPanel;
+		mTableModel = pruningPanel.getTableModel();
+		mFilterType = filterType;
+		mColumn = column;
     	}
 
 	public void actionPerformed(ActionEvent e) {
@@ -140,12 +149,24 @@ public class DETaskAddNewFilter extends ConfigurableTask implements ActionListen
 			}
 		}
 
+	@Override
+	public Properties getPredefinedConfiguration() {
+		if (mFilterType == -1)
+			return null;
+
+		Properties configuration = new Properties();
+	    configuration.setProperty(PROPERTY_FILTER_COUNT, "1");
+		String columnName = FILTER_NEEDS_COLUMN[mFilterType] ? mTableModel.getColumnTitleNoAlias(mColumn) : null;
+		configuration.setProperty(PROPERTY_FILTER+"0", (columnName == null) ? FILTER_CODE[mFilterType] : FILTER_CODE[mFilterType]+":"+columnName);
+		return configuration;
+		}
+
 	private void populateFilterList(boolean allowDuplicates) {
         ArrayList<String> itemList = new ArrayList<String>();
 
         for (int column=0; column<mTableModel.getTotalColumnCount(); column++) {
             if (mTableModel.isColumnTypeCategory(column)) {
-                addItem(itemList, -1, TYPE_CATEGORY_BROWSER, allowDuplicates);
+                addItem(itemList, -1, JFilterPanel.FILTER_TYPE_CATEGORY_BROWSER, allowDuplicates);
                 break;
                 }
             }
@@ -154,31 +175,31 @@ public class DETaskAddNewFilter extends ConfigurableTask implements ActionListen
             String specialType = mTableModel.getColumnSpecialType(i);
             if (specialType != null) {
                 if (specialType.equals(CompoundTableModel.cColumnTypeIDCode)) {
-                    addItem(itemList, i, TYPE_STRUCTURE, allowDuplicates);
-                    addItem(itemList, i, TYPE_SSS_LIST, allowDuplicates);
-                    addItem(itemList, i, TYPE_SIM_LIST, allowDuplicates);
+                    addItem(itemList, i, JFilterPanel.FILTER_TYPE_STRUCTURE, allowDuplicates);
+                    addItem(itemList, i, JFilterPanel.FILTER_TYPE_SSS_LIST, allowDuplicates);
+                    addItem(itemList, i, JFilterPanel.FILTER_TYPE_SIM_LIST, allowDuplicates);
                 	}
                 if (specialType.equals(CompoundTableModel.cColumnTypeRXNCode))
-                    addItem(itemList, i, TYPE_REACTION, allowDuplicates);
+                    addItem(itemList, i, JFilterPanel.FILTER_TYPE_REACTION, allowDuplicates);
                 }
             else {
-   				addItem(itemList, i, TYPE_STRING, allowDuplicates);
+   				addItem(itemList, i, JFilterPanel.FILTER_TYPE_STRING, allowDuplicates);
     
     		    if (mTableModel.isColumnTypeDouble(i)
                  && mTableModel.hasNumericalVariance(i))
-    				addItem(itemList, i, TYPE_DOUBLE, allowDuplicates);
+    				addItem(itemList, i, JFilterPanel.FILTER_TYPE_DOUBLE, allowDuplicates);
     
     		    if (mTableModel.isColumnTypeCategory(i)
     		     && mTableModel.getCategoryCount(i) < JCategoryFilterPanel.cMaxCheckboxCount)
-    				addItem(itemList, i, TYPE_CATEGORY, allowDuplicates);
+    				addItem(itemList, i, JFilterPanel.FILTER_TYPE_CATEGORY, allowDuplicates);
     
     		    if (mTableModel.isColumnTypeRangeCategory(i))
-    				addItem(itemList, i, TYPE_DOUBLE, allowDuplicates);
+    				addItem(itemList, i, JFilterPanel.FILTER_TYPE_DOUBLE, allowDuplicates);
                 }
 			}
 
 		if (mTableModel.getHitlistHandler().getHitlistCount() > 0)
-			addItem(itemList, -1, TYPE_ROWLIST, allowDuplicates);
+			addItem(itemList, -1, JFilterPanel.FILTER_TYPE_ROWLIST, allowDuplicates);
 
 		Collections.sort(itemList, String.CASE_INSENSITIVE_ORDER);
         mFilterList.setListData(itemList.toArray());
@@ -188,43 +209,43 @@ public class DETaskAddNewFilter extends ConfigurableTask implements ActionListen
 		if (!allowDuplicates) {
 			for (int i=0; i<mPruningPanel.getFilterCount(); i++) {
 				JFilterPanel filter = mPruningPanel.getFilter(i);
-				if (type == TYPE_ROWLIST) {
+				if (type == JFilterPanel.FILTER_TYPE_ROWLIST) {
 					if (filter instanceof JHitlistFilterPanel)
 						return;
 					}
-                else if (type == TYPE_CATEGORY_BROWSER) {
+                else if (type == JFilterPanel.FILTER_TYPE_CATEGORY_BROWSER) {
                     if (filter instanceof JCategoryBrowser)
                         return;
                     }
 				else if (filter.getColumnIndex() == column) {
 					switch (type) {
-                        case TYPE_STRUCTURE:
+                        case JFilterPanel.FILTER_TYPE_STRUCTURE:
                             if (filter instanceof JSingleStructureFilterPanel)
                                 return;
                             break;
-                        case TYPE_SSS_LIST:
+                        case JFilterPanel.FILTER_TYPE_SSS_LIST:
                             if (filter instanceof JMultiStructureFilterPanel
                        		 && ((JMultiStructureFilterPanel)filter).supportsSSS())
                                 return;
                             break;
-                        case TYPE_SIM_LIST:
+                        case JFilterPanel.FILTER_TYPE_SIM_LIST:
                             if (filter instanceof JMultiStructureFilterPanel
                       		 && ((JMultiStructureFilterPanel)filter).supportsSim())
                                 return;
                             break;
-                        case TYPE_REACTION:
+                        case JFilterPanel.FILTER_TYPE_REACTION:
                             if (filter instanceof JReactionFilterPanel)
                                 return;
                             break;
-                        case TYPE_STRING:
+                        case JFilterPanel.FILTER_TYPE_STRING:
 							if (filter instanceof JStringFilterPanel)
 								return;
 							break;
-						case TYPE_DOUBLE:
+						case JFilterPanel.FILTER_TYPE_DOUBLE:
 							if (filter instanceof JDoubleFilterPanel)
 								return;
 							break;
-						case TYPE_CATEGORY:
+						case JFilterPanel.FILTER_TYPE_CATEGORY:
 							if (filter instanceof JCategoryFilterPanel)
 								return;
 							break;
@@ -242,7 +263,7 @@ public class DETaskAddNewFilter extends ConfigurableTask implements ActionListen
 
 		String columnName = (column < 0) ? null : mTableModel.getColumnTitleExtended(column);
 
-		if (type == TYPE_DOUBLE) {
+		if (type == JFilterPanel.FILTER_TYPE_DOUBLE) {
 			String text = columnName+" "+FILTER_NAME[type];
             return mTableModel.isColumnDataComplete(column) ? text : text+" ";
 			}
@@ -276,7 +297,7 @@ public class DETaskAddNewFilter extends ConfigurableTask implements ActionListen
 	public JComponent createDialogContent() {
 		JScrollPane scrollPane = null;
 
-		if (mIsInteractive) {
+		if (isInteractive()) {
 	        mFilterList = new JList();
 	        mFilterList.setCellRenderer(new DefaultListCellRenderer() {
 	            private static final long serialVersionUID = 0x20110526;
@@ -306,11 +327,11 @@ public class DETaskAddNewFilter extends ConfigurableTask implements ActionListen
 		double[][] size = { {8, TableLayout.PREFERRED, 8},
 							{8, TableLayout.PREFERRED, 4, TableLayout.PREFERRED, 8, TableLayout.PREFERRED, 8} };
 		content.setLayout(new TableLayout(size));
-		String syntax = mIsInteractive ? "Column Name [Type]" : "type:column name";
+		String syntax = isInteractive() ? "Column Name [Type]" : "type:column name";
 		content.add(new JLabel("New Filters (as '"+syntax+"'):"), "1,1");
 		content.add(scrollPane, "1, 3");
 
-		if (mIsInteractive)
+		if (isInteractive())
 			content.add(mCheckBox, "1, 5");
 
 		return content;
@@ -320,7 +341,7 @@ public class DETaskAddNewFilter extends ConfigurableTask implements ActionListen
 	public Properties getDialogConfiguration() {
     	Properties configuration = new Properties();
 
-    	if (mIsInteractive) {
+    	if (isInteractive()) {
         	if (mCheckBox.isSelected())
         	    configuration.setProperty(PROPERTY_SHOW_DUPLICATES, "true");
 
@@ -361,7 +382,7 @@ public class DETaskAddNewFilter extends ConfigurableTask implements ActionListen
 	public void setDialogConfiguration(Properties configuration) {
 		int filterCount = Integer.parseInt(configuration.getProperty(PROPERTY_FILTER_COUNT, "0"));
 
-		if (mIsInteractive) {
+		if (isInteractive()) {
 			mCheckBox.setSelected("true".equals(configuration.getProperty(PROPERTY_SHOW_DUPLICATES)));
 
 			populateFilterList(mCheckBox.isSelected());
@@ -424,7 +445,7 @@ public class DETaskAddNewFilter extends ConfigurableTask implements ActionListen
 
 	@Override
 	public void setDialogConfigurationToDefault() {
-		if (mIsInteractive) {
+		if (isInteractive()) {
 			mCheckBox.setSelected(false);
 			populateFilterList(mCheckBox.isSelected());
 			}
@@ -482,35 +503,35 @@ public class DETaskAddNewFilter extends ConfigurableTask implements ActionListen
 				if (!FILTER_NEEDS_COLUMN[type] || column >= 0) {
 					try {
 						switch (type) {
-						case TYPE_STRING:
+						case JFilterPanel.FILTER_TYPE_STRING:
 							mPruningPanel.addStringFilter(mTableModel, column);
 							break;
-						case TYPE_DOUBLE:
+						case JFilterPanel.FILTER_TYPE_DOUBLE:
 							mPruningPanel.addDoubleFilter(mTableModel, column);
 							break;
-						case TYPE_CATEGORY:
+						case JFilterPanel.FILTER_TYPE_CATEGORY:
 							mPruningPanel.addCategoryFilter(mTableModel, column);
 							break;
-						case TYPE_STRUCTURE:
+						case JFilterPanel.FILTER_TYPE_STRUCTURE:
 		                    addDefaultDescriptor(column);
 		                    mPruningPanel.addStructureFilter(mTableModel, column, null);
 							break;
-						case TYPE_SSS_LIST:
+						case JFilterPanel.FILTER_TYPE_SSS_LIST:
 		                    addDefaultDescriptor(column);
 		                    mPruningPanel.addStructureListFilter(mTableModel, column, true);
 							break;
-						case TYPE_SIM_LIST:
+						case JFilterPanel.FILTER_TYPE_SIM_LIST:
 		                    addDefaultDescriptor(column);
 		                    mPruningPanel.addStructureListFilter(mTableModel, column, false);
 							break;
-						case TYPE_REACTION:
+						case JFilterPanel.FILTER_TYPE_REACTION:
 		                    addDefaultDescriptor(column);
 		                    mPruningPanel.addReactionFilter(mTableModel, column, null);
 							break;
-						case TYPE_ROWLIST:
+						case JFilterPanel.FILTER_TYPE_ROWLIST:
 							mPruningPanel.addHitlistFilter(mTableModel);
 							break;
-						case TYPE_CATEGORY_BROWSER:
+						case JFilterPanel.FILTER_TYPE_CATEGORY_BROWSER:
 		                    mPruningPanel.addCategoryBrowser(mTableModel);
 		                	break;
 							}

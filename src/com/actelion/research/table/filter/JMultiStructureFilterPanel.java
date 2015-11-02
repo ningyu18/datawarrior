@@ -39,7 +39,7 @@ import com.actelion.research.table.CompoundTableModel;
 
 public class JMultiStructureFilterPanel extends JStructureFilterPanel 
 				implements CompoundCollectionListener,DescriptorConstants {
-    private static final long serialVersionUID = 0x20110519;
+	private static final long serialVersionUID = 0x20110519;
 
 	private CompoundCollectionPane<String> mStructurePane;
 	private boolean mIsSSS;
@@ -50,39 +50,39 @@ public class JMultiStructureFilterPanel extends JStructureFilterPanel
 	 * @param tableModel
 	 * @param isSSS
 	 */
-    public JMultiStructureFilterPanel(Frame parent, CompoundTableModel tableModel, boolean isSSS) {
-    	this(parent, tableModel, -1, 0, isSSS);
-    	}
+	public JMultiStructureFilterPanel(Frame parent, CompoundTableModel tableModel, boolean isSSS) {
+		this(parent, tableModel, -1, -1, isSSS);
+		}
 
-    public JMultiStructureFilterPanel(Frame parent, CompoundTableModel tableModel, int column, int exclusionFlag, boolean isSSS) {
+	public JMultiStructureFilterPanel(Frame parent, CompoundTableModel tableModel, int column, int exclusionFlag, boolean isSSS) {
 		super(parent, tableModel, column, exclusionFlag);
 		mIsSSS = isSSS;
 
-        JPanel contentPanel = new JPanel();
-        double[][] size = { {4, TableLayout.FILL, 4, TableLayout.PREFERRED, 4},
-                            {TableLayout.PREFERRED, 4, TableLayout.PREFERRED, 4} };
-        contentPanel.setLayout(new TableLayout(size));
-        contentPanel.setOpaque(false);
+		JPanel contentPanel = new JPanel();
+		double[][] size = { {4, TableLayout.FILL, 4, TableLayout.PREFERRED, 4},
+							{TableLayout.PREFERRED, 4, TableLayout.PREFERRED, 4} };
+		contentPanel.setLayout(new TableLayout(size));
+		contentPanel.setOpaque(false);
 
 		mComboBox = new JComboBox() {
-            private static final long serialVersionUID = 0x20080611;
-            public Dimension getPreferredSize() {
-                Dimension size = super.getPreferredSize();
-                size.width = Math.min(72, size.width);
-                return size;
-                } 
-            };
-        updateComboBox(isSSS ? cItemContains : cItemIsSimilarTo);
+			private static final long serialVersionUID = 0x20080611;
+			public Dimension getPreferredSize() {
+				Dimension size = super.getPreferredSize();
+				size.width = Math.min(72, size.width);
+				return size;
+				} 
+			};
+		updateComboBox(isSSS ? cItemContains : cItemIsSimilarTo);
 		contentPanel.add(mComboBox, "1,0,3,0");
 
 		if (!isSSS)
 			contentPanel.add(getSimilaritySlider(), "3,2");
 
 		mStructurePane = new CompoundCollectionPane<String>(new DefaultCompoundCollectionModel.IDCode(), false) {
-            private static final long serialVersionUID = 0x20110520;
-            public Dimension getPreferredSize() {
-                return new Dimension(100,80);
-                } 
+			private static final long serialVersionUID = 0x20110520;
+			public Dimension getPreferredSize() {
+				return new Dimension(100,80);
+				} 
 			};
 		mStructurePane.setCreateFragments(isSSS);
 		mStructurePane.setEditable(true);
@@ -94,54 +94,59 @@ public class JMultiStructureFilterPanel extends JStructureFilterPanel
 		add(contentPanel, BorderLayout.CENTER);
 
 		mIsUserChange = true;
-    	}
+		}
+
+	@Override
+	public void enableItems(boolean b) {
+		mComboBox.setEnabled(b);
+		if (!mIsSSS)
+			getSimilaritySlider().setEnabled(b);
+		mStructurePane.setEnabled(b);
+		}
 
 	public void itemStateChanged(ItemEvent e) {
 		super.itemStateChanged(e);
 
 		if (e.getSource() == mComboBox
-         && e.getStateChange() == ItemEvent.SELECTED) {
-			if (mComboBox.getSelectedItem().equals(cItemDisabled))
-				setInverse(false);
-
-			updateExclusion();
+		 && e.getStateChange() == ItemEvent.SELECTED) {
+			updateExclusion(mIsUserChange);
 			}
 		}
 
 	@Override
 	public void collectionUpdated(int fromIndex, int toIndex) {
 		if (!mIsSSS && isActive()) {
-        	if (mStructurePane.getModel().getSize() == 0)
-        		mSimilarity = null;
-        	else if (mSimilarity != null && fromIndex == 0 && toIndex+1 >= mSimilarity.length)
-        		mSimilarity = null;
-        	if (mSimilarity != null) {
-        		if (mSimilarity.length != mStructurePane.getModel().getSize()) {
-        			float[][] newSimilarity = new float[mStructurePane.getModel().getSize()][];
-        			for (int i=0; i<fromIndex; i++)
-        				newSimilarity[i] = mSimilarity[i];
-        			for (int i=toIndex+1; i<newSimilarity.length; i++)
-        				newSimilarity[i] = mSimilarity[i];
-        			mSimilarity = newSimilarity;
-        			}
-                int descriptorColumn = mDescriptorColumn[mComboBox.getSelectedIndex()];
-    			for (int i=0; i<mSimilarity.length; i++) {
-    				if (mSimilarity[i] == null || (i>= fromIndex && i <= toIndex)) {
-	                    mSimilarity[i] = createSimilarityList(getStructure(i), descriptorColumn);
+			if (mStructurePane.getModel().getSize() == 0)
+				mSimilarity = null;
+			else if (mSimilarity != null && fromIndex == 0 && toIndex+1 >= mSimilarity.length)
+				mSimilarity = null;
+			if (mSimilarity != null) {
+				if (mSimilarity.length != mStructurePane.getModel().getSize()) {
+					float[][] newSimilarity = new float[mStructurePane.getModel().getSize()][];
+					for (int i=0; i<fromIndex; i++)
+						newSimilarity[i] = mSimilarity[i];
+					for (int i=toIndex+1; i<newSimilarity.length; i++)
+						newSimilarity[i] = mSimilarity[i];
+					mSimilarity = newSimilarity;
+					}
+				int descriptorColumn = mDescriptorColumn[mComboBox.getSelectedIndex()];
+				for (int i=0; i<mSimilarity.length; i++) {
+					if (mSimilarity[i] == null || (i>= fromIndex && i <= toIndex)) {
+						mSimilarity[i] = createSimilarityList(getStructure(i), descriptorColumn);
 	
-	                    if (mSimilarity[i] == null) {	// user cancelled SMP dialog
-	                        mComboBox.setSelectedItem(cItemDisabled);
-	                        break;
-	                    	}
-	    				}
-    				}
-        		}
-            }
+						if (mSimilarity[i] == null) {	// user cancelled SMP dialog
+							setEnabled(false);
+							break;
+							}
+						}
+					}
+				}
+			}
 
 		if (mStructurePane.getModel().getSize() == 0)
 			setInverse(false);
 
-		updateExclusion();
+		updateExclusion(mIsUserChange);
 		}
 
 	@Override
@@ -165,13 +170,19 @@ public class JMultiStructureFilterPanel extends JStructureFilterPanel
 		}
 
 	@Override
+	public void innerReset() {
+		if (mStructurePane.getModel().getSize() != 0) {
+			mStructurePane.getModel().clear();
+			}
+		}
+
+	@Override
 	public String getInnerSettings() {
 		CompoundCollectionModel<String> model = mStructurePane.getModel();
 		if (model.getSize() != 0) {
-            String item = (String)mComboBox.getSelectedItem();
+			String item = (String)mComboBox.getSelectedItem();
 
-            String settings = item.equals(cItemDisabled) ? cFilterDisabled
-							: mIsSSS ? null : itemToDescriptor(item)+"\t"+getSimilaritySlider().getValue();
+			String settings = mIsSSS ? null : itemToDescriptor(item)+"\t"+getSimilaritySlider().getValue();
 
 			for (int i=0; i<model.getSize(); i++)
 				settings = attachSetting(settings, model.getCompound(i));
@@ -184,22 +195,17 @@ public class JMultiStructureFilterPanel extends JStructureFilterPanel
 	@Override
 	public void applyInnerSettings(String settings) {
 		if (settings != null) {
-            String desiredItem = null;
-			if (settings.startsWith(cFilterDisabled)) {
-                setInverse(false);
-				populateStructures(settings.substring(cFilterDisabled.length()+1));
-                desiredItem = cItemDisabled;
-                }
-			else if (mIsSSS) {
+			String desiredItem = null;
+			if (mIsSSS) {
 				populateStructures(settings);
 				desiredItem = cItemContains;
 				}
 			else {
-                int index1 = settings.indexOf('\t');
+				int index1 = settings.indexOf('\t');
 				int index2 = settings.indexOf('\t', index1+1);
-                String descriptor = settings.substring(0, index1);
+				String descriptor = settings.substring(0, index1);
 
-                int similarity = Integer.parseInt(settings.substring(index1+1, index2));
+				int similarity = Integer.parseInt(settings.substring(index1+1, index2));
 				getSimilaritySlider().setValue(similarity);
 
 				populateStructures(settings.substring(index2+1));
@@ -209,7 +215,7 @@ public class JMultiStructureFilterPanel extends JStructureFilterPanel
 			if (!desiredItem.equals(mComboBox.getSelectedItem()))
 				mComboBox.setSelectedItem(desiredItem);
 			else
-				updateExclusion();
+				updateExclusion(false);
 			}
 		}
 
@@ -228,5 +234,10 @@ public class JMultiStructureFilterPanel extends JStructureFilterPanel
 		for (int i=0; i<idcode.length; i++)
 			model.addCompound(idcode[i]);
 		model.addCompoundCollectionListener(this);
+		}
+
+	@Override
+	public int getFilterType() {
+		return mIsSSS ? FILTER_TYPE_SSS_LIST : FILTER_TYPE_SIM_LIST;
 		}
 	}

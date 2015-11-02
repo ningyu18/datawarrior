@@ -137,8 +137,10 @@ public class DEAppendFileDialog extends JDialog
 		for (int i=0; i<mVisibleFieldName.length; i++) {
             int typeIndex = getDisplayableType(mLoader.getColumnSpecialType(mVisibleFieldName[i]));
             mComboBoxList[i] = new JComboBox(columnListBySpecialType[typeIndex].toArray());
+            int column = mTableModel.findColumn(mVisibleFieldName[i]);	// this way we match also columns with alias in current data set
             for (int j=2; j<columnListBySpecialType[typeIndex].size(); j++)
-                if (mVisibleFieldName[i].equalsIgnoreCase(columnListBySpecialType[typeIndex].get(j)))
+                if (mVisibleFieldName[i].equalsIgnoreCase(columnListBySpecialType[typeIndex].get(j))
+                 || (column != -1 && column == mTableModel.findColumn(columnListBySpecialType[typeIndex].get(j))))
                     mComboBoxList[i].setSelectedIndex(j);
 
             mp0.add(new JLabel("assign '"+mVisibleFieldName[i]+"' to ", SwingConstants.RIGHT));

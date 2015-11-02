@@ -20,13 +20,15 @@ package com.actelion.research.datawarrior.task;
 
 import java.util.Properties;
 
+import javax.swing.JOptionPane;
 import javax.swing.SwingUtilities;
 
 import com.actelion.research.calc.ProgressController;
 import com.actelion.research.datawarrior.DEFrame;
 
 
-public class DEMacroRecorder implements Runnable {
+public class DEMacroRecorder implements ProgressController,Runnable {
+	public static final String RECORDING_MESSAGE = "Recording Macro...";
 	private static volatile DEMacroRecorder sRecorder = null;
 
 	private volatile boolean	mIsRecording;
@@ -34,8 +36,7 @@ public class DEMacroRecorder implements Runnable {
 	private volatile DEFrame	mFrontFrame;
 	private volatile DEMacro	mRunningMacro;
 	private volatile StandardTaskFactory	mTaskFactory;
-	private volatile ProgressController		mProgressController;
-	private DEFrame				mRecordingMacroOwner;
+	private DEFrame				mRecordingMacroOwner,mFrontFrameWhenRecordingStopped;
 	private DEMacro				mRecordingMacro;
 
 	/**
@@ -76,13 +77,21 @@ public class DEMacroRecorder implements Runnable {
 	public void startRecording(DEMacro macro, DEFrame macroOwner) {
 		mRecordingMacro = macro;
 		mRecordingMacroOwner = macroOwner;
-		mRecordingMacroOwner.getMainFrame().getMainPane().getMacroProgressPanel().showMessage("Recording Macro...");
 		mIsRecording = true;
+		for (DEFrame frame:macroOwner.getApplication().getFrameList())
+			frame.updateMacroStatus();
 		}
 
 	public void continueRecording() {
-		mRecordingMacroOwner.getMainFrame().getMainPane().getMacroProgressPanel().showMessage("Recording Macro...");
 		mIsRecording = true;
+		for (DEFrame frame:mRecordingMacroOwner.getApplication().getFrameList())
+			frame.updateMacroStatus();
+		}
+
+	public boolean canContinueRecording(DEFrame frontFrame) {
+		return !mIsRecording
+			&& mRecordingMacro != null
+			&& mFrontFrameWhenRecordingStopped == frontFrame;
 		}
 
 	public boolean isRecording() {
@@ -97,12 +106,18 @@ public class DEMacroRecorder implements Runnable {
 		}
 
 	public void stopRecording() {
-		mRecordingMacroOwner.getMainFrame().getMainPane().getMacroProgressPanel().showMessage("");
 		mIsRecording = false;
+		mFrontFrameWhenRecordingStopped = mRecordingMacroOwner.getApplication().getActiveFrame();
+		for (DEFrame frame:mRecordingMacroOwner.getApplication().getFrameList())
+			frame.updateMacroStatus();
 		}
 
 	public boolean isRecording(DEMacro macro) {
 		return (mIsRecording && mRecordingMacro == macro);
+		}
+
+	public boolean isRunningMacro() {
+		return (mMacroThread != null);
 		}
 
 	private void recordTask(AbstractTask task, Properties configuration) {
@@ -124,8 +139,8 @@ public class DEMacroRecorder implements Runnable {
 				mFrontFrame = frontFrame;
 				mTaskFactory = frontFrame.getApplication().getTaskFactory();
 	
-				frontFrame.getMainFrame().getMainPane().getMacroProgressPanel().initializeThreadMustDie();
-				mProgressController = frontFrame.getMainFrame().getMainPane().getMacroProgressPanel();
+				for (DEFrame frame:frontFrame.getApplication().getFrameList())
+					frame.getMainFrame().getMainPane().getMacroProgressPanel().initializeThreadMustDie();
 		
 				mMacroThread = new Thread(this, "DataWarriorMacro");
 				mMacroThread.setPriority(Thread.MIN_PRIORITY);
@@ -136,53 +151,149 @@ public class DEMacroRecorder implements Runnable {
 
 	@Override
 	public void run() {
-		mProgressController.startProgress("Running Macro...", 0, 0);
+		startProgress("Running Macro...", 0, 0);
 
-		for (int i=0; i<mRunningMacro.getTaskCount(); i++) {
-			if (mProgressController.threadMustDie())
-				break;
-
-			AbstractTask cf = mTaskFactory.createTask(mFrontFrame, mRunningMacro.getTaskCode(i));
-			if (cf != null) {
-				// if the task is a macro itself, then spawn a daughter macro
-	    		if (cf instanceof GenericTaskRunMacro) {
-					DEMacro daughterMacro = ((GenericTaskRunMacro)cf).getMacro(mRunningMacro.getTaskConfiguration(i));
-					if (daughterMacro == null)
-						continue;	// just skip the internal macro
-
-					daughterMacro.setParentMacro(mRunningMacro, i);
-					mRunningMacro = daughterMacro;
-					i = -1;
-					continue;	// start with the first task of the daughter macro
-					}
-
-				cf.execute(mRunningMacro.getTaskConfiguration(i), mProgressController);
-				if (cf.getNewFrontFrame() != null) {
-					mFrontFrame = cf.getNewFrontFrame();
-					try {
-	                    SwingUtilities.invokeAndWait(new Runnable() {
-	                    	@Override
-	                    	public void run() {
-	        					mFrontFrame.toFront();
-	                    		}
-	                    	});
+		try {
+			for (int i=0; i<mRunningMacro.getTaskCount(); i++) {
+				if (threadMustDie())
+					break;
+	
+				AbstractTask cf = mTaskFactory.createTask(mFrontFrame, mRunningMacro.getTaskCode(i));
+				if (cf != null) {
+		    		if (cf instanceof DETaskRepeatNextTask && i<mRunningMacro.getTaskCount()-1) {
+		    			Properties config = mRunningMacro.getTaskConfiguration(i);
+		    			int count = ((DETaskRepeatNextTask)cf).getRepetitions(config);
+		    			int lastTask = ((DETaskRepeatNextTask)cf).repeatAllTasks(config) ? mRunningMacro.getTaskCount()-1 : i+1;
+		    			mRunningMacro.defineLoop(i+1, lastTask, count);
+		    			continue;
+	    				}
+	
+		    		// if the task is a macro itself, then spawn a daughter macro
+		    		if (cf instanceof GenericTaskRunMacro) {
+						DEMacro daughterMacro = ((GenericTaskRunMacro)cf).getMacro(mRunningMacro.getTaskConfiguration(i));
+						if (daughterMacro == null)
+							continue;	// just skip the internal macro
+	
+						daughterMacro.setParentMacro(mRunningMacro, i);
+						mRunningMacro = daughterMacro;
+						i = -1;
+						continue;	// start with the first task of the daughter macro
 						}
-                    catch (Exception e) {}
+	
+					cf.execute(mRunningMacro.getTaskConfiguration(i), this);
+					if (cf.getNewFrontFrame() != null) {
+						mFrontFrame = cf.getNewFrontFrame();
+						try {
+		                    SwingUtilities.invokeAndWait(new Runnable() {
+		                    	@Override
+		                    	public void run() {
+		        					mFrontFrame.toFront();
+		                    		}
+		                    	});
+							}
+	                    catch (Exception e) {}
+						}
 					}
-				}
-
-			// if we have finished a daughter macro, then continue with the parent one
-			if (i == mRunningMacro.getTaskCount()-1) {
-				if (mRunningMacro.getParentMacro() != null) {
-					i = mRunningMacro.getParentIndex();
-					mRunningMacro = mRunningMacro.getParentMacro();
+	
+				// if we have finished a daughter macro, then continue with the parent one
+				if (i == mRunningMacro.getTaskCount()-1) {
+					if (mRunningMacro.getParentMacro() != null) {
+						i = mRunningMacro.getParentIndex();
+						mRunningMacro = mRunningMacro.getParentMacro();
+						}
 					}
+	
+				int gotoIndex = mRunningMacro.getLoopStart(i);
+				if (gotoIndex != -1)
+					i = gotoIndex-1;
 				}
 			}
+		catch (final Exception e) {
+			e.printStackTrace();
+			SwingUtilities.invokeLater(new Runnable() {
+				public void run() {
+					JOptionPane.showMessageDialog(null, e.toString(), "Unexpected Error", JOptionPane.ERROR_MESSAGE);
+					}
+				});
+			}
 
-		mProgressController.stopProgress();
+		stopProgress();
 
 		mMacroThread = null;
 		mRunningMacro = null;
+		}
+
+	@Override
+	public void startProgress(final String text, final int min, final int max) {
+		if (SwingUtilities.isEventDispatchThread()) {
+			for (DEFrame frame:mFrontFrame.getApplication().getFrameList())
+				frame.getMainFrame().getMainPane().getMacroProgressPanel().startProgress(text, min, max);
+			}
+		else {
+			SwingUtilities.invokeLater(new Runnable() {
+				@Override
+				public void run() {
+					for (DEFrame frame:mFrontFrame.getApplication().getFrameList())
+						frame.getMainFrame().getMainPane().getMacroProgressPanel().startProgress(text, min, max);
+					}
+				});
+			}
+		}
+
+	@Override
+	public void updateProgress(final int value) {
+		if (SwingUtilities.isEventDispatchThread()) {
+			for (DEFrame frame:mFrontFrame.getApplication().getFrameList())
+				frame.getMainFrame().getMainPane().getMacroProgressPanel().updateProgress(value);
+			}
+		else {
+			SwingUtilities.invokeLater(new Runnable() {
+				@Override
+				public void run() {
+					for (DEFrame frame:mFrontFrame.getApplication().getFrameList())
+						frame.getMainFrame().getMainPane().getMacroProgressPanel().updateProgress(value);
+					}
+				});
+			}
+		}
+
+	@Override
+	public void stopProgress() {
+		if (SwingUtilities.isEventDispatchThread()) {
+			for (DEFrame frame:mFrontFrame.getApplication().getFrameList())
+				frame.getMainFrame().getMainPane().getMacroProgressPanel().stopProgress();
+			}
+		else {
+			SwingUtilities.invokeLater(new Runnable() {
+				@Override
+				public void run() {
+					for (DEFrame frame:mFrontFrame.getApplication().getFrameList())
+						frame.getMainFrame().getMainPane().getMacroProgressPanel().stopProgress();
+					}
+				});
+			}
+		}
+
+	@Override
+	public void showErrorMessage(final String message) {
+		if (SwingUtilities.isEventDispatchThread()) {
+			mFrontFrame.getApplication().getActiveFrame().getMainFrame().getMainPane().getMacroProgressPanel().showErrorMessage(message);
+			}
+		else {
+			SwingUtilities.invokeLater(new Runnable() {
+				@Override
+				public void run() {
+					mFrontFrame.getApplication().getActiveFrame().getMainFrame().getMainPane().getMacroProgressPanel().showErrorMessage(message);
+					}
+				});
+			}
+		}
+
+	@Override
+	public boolean threadMustDie() {
+		for (DEFrame frame:mFrontFrame.getApplication().getFrameList())
+			if (frame.getMainFrame().getMainPane().getMacroProgressPanel().threadMustDie())
+				return true;
+		return false;
 		}
 	}

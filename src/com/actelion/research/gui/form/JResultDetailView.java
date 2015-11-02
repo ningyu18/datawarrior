@@ -46,14 +46,16 @@ public abstract class JResultDetailView extends JPanel
     protected Component				mDetailView;
 	private ReferenceResolver		mReferenceResolver;
 	private ResultDetailPopupItemProvider mPopupItemProvider;
-	private String					mDetailSource,mCurrentReference;
+	private RemoteDetailSource		mDetailSource;
+	private String					mCurrentReference;
 	private String[]				mDetailReference;
 	private int						mCurrentDetailIndex;
 	private boolean					mComponentVisible,mDetailNeedsUpdate,mToolbarVisible;
 	private JVerticalBrowseToolbar	mToolbar;
     private ArrayList<JMenuItem>    mPopupItemList;
 
-	public JResultDetailView(ReferenceResolver referenceResolver, ResultDetailPopupItemProvider popupItemProvider, String detailSource, Component detailView) {
+	public JResultDetailView(ReferenceResolver referenceResolver, ResultDetailPopupItemProvider popupItemProvider,
+							 RemoteDetailSource detailSource, Component detailView) {
 		mReferenceResolver = referenceResolver;
 		mPopupItemProvider = popupItemProvider;
 		mDetailSource = detailSource;
@@ -67,7 +69,7 @@ public abstract class JResultDetailView extends JPanel
 		return mReferenceResolver;
 		}
 
-	public String getDetailSource() {
+	public RemoteDetailSource getDetailSource() {
 		return mDetailSource;
 		}
 
@@ -75,7 +77,7 @@ public abstract class JResultDetailView extends JPanel
 		mReferenceResolver = resolver;
 		}
 
-	public void setDetailSource(String source) {
+	public void setDetailSource(RemoteDetailSource source) {
 		mDetailSource = source;
 		}
 
@@ -267,7 +269,8 @@ public abstract class JResultDetailView extends JPanel
 			}
 		}
 
-	public void setReferencedData(String source, String reference, byte[] data) {
+	public void setReferencedData(String reference, byte[] data) {
+//	public void setReferencedData(RemoteDetailSource source, String reference, byte[] data) {
 		if (reference.equals(mCurrentReference))
 			setDetailData(data);
 		}

@@ -38,9 +38,9 @@ import com.actelion.research.table.CompoundTableEvent;
 import com.actelion.research.table.CompoundTableModel;
 
 public class JStringFilterPanel extends JFilterPanel implements ActionListener,ItemListener,KeyListener {
-    private static final long serialVersionUID = 0x20061013;
+	private static final long serialVersionUID = 0x20061013;
 
-    private static final String	cOptionContains = "#contains#";
+	private static final String	cOptionContains = "#contains#";
 	private static final String	cOptionStartsWith = "#startsWith#";
 	private static final String	cOptionEquals = "#equals#";
 	private static final String	cOptionRegEx = "#regEx#";
@@ -50,18 +50,18 @@ public class JStringFilterPanel extends JFilterPanel implements ActionListener,I
 	private JTextField		mTextField;
 	private JCheckBox		mCheckBox;
 
-    public JStringFilterPanel(CompoundTableModel tableModel) {
-		this(tableModel, -1, 0);
-    	}
+	public JStringFilterPanel(CompoundTableModel tableModel) {
+		this(tableModel, -1, -1);
+		}
 
-    public JStringFilterPanel(CompoundTableModel tableModel, int columnIndex, int exclusionFlag) {
+	public JStringFilterPanel(CompoundTableModel tableModel, int columnIndex, int exclusionFlag) {
 		super(tableModel, columnIndex, exclusionFlag, false);
 
-        JPanel contentPanel = new JPanel();
-        double[][] size = { {4, TableLayout.PREFERRED, 4, TableLayout.FILL, 4},
-                            {TableLayout.PREFERRED, TableLayout.PREFERRED} };
-        contentPanel.setLayout(new TableLayout(size));
-        contentPanel.setOpaque(false);
+		JPanel contentPanel = new JPanel();
+		double[][] size = { {4, TableLayout.PREFERRED, 4, TableLayout.FILL, 4},
+							{TableLayout.PREFERRED, TableLayout.PREFERRED} };
+		contentPanel.setLayout(new TableLayout(size));
+		contentPanel.setOpaque(false);
 
 		mComboBox = new JComboBox();
 		mComboBox.addItem("contains");
@@ -83,17 +83,19 @@ public class JStringFilterPanel extends JFilterPanel implements ActionListener,I
 		add(contentPanel, BorderLayout.CENTER);
 
 		mIsUserChange = true;
-    	}
+		}
 
 	@Override
-    public boolean isFilterEnabled() {
-    	return true;
-    	}
+	public void enableItems(boolean b) {
+		mComboBox.setEnabled(b);
+		mTextField.setEnabled(b);
+		mCheckBox.setEnabled(b);
+		}
 
 	@Override
 	public void actionPerformed(ActionEvent e) {
 		if (e.getSource() == mCheckBox) {
-			updateExclusion();
+			updateExclusion(mIsUserChange);
 			return;
 			}
 
@@ -101,37 +103,41 @@ public class JStringFilterPanel extends JFilterPanel implements ActionListener,I
 		}
 
 	@Override
-    public void keyPressed(KeyEvent arg0) {}
+	public void keyPressed(KeyEvent arg0) {}
 
 	@Override
-    public void keyTyped(KeyEvent arg0) {}
+	public void keyTyped(KeyEvent arg0) {}
 
 	@Override
-    public void keyReleased(KeyEvent arg0) {
-		updateExclusion();
-        }
+	public void keyReleased(KeyEvent arg0) {
+		updateExclusion(true);
+		}
 
 	@Override
 	public void itemStateChanged(ItemEvent e) {
 		if (e.getSource() == mComboBox && e.getStateChange() == ItemEvent.SELECTED)
-			updateExclusion();
+			updateExclusion(mIsUserChange);
 		}
 
 	@Override
-    public void compoundTableChanged(CompoundTableEvent e) {
-        super.compoundTableChanged(e);
+	public void compoundTableChanged(CompoundTableEvent e) {
+		super.compoundTableChanged(e);
 
 		mIsUserChange = false;
 
-        if (e.getType() == CompoundTableEvent.cAddRows
-         || (e.getType() == CompoundTableEvent.cChangeColumnData && e.getSpecifier() == mColumnIndex)) {
-            updateExclusion();
-            }
+		if (e.getType() == CompoundTableEvent.cAddRows
+		 || (e.getType() == CompoundTableEvent.cChangeColumnData && e.getColumn() == mColumnIndex)) {
+			updateExclusionLater();
+			}
 
 		mIsUserChange = true;
 		}
 
-	private void updateExclusion() {
+	@Override
+	public void updateExclusion(boolean isUserChange) {
+		if (!isEnabled())
+			return;
+
 		int type = 0;
 		switch (mComboBox.getSelectedIndex()) {
 		case 0:
@@ -151,7 +157,9 @@ public class JStringFilterPanel extends JFilterPanel implements ActionListener,I
 		if (isActive()) {
 			mTableModel.setStringExclusion(mColumnIndex, mExclusionFlag, mTextField.getText(),
 										   type, mCheckBox.isSelected(), isInverse());
-	    	fireFilterChanged(FilterEvent.FILTER_UPDATED, false);
+
+			if (isUserChange)
+				fireFilterChanged(FilterEvent.FILTER_UPDATED, false);
 			}
 		}
 
@@ -193,11 +201,11 @@ public class JStringFilterPanel extends JFilterPanel implements ActionListener,I
 				type = CompoundTableModel.cStringExclusionTypeEquals;
 				settings = settings.substring(cOptionEquals.length()+1);
 				}
-            else if (settings.startsWith(cOptionRegEx)) {
-                index = 3;
-                type = CompoundTableModel.cStringExclusionTypeRegEx;
+			else if (settings.startsWith(cOptionRegEx)) {
+				index = 3;
+				type = CompoundTableModel.cStringExclusionTypeRegEx;
 				settings = settings.substring(cOptionRegEx.length()+1);
-                }
+				}
 			if (index != -1) {
 				boolean caseSensitive = settings.startsWith(cOptionCaseSensitive);
 				if (caseSensitive)
@@ -222,9 +230,14 @@ public class JStringFilterPanel extends JFilterPanel implements ActionListener,I
 			mTextField.setText("");
 			mCheckBox.setSelected(false);
 			if (mComboBox.getSelectedIndex() == 0)
-				updateExclusion();
+				updateExclusion(false);
 			else
 				mComboBox.setSelectedIndex(0);	// causes updateExclusion() through itemStateChanged()
 			}
+		}
+
+	@Override
+	public int getFilterType() {
+		return FILTER_TYPE_STRING;
 		}
 	}

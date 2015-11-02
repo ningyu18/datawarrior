@@ -26,7 +26,7 @@ import org.nfunk.jep.ParseException;
 import org.nfunk.jep.function.PostfixMathCommand;
 
 import com.actelion.research.chem.io.CompoundTableConstants;
-import com.actelion.research.datawarrior.task.DETaskCalculateColumn;
+import com.actelion.research.datawarrior.task.data.DETaskCalculateColumn;
 import com.actelion.research.table.CompoundTableModel;
 import com.actelion.research.util.ByteArrayComparator;
 

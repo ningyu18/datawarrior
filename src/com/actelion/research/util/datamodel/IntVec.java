@@ -1,14 +1,22 @@
+/*
+ * Project: DD_core
+ * @(#)IntVec.java
+ *
+ * Copyright (c) 1997- 2015
+ * Actelion Pharmaceuticals Ltd.
+ * Gewerbestrasse 16
+ * CH-4123 Allschwil, Switzerland
+ *
+ * All Rights Reserved.
+ *
+ * This software is the proprietary information of Actelion Pharmaceuticals, Ltd.
+ * Use is subject to license terms.
+ *
+ * Author: MvK
+ */
+
 package com.actelion.research.util.datamodel;
 
-/**
- * <p>Title: IntVec </p>
- * <p>Description: Vector with int values </p>
- * <p>Copyright: Copyright (c) 2003-2011</p>
- * <p>Company: Actelion Ltd. </p>
- * @author Modest von Korff
- * @version 1.0
- * 21.04.2005 start implementation
- */
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
@@ -409,6 +417,20 @@ public class IntVec implements Comparable<IntVec> {
     	sizeInteger = (bits + Integer.SIZE-1)/ Integer.SIZE;
     	
     	return sizeInteger;
+    }
+    
+    public static int getNumberAbove(int [] a, int val){
+    	
+    	int n=0;
+    	
+    	for (int i = 0; i < a.length; i++) {
+			if(a[i]>val){
+				n++;
+			}
+		}
+    	
+    	
+    	return n;
     }
     
     public static int getInt(byte [] arr) {

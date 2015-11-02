@@ -35,7 +35,7 @@ import javax.swing.JPopupMenu;
 import javax.swing.JScrollPane;
 import javax.swing.table.TableCellRenderer;
 
-import com.actelion.research.datawarrior.task.DETaskSortRows;
+import com.actelion.research.datawarrior.task.data.DETaskSortRows;
 import com.actelion.research.table.ColorizedCellRenderer;
 import com.actelion.research.table.CompoundListSelectionModel;
 import com.actelion.research.table.CompoundTableColorHandler;
@@ -180,7 +180,7 @@ public class DETableView extends JScrollPane
 			if (e.getSource() == mTable.getTableHeader()) {
 				int column = mTable.convertTotalColumnIndexFromView(mTable.getTableHeader().columnAtPoint(e.getPoint()));
 				if (column != -1) {
-					JPopupMenu popup = new DETablePopupMenu(mParentFrame, mParentPane.getMainPane(), this, column);
+					JPopupMenu popup = new DETablePopupMenu(mParentFrame, mParentPane, this, column);
 					if (popup.getComponentCount() != 0)
 						popup.show(mTable.getTableHeader(), e.getX(), e.getY());
 					}

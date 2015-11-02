@@ -71,8 +71,8 @@ public class ChemistryRenderPanel extends JPanel {
         r.height -= insets.top + insets.bottom;
 
         if (mChemistry != null && r.width > 0 && r.height > 0) {
-            if (mChemistry instanceof ExtendedMolecule) {
-                Depictor2D d = new Depictor2D((StereoMolecule)mChemistry);
+            if (mChemistry instanceof StereoMolecule) {
+                Depictor2D d = new Depictor2D((StereoMolecule)mChemistry, Depictor2D.cDModeSuppressChiralText);
                 if (mForeGround != null)
                 	d.setOverruleColor(mForeGround, getBackground());
                 d.validateView(g, new Rectangle2D.Float(r.x, r.y, r.width, r.height), AbstractDepictor.cModeInflateToMaxAVBL);
@@ -80,7 +80,7 @@ public class ChemistryRenderPanel extends JPanel {
                 }
             if (mChemistry instanceof Reaction) {
             	Reaction rxn = (Reaction)mChemistry;
-                ExtendedDepictor d = new ExtendedDepictor(rxn, rxn.getDrawingObjects(), !rxn.hasAbsoluteCoordinates(), true);
+                ExtendedDepictor d = new ExtendedDepictor(rxn, rxn.getDrawingObjects(), rxn.isReactionLayoutRequired(), true);
                 if (mForeGround != null)
                 	d.setOverruleColor(mForeGround, getBackground());
                 d.validateView(g, new Rectangle2D.Float(r.x, r.y, r.width, r.height), AbstractDepictor.cModeInflateToMaxAVBL);

@@ -23,8 +23,8 @@ import com.actelion.research.table.CompoundRecord;
 
 public class VisualizationPoint {
 	public int screenX,screenY,width,height;
-	protected int chartGroupIndex;
-	protected byte colorIndex,shape,exclusionFlags,hvIndex;
+	protected int chartGroupIndex,hvIndex;
+	protected byte colorIndex,shape,exclusionFlags;
 	protected CompoundRecord record;
 
 	protected VisualizationPoint(CompoundRecord r) {

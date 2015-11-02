@@ -35,7 +35,6 @@ public abstract class SelfOrganizedMap extends DataProcessor {
 	public static final int cModeTopologyUnlimited = 8;
 	public static final int cModeGrowDuringOptimization = 16;
 	public static final int cModeFastBestMatchFinding = 32;
-	public static final int cModeUseMultiThreading = 64;
 
 	protected SOMController	mController;
 	protected Object[][]	mReferenceVector;
@@ -52,21 +51,31 @@ public abstract class SelfOrganizedMap extends DataProcessor {
 	private ExecutorService	mExecutor;
 	private SOMWorker[]		mSOMWorker;
 
-	public SelfOrganizedMap() {}
-			// constructor to be used if SOM interna are read from a SOM file with read()
+	/**
+	 * Constructor to be used if SOM interna are read from a SOM file with read()
+	 */
+	public SelfOrganizedMap() {
+		initializeSMP();
+		}
 
 	public SelfOrganizedMap(int nx, int ny, int mode) {
 		mNX = nx;
 		mNY = ny;
 		mMode = mode;
 		mReferenceVector = new Object[nx][ny];
-		mThreadCount = ((mode & cModeUseMultiThreading) == 0) ? 1 : Runtime.getRuntime().availableProcessors();
+
+		initializeSMP();
+		if (mThreadCount != 1)
+			mSMPSOMIndex = getSMPArraySplitting(nx, ny);
+		}
+
+	private void initializeSMP() {
+		mThreadCount = Runtime.getRuntime().availableProcessors();
 		if (mThreadCount != 1) {
 			mExecutor = Executors.newFixedThreadPool(mThreadCount);
 			mSOMWorker = new SOMWorker[mThreadCount];
 			for (int t=0; t<mThreadCount; t++)
 				mSOMWorker[t] = new SOMWorker(t);
-			mSMPSOMIndex = getSMPArraySplitting(nx, ny);
 			}
 		}
 
@@ -583,6 +592,9 @@ public abstract class SelfOrganizedMap extends DataProcessor {
 		if (!error) {
 			mMode = Integer.parseInt(extractValue(theLine));
 			}
+
+		if (!error && mThreadCount != 1)
+			mSMPSOMIndex = getSMPArraySplitting(mNX, mNY);
 
 		mReferenceVector = new Object[mNX][mNY];
 		startProgress("Reading SOM Vectors...", 0, mNY);

@@ -1281,7 +1281,7 @@ public class AdvancedTools {
 	
 			}
 		}
-		System.err.println("Could not return conformation of type "+confType);
+//		System.err.println("Could not return conformation of type "+confType);
 		return resE;
 	}
 	

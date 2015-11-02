@@ -41,6 +41,7 @@ import com.actelion.research.chem.io.CompoundTableConstants;
 import com.actelion.research.gui.JProgressDialog;
 import com.actelion.research.gui.form.ReferenceResolver;
 import com.actelion.research.gui.form.ReferencedDataConsumer;
+import com.actelion.research.gui.form.RemoteDetailSource;
 import com.actelion.research.gui.form.ResultDetailPopupItemProvider;
 
 public class CompoundTableDetailHandler implements ResultDetailPopupItemProvider,ReferenceResolver,Runnable {
@@ -79,14 +80,15 @@ public class CompoundTableDetailHandler implements ResultDetailPopupItemProvider
 		}
 
 	@Override
-	public ArrayList<JMenuItem> getExternalPopupItems(String source, String reference) {
+	public ArrayList<JMenuItem> getExternalPopupItems(RemoteDetailSource source, String reference) {
 		return null;
 		}
 
 	@Override
-	public void requestData(String source, String reference, int mode, ReferencedDataConsumer consumer) {
+	public void requestData(RemoteDetailSource sourceSpec, String reference, int mode, ReferencedDataConsumer consumer) {
+		String source = sourceSpec.getSource();
 		if (source.equals(EMBEDDED))
-			consumer.setReferencedData(source, reference, getEmbeddedDetail(reference));
+			consumer.setReferencedData(reference, getEmbeddedDetail(reference));
         else if (source.startsWith(ABSOLUTE_PATH)
               || source.startsWith(RELATIVE_PATH))
 			requestDataFromFile(source, reference, consumer);
@@ -97,7 +99,8 @@ public class CompoundTableDetailHandler implements ResultDetailPopupItemProvider
 		}
 
 	@Override
-	public byte[] resolveReference(String source, String reference, int mode) {
+	public byte[] resolveReference(RemoteDetailSource sourceSpec, String reference, int mode) {
+		String source = sourceSpec.getSource();
         if (source.equals(EMBEDDED))
 			return getEmbeddedDetail(reference);
 		if (source.startsWith(ABSOLUTE_PATH)
@@ -153,7 +156,7 @@ public class CompoundTableDetailHandler implements ResultDetailPopupItemProvider
 		final FileRequest _request = request;
 		SwingUtilities.invokeLater(new Runnable() {
 			public void run() {
-				_request.consumer.setReferencedData(_request.source, _request.reference, data);
+				_request.consumer.setReferencedData(_request.reference, data);
 				}
 			});
 		}
@@ -194,7 +197,8 @@ public class CompoundTableDetailHandler implements ResultDetailPopupItemProvider
 		return mEmbeddedDetailMap;
 		}
 
-	public HashMap<String,String> embedDetails(Object[] oldKey, String source, int mode, String type, JProgressDialog progressDialog) {
+	public HashMap<String,String> embedDetails(Object[] oldKey, CompoundTableDetailSpecification sourceSpec,
+												int mode, String type, JProgressDialog progressDialog) {
 			// tries to embed all details referenced with oldKey
 			// if it doesn't succeed with all then nothing is changed and null is returned
 	    if (progressDialog != null)
@@ -212,7 +216,7 @@ public class CompoundTableDetailHandler implements ResultDetailPopupItemProvider
 
 		    String newKey = oldToNewKeyMap.get(oldKey[i]);
 			if (newKey == null) {
-				byte[] detailData = (byte[])resolveReference(source, (String)oldKey[i], mode);
+				byte[] detailData = (byte[])resolveReference(sourceSpec, (String)oldKey[i], mode);
 				if (detailData == null)
 					return null;
 
@@ -340,7 +344,7 @@ public class CompoundTableDetailHandler implements ResultDetailPopupItemProvider
 				final byte[] response = getURLResponse(url, reference);
 				SwingUtilities.invokeLater(new Runnable() {
 					public void run() {
-						consumer.setReferencedData(source, reference, response);
+						consumer.setReferencedData(reference, response);
 						}
 					} );
 				}

@@ -125,6 +125,8 @@ public class JFormDesigner extends JComponent implements ActionListener,MouseLis
 		}
 
 	public void paintComponent(Graphics g) {
+		super.paintComponent(g);
+
 		Dimension size = getSize();
 		if (mSize == null)
 			decodeLayout(mFormView.getFormLayout());
@@ -210,8 +212,8 @@ public class JFormDesigner extends JComponent implements ActionListener,MouseLis
 	private void drawFormItem(Graphics g, FormItem item) {
 		Rectangle itemRect = item.getRect();
 		Rectangle closeBoxRect = getCloseBoxRect(itemRect);
-
-		g.setClip(itemRect);
+		
+		g.setClip(itemRect.intersection(getBounds()));
 
 		g.setColor(Color.white);
 		g.fillRect(itemRect.x+1, itemRect.y+1, itemRect.width-1, itemRect.height-1);
@@ -277,6 +279,7 @@ public class JFormDesigner extends JComponent implements ActionListener,MouseLis
 			for (int j=0; j<layoutDesc[i].length; j++)
 				if (layoutDesc[i][j] > 1.0)
 				    total -= (int)layoutDesc[i][j];
+			int relativeCells = 0;
 			int fillCells = 0;
 			for (int j=0; j<layoutDesc[i].length; j++) {
 				if (layoutDesc[i][j] > 1.0) {
@@ -286,6 +289,7 @@ public class JFormDesigner extends JComponent implements ActionListener,MouseLis
 					mLayoutType[i][j] = SIZE_MODE_FIXED;
 					}
 				else if (layoutDesc[i][j] >= 0.0) {
+					relativeCells++;
 					int pixels = Math.max(MINIMUM_CELL_SIZE ,(int)(layoutDesc[i][j] * total));
 					mLayoutSize[i][j] = pixels;
 					remaining -= pixels;
@@ -296,12 +300,24 @@ public class JFormDesigner extends JComponent implements ActionListener,MouseLis
 					mLayoutType[i][j] = SIZE_MODE_FILL;
 					}
 				}
-			int fillPixels = remaining / fillCells;
-			for (int j=0; j<layoutDesc[i].length; j++) {
-				if (layoutDesc[i][j] < 0.0) {
-					int pixels = (--fillCells == 0) ? remaining : fillPixels;
-					mLayoutSize[i][j] = pixels;
-					remaining -= pixels;
+			if (fillCells != 0) {
+				int fillPixels = remaining / fillCells;
+				for (int j=0; j<layoutDesc[i].length; j++) {
+					if (layoutDesc[i][j] < 0.0) {
+						int pixels = (--fillCells == 0) ? remaining : fillPixels;
+						mLayoutSize[i][j] = pixels;
+						remaining -= pixels;
+						}
+					}
+				}
+			else if (relativeCells != 0) {	// if we have no fill cells, then add remaining space evenly to all relative cells
+				int fillPixels = remaining / relativeCells;
+				for (int j=0; j<layoutDesc[i].length; j++) {
+					if (layoutDesc[i][j] >= 0.0 && layoutDesc[i][j] <= 1.0) {
+						int pixels = (--fillCells == 0) ? remaining : fillPixels;
+						mLayoutSize[i][j] += pixels;
+						remaining -= pixels;
+						}
 					}
 				}
 

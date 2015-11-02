@@ -56,11 +56,13 @@ import javax.swing.event.ListSelectionListener;
 
 import com.actelion.research.chem.AbstractDepictor;
 import com.actelion.research.chem.Depictor2D;
+import com.actelion.research.chem.IDCodeParser;
 import com.actelion.research.chem.StereoMolecule;
 import com.actelion.research.gui.dnd.MoleculeDragAdapter;
 import com.actelion.research.gui.dnd.MoleculeTransferable;
 import com.actelion.research.table.CompoundListSelectionModel;
 import com.actelion.research.table.CompoundRecord;
+import com.actelion.research.table.CompoundTableChemistryCellRenderer;
 import com.actelion.research.table.CompoundTableColorHandler;
 import com.actelion.research.table.CompoundTableEvent;
 import com.actelion.research.table.CompoundTableHitlistEvent;
@@ -89,7 +91,7 @@ public class JStructureGrid extends JScrollPane
 	private int							mNoOfColumns,mTableRowCount,
 										mRecordCountOnLastValidation,mIndexOfFirstImage,
 										mTableRowCountOnLastValidation,mFocusHitlist,mFocusCount,
-										mStructureColumn,mCoordinateColumn;
+										mStructureColumn;
 	private int[]						mLabelColumn,mFocusRow;
 	private ArrayList<GridImage> 		mImageList;
 	private boolean						mFocusValid,mSelectionChanged,mRepaintRequested,mShowAnyLabels;
@@ -133,8 +135,6 @@ public class JStructureGrid extends JScrollPane
 
 	public void setStructureColumn(int structureColumn) {
 		mStructureColumn = structureColumn;
-		mCoordinateColumn = (structureColumn == -1) ? -1
-						  : mTableModel.getChildColumn(mStructureColumn, CompoundTableModel.cColumnType2DCoordinates);
 		}
 
 	public int getStructureColumn() {
@@ -371,7 +371,7 @@ public class JStructureGrid extends JScrollPane
 			StereoMolecule mol = mTableModel.getChemicalStructure(getRecord(firstRow+i), mStructureColumn, CompoundTableModel.ATOM_COLOR_MODE_EXPLICIT, molContainer);
 			if (mol != null) {
 				g2D.setColor(Color.black);
-				Depictor2D depictor = new Depictor2D(mol);
+				Depictor2D depictor = new Depictor2D(mol, Depictor2D.cDModeSuppressChiralText);
 				depictor.validateView(g2D, new Rectangle2D.Float(r.x,
 											r.y+cellSize.topHeight,
 											r.width,
@@ -476,8 +476,6 @@ public class JStructureGrid extends JScrollPane
 			int[] columnMapping = e.getMapping();
 			if (mStructureColumn != -1)
 				mStructureColumn = columnMapping[mStructureColumn];
-			if (mCoordinateColumn != -1)
-				mCoordinateColumn = columnMapping[mCoordinateColumn];
 
 			for (int i=0; i<mLabelColumn.length; i++) {
 				if (mLabelColumn[i] >= 0) {
@@ -495,11 +493,11 @@ public class JStructureGrid extends JScrollPane
 				}
 			}
 		else if (e.getType() == CompoundTableEvent.cChangeColumnData) {
-			if (mStructureColumn == e.getSpecifier())
+			if (mStructureColumn == e.getColumn())
 				needsUpdate = true;
 			else {
 				for (int i=0; i<mLabelColumn.length; i++) {
-					if (mLabelColumn[i] == e.getSpecifier()) {
+					if (mLabelColumn[i] == e.getColumn()) {
 						needsUpdate = true;
 						break;
 						}
@@ -508,7 +506,7 @@ public class JStructureGrid extends JScrollPane
 			}
 		else if (e.getType() == CompoundTableEvent.cChangeColumnName) {
 			for (int i=cFirstTablePosition; i<mLabelColumn.length; i++) {
-				if (mLabelColumn[i] == e.getSpecifier()) {
+				if (mLabelColumn[i] == e.getColumn()) {
 					needsUpdate = true;
 					break;
 					}
@@ -764,8 +762,7 @@ public class JStructureGrid extends JScrollPane
 			mRecordCountOnLastValidation = mTableModel.getRowCount();
 			mTableRowCountOnLastValidation = mTableRowCount;
 
-			mCellSize = new GridCellSize(r.width, 1, JVisualization.sRetinaFactor, 1.0f, 7);
-
+			mCellSize = new GridCellSize(r.width, 1, JVisualization.getContentScaleFactor(), 1.0f, 7);
 			mImageList.clear();
 			mContentPanel.setPreferredSize(
 				new Dimension(mCellSize.totalWidth*mNoOfColumns,
@@ -842,6 +839,9 @@ public class JStructureGrid extends JScrollPane
 						mImageList.remove(firstToRemove);
 					}
 				}
+
+			int coordinateColumn = (mStructureColumn == -1) ? -1
+					: mTableModel.getChildColumn(mStructureColumn, CompoundTableModel.cColumnType2DCoordinates);
 
 				// create and add not yet available structure images to imagelist
 			if (mSelectionChanged || firstNonVisible - firstVisible > mImageList.size()) {
@@ -973,25 +973,45 @@ public class JStructureGrid extends JScrollPane
 							ig.fillRect(mCellSize.border, mCellSize.border+mCellSize.topHeight, mCellSize.viewWidth, mCellSize.structureHeight-mCellSize.topHeight-mCellSize.bottomHeight);
 							}
 
-						StereoMolecule mol = mTableModel.getChemicalStructure(getRecord(i), mStructureColumn, CompoundTableModel.ATOM_COLOR_MODE_ALL, molContainer);
-						if (mol != null) {
-							AbstractDepictor depictor = (JVisualization.sRetinaFactor == 1f) ? new Depictor2D(mol) : new Depictor2D(mol);
-							depictor.validateView(ig,
-												  new Rectangle2D.Float(mCellSize.border,
-														(float)mCellSize.border+mCellSize.topHeight,
-														(float)(mCellSize.viewWidth),
-														(float)(mCellSize.structureHeight-mCellSize.topHeight-mCellSize.bottomHeight)),
-												  AbstractDepictor.cModeInflateToMaxAVBL+(int)(JVisualization.sRetinaFactor*AbstractDepictor.cOptAvBondLen));
-							if (isOutOfFocus)
-								depictor.setOverruleColor(cOutOfFocusForeground, cOutOfFocusBackground);
-							else if (mColorHandler.hasColorAssigned(mStructureColumn, CompoundTableColorHandler.FOREGROUND)) {
-								Color foreground = mColorHandler.getVisualizationColor(mStructureColumn, CompoundTableColorHandler.FOREGROUND).getDarkerColor(getRecord(i));
-								Color background = mColorHandler.hasColorAssigned(mStructureColumn, CompoundTableColorHandler.BACKGROUND) ?
-										mColorHandler.getVisualizationColor(mStructureColumn, CompoundTableColorHandler.BACKGROUND).getLighterColor(getRecord(i)) : Color.white;
-								depictor.setOverruleColor(foreground, background);
+						byte[] idcode = (byte[])getRecord(i).getData(mStructureColumn);
+						if (idcode != null) {
+							if ((coordinateColumn == -1 || getRecord(i).getData(coordinateColumn) == null)
+							 && new IDCodeParser().getAtomCount(idcode, 0) > CompoundTableChemistryCellRenderer.ON_THE_FLY_COORD_MAX_ATOMS) {
+								if (isOutOfFocus)
+									ig.setColor(cOutOfFocusForeground);
+								else if (mColorHandler.hasColorAssigned(mStructureColumn, CompoundTableColorHandler.FOREGROUND)) {
+									Color foreground = mColorHandler.getVisualizationColor(mStructureColumn, CompoundTableColorHandler.FOREGROUND).getDarkerColor(getRecord(i));
+									ig.setColor(foreground);
+									}
+								else {
+									ig.setColor(Color.RED);
+									}
+								Rectangle bounds = new Rectangle(mCellSize.border, mCellSize.border+mCellSize.topHeight, mCellSize.viewWidth,
+										mCellSize.structureHeight-mCellSize.topHeight-mCellSize.bottomHeight);
+								CompoundTableChemistryCellRenderer.showOnTheFlyAtomCoordsExceededMessage(ig, bounds);
 								}
-
-							depictor.paint(ig);
+							else {
+								StereoMolecule mol = mTableModel.getChemicalStructure(getRecord(i), mStructureColumn, CompoundTableModel.ATOM_COLOR_MODE_ALL, molContainer);
+								if (mol != null) {
+									AbstractDepictor depictor = new Depictor2D(mol, Depictor2D.cDModeSuppressChiralText);
+									depictor.validateView(ig,
+														  new Rectangle2D.Float(mCellSize.border,
+																(float)mCellSize.border+mCellSize.topHeight,
+																(float)(mCellSize.viewWidth),
+																(float)(mCellSize.structureHeight-mCellSize.topHeight-mCellSize.bottomHeight)),
+														  AbstractDepictor.cModeInflateToMaxAVBL+(int)(JVisualization.getContentScaleFactor()*AbstractDepictor.cOptAvBondLen));
+									if (isOutOfFocus)
+										depictor.setOverruleColor(cOutOfFocusForeground, cOutOfFocusBackground);
+									else if (mColorHandler.hasColorAssigned(mStructureColumn, CompoundTableColorHandler.FOREGROUND)) {
+										Color foreground = mColorHandler.getVisualizationColor(mStructureColumn, CompoundTableColorHandler.FOREGROUND).getDarkerColor(getRecord(i));
+										Color background = mColorHandler.hasColorAssigned(mStructureColumn, CompoundTableColorHandler.BACKGROUND) ?
+												mColorHandler.getVisualizationColor(mStructureColumn, CompoundTableColorHandler.BACKGROUND).getLighterColor(getRecord(i)) : Color.white;
+										depictor.setOverruleColor(foreground, background);
+										}
+		
+									depictor.paint(ig);
+									}
+								}
 							}
 
 						GridImage gridImage = new GridImage(image, getRecord(i).isSelected());

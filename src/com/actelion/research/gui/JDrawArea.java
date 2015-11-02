@@ -19,9 +19,9 @@
 package com.actelion.research.gui;
 
 import com.actelion.research.chem.*;
+import com.actelion.research.chem.reaction.IReactionMapper;
 import com.actelion.research.chem.reaction.Reaction;
 import com.actelion.research.chem.reaction.ReactionArrow;
-import com.actelion.research.chem.reaction.ReactionMapper;
 import com.actelion.research.gui.clipboard.IClipboardHandler;
 import com.actelion.research.gui.dnd.MoleculeDropAdapter;
 import com.actelion.research.util.CursorHelper;
@@ -33,6 +33,7 @@ import java.awt.datatransfer.DataFlavor;
 import java.awt.dnd.DnDConstants;
 import java.awt.dnd.DropTarget;
 import java.awt.event.*;
+import java.awt.geom.Point2D;
 import java.awt.geom.Rectangle2D;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -125,6 +126,9 @@ public class JDrawArea extends JPanel
     private JDialog mHelpDialog;
     private StringBuilder mAtomKeyStrokeBuffer;
 
+
+    private IReactionMapper mapper; //= new ReactionMapper();
+
     /**
      * @param mol  an empty or valid stereo molecule
      * @param mode 0 or a meaningful combination of the mode flags, e.g. MODE_REACTION | MODE_DRAWING_OBJECTS
@@ -193,6 +197,11 @@ public class JDrawArea extends JPanel
         repaint();
     }
 
+    public void setMapper(IReactionMapper mapper)
+    {
+        this.mapper = mapper;
+    }
+
     public void paintComponent(Graphics g)
     {
         super.paintComponent(g);
@@ -234,33 +243,33 @@ public class JDrawArea extends JPanel
 
             mDepictor.setFragmentNoColor(((mMode & MODE_MULTIPLE_FRAGMENTS) != 0) ?
                 getBackground().brighter() : null);
-            mDepictor.setDisplayMode(AbstractDepictor.cDModeHiliteAllQueryFeatures
+            mDepictor.setDisplayMode(mDisplayMode
+                | AbstractDepictor.cDModeHiliteAllQueryFeatures
                 | ((mCurrentTool == JDrawToolbar.cToolMapper) ?
                 AbstractDepictor.cDModeShowMapping
-                    | AbstractDepictor.cDModeSuppressCIPParity
-                    | mDisplayMode : mDisplayMode));
+                    | AbstractDepictor.cDModeSuppressCIPParity : 0));
 
             if ((mMode & (MODE_REACTION | MODE_MARKUSH_STRUCTURE | MODE_MULTIPLE_FRAGMENTS)) == 0) {
                 mDepictor.getMoleculeDepictor(0).setAtomText(mAtomText);
             }
 
             switch (mUpdateMode) {
-            case UPDATE_INVENT_COORDS:
-            case UPDATE_SCALE_COORDS:
-            case UPDATE_SCALE_COORDS_USE_FRAGMENTS:
-                cleanupCoordinates(g, mDepictor);
-                break;
-            case UPDATE_CHECK_COORDS:
-                DepictorTransformation t1 = mDepictor.updateCoords(g, new Rectangle2D.Float(0, 0, theSize.width, theSize.height), 0);
-                if (t1 != null && (mMode & MODE_MULTIPLE_FRAGMENTS) != 0) {
-                    // in fragment mode depictor transforms mFragment[] rather than mMol
-                    t1.applyTo(mMol);
-                }
-                break;
-            case UPDATE_CHECK_VIEW:
-                DepictorTransformation t2 = mDepictor.validateView(g, new Rectangle2D.Float(0, 0, theSize.width, theSize.height), 0);
-                isScaledView = (t2 != null && !t2.isVoidTransformation());
-                break;
+                case UPDATE_INVENT_COORDS:
+                case UPDATE_SCALE_COORDS:
+                case UPDATE_SCALE_COORDS_USE_FRAGMENTS:
+                    cleanupCoordinates(g, mDepictor);
+                    break;
+                case UPDATE_CHECK_COORDS:
+                    DepictorTransformation t1 = mDepictor.updateCoords(g, new Rectangle2D.Float(0, 0, theSize.width, theSize.height), 0);
+                    if (t1 != null && (mMode & MODE_MULTIPLE_FRAGMENTS) != 0) {
+                        // in fragment mode depictor transforms mFragment[] rather than mMol
+                        t1.applyTo(mMol);
+                    }
+                    break;
+                case UPDATE_CHECK_VIEW:
+                    DepictorTransformation t2 = mDepictor.validateView(g, new Rectangle2D.Float(0, 0, theSize.width, theSize.height), 0);
+                    isScaledView = (t2 != null && !t2.isVoidTransformation());
+                    break;
             }
 
             mUpdateMode = UPDATE_NONE;
@@ -281,102 +290,102 @@ public class JDrawArea extends JPanel
         }
 
         if (mCurrentHiliteAtom != -1 && mAtomKeyStrokeBuffer.length() != 0) {
-            int x = (int)mMol.getAtomX(mCurrentHiliteAtom);
-            int y = (int)mMol.getAtomY(mCurrentHiliteAtom);
+            int x = (int) mMol.getAtomX(mCurrentHiliteAtom);
+            int y = (int) mMol.getAtomY(mCurrentHiliteAtom);
             String s = mAtomKeyStrokeBuffer.toString();
             int validity = getAtomKeyStrokeValidity(s);
             g.setColor((validity == KEY_IS_ATOM_LABEL) ? Color.BLACK
-            		 : (validity == KEY_IS_SUBSTITUENT) ? Color.BLUE
-            		 : (validity == KEY_IS_VALID_START) ? Color.GRAY : Color.RED);
+                : (validity == KEY_IS_SUBSTITUENT) ? Color.BLUE
+                : (validity == KEY_IS_VALID_START) ? Color.GRAY : Color.RED);
             if (validity == KEY_IS_INVALID)
-            	s = s + "<unknown>";
-            g.setFont(new Font("Helvetica",0, 24));
-        	g.drawString(s, x, y);
+                s = s + "<unknown>";
+            g.setFont(new Font("Helvetica", 0, 24));
+            g.drawString(s, x, y);
         }
 
         g.setColor(Color.black);
         switch (mPendingRequest) {
-        case cRequestNewBond:
-            int x1, y1, x2, y2, xdiff, ydiff;
-            x1 = (int) mX1;
-            y1 = (int) mY1;
-            if (mCurrentHiliteAtom == -1 || mCurrentHiliteAtom == mAtom1) {
-                x2 = (int) mX2;
-                y2 = (int) mY2;
-            } else {
-                x2 = (int) mMol.getAtomX(mCurrentHiliteAtom);
-                y2 = (int) mMol.getAtomY(mCurrentHiliteAtom);
-            }
-            switch (mCurrentTool) {
-            case JDrawToolbar.cToolStdBond:
+            case cRequestNewBond:
+                int x1, y1, x2, y2, xdiff, ydiff;
+                x1 = (int) mX1;
+                y1 = (int) mY1;
+                if (mCurrentHiliteAtom == -1 || mCurrentHiliteAtom == mAtom1) {
+                    x2 = (int) mX2;
+                    y2 = (int) mY2;
+                } else {
+                    x2 = (int) mMol.getAtomX(mCurrentHiliteAtom);
+                    y2 = (int) mMol.getAtomY(mCurrentHiliteAtom);
+                }
+                switch (mCurrentTool) {
+                    case JDrawToolbar.cToolStdBond:
+                        g.drawLine(x1, y1, x2, y2);
+                        break;
+                    case JDrawToolbar.cToolUpBond:
+                        int[] x = new int[3];
+                        int[] y = new int[3];
+                        xdiff = (y1 - y2) / 9;
+                        ydiff = (x2 - x1) / 9;
+                        x[0] = x1;
+                        y[0] = y1;
+                        x[1] = x2 + xdiff;
+                        y[1] = y2 + ydiff;
+                        x[2] = x2 - xdiff;
+                        y[2] = y2 - ydiff;
+                        g.fillPolygon(x, y, 3);
+                        break;
+                    case JDrawToolbar.cToolDownBond:
+                        int xx1, xx2, yy1, yy2;
+                        xdiff = x2 - x1;
+                        ydiff = y2 - y1;
+                        for (int i = 2; i < 17; i += 2) {
+                            xx1 = x1 + i * xdiff / 17 - i * ydiff / 128;
+                            yy1 = y1 + i * ydiff / 17 + i * xdiff / 128;
+                            xx2 = x1 + i * xdiff / 17 + i * ydiff / 128;
+                            yy2 = y1 + i * ydiff / 17 - i * xdiff / 128;
+                            g.drawLine(xx1, yy1, xx2, yy2);
+                        }
+                        break;
+                }
+                break;
+            case cRequestNewChain:
+                if (mChainAtoms > 0) {
+                    g.drawLine((int) mX1, (int) mY1, (int) mChainAtomX[0], (int) mChainAtomY[0]);
+                }
+                if (mChainAtoms > 1) {
+                    for (int i = 1; i < mChainAtoms; i++) {
+                        g.drawLine((int) mChainAtomX[i - 1], (int) mChainAtomY[i - 1],
+                            (int) mChainAtomX[i], (int) mChainAtomY[i]);
+                    }
+                }
+                break;
+            case cRequestLassoSelect:
+                g.setColor(Color.gray);
+                g.drawPolygon(mLassoRegion);
+                g.setColor(Color.black);
+                break;
+            case cRequestSelectRect:
+                int x = (mX1 < mX2) ? (int) mX1 : (int) mX2;
+                int y = (mY1 < mY2) ? (int) mY1 : (int) mY2;
+                int w = (int) Math.abs(mX2 - mX1);
+                int h = (int) Math.abs(mY2 - mY1);
+                g.setColor(Color.gray);
+                g.drawRect(x, y, w, h);
+                g.setColor(Color.black);
+                break;
+            case cRequestMapAtoms:
+                x1 = (int) mX1;
+                y1 = (int) mY1;
+                if (mCurrentHiliteAtom == -1 || mCurrentHiliteAtom == mAtom1) {
+                    x2 = (int) mX2;
+                    y2 = (int) mY2;
+                } else {
+                    x2 = (int) mMol.getAtomX(mCurrentHiliteAtom);
+                    y2 = (int) mMol.getAtomY(mCurrentHiliteAtom);
+                }
+                g.setColor(new Color(192, 0, 0));
                 g.drawLine(x1, y1, x2, y2);
+                g.setColor(Color.black);
                 break;
-            case JDrawToolbar.cToolUpBond:
-                int[] x = new int[3];
-                int[] y = new int[3];
-                xdiff = (y1 - y2) / 9;
-                ydiff = (x2 - x1) / 9;
-                x[0] = x1;
-                y[0] = y1;
-                x[1] = x2 + xdiff;
-                y[1] = y2 + ydiff;
-                x[2] = x2 - xdiff;
-                y[2] = y2 - ydiff;
-                g.fillPolygon(x, y, 3);
-                break;
-            case JDrawToolbar.cToolDownBond:
-                int xx1, xx2, yy1, yy2;
-                xdiff = x2 - x1;
-                ydiff = y2 - y1;
-                for (int i = 2; i < 17; i += 2) {
-                    xx1 = x1 + i * xdiff / 17 - i * ydiff / 128;
-                    yy1 = y1 + i * ydiff / 17 + i * xdiff / 128;
-                    xx2 = x1 + i * xdiff / 17 + i * ydiff / 128;
-                    yy2 = y1 + i * ydiff / 17 - i * xdiff / 128;
-                    g.drawLine(xx1, yy1, xx2, yy2);
-                }
-                break;
-            }
-            break;
-        case cRequestNewChain:
-            if (mChainAtoms > 0) {
-                g.drawLine((int) mX1, (int) mY1, (int) mChainAtomX[0], (int) mChainAtomY[0]);
-            }
-            if (mChainAtoms > 1) {
-                for (int i = 1; i < mChainAtoms; i++) {
-                    g.drawLine((int) mChainAtomX[i - 1], (int) mChainAtomY[i - 1],
-                        (int) mChainAtomX[i], (int) mChainAtomY[i]);
-                }
-            }
-            break;
-        case cRequestLassoSelect:
-            g.setColor(Color.gray);
-            g.drawPolygon(mLassoRegion);
-            g.setColor(Color.black);
-            break;
-        case cRequestSelectRect:
-            int x = (mX1 < mX2) ? (int) mX1 : (int) mX2;
-            int y = (mY1 < mY2) ? (int) mY1 : (int) mY2;
-            int w = (int) Math.abs(mX2 - mX1);
-            int h = (int) Math.abs(mY2 - mY1);
-            g.setColor(Color.gray);
-            g.drawRect(x, y, w, h);
-            g.setColor(Color.black);
-            break;
-        case cRequestMapAtoms:
-            x1 = (int) mX1;
-            y1 = (int) mY1;
-            if (mCurrentHiliteAtom == -1 || mCurrentHiliteAtom == mAtom1) {
-                x2 = (int) mX2;
-                y2 = (int) mY2;
-            } else {
-                x2 = (int) mMol.getAtomX(mCurrentHiliteAtom);
-                y2 = (int) mMol.getAtomY(mCurrentHiliteAtom);
-            }
-            g.setColor(new Color(192, 0, 0));
-            g.drawLine(x1, y1, x2, y2);
-            g.setColor(Color.black);
-            break;
         }
     }
 
@@ -417,20 +426,24 @@ public class JDrawArea extends JPanel
 
     private void hiliteAtom(Graphics g, int atom)
     {
+        int radius = (int) (0.32f * mMol.getAverageBondLength());
+
         int x = (int) mMol.getAtomX(atom);
         int y = (int) mMol.getAtomY(atom);
-        g.fillOval(x - 9, y - 9, 18, 18);
+        g.fillOval(x - radius, y - radius, 2 * radius, 2 * radius);
     }
 
     private void hiliteBond(Graphics g, int bond)
     {
+        int width = (int) (0.32f * mMol.getAverageBondLength());
+
         int x1 = (int) mMol.getAtomX(mMol.getBondAtom(0, bond));
         int y1 = (int) mMol.getAtomY(mMol.getBondAtom(0, bond));
         int x2 = (int) mMol.getAtomX(mMol.getBondAtom(1, bond));
         int y2 = (int) mMol.getAtomY(mMol.getBondAtom(1, bond));
 
         Stroke oldStroke = ((Graphics2D) g).getStroke();
-        ((Graphics2D) g).setStroke(new BasicStroke((float) 12, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        ((Graphics2D) g).setStroke(new BasicStroke((float) width, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
         ((Graphics2D) g).drawLine(x1, y1, x2, y2);
         ((Graphics2D) g).setStroke(oldStroke);
     }
@@ -956,8 +969,7 @@ public class JDrawArea extends JPanel
             restoreState();
             fireMoleculeChanged();
             update(UPDATE_CHECK_VIEW);
-        }
-        else if (e.getKeyCode() == KeyEvent.VK_DELETE) {
+        } else if (e.getKeyCode() == KeyEvent.VK_DELETE) {
             storeState();
             if (mCurrentTool == JDrawToolbar.cToolMapper) {
                 boolean found = false;
@@ -1060,20 +1072,32 @@ public class JDrawArea extends JPanel
                     update(UPDATE_CHECK_COORDS);
                 }
             } else if (!isFirst && e.getKeyCode() == KeyEvent.VK_ESCAPE) {
-            	mAtomKeyStrokeBuffer.setLength(0);
+                mAtomKeyStrokeBuffer.setLength(0);
                 update(UPDATE_REDRAW);
             } else if (!isFirst && e.getKeyCode() == KeyEvent.VK_BACK_SPACE) {
-            	mAtomKeyStrokeBuffer.setLength(mAtomKeyStrokeBuffer.length()-1);
+                mAtomKeyStrokeBuffer.setLength(mAtomKeyStrokeBuffer.length() - 1);
                 update(UPDATE_REDRAW);
             } else if ((ch >= 65 && ch <= 90)
-            		|| (ch >= 97 && ch <= 122)
-            		|| (ch >= 48 && ch <= 57)
-            		|| (ch == '-')) {
-            	mAtomKeyStrokeBuffer.append(ch);
+                || (ch >= 97 && ch <= 122)
+                || (ch >= 48 && ch <= 57)
+                || (ch == '-')) {
+                mAtomKeyStrokeBuffer.append(ch);
                 update(UPDATE_REDRAW);
             } else if (ch == '\n' || ch == '\r') {
-        		expandAtomKeyStrokes(mAtomKeyStrokeBuffer.toString());
+                expandAtomKeyStrokes(mAtomKeyStrokeBuffer.toString());
             }
+        } else if (mCurrentHiliteAtom == -1 && mCurrentHiliteBond == -1) {
+            if ((mMode & (MODE_REACTION | MODE_MARKUSH_STRUCTURE | MODE_MULTIPLE_FRAGMENTS)) == 0) {
+                char ch = e.getKeyChar();
+                if (ch == 'h') {
+                    flip(true);
+                    update(UPDATE_REDRAW);
+                } if (ch == 'v') {
+                    flip(false);
+                    update(UPDATE_REDRAW);
+                }
+            }
+
         }
     }
 
@@ -1802,7 +1826,8 @@ public class JDrawArea extends JPanel
                                 mMol.setAtomMapNo(atom, 0, false);
                             }
                         }
-                        tryAutoMapReaction();
+                        if(mapper != null)
+                            tryAutoMapReaction();
 //					new MoleculeAutoMapper(mMol).autoMap();
                     }
                 } else {
@@ -1836,7 +1861,8 @@ public class JDrawArea extends JPanel
                         mMol.setAtomMapNo(mAtom1, freeMapNo, false);
                         mMol.setAtomMapNo(atom2, freeMapNo, false);
 
-                        tryAutoMapReaction();
+                        if(mapper != null)
+                            tryAutoMapReaction();
                     }
 
 //				new MoleculeAutoMapper(mMol).autoMap();
@@ -1858,18 +1884,19 @@ public class JDrawArea extends JPanel
         protected boolean areAtomsSimilar(int moleculeAtom, int fragmentAtom)
         {
             if (mMolecule.getAtomicNo(moleculeAtom) == mFragment.getAtomicNo(fragmentAtom))
-                if(mMolecule.isAromaticAtom(moleculeAtom) || mFragment.isAromaticAtom(fragmentAtom))
+                if (mMolecule.isAromaticAtom(moleculeAtom) || mFragment.isAromaticAtom(fragmentAtom))
                     return true;
-            return super.areAtomsSimilar(moleculeAtom,fragmentAtom);
+            return super.areAtomsSimilar(moleculeAtom, fragmentAtom);
         }
 
         @Override
-        protected boolean areBondsSimilar(int moleculeBond, int fragmentBond) {
+        protected boolean areBondsSimilar(int moleculeBond, int fragmentBond)
+        {
             if (mMolecule.isAromaticBond(moleculeBond) || mMolecule.isDelocalizedBond(moleculeBond) ||
                 mFragment.isAromaticBond(fragmentBond) || mFragment.isDelocalizedBond(fragmentBond)
                 )
                 return true;
-            return super.areBondsSimilar(moleculeBond,fragmentBond);
+            return super.areBondsSimilar(moleculeBond, fragmentBond);
             //return true;
         }
     }
@@ -1878,7 +1905,6 @@ public class JDrawArea extends JPanel
     {
         //				new MoleculeAutoMapper(mMol).autoMap();
         SSSearcher sss = new MySSSearcher();
-        ReactionMapper mapper = new ReactionMapper();
         syncFragments();
 
         Reaction rxn = getReaction();//new Reaction(reaction);
@@ -1892,7 +1918,7 @@ public class JDrawArea extends JPanel
                 }
             }
         }
-        rxn = mapper.matchReaction(rxn,sss);
+        rxn = mapper.matchReaction(rxn, sss);
         if (rxn != null) {
             int offset = 0;
             // Sync the display molecule with the reaction fragments
@@ -2005,9 +2031,6 @@ public class JDrawArea extends JPanel
     /**
      * Sets the ESR information of an atom or bond.
      *
-     * @param atom atom to be changed or -1 if this applies to a bond
-     * @param bond bond to be changed or -1 if this applies to an atom
-     * @param type
      */
     private void setESRInfo(int stereoBond, int type)
     {
@@ -2301,8 +2324,8 @@ public class JDrawArea extends JPanel
             || hiliteObject != null);
 
         if (mCurrentHiliteAtom != theAtom) {
-        	if (mCurrentHiliteAtom != -1 && mAtomKeyStrokeBuffer.length() != 0)
-        		expandAtomKeyStrokes(mAtomKeyStrokeBuffer.toString());
+            if (mCurrentHiliteAtom != -1 && mAtomKeyStrokeBuffer.length() != 0)
+                expandAtomKeyStrokes(mAtomKeyStrokeBuffer.toString());
 
             mCurrentHiliteAtom = theAtom;
             mAtomKeyStrokeBuffer.setLength(0);
@@ -2317,42 +2340,46 @@ public class JDrawArea extends JPanel
         return repaintNeeded;
     }
 
-    private int getAtomKeyStrokeValidity(String s) {
-    	if (Molecule.getAtomicNoFromLabel(s) != 0)
-    		return KEY_IS_ATOM_LABEL;
-    	if (NamedSubstituents.getSubstituentIDCode(s) != null)
-    		return KEY_IS_SUBSTITUENT;
-    	if (isValidAtomKeyStrokeStart(s))
-    		return KEY_IS_VALID_START;
-    	return KEY_IS_INVALID;
+    private int getAtomKeyStrokeValidity(String s)
+    {
+        if (Molecule.getAtomicNoFromLabel(s) != 0)
+            return KEY_IS_ATOM_LABEL;
+        if (NamedSubstituents.getSubstituentIDCode(s) != null)
+            return KEY_IS_SUBSTITUENT;
+        if (isValidAtomKeyStrokeStart(s))
+            return KEY_IS_VALID_START;
+        return KEY_IS_INVALID;
     }
 
     /**
      * @param s
      * @return true if s is either a valid atom symbol or a valid substituent name
      */
-    private boolean isValidAtomKeyStroke(String s) {
-    	return Molecule.getAtomicNoFromLabel(s) != 0
-   			|| NamedSubstituents.getSubstituentIDCode(s) != null;
-   	}
+    private boolean isValidAtomKeyStroke(String s)
+    {
+        return Molecule.getAtomicNoFromLabel(s) != 0
+            || NamedSubstituents.getSubstituentIDCode(s) != null;
+    }
 
     /**
      * @param s
      * @return true if adding one or more chars may still create a valid key stroke sequence
      */
-    private boolean isValidAtomKeyStrokeStart(String s) {
-    	if (s.length() < 3)
-			for (int i=1; i<Molecule.cAtomLabel.length; i++)
-				if (Molecule.cAtomLabel[i].startsWith(s))
-					return true;
+    private boolean isValidAtomKeyStrokeStart(String s)
+    {
+        if (s.length() < 3)
+            for (int i = 1; i < Molecule.cAtomLabel.length; i++)
+                if (Molecule.cAtomLabel[i].startsWith(s))
+                    return true;
 
-    	return NamedSubstituents.isValidSubstituentNameStart(s);
-   	}
+        return NamedSubstituents.isValidSubstituentNameStart(s);
+    }
 
-    private void expandAtomKeyStrokes(String keyStrokes) {
-    	mAtomKeyStrokeBuffer.setLength(0);
+    private void expandAtomKeyStrokes(String keyStrokes)
+    {
+        mAtomKeyStrokeBuffer.setLength(0);
 
-    	int atomicNo = Molecule.getAtomicNoFromLabel(keyStrokes);
+        int atomicNo = Molecule.getAtomicNoFromLabel(keyStrokes);
         if (atomicNo != 0) {
             storeState();
             if (mMol.changeAtom(mCurrentHiliteAtom, atomicNo, 0, -1, 0)) {
@@ -2369,13 +2396,13 @@ public class JDrawArea extends JPanel
             // Copy the the fragment containing the attachment point into a new molecule.
             // Then attach the substituent, create new atom coordinates for the substituent,
             // while retaining coordinates of the fragment.
-        	StereoMolecule fragment = new StereoMolecule();
-        	fragment.addFragment(mMol, mCurrentHiliteAtom, null);
-        	float sourceAVBL = fragment.getAverageBondLength();
+            StereoMolecule fragment = new StereoMolecule();
+            fragment.addFragment(mMol, mCurrentHiliteAtom, null);
+            float sourceAVBL = fragment.getAverageBondLength();
             int firstAtomInFragment = fragment.getAllAtoms();
-        	for (int atom=0; atom<fragment.getAllAtoms(); atom++)
-        		fragment.setAtomMarker(atom, true);
-        	fragment.addSubstituent(substituent, 0);
+            for (int atom = 0; atom < fragment.getAllAtoms(); atom++)
+                fragment.setAtomMarker(atom, true);
+            fragment.addSubstituent(substituent, 0);
             new CoordinateInventor(CoordinateInventor.MODE_KEEP_MARKED_ATOM_COORDS).invent(fragment);
 
             float dx = mMol.getAtomX(mCurrentHiliteAtom) - sourceAVBL * fragment.getAtomX(0);
@@ -2386,13 +2413,13 @@ public class JDrawArea extends JPanel
             int firstAtomInMol = mMol.getAllAtoms();
             mMol.addSubstituent(substituent, mCurrentHiliteAtom);
             int substituentAtoms = mMol.getAllAtoms() - firstAtomInMol;
-        	for (int i=0; i<substituentAtoms; i++) {
-        		mMol.setAtomX(firstAtomInMol+i, sourceAVBL * fragment.getAtomX(firstAtomInFragment+i) + dx);
-        		mMol.setAtomY(firstAtomInMol+i, sourceAVBL * fragment.getAtomY(firstAtomInFragment+i) + dy);
-        		}
+            for (int i = 0; i < substituentAtoms; i++) {
+                mMol.setAtomX(firstAtomInMol + i, sourceAVBL * fragment.getAtomX(firstAtomInFragment + i) + dx);
+                mMol.setAtomY(firstAtomInMol + i, sourceAVBL * fragment.getAtomY(firstAtomInFragment + i) + dy);
+            }
             mMol.setStereoBondsFromParity();
 
-        	fireMoleculeChanged();
+            fireMoleculeChanged();
             update(UPDATE_CHECK_COORDS);
         }
     }
@@ -2749,7 +2776,7 @@ public class JDrawArea extends JPanel
      * indexes change due to molecule changes.
      * Atom text is not supported for MODE_REACTION, MODE_MULTIPLE_FRAGMENTS or MODE_MARKUSH_STRUCTURE.
      *
-     * @param null or String array matching atom indexes (may contain null entries)
+     * @param atomText String[] matching atom indexes (may contain null entries)
      */
     public void setAtomText(String[] atomText)
     {
@@ -2839,7 +2866,7 @@ public class JDrawArea extends JPanel
         }
 
         if (selectedOnly)
-        	mMol.removeAtomMarkers();
+            mMol.removeAtomMarkers();
     }
 
     private void cleanupMoleculeCoordinates(Graphics g, ExtendedDepictor depictor, boolean selectedOnly)
@@ -3239,5 +3266,52 @@ public class JDrawArea extends JPanel
 			System.out.println("Error reading data: "+e);
 			}
 		}*/
+
+
+    private Point2D calculateCenterOfGravity()
+    {
+        int atoms = mMol.getAllAtoms();
+        double sumx = 0;
+        double sumy = 0;
+        for (int atom = 0; atom < atoms; atom++) {
+            sumx += mMol.getAtomX(atom);
+            sumy += mMol.getAtomY(atom);
+        }
+        return atoms > 0 ? new Point2D.Double(sumx / atoms, sumy / atoms) : null;
+    }
+
+    private void flip(boolean horiz)
+    {
+        Point2D pt = calculateCenterOfGravity();
+        if (pt != null) {
+            // center
+            moveCoords((float)-pt.getX(), (float)-pt.getY());
+            if (horiz) {
+                scaleCoords(-1,1);
+            } else {
+                scaleCoords(1,-1);
+            }
+            moveCoords((float)pt.getX(), (float)pt.getY());
+        }
+    }
+
+    private void scaleCoords(float scalex, float scaley)
+    {
+        int atoms = mMol.getAllAtoms();
+        for (int atom = 0; atom < atoms; atom++) {
+            mMol.setAtomX(atom, mMol.getAtomX(atom) * scalex);
+            mMol.setAtomY(atom, mMol.getAtomY(atom) * scaley);
+        }
+    }
+
+    private void moveCoords(float cx, float cy)
+    {
+        int atoms = mMol.getAllAtoms();
+        for (int atom = 0; atom < atoms; atom++) {
+            mMol.setAtomX(atom, mMol.getAtomX(atom) + cx);
+            mMol.setAtomY(atom, mMol.getAtomY(atom) + cy);
+        }
+    }
+
 }
 

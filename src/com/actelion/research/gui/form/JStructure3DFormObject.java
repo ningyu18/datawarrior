@@ -27,14 +27,28 @@ import com.actelion.research.chem.ExtendedMolecule;
 import com.actelion.research.chem.FFMolecule;
 import com.actelion.research.chem.IDCodeParser;
 import com.actelion.research.chem.StereoMolecule;
+import com.actelion.research.gui.viewer2d.ActionProvider;
 import com.actelion.research.gui.viewer2d.MoleculeCanvas;
 import com.actelion.research.gui.viewer2d.MoleculeViewer;
 
 public class JStructure3DFormObject extends AbstractFormObject {
 	public static final String FORM_OBJECT_TYPE = "structure3D";
+
+	private static ActionProvider<MoleculeViewer> sActionProvider;
+
+	public static ActionProvider<MoleculeViewer> getActionProvider() {
+		return sActionProvider;
+		}
+
+	public static void setActionProvider(ActionProvider<MoleculeViewer> ap) {
+		sActionProvider = ap;
+		}
+
 	public JStructure3DFormObject(String key, String type) {
 		super(key, type);
 		mComponent = new MoleculeViewer();
+		if (sActionProvider != null)
+			((MoleculeViewer)mComponent).addActionProvider(sActionProvider);
 		}
 
     @Override

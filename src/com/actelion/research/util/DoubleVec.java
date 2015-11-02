@@ -1,18 +1,26 @@
+/*
+ * Project: DD_core
+ * @(#)DoubleVec.java
+ *
+ * Copyright (c) 1997- 2015
+ * Actelion Pharmaceuticals Ltd.
+ * Gewerbestrasse 16
+ * CH-4123 Allschwil, Switzerland
+ *
+ * All Rights Reserved.
+ *
+ * This software is the proprietary information of Actelion Pharmaceuticals, Ltd.
+ * Use is subject to license terms.
+ *
+ * Author: MvK
+ */
+
 package com.actelion.research.util;
 
 import java.text.DecimalFormat;
 import java.util.Random;
 import java.util.Vector;
 
-/**
- * <p>Title: </p>
- * <p>Description: Vector with double values </p>
- * <p>Copyright: Copyright (c) 2003</p>
- * <p>Company: Axovan Ltd. </p>
- * @author Modest von Korff
- * @version 1.0
-     * 18.09.2003 EuclideanDistanceFast runtime exception added cause of error in SOM
- */
 // Please rename this class
 public class DoubleVec implements Comparable<DoubleVec> {
 	

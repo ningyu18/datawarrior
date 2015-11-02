@@ -52,6 +52,7 @@ public class ExplanationView extends JScrollPane implements CompoundTableConstan
 
 		Handler.install();
 		mTextPane.setText(explanation == null ? "" : explanation);
+		mTextPane.setCaretPosition(0);
 		}
 
 	@Override

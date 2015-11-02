@@ -75,7 +75,8 @@ public class JVisualization2D extends JVisualization {
 	private static final long serialVersionUID = 0x00000001;
 
 	public static final int cAvailableShapeCount = 7;
-	public static final int cVisibleRecords = -1;
+	public static final int BACKGROUND_VISIBLE_RECORDS = -1;
+	public static final int BACKGROUND_ALL_RECORDS = -2;
 
 	private static final float cMarkerSize = 0.028f;
 	private static final float cConnectionLineWidth = 0.005f;
@@ -86,6 +87,8 @@ public class JVisualization2D extends JVisualization {
 	private static final float MARKER_OUTLINE = 0.7f;
 	private static final float NAN_WIDTH = 2.0f;
 	private static final float NAN_SPACING = 0.5f;
+
+	public static final String[] SCALE_MODE_TEXT = { "Both axes", "Hide all scales", "X-axis only", "Y-axis only" };
 
 	public static final String[] CURVE_MODE_TEXT = { "<none>", "Vertical Line", "Horizontal Line", "Fitted Line" };
 	public static final String[] CURVE_MODE_CODE = { "none", "abscissa", "ordinate", "fitted" };
@@ -108,6 +111,8 @@ public class JVisualization2D extends JVisualization {
 	private static final int cMultiValueMarkerModeBars = 2;
 	public static final String[] MULTI_VALUE_MARKER_MODE_TEXT = { "<none>", "Pie Pieces", "Bars" };
 	public static final String[] MULTI_VALUE_MARKER_MODE_CODE = { "none", "pies", "bars" };
+
+	private static final String[] SPLIT_VIEW_EXCEEDED_MESSAGE = {"Split view count exceeded!", "Use filters to hide rows or", "don't configure view splitting."};
 
 	private static int[]	mX,mY;
 
@@ -157,7 +162,7 @@ public class JVisualization2D extends JVisualization {
 
 	protected void initialize() {
 		super.initialize();
-		mBackgroundColorConsidered = cVisibleRecords;
+		mBackgroundColorConsidered = BACKGROUND_VISIBLE_RECORDS;
 		mMarkerShapeColumn = cColumnUnassigned;
 		mChartColumn = cColumnUnassigned;
 		mChartMode = cChartModeCount;
@@ -170,7 +175,6 @@ public class JVisualization2D extends JVisualization {
 		mBackgroundImageData = null;
 		mMultiValueMarkerColumns = null;
 		mMultiValueMarkerMode = cMultiValueMarkerModePies;
-		mPreferredChartType = cChartTypeBars;
 		mShownCorrelationType = CorrelationCalculator.TYPE_NONE;
 		}
 
@@ -189,9 +193,9 @@ public class JVisualization2D extends JVisualization {
 		GraphicsConfiguration gc = ge.getDefaultScreenDevice().getDefaultConfiguration();
 
 		if (mOffImage == null
-		 || mOffImage.getWidth(null) != (int)(width*sRetinaFactor)
-		 || mOffImage.getHeight(null) != (int)(height*sRetinaFactor)) {
-			mOffImage = gc.createCompatibleVolatileImage((int)(width*sRetinaFactor), (int)(height*sRetinaFactor), Transparency.OPAQUE);
+		 || mOffImage.getWidth(null) != (int)(width*getContentScaleFactor())
+		 || mOffImage.getHeight(null) != (int)(height*getContentScaleFactor())) {
+			mOffImage = gc.createCompatibleVolatileImage((int)(width*getContentScaleFactor()), (int)(height*getContentScaleFactor()), Transparency.OPAQUE);
 			mCoordinatesValid = false;
 			}
 
@@ -208,8 +212,8 @@ public class JVisualization2D extends JVisualization {
 				mOffG = null;
 				try {
 					mOffG = mOffImage.createGraphics();
-					if (sRetinaFactor != 1f)
-						((Graphics2D)mOffG).scale(sRetinaFactor, sRetinaFactor);
+					if (getContentScaleFactor() != 1f)
+						((Graphics2D)mOffG).scale(getContentScaleFactor(), getContentScaleFactor());
 					if (!mIsFastRendering)
 						((Graphics2D)mOffG).setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
 		//			((Graphics2D)mOffG).setRenderingHint(RenderingHints.KEY_STROKE_CONTROL, RenderingHints.VALUE_STROKE_PURE);	no sub-pixel accuracy looks cleaner
@@ -231,8 +235,7 @@ public class JVisualization2D extends JVisualization {
 					paintLegend(bounds);
 //System.out.println("used:"+(System.currentTimeMillis()-millis));
 					}
-				finally {
-				// It's always best to dispose of your Graphics objects.
+				finally {	// It's always best to dispose of your Graphics objects.
 					mOffG.dispose();
 					}
 				} while (mOffImage.contentsLost());
@@ -249,60 +252,17 @@ public class JVisualization2D extends JVisualization {
 			markHighlighted(g);
 
 		drawSelectionOutline(g);
+
+		if (mSplittingColumn[0] != cColumnUnassigned && !isSplitView()) {
+			g.setColor(Color.RED.darker());
+			int fontSize = 3*mFontHeight;
+			g.setFont(new Font("Helvetica", Font.PLAIN, fontSize));
+			for (int i=0; i<SPLIT_VIEW_EXCEEDED_MESSAGE.length; i++) {
+				int w = (int)g.getFontMetrics().getStringBounds(SPLIT_VIEW_EXCEEDED_MESSAGE[i], g).getWidth();
+				g.drawString(SPLIT_VIEW_EXCEEDED_MESSAGE[i], (width-w)/2, height/2+(i*2-SPLIT_VIEW_EXCEEDED_MESSAGE.length-1)*fontSize);
+				}
+			}
 		}
-
-/*	public void paintComponent(Graphics g) {	// this is the old BufferedImage based approach
-		super.paintComponent(g);
-		((Graphics2D)g).setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-
-		mIsHighResolution = false;
-
-		int width = getWidth();
-		int height = getHeight();
-
-		if (mOffImage == null
-		 || mOffImage.getWidth(null) != (int)(width*sRetinaFactor)
-		 || mOffImage.getHeight(null) != (int)(height*sRetinaFactor)) {
-//			mOffImage = createImage((int)(width*sRetinaFactor), (int)(height*sRetinaFactor));
-			mOffImage = new BufferedImage((int)(width*sRetinaFactor), (int)(height*sRetinaFactor), BufferedImage.TYPE_INT_ARGB);
-			mOffG = mOffImage.getGraphics();
-			if (sRetinaFactor != 1f)
-				((Graphics2D)mOffG).scale(sRetinaFactor, sRetinaFactor);
-			((Graphics2D)mOffG).setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-//			((Graphics2D)mOffG).setRenderingHint(RenderingHints.KEY_STROKE_CONTROL, RenderingHints.VALUE_STROKE_PURE);	no sub-pixel accuracy looks cleaner
-			mCoordinatesValid = false;
-			}
-
-		if (!mCoordinatesValid)
-			mOffImageValid = false;
-
-		if (!mOffImageValid) {
-			mOffG.setColor(getViewBackground());
-			mOffG.fillRect(0, 0, width, height);
-			Insets insets = getInsets();
-			Rectangle bounds = new Rectangle(insets.left, insets.top, width-insets.left-insets.right, height-insets.top-insets.bottom);
-
-			mFontHeight = (int)(mRelativeFontSize * Math.max(Math.min(bounds.width/60, 14), 7));
-
-			mG = mOffG;
-long millis = System.currentTimeMillis();
-			paintContent(bounds);
-			paintLegend(bounds);
-System.out.println("used:"+(System.currentTimeMillis()-millis));
-
-			mOffImageValid = true;
-			}
-
-		g.drawImage(mOffImage, 0, 0, width, height, this);
-		if (mActivePoint != null
-		 && isVisible(mActivePoint))
-			markReference(g);
-
-		if (mHighlightedPoint != null)
-			markHighlighted(g);
-
-		drawSelectionOutline(g);
-		}*/
 
 	public int print(Graphics g, PageFormat f, int pageIndex) {
 		if (pageIndex != 0)
@@ -343,7 +303,7 @@ System.out.println("used:"+(System.currentTimeMillis()-millis));
 
 		if (!transparentBG) {
 			setColor(getViewBackground());
-			fillRect(0, 0, bounds.width, bounds.height);
+			fillRect(bounds.x, bounds.y, bounds.width, bounds.height);
 			}
 
 		if (bounds.width > 0 && bounds.height > 0)
@@ -355,6 +315,9 @@ System.out.println("used:"+(System.currentTimeMillis()-millis));
 		}
 
 	private void paintContent(final Rectangle bounds) {
+		if (validateSplittingIndices())
+			mBackgroundValid = false;
+
 		mChartInfo = null;
 		switch (mChartType) {
 		case cChartTypeBoxPlot:
@@ -370,17 +333,20 @@ System.out.println("used:"+(System.currentTimeMillis()-millis));
 		calculateMarkerSize(bounds);
 		calculateLegend(bounds);
 
-		if (mSplittingColumn[0] != cColumnUnassigned) {
+		if (isSplitView()) {
 			int scaledFontHeight = (int)scaleIfSplitView(mFontHeight);
 			if (mColorLegend != null || mSizeLegend != null || mShapeLegend != null || mMultiValueLegend != null || mBackgroundLegend != null)
 				bounds.height -= scaledFontHeight / 2;
 			compileSplittingHeaderMolecules();
-			int count1 = mTableModel.getCategoryCount(mSplittingColumn[0]);
+//			int count1 = mTableModel.getCategoryCount(mSplittingColumn[0]);
+//			int count2 = (mSplittingColumn[1] == cColumnUnassigned) ? -1
+//					   : mTableModel.getCategoryCount(mSplittingColumn[1]);
+			int count1 = mShowEmptyInSplitView ? mTableModel.getCategoryCount(mSplittingColumn[0]) : getVisibleCategoryCount(mSplittingColumn[0]);
 			int count2 = (mSplittingColumn[1] == cColumnUnassigned) ? -1
-					   : mTableModel.getCategoryCount(mSplittingColumn[1]);
+					   : mShowEmptyInSplitView ? mTableModel.getCategoryCount(mSplittingColumn[1]) : getVisibleCategoryCount(mSplittingColumn[1]);
 			boolean largeHeader = (mSplittingDepictor[0] != null
 								|| mSplittingDepictor[1] != null);
-			mSplitter = new VisualizationSplitter(bounds, count1, count2, scaledFontHeight, largeHeader);
+			mSplitter = new VisualizationSplitter(bounds, count1, count2, scaledFontHeight, largeHeader, mSplittingAspectRatio);
 			float titleBrightness = ColorHelper.perceivedBrightness(getTitleBackground());
 			float backgroundBrightness = ColorHelper.perceivedBrightness(getViewBackground());
 			Color borderColor = (backgroundBrightness > titleBrightness) ? getTitleBackground().darker().darker()
@@ -391,13 +357,21 @@ System.out.println("used:"+(System.currentTimeMillis()-millis));
 
 			mG.setColor(getContrastGrey(SCALE_STRONG, getTitleBackground()));
 			mG.setFont(new Font("Helvetica", Font.BOLD, scaledFontHeight));
+
+			String[][] categoryTitle = new String[2][];
+			categoryTitle[0] = mShowEmptyInSplitView ? mTableModel.getCategoryList(mSplittingColumn[0])
+													 : getVisibleCategoryList(mSplittingColumn[0]);
+			if (mSplittingColumn[1] != cColumnUnassigned)
+				categoryTitle[1] = mShowEmptyInSplitView ? mTableModel.getCategoryList(mSplittingColumn[1])
+						 								 : getVisibleCategoryList(mSplittingColumn[1]);
+
 			for (int hv=0; hv<mHVCount; hv++) {
 				Rectangle titleArea = mSplitter.getTitleBounds(hv);
 				mG.setClip(titleArea);
 
 				int molWidth = Math.min(titleArea.width*2/5, titleArea.height*3/2);
 				int cat1Index = (mSplittingColumn[1] == cColumnUnassigned) ? hv : mSplitter.getHIndex(hv);
-				String shortTitle1 = mTableModel.getCategoryList(mSplittingColumn[0])[cat1Index];
+				String shortTitle1 = categoryTitle[0][cat1Index];
 				String title1 = mTableModel.getColumnTitle(mSplittingColumn[0])+" = "+shortTitle1;
 				int title1Width = mSplittingDepictor[0] == null ?
 								  mG.getFontMetrics().stringWidth(title1)
@@ -407,7 +381,7 @@ System.out.println("used:"+(System.currentTimeMillis()-millis));
 				int title2Width = 0;
 				int totalWidth = title1Width;
 				if (mSplittingColumn[1] != cColumnUnassigned) {
-					shortTitle2 = mTableModel.getCategoryList(mSplittingColumn[1])[mSplitter.getVIndex(hv)];
+					shortTitle2 = categoryTitle[1][mSplitter.getVIndex(hv)];
 					title2 = mTableModel.getColumnTitle(mSplittingColumn[1])+" = "+shortTitle2;
 					title2Width = mSplittingDepictor[1] == null ?
 								  mG.getFontMetrics().stringWidth(title2)
@@ -469,8 +443,7 @@ System.out.println("used:"+(System.currentTimeMillis()-millis));
 			paintGraph(bounds, 0);
 			}
 
-		Rectangle baseGraphRect = getGraphBounds(mSplittingColumn[0] == cColumnUnassigned ?
-											bounds : mSplitter.getGraphBounds(0));
+		Rectangle baseGraphRect = getGraphBounds(isSplitView() ? mSplitter.getGraphBounds(0) : bounds);
 
 		if (baseGraphRect.width <= 0 || baseGraphRect.height <= 0)
 			return;
@@ -508,7 +481,15 @@ System.out.println("used:"+(System.currentTimeMillis()-millis));
 		int height = getHeight();
 		Insets insets = getInsets();
 		Rectangle allBounds = new Rectangle(insets.left, insets.top, width-insets.left-insets.right, height-insets.top-insets.bottom);
-		if (mSplittingColumn[0] == cColumnUnassigned) {
+		if (isSplitView()) {
+			for (int hv=0; hv<mHVCount; hv++) {
+				Rectangle bounds = getGraphBounds(mSplitter.getGraphBounds(hv));
+				if (bounds.contains(screenX, screenY))
+					return bounds;
+				}
+			return null;
+			}
+		else {
 			if (mColorLegend != null)
 				allBounds.height -= mColorLegend.getHeight(); 
 			if (mSizeLegend != null)
@@ -522,27 +503,27 @@ System.out.println("used:"+(System.currentTimeMillis()-millis));
 			Rectangle bounds = getGraphBounds(allBounds);
 			return bounds.contains(screenX, screenY) ? bounds : null;
 			}
-		else {
-			for (int hv=0; hv<mHVCount; hv++) {
-				Rectangle bounds = getGraphBounds(mSplitter.getGraphBounds(hv));
-				if (bounds.contains(screenX, screenY))
-					return bounds;
-				}
-			return null;
-			}
 		}
 
 	private Rectangle getGraphBounds(Rectangle bounds) {
 		int scaledFontHeight = (int)scaleIfSplitView(mFontHeight);
-		return (mSuppressScale || mTreeNodeList != null) ?
-				new Rectangle(bounds.x + mBorder + mNaNSize[0],
-						bounds.y + mBorder,
-						bounds.width - mNaNSize[0] - 2 * mBorder,
-						bounds.height - mNaNSize[1] - 2 * mBorder)
-			  : new Rectangle(bounds.x + mBorder + mScaleSize[1] + mNaNSize[0],
-					  	bounds.y + mBorder + scaledFontHeight,
-					  	bounds.width - mScaleSize[1] - mNaNSize[0] - 2 * mBorder,
-					  	bounds.height - mScaleSize[0] - mNaNSize[1] - 2 * mBorder - 2 * scaledFontHeight);
+		Rectangle graphBounds = new Rectangle(
+				bounds.x + mBorder + mNaNSize[0] + mScaleSize[1],
+				bounds.y + mBorder,
+				bounds.width - mNaNSize[0] - mScaleSize[1] - 2 * mBorder,
+				bounds.height - mNaNSize[1] - mScaleSize[0] - 2 * mBorder);
+
+		if (mTreeNodeList == null) {
+			if (showScale(0)) {
+				graphBounds.height -= scaledFontHeight;
+				}
+			if (showScale(1)) {
+				graphBounds.y += scaledFontHeight;
+				graphBounds.height -= scaledFontHeight;
+				}
+			}
+
+		return graphBounds;
 		}
 
 	private void paintGraph(Rectangle bounds, int hvIndex) {
@@ -570,9 +551,9 @@ System.out.println("used:"+(System.currentTimeMillis()-millis));
 			drawBackground(mG, graphRect, hvIndex);
 
 		if (mTreeNodeList == null) {
-			if (!(mSuppressGrid && mSuppressScale))
-				drawGrid(mG, graphRect);
-			if (!mSuppressScale)
+			if (!mSuppressGrid || mScaleMode != cScaleModeHideAll)
+				drawGrid(mG, graphRect);	// draws grid and scale labels
+			if (mScaleMode != cScaleModeHideAll)
 				drawAxes(mG, graphRect);
 			}
 		}
@@ -736,7 +717,7 @@ System.out.println("used:"+(System.currentTimeMillis()-millis));
 			if (mol == null)
 				return;
 
-			depictor = new Depictor2D(mol);
+			depictor = new Depictor2D(mol, Depictor2D.cDModeSuppressChiralText);
 			depictor.validateView(mG, DEPICTOR_RECT,
 								  Depictor2D.cModeInflateToHighResAVBL+Math.max(1, (int)(256*scaleIfSplitView(getLabelAVBL(vp, position, isTreeView)))));
 			molRect = depictor.getBoundingRect();
@@ -1221,7 +1202,7 @@ System.out.println("used:"+(System.currentTimeMillis()-millis));
 		for (int hv=0; hv<mHVCount; hv++) {
 			int hOffset = 0;
 			int vOffset = 0;
-			if (mSplittingColumn[0] != cColumnUnassigned) {
+			if (isSplitView()) {
 				hOffset = mSplitter.getHIndex(hv) * mSplitter.getGridWidth();
 				vOffset = mSplitter.getVIndex(hv) * mSplitter.getGridHeight();
 				}
@@ -1347,7 +1328,7 @@ System.out.println("used:"+(System.currentTimeMillis()-millis));
 		for (int hv=0; hv<mHVCount; hv++) {
 			int hOffset = 0;
 			int vOffset = 0;
-			if (mSplittingColumn[0] != cColumnUnassigned) {
+			if (isSplitView()) {
 				hOffset = mSplitter.getHIndex(hv) * mSplitter.getGridWidth();
 				vOffset = mSplitter.getVIndex(hv) * mSplitter.getGridHeight();
 				}
@@ -1469,7 +1450,7 @@ System.out.println("used:"+(System.currentTimeMillis()-millis));
 		for (int hv=0; hv<mHVCount; hv++) {
 			int hOffset = 0;
 			int vOffset = 0;
-			if (mSplittingColumn[0] != cColumnUnassigned) {
+			if (isSplitView()) {
 				hOffset = mSplitter.getHIndex(hv) * mSplitter.getGridWidth();
 				vOffset = mSplitter.getVIndex(hv) * mSplitter.getGridHeight();
 				}
@@ -1760,7 +1741,7 @@ System.out.println("used:"+(System.currentTimeMillis()-millis));
 			for (int hv=0; hv<mHVCount; hv++) {
 				int hOffset = 0;
 				int vOffset = 0;
-				if (mSplittingColumn[0] != cColumnUnassigned) {
+				if (isSplitView()) {
 					hOffset = mSplitter.getHIndex(hv) * mSplitter.getGridWidth();
 					vOffset = mSplitter.getVIndex(hv) * mSplitter.getGridHeight();
 					}
@@ -1962,17 +1943,18 @@ System.out.println("used:"+(System.currentTimeMillis()-millis));
 					writer.newLine();
 					}
 				else {
-					String[] splittingCategory0 = (mSplittingColumn[0] == cColumnUnassigned) ? null : mTableModel.getCategoryList(mSplittingColumn[0]);
-					String[] splittingCategory1 = (mSplittingColumn[1] == cColumnUnassigned) ? null : mTableModel.getCategoryList(mSplittingColumn[1]);
-					if (mSplittingColumn[0] != cColumnUnassigned)
+					String[] splittingCategory0 = isSplitView() ? mTableModel.getCategoryList(mSplittingColumn[0]) : null;
+					String[] splittingCategory1 = (isSplitView() && mSplittingColumn[1] != cColumnUnassigned) ?
+							mTableModel.getCategoryList(mSplittingColumn[1]) : null;
+					if (isSplitView())
 						writer.write(mTableModel.getColumnTitle(mSplittingColumn[0])+"\t");
-					if (mSplittingColumn[1] != cColumnUnassigned)
+					if (isSplitView() && mSplittingColumn[1] != cColumnUnassigned)
 						writer.write(mTableModel.getColumnTitle(mSplittingColumn[1])+"\t");
 					writer.write("r");
 					for (int hv=0; hv<mHVCount; hv++) {
-						if (mSplittingColumn[0] != cColumnUnassigned)
+						if (isSplitView())
 							writer.write(splittingCategory0[(mSplittingColumn[1] == cColumnUnassigned) ? hv : mSplitter.getHIndex(hv)]+"\t");
-						if (mSplittingColumn[1] != cColumnUnassigned)
+						if (isSplitView() && mSplittingColumn[1] != cColumnUnassigned)
 							writer.write(splittingCategory1[mSplitter.getVIndex(hv)]+"\t");
 						writer.write(DoubleFormat.toString(mCorrelationCoefficient[hv], 3));
 						writer.newLine();
@@ -2018,15 +2000,16 @@ System.out.println("used:"+(System.currentTimeMillis()-millis));
 				}
 			}
 
-		String[] splittingCategory0 = (mSplittingColumn[0] == cColumnUnassigned) ? null : mTableModel.getCategoryList(mSplittingColumn[0]);
-		String[] splittingCategory1 = (mSplittingColumn[1] == cColumnUnassigned) ? null : mTableModel.getCategoryList(mSplittingColumn[1]);
+		String[] splittingCategory0 = isSplitView() ? mTableModel.getCategoryList(mSplittingColumn[0]) : null;
+		String[] splittingCategory1 = (isSplitView() && mSplittingColumn[1] != cColumnUnassigned) ?
+						mTableModel.getCategoryList(mSplittingColumn[1]) : null;
 		String[] colorCategory = (catCount == 1) ? null : mTableModel.getCategoryList(mMarkerColor.getColorColumn());
 
 		writer.write((axis == 0) ? "Vertical Mean Line:" : "Horizontal Mean Line:");
 		writer.newLine();
-		if (mSplittingColumn[0] != cColumnUnassigned)
+		if (isSplitView())
 			writer.write(mTableModel.getColumnTitle(mSplittingColumn[0])+"\t");
-		if (mSplittingColumn[1] != cColumnUnassigned)
+		if (isSplitView() && mSplittingColumn[1] != cColumnUnassigned)
 			writer.write(mTableModel.getColumnTitle(mSplittingColumn[1])+"\t");
 		if (catCount != 1)
 			writer.write(mTableModel.getColumnTitle(mMarkerColor.getColorColumn())+"\t");
@@ -2037,9 +2020,9 @@ System.out.println("used:"+(System.currentTimeMillis()-millis));
 
 		for (int hv=0; hv<mHVCount; hv++) {
 			for (int cat=0; cat<catCount; cat++) {
-				if (mSplittingColumn[0] != cColumnUnassigned)
+				if (isSplitView())
 					writer.write(splittingCategory0[(mSplittingColumn[1] == cColumnUnassigned) ? hv : mSplitter.getHIndex(hv)]+"\t");
-				if (mSplittingColumn[1] != cColumnUnassigned)
+				if (isSplitView() && mSplittingColumn[1] != cColumnUnassigned)
 					writer.write(splittingCategory1[mSplitter.getVIndex(hv)]+"\t");
 				if (catCount != 1)
 					writer.write(colorCategory[cat]+"\t");
@@ -2102,8 +2085,9 @@ System.out.println("used:"+(System.currentTimeMillis()-millis));
 				}
 			}
 
-		String[] splittingCategory0 = (mSplittingColumn[0] == cColumnUnassigned) ? null : mTableModel.getCategoryList(mSplittingColumn[0]);
-		String[] splittingCategory1 = (mSplittingColumn[1] == cColumnUnassigned) ? null : mTableModel.getCategoryList(mSplittingColumn[1]);
+		String[] splittingCategory0 = isSplitView() ? mTableModel.getCategoryList(mSplittingColumn[0]) : null;
+		String[] splittingCategory1 = (isSplitView() && mSplittingColumn[1] != cColumnUnassigned) ?
+						mTableModel.getCategoryList(mSplittingColumn[1]) : null;
 		String[] colorCategory = (catCount == 1) ? null : mTableModel.getCategoryList(mMarkerColor.getColorColumn());
 
 		writer.write("Fitted Straight Line:");
@@ -2112,9 +2096,9 @@ System.out.println("used:"+(System.currentTimeMillis()-millis));
 			writer.write("Gradient m and standard deviation are based on logarithmic values.");
 			writer.newLine();
 			}
-		if (mSplittingColumn[0] != cColumnUnassigned)
+		if (isSplitView())
 			writer.write(mTableModel.getColumnTitle(mSplittingColumn[0])+"\t");
-		if (mSplittingColumn[1] != cColumnUnassigned)
+		if (isSplitView() && mSplittingColumn[1] != cColumnUnassigned)
 			writer.write(mTableModel.getColumnTitle(mSplittingColumn[1])+"\t");
 		if (catCount != 1)
 			writer.write(mTableModel.getColumnTitle(mMarkerColor.getColorColumn())+"\t");
@@ -2125,9 +2109,9 @@ System.out.println("used:"+(System.currentTimeMillis()-millis));
 
 		for (int hv=0; hv<mHVCount; hv++) {
 			for (int cat=0; cat<catCount; cat++) {
-				if (mSplittingColumn[0] != cColumnUnassigned)
+				if (isSplitView())
 					writer.write(splittingCategory0[(mSplittingColumn[1] == cColumnUnassigned) ? hv : mSplitter.getHIndex(hv)]+"\t");
-				if (mSplittingColumn[1] != cColumnUnassigned)
+				if (isSplitView() && mSplittingColumn[1] != cColumnUnassigned)
 					writer.write(splittingCategory1[mSplitter.getVIndex(hv)]+"\t");
 				if (catCount != 1)
 					writer.write(colorCategory[cat]+"\t");
@@ -2192,7 +2176,7 @@ System.out.println("used:"+(System.currentTimeMillis()-millis));
 				if (count[hv][cat] != 0) {
 					int hOffset = 0;
 					int vOffset = 0;
-					if (mSplittingColumn[0] != cColumnUnassigned) {
+					if (isSplitView()) {
 						hOffset = mSplitter.getHIndex(hv) * mSplitter.getGridWidth();
 						vOffset = mSplitter.getVIndex(hv) * mSplitter.getGridHeight();
 						}
@@ -2274,7 +2258,7 @@ System.out.println("used:"+(System.currentTimeMillis()-millis));
 				if (count[hv][cat] != 0) {
 					int hOffset = 0;
 					int vOffset = 0;
-					if (mSplittingColumn[0] != cColumnUnassigned) {
+					if (isSplitView()) {
 						hOffset = mSplitter.getHIndex(hv) * mSplitter.getGridWidth();
 						vOffset = mSplitter.getVIndex(hv) * mSplitter.getGridHeight();
 						}
@@ -2375,7 +2359,7 @@ System.out.println("used:"+(System.currentTimeMillis()-millis));
 				if (count[hv][cat]*sx2[hv][cat] == sx[hv][cat]*sx[hv][cat]) {
 					float x = sx[hv][cat] / count[hv][cat];
 					float ymin = baseGraphRect.y;
-					if (mSplittingColumn[0] != cColumnUnassigned)
+					if (isSplitView())
 						ymin += mSplitter.getVIndex(hv) * mSplitter.getGridHeight();
 					drawVerticalLine(x, ymin, ymin+baseGraphRect.height, false);
 					continue;
@@ -2383,7 +2367,7 @@ System.out.println("used:"+(System.currentTimeMillis()-millis));
 				if (count[hv][cat]*sxy[hv][cat] == sx[hv][cat]*sy[hv][cat]) {
 					float y = sy[hv][cat] / count[hv][cat];
 					float xmin = baseGraphRect.x;
-					if (mSplittingColumn[0] != cColumnUnassigned)
+					if (isSplitView())
 						xmin += mSplitter.getHIndex(hv) * mSplitter.getGridWidth();
 					drawHorizontalLine(xmin, xmin+baseGraphRect.width, y, false);
 					continue;
@@ -2407,7 +2391,7 @@ System.out.println("used:"+(System.currentTimeMillis()-millis));
 	private void drawInclinedLine(Rectangle baseGraphRect, int hv, float m, float b, boolean isStdDevLine) {
 		int hOffset = 0;
 		int vOffset = 0;
-		if (mSplittingColumn[0] != cColumnUnassigned) {
+		if (isSplitView()) {
 			hOffset = mSplitter.getHIndex(hv) * mSplitter.getGridWidth();
 			vOffset = mSplitter.getVIndex(hv) * mSplitter.getGridHeight();
 			}
@@ -2577,7 +2561,7 @@ System.out.println("used:"+(System.currentTimeMillis()-millis));
 		 || (mChartType == cChartTypeBoxPlot && marker.chartGroupIndex != -1)) {
 			int hv = marker.hvIndex;
 			int cat = getChartCategoryIndex(marker);
-			if (cat != -1) {
+			if (cat != -1 && mChartInfo.innerDistance != null) {
 				if (mChartInfo.barAxis == 1) {
 					hSizeX = Math.round(mChartInfo.barWidth/2) + 2;
 					hSizeY = Math.round(mChartInfo.innerDistance[hv][cat]/2) + 2;
@@ -2806,7 +2790,7 @@ System.out.println("used:"+(System.currentTimeMillis()-millis));
 			 || mChartType == cChartTypeWhiskerPlot) {
 				invalidateOffImage(true);
 				}
-			if (mBackgroundColorConsidered == cVisibleRecords)
+			if (mBackgroundColorConsidered == BACKGROUND_VISIBLE_RECORDS)
 				mBackgroundValid = false;
 			}
 		else if (e.getType() == CompoundTableEvent.cAddRows
@@ -2853,7 +2837,7 @@ System.out.println("used:"+(System.currentTimeMillis()-millis));
 				}
 			}
 		else if (e.getType() == CompoundTableEvent.cChangeColumnData) {
-			int column = e.getSpecifier();
+			int column = e.getColumn();
 			for (int axis=0; axis<2; axis++)
 				if (column == mAxisIndex[axis])
 					mScaleDepictor[axis] = null;
@@ -2884,9 +2868,9 @@ System.out.println("used:"+(System.currentTimeMillis()-millis));
 		super.hitlistChanged(e);
 
 		if (e.getType() == CompoundTableHitlistEvent.cDelete) {
-			if (mBackgroundColorConsidered != cVisibleRecords) {
+			if (mBackgroundColorConsidered >= 0) {	// is a list index
 				if (e.getHitlistIndex() == mBackgroundColorConsidered) {
-					mBackgroundColorConsidered = cVisibleRecords;
+					mBackgroundColorConsidered = BACKGROUND_VISIBLE_RECORDS;
 					mBackgroundValid = false;
 					invalidateOffImage(false);
 					}
@@ -2896,7 +2880,7 @@ System.out.println("used:"+(System.currentTimeMillis()-millis));
 				}
 			}
 		else if (e.getType() == CompoundTableHitlistEvent.cChange) {
-			if (mBackgroundColorConsidered != cVisibleRecords) {
+			if (mBackgroundColorConsidered >= 0) {	// is a list index
 				if (e.getHitlistIndex() == mBackgroundColorConsidered) {
 					mBackgroundValid = false;
 					invalidateOffImage(false);
@@ -3091,7 +3075,6 @@ System.out.println("used:"+(System.currentTimeMillis()-millis));
 
 			mBackgroundImage = null;
 			mBackgroundImageData = null;
-			mSuppressScale = false;
 			}
 		else {
 			try {
@@ -3262,26 +3245,27 @@ System.out.println("used:"+(System.currentTimeMillis()-millis));
 		}
 
 	private void calculateScaleDimensions(Graphics g, int width, int height) {
-		if (mSuppressScale || mTreeNodeList != null) {
-			mScaleSize[0] = 0;
-			mScaleSize[1] = 0;
+		mScaleSize[0] = 0;
+		mScaleSize[1] = 0;
+
+		if (mScaleMode == cScaleModeHideAll || mTreeNodeList != null)
 			return;
-			}
 
 		int[] minScaleSize = new int[2];	// minimum space needed near graph root to not truncate labels of other axis
+		int[] usedScaleSize = new int[2];	// space needed for labels on this axis
 
 		int scaledFontSize = (int)scaleIfSplitView(mFontHeight);
 		for (int axis=0; axis<2; axis++) {
 			compileScaleLabels(axis);
 			if (mScaleLineList[axis].isEmpty()) {	   // empty scale
-				mScaleSize[axis] = 0;
+				usedScaleSize[axis] = 0;
 				}
 			else if (mScaleDepictor[axis] != null) {	// molecules on scale
 				if (axis == 0) {
-					mScaleSize[0] = scaledFontSize+Math.min(width*5/6/mScaleLineList[0].size()*4/5, height/10);
+					usedScaleSize[0] = scaledFontSize+(int)Math.min(mRelativeFontSize*0.5f*width/mScaleLineList[0].size(), 0.6f*height);
 					}
 				else {
-					mScaleSize[1] = scaledFontSize+Math.min(height*5/6/mScaleLineList[1].size()*5/4, width/8);
+					usedScaleSize[1] = scaledFontSize+(int)Math.min(mRelativeFontSize*0.5f*height/mScaleLineList[1].size(), 0.6f*width);
 					}
 				}
 			else {
@@ -3298,31 +3282,35 @@ System.out.println("used:"+(System.currentTimeMillis()-millis));
 					// assume vertical scale to take 1/6 of total width
 					int gridSize = width*5/6 / mScaleLineList[0].size();
 					if (maxSize > gridSize*2) {
-						mScaleSize[0] = (int)(0.71*(scaledFontSize+maxSize));
+						usedScaleSize[0] = (int)(0.71*(scaledFontSize+maxSize));
 						mScaleTextMode[axis] = cScaleTextInclined;
-						minScaleSize[1] = mScaleSize[0]*4/5;
+						minScaleSize[1] = usedScaleSize[0]*4/5;
 						}
 					else if (maxSize > gridSize) {
-						mScaleSize[0] = 2*scaledFontSize;
+						usedScaleSize[0] = 2*scaledFontSize;
 						mScaleTextMode[axis] = cScaleTextAlternating;
-						minScaleSize[1] = scaledFontSize;
+						minScaleSize[1] = gridSize/4;
 						}
 					else {
-						mScaleSize[0] = scaledFontSize;
+						usedScaleSize[0] = scaledFontSize;
 						mScaleTextMode[axis] = cScaleTextNormal;
-						minScaleSize[1] = scaledFontSize;
+						minScaleSize[1] = 0;
 						}
 					}
 				else {
-					mScaleSize[1] = Math.max(scaledFontSize, maxSize);
+					usedScaleSize[1] = Math.max(scaledFontSize, maxSize);
 					mScaleTextMode[1] = cScaleTextNormal;
 					minScaleSize[0] = scaledFontSize / 2;
 					}
 				}
 			}
 
-		mScaleSize[0] = Math.max(minScaleSize[0]-mNaNSize[1], mScaleSize[0]);
-		mScaleSize[1] = Math.max(minScaleSize[1]-mNaNSize[0], mScaleSize[1]);
+		for (int axis=0; axis<2; axis++) {
+			if (showScale(axis))
+				mScaleSize[axis] = Math.max(minScaleSize[axis]-mNaNSize[axis], usedScaleSize[axis]);
+			else
+				mScaleSize[axis] = minScaleSize[axis]-mNaNSize[axis];
+			}
 		}
 
 	private void compileSplittingHeaderMolecules() {
@@ -3334,8 +3322,8 @@ System.out.println("used:"+(System.currentTimeMillis()-millis));
 			if (mSplittingColumn[i] >= 0) {
 				if (CompoundTableModel.cColumnTypeIDCode.equals(mTableModel.getColumnSpecialType(mSplittingColumn[i]))
 				 && mSplittingDepictor[i] == null) {
-					String[] idcodeList = mTableModel.getCategoryList(mSplittingColumn[i]);
-			
+					String[] idcodeList = mShowEmptyInSplitView ? mTableModel.getCategoryList(mSplittingColumn[i])
+																: getVisibleCategoryList(mSplittingColumn[i]);
 					mSplittingDepictor[i] = new Depictor2D[idcodeList.length];
 					mSplittingMolIndex[i] = mSplittingColumn[i];
 
@@ -3348,7 +3336,7 @@ System.out.println("used:"+(System.currentTimeMillis()-millis));
 									  : new IDCodeParser(true).getCompactMolecule(
 																	idcode.substring(0, index),
 																	idcode.substring(index+1));
-							mSplittingDepictor[i][j] = new Depictor2D(mol);
+							mSplittingDepictor[i][j] = new Depictor2D(mol, Depictor2D.cDModeSuppressChiralText);
 							}
 						}
 					}
@@ -3390,7 +3378,7 @@ System.out.println("used:"+(System.currentTimeMillis()-millis));
 						  : new IDCodeParser(true).getCompactMolecule(
 														idcode.substring(0, index),
 														idcode.substring(index+1));
-				mScaleDepictor[axis][i-mScaleDepictorOffset[axis]] = new Depictor2D(mol);
+				mScaleDepictor[axis][i-mScaleDepictorOffset[axis]] = new Depictor2D(mol, Depictor2D.cDModeSuppressChiralText);
 				}
 			}
 		}
@@ -3516,7 +3504,7 @@ System.out.println("used:"+(System.currentTimeMillis()-millis));
 					mScaleLineList[axis].add(new ScaleLine(position, label));
 				}
 			else
-				mScaleLineList[axis].add(new ScaleLine(position, DoubleFormat.toString(theMarker, exponent)));
+				mScaleLineList[axis].add(new ScaleLine(position, DoubleFormat.toShortString(theMarker, exponent)));
 
 			theMarker += gridSpacing;
 			}
@@ -3602,7 +3590,7 @@ System.out.println("used:"+(System.currentTimeMillis()-millis));
 			while ((float)theMarker < (start + length)) {
 				float log = (float)Math.log10(theMarker) + exponent;
 				float position = (float)(log-axisStart) / axisLength;
-				mScaleLineList[axis].add(new ScaleLine(position, DoubleFormat.toString(theMarker, exponent)));
+				mScaleLineList[axis].add(new ScaleLine(position, DoubleFormat.toShortString(theMarker, exponent)));
 				theMarker += gridSpacing;
 				}
 			}
@@ -3613,7 +3601,7 @@ System.out.println("used:"+(System.currentTimeMillis()-millis));
 		float max = (mAxisIndex[axis] == -1) ? mChartInfo.axisMax : mAxisVisMax[axis];
 		if (value >= min && value <= max) {
 			float position = (value-min) / (max - min);
-			mScaleLineList[axis].add(new ScaleLine(position, DoubleFormat.toString(Math.pow(10, value), 3)));
+			mScaleLineList[axis].add(new ScaleLine(position, DoubleFormat.toString(Math.pow(10, value), 3, true)));
 			}
 		}
 
@@ -3622,18 +3610,23 @@ System.out.println("used:"+(System.currentTimeMillis()-millis));
 	 */
 	private void calculateMarkerSize(Rectangle bounds) {
 		if (mChartType != cChartTypeBars && mChartType != cChartTypePies) {
+
+			// With smaller views due to splitting we reduce size less than proportionally,
+			// because individual views are much less crowded and relatively larger markers seem more natural.
+			float splittingFactor = (float)Math.pow(mHVCount, 0.33);
+
 			if (mChartType == cChartTypeBoxPlot || mChartType == cChartTypeWhiskerPlot) {
 				float cellWidth = (mChartInfo.barAxis == 1) ?
 						Math.min((float)bounds.width / (float)mCategoryVisibleCount[0], (float)bounds.height / 3.0f)
 					  : Math.min((float)bounds.height / (float)mCategoryVisibleCount[1], (float)bounds.width / 3.0f);
-				mAbsoluteMarkerSize = mRelativeMarkerSize * cellWidth / (2.0f * (float)Math.sqrt(mCaseSeparationCategoryCount * mHVCount));
+				mAbsoluteMarkerSize = mRelativeMarkerSize * cellWidth / (2.0f * splittingFactor * (float)Math.sqrt(mCaseSeparationCategoryCount));
 				}
 			else {
-				mAbsoluteMarkerSize = mRelativeMarkerSize * cMarkerSize * (float)Math.sqrt(bounds.width * bounds.height / mHVCount);
+				mAbsoluteMarkerSize = mRelativeMarkerSize * cMarkerSize * (float)Math.sqrt(bounds.width * bounds.height) / splittingFactor;
 				}
 
 			mAbsoluteConnectionLineWidth = mRelativeConnectionLineWidth * cConnectionLineWidth
-		 								 * (float)Math.sqrt(bounds.width * bounds.height / mHVCount);
+		 								 * (float)Math.sqrt(bounds.width * bounds.height) / splittingFactor;
 			if (!Float.isNaN(mMarkerSizeZoomAdaption))
 				mAbsoluteConnectionLineWidth *= mMarkerSizeZoomAdaption;
 			}
@@ -3784,7 +3777,7 @@ System.out.println("used:"+(System.currentTimeMillis()-millis));
 		}
 
 	private void addSplittingOffset() {
-		if (mSplittingColumn[0] != cColumnUnassigned) {
+		if (isSplitView()) {
 			int gridWidth = mSplitter.getGridWidth();
 			int gridHeight = mSplitter.getGridHeight();
 			for (int i=0; i<mDataPoints; i++) {
@@ -3874,12 +3867,13 @@ System.out.println("used:"+(System.currentTimeMillis()-millis));
 
 		float rangeX = xMax - xMin;
 		float rangeY = yMax - yMin;
-		boolean considerVisibleRecords = (mBackgroundColorConsidered == cVisibleRecords) || (mTreeNodeList != null);
-		int hitlistFlagNo = (considerVisibleRecords) ? -1
+		boolean considerVisibleRecords = (mBackgroundColorConsidered == BACKGROUND_VISIBLE_RECORDS) || (mTreeNodeList != null);
+		boolean considerAllRecords = (mBackgroundColorConsidered == BACKGROUND_ALL_RECORDS && !considerVisibleRecords);
+		int hitlistFlagNo = (considerVisibleRecords || considerAllRecords) ? -1
 						: mTableModel.getHitlistHandler().getHitlistFlagNo(mBackgroundColorConsidered);
 		for (int i=0; i<mDataPoints; i++) {
-			if ((considerVisibleRecords
-			  && isVisibleExcludeNaN(mPoint[i]))
+			if (considerAllRecords
+			 || (considerVisibleRecords && isVisibleExcludeNaN(mPoint[i]))
 			 || (!considerVisibleRecords && mPoint[i].record.isFlagSet(hitlistFlagNo)))	{
 				float valueX;
 				float valueY;
@@ -4088,8 +4082,9 @@ System.out.println("used:"+(System.currentTimeMillis()-millis));
 		int arrowSize = (int)Math.min(0.8*scaleIfSplitView(mFontHeight), mBorder);
 		int[] px = new int[3];
 		int[] py = new int[3];
-		if (mAxisIndex[0] != cColumnUnassigned
-		 || (mChartType == cChartTypeBars && mChartInfo.barAxis == 0)) {
+		if (showScale(0)
+		 && (mAxisIndex[0] != cColumnUnassigned
+		  || (mChartType == cChartTypeBars && mChartInfo.barAxis == 0))) {
 			g.drawLine(xmin, ymax, xmax, ymax);
 			px[0] = xmax;
 			py[0] = ymax - arrowSize/3;
@@ -4108,8 +4103,9 @@ System.out.println("used:"+(System.currentTimeMillis()-millis));
 					ymax+mScaleSize[0]+mNaNSize[1]+g.getFontMetrics().getAscent());
 			}
 
-		if (mAxisIndex[1] != cColumnUnassigned
-		 || (mChartType == cChartTypeBars && mChartInfo.barAxis == 1)) {
+		if (showScale(1)
+		 && (mAxisIndex[1] != cColumnUnassigned
+		  || (mChartType == cChartTypeBars && mChartInfo.barAxis == 1))) {
 			g.drawLine(xmin, ymax, xmin, ymin);
 			px[0] = xmin - arrowSize/3;
 			py[0] = ymin;
@@ -4131,10 +4127,9 @@ System.out.println("used:"+(System.currentTimeMillis()-millis));
 		}
 
 	private void drawGrid(Graphics g, Rectangle graphRect) {
-		for (int axis=0; axis<2; axis++) {
+		for (int axis=0; axis<2; axis++)
 			for (int i=0; i<mScaleLineList[axis].size(); i++)
 				drawScaleLine(g, graphRect, axis, i);
-			}
 		}
 
 	private void drawScaleLine(Graphics g, Rectangle graphRect, int axis, int index) {
@@ -4148,7 +4143,7 @@ System.out.println("used:"+(System.currentTimeMillis()-millis));
 				g.drawLine(axisPosition, graphRect.y, axisPosition, graphRect.y+graphRect.height+mNaNSize[1]);
 				}
 
-			if (scaleLine.label != null && !mSuppressScale) {
+			if (scaleLine.label != null && showScale(axis)) {
 				if (scaleLine.label instanceof String) {
 					g.setColor(getContrastGrey(SCALE_MEDIUM));
 					String label = (String)scaleLine.label;
@@ -4183,7 +4178,7 @@ System.out.println("used:"+(System.currentTimeMillis()-millis));
 				g.drawLine(graphRect.x-mNaNSize[0], axisPosition, graphRect.x+graphRect.width+mNaNSize[0], axisPosition);
 				}
 
-			if (scaleLine.label != null && !mSuppressScale) {
+			if (scaleLine.label != null && showScale(axis)) {
 				if (scaleLine.label instanceof String) {
 					g.setColor(getContrastGrey(SCALE_MEDIUM));
 					String label = (String)scaleLine.label;
@@ -4206,13 +4201,13 @@ System.out.println("used:"+(System.currentTimeMillis()-millis));
 		int scaledFontHeight = (int)scaleIfSplitView(mFontHeight);
 		if (axis == 0) {	// X-axis
 			h = mScaleSize[axis]-scaledFontHeight;
-			w = h*5/4;
+			w = h;	// h*5/4; for rectangular label
 			x = graphRect.x + (int)((float)graphRect.width * position) - w/2;
 			y = graphRect.y + graphRect.height + mNaNSize[1] + scaledFontHeight/2;
 			}
 		else {  // Y-axis
 			w = mScaleSize[axis]-scaledFontHeight;
-			h = w*4/5;
+			h = w;	// w*4/5; for rectangular label
 			x = graphRect.x - mNaNSize[0] - w -scaledFontHeight/2;
 			y = graphRect.y + graphRect.height - (int)((float)graphRect.height * position) - h/2;
 			}
@@ -4347,7 +4342,7 @@ System.out.println("used:"+(System.currentTimeMillis()-millis));
 		}
 
 	protected void drawMolecule(StereoMolecule mol, Color color, Rectangle2D.Float rect, int mode, int maxAVBL) {
-		Depictor2D d = new Depictor2D(mol);
+		Depictor2D d = new Depictor2D(mol, Depictor2D.cDModeSuppressChiralText);
 		d.validateView(mG, rect, mode+maxAVBL);
 		d.setOverruleColor(color, null);
 		d.paint(mG);
@@ -4401,6 +4396,12 @@ System.out.println("used:"+(System.currentTimeMillis()-millis));
 
 	public int[] getSupportedChartTypes() {
 		return SUPPORTED_CHART_TYPE;
+		}
+
+	private boolean showScale(int axis) {
+		return mScaleMode == cScaleModeShowAll
+			|| (axis == 0 && mScaleMode == cScaleModeHideY)
+			|| (axis == 1 && mScaleMode == cScaleModeHideX);
 		}
 
 	class ScaleLine {

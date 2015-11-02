@@ -35,8 +35,8 @@ public class DETaskSaveTemplateFileAs extends DETaskAbstractSaveFile {
 
 	private static Properties sRecentConfiguration;
 
-	public DETaskSaveTemplateFileAs(DEFrame parent, boolean isInteractive) {
-		super(parent, "", isInteractive);
+	public DETaskSaveTemplateFileAs(DEFrame parent) {
+		super(parent, "");
 		}
 
 	@Override

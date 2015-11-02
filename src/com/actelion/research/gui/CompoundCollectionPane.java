@@ -42,8 +42,9 @@ import java.awt.event.MouseListener;
 import java.awt.event.MouseMotionListener;
 import java.awt.geom.Rectangle2D;
 import java.io.BufferedWriter;
-import java.io.FileWriter;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.OutputStreamWriter;
 import java.util.ArrayList;
 
 import javax.swing.JMenuItem;
@@ -92,8 +93,8 @@ public class CompoundCollectionPane<T> extends JScrollPane
 	private CompoundCollectionModel<T> mModel;
     private IClipboardHandler   mClipboardHandler;
 	private int			        mDisplayMode,mSelectedIndex,mHighlightedIndex,
-	                            mEditedIndex,mFileSupport;
-	private Dimension           mContentSize;
+	                            mEditedIndex,mFileSupport,mStructureSize;
+	private Dimension           mContentSize,mCellSize;
 	private JPanel              mContentPanel;
 	private boolean             mIsVertical,mIsEditable,mIsSelectable,mCreateFragments,
 	                            mShowDropBorder,mIsEnabled,mShowValidationError;
@@ -102,7 +103,7 @@ public class CompoundCollectionPane<T> extends JScrollPane
 	 * This is a visual component to display and edit a compound collection maintained
 	 * by a CompoundCollectionModel. Three variations of DefaultCompoundCollectionModel
 	 * (.Native, .Molecule, and .IDCode) are available, which internally keep molecule
-	 * instance as Object, StereoMolecule or String, respectively. If one of these
+	 * instances as Object, StereoMolecule or String, respectively. If one of these
 	 * default model is used, than the CompoundCollectionPane's T must match this class.
 	 * @param model
 	 * @param isVertical
@@ -119,6 +120,7 @@ public class CompoundCollectionPane<T> extends JScrollPane
         mIsVertical = isVertical;
         mDisplayMode = displayMode;
         mFileSupport = FILE_SUPPORT_OPEN_AND_SAVE_FILES;
+        mStructureSize = 0;
         mSelectedIndex = -1;
         mHighlightedIndex = -1;
 		init();
@@ -138,6 +140,19 @@ public class CompoundCollectionPane<T> extends JScrollPane
 	    mIsEnabled = b;
 	    repaint();
 	    }
+
+	/**
+	 * Defines the width or height of individual structure cells,
+	 * depending on whether the the CompoundCollectionPane is horizontal
+	 * or vertical, respectively. Setting size to 0 (default) causes
+	 * an automatic behavior with a square cell areas and width and height
+	 * being implicitly defined by the CompoundCollectionPane component size.
+	 */
+	public void setStructureSize(int size) {
+		mStructureSize = size;
+		validateSize();
+	    repaint();
+		}
 
 	/**
 	 * Defines, whether the list and individual structures can be edited.
@@ -230,7 +245,7 @@ public class CompoundCollectionPane<T> extends JScrollPane
         	if (filename != null) {
 	        	try {
 	        		String title = mCreateFragments ? "Fragment" : "Structure";
-	        		BufferedWriter writer = new BufferedWriter(new FileWriter(filename));
+	        		BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(filename),"UTF-8"));
 	        		writer.write("<datawarrior-fileinfo>");
 	        		writer.newLine();
 	        		writer.write("<version=\"3.1\">");
@@ -270,7 +285,7 @@ public class CompoundCollectionPane<T> extends JScrollPane
         			"Save SD-File "+version, FileHelper.cFileTypeSD, "Untitled");
         	if (filename != null) {
         		try {
-	    			BufferedWriter theWriter = new BufferedWriter(new FileWriter(filename));
+	    			BufferedWriter theWriter = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(filename),"UTF-8"));
 	
 	    			for (int i=0; i<mModel.getSize(); i++) {
 	    				StereoMolecule mol = mModel.getMolecule(i);
@@ -340,10 +355,10 @@ public class CompoundCollectionPane<T> extends JScrollPane
 				g.fillRect(clipRect.x, clipRect.y, clipRect.width, clipRect.height);
 
 		        if (mModel.getSize() != 0) {
-    		        int i1 = Math.max(0, mIsVertical ? clipRect.y / mContentSize.width
-    		                                         : clipRect.x / mContentSize.height);
-    		        int i2 = Math.min(mModel.getSize(), mIsVertical ? 1+(clipRect.y+clipRect.height) / mContentSize.width
-		                                                            : 1+(clipRect.x+clipRect.width) / mContentSize.height);
+    		        int i1 = Math.max(0, mIsVertical ? clipRect.y / mCellSize.height
+    		                                         : clipRect.x / mCellSize.width);
+    		        int i2 = Math.min(mModel.getSize(), mIsVertical ? 1+(clipRect.y+clipRect.height) / mCellSize.height
+		                                                            : 1+(clipRect.x+clipRect.width) / mCellSize.width);
 
     		        for (int i=i1; i<i2; i++) {
                         Rectangle bounds = getMoleculeBounds(i);
@@ -405,23 +420,22 @@ public class CompoundCollectionPane<T> extends JScrollPane
 	private Rectangle getMoleculeBounds(int molIndex) {
         int x = cWhiteSpace/2;
         int y = cWhiteSpace/2;
-        int displaySize = mIsVertical ? mContentSize.width
-                                      : mContentSize.height;
-        if (mIsVertical)
-            y += molIndex * displaySize;
-        else
-            x += molIndex * displaySize;
 
-	    return new Rectangle(x, y, displaySize-cWhiteSpace, displaySize-cWhiteSpace);
+        if (mIsVertical)
+            y += molIndex * mCellSize.height;
+        else
+            x += molIndex * mCellSize.width;
+
+	    return new Rectangle(x, y, mCellSize.width-cWhiteSpace, mCellSize.height-cWhiteSpace);
 	    }
 
     private int getMoleculeIndex(int x, int y) {
-        if (mModel.getSize() == 0 || mContentSize.width == 0)
+        if (mModel.getSize() == 0 || mCellSize.width == 0 || mCellSize.height == 0)
             return -1;
 
         Point p = getViewport().getViewPosition();
-        int index = (mIsVertical) ? (y+p.y) / mContentSize.width
-                                  : (x+p.x) / mContentSize.height;
+        int index = (mIsVertical) ? (y+p.y) / mCellSize.height
+                                  : (x+p.x) / mCellSize.width;
         return (index < mModel.getSize()) ? index : -1;
         }
 
@@ -544,9 +558,10 @@ public class CompoundCollectionPane<T> extends JScrollPane
 	private void validateSize() {
 		Rectangle viewportBounds = getViewportBorderBounds();
 
-		int size = mIsVertical ? viewportBounds.width : viewportBounds.height;
-		int width = size;
-		int height = size;
+		int width = mIsVertical ? viewportBounds.width : mStructureSize == 0 ? viewportBounds.height : mStructureSize;
+		int height = !mIsVertical ? viewportBounds.height : mStructureSize == 0 ? viewportBounds.width : mStructureSize;
+
+		mCellSize = new Dimension(width, height);
 
 		if (mIsVertical) {
             height *= mModel.getSize();

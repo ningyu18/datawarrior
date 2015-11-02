@@ -35,9 +35,9 @@ public class DETaskRunMacroFromFile extends DETaskAbstractOpenFile implements Ge
 
     private DataWarrior mApplication;
 
-    public DETaskRunMacroFromFile(DataWarrior application, boolean isInteractive) {
+    public DETaskRunMacroFromFile(DataWarrior application) {
 		super(application.getActiveFrame(), "Open And Execute Macro",
-				FileHelper.cFileTypeDataWarriorMacro, isInteractive);
+				FileHelper.cFileTypeDataWarriorMacro);
 		mApplication = application;
 		}
 

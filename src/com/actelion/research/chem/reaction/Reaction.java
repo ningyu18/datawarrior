@@ -30,7 +30,7 @@ public class Reaction implements java.io.Serializable {
 	private ArrayList<StereoMolecule> mProduct;
 	private DrawingObjectList mDrawingObjectList;
 	private String mName;
-//	private boolean mReactionLayoutRequired;
+	private boolean mReactionLayoutRequired;
 
 	public Reaction() {
 		mReactant = new ArrayList<StereoMolecule>();
@@ -135,16 +135,21 @@ public class Reaction implements java.io.Serializable {
 		}
 
 
-/*	public boolean isReactionLayoutRequired() {
+	public boolean isReactionLayoutRequired() {
 		return mReactionLayoutRequired;
 		}
 
 
 	public void setReactionLayoutRequired(boolean b) {
 		mReactionLayoutRequired = b;
-		}	*/
+		}
 
 	/**
+	 * DISABLED because assumption is not correct. 1st atom's coordinates are only 0,0
+	 * if they come from parsing an idcode with(!) (relative) coordinates. If coordinates
+	 * are created on the fly by the IDCodeParser, then this is different. Now we use a
+	 * dedicated flag.
+	 * 
 	 * Atom coordinates may be relative or absolute.<br> If coordinates are relative,
 	 * then the first atom of every involved molecule is located at x=0.0, y=0.0.
 	 * For depicting this reaction, molecules need to be individually translated
@@ -153,7 +158,7 @@ public class Reaction implements java.io.Serializable {
 	 * (and drawing objects) in the reaction context is correct, such that entire
 	 * reaction can be scaled and translated for display.
 	 * @return
-	 */
+	 *
 	public boolean hasAbsoluteCoordinates() {
 		for (StereoMolecule mol:mReactant)
 			if (mol.getAllAtoms() != 0 && (mol.getAtomX(0) != 0.0 || mol.getAtomY(0) != 0.0))
@@ -162,7 +167,7 @@ public class Reaction implements java.io.Serializable {
 			if (mol.getAllAtoms() != 0 && (mol.getAtomX(0) != 0.0 || mol.getAtomY(0) != 0.0))
 				return true;
 		return false;
-		}
+		}	*/
 
 
 	public void validateMapping() throws Exception {

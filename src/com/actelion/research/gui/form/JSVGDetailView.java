@@ -57,7 +57,7 @@ public class JSVGDetailView extends JResultDetailView {
     private static final String COPY_SVG = "Copy SVG";
     private byte[] mData;
 
-    public JSVGDetailView(ReferenceResolver referenceResolver, ResultDetailPopupItemProvider popupItemProvider, String detailSource) {
+    public JSVGDetailView(ReferenceResolver referenceResolver, ResultDetailPopupItemProvider popupItemProvider, RemoteDetailSource detailSource) {
 		super(referenceResolver, popupItemProvider, detailSource, new JSVGCanvas() {
             private static final long serialVersionUID = 0x20070509;
             public void setBorder(Border border) {

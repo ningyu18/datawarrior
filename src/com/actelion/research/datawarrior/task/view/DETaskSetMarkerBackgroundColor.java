@@ -43,10 +43,12 @@ public class DETaskSetMarkerBackgroundColor extends DETaskAbstractSetColor {
 
 	private static final String PROPERTY_CONSIDER = "consider";
 	private static final String PROPERTY_CONSIDER_VISIBLE = "visible";
+	private static final String PROPERTY_CONSIDER_ALL = "all";
 	private static final String PROPERTY_RADIUS = "radius";
 	private static final String PROPERTY_FADING = "fading";
 
 	private static final String ITEM_VISIBLE_ROWS = "Visible Rows";
+	private static final String ITEM_ALL_ROWS = "All Rows";
 
 	private static Properties sRecentConfiguration;
 
@@ -85,6 +87,7 @@ public class DETaskSetMarkerBackgroundColor extends DETaskAbstractSetColor {
 
 		mComboBoxConsider = new JComboBox();
         mComboBoxConsider.addItem(ITEM_VISIBLE_ROWS);
+        mComboBoxConsider.addItem(ITEM_ALL_ROWS);
 		for (int i=0; i<getTableModel().getHitlistHandler().getHitlistCount(); i++) {
 			int pseudoColumn = CompoundTableHitlistHandler.getColumnFromHitlist(i);
 			mComboBoxConsider.addItem(getTableModel().getColumnTitleExtended(pseudoColumn));
@@ -140,6 +143,9 @@ public class DETaskSetMarkerBackgroundColor extends DETaskAbstractSetColor {
 		if (consider.equals(PROPERTY_CONSIDER_VISIBLE)) {
 			mComboBoxConsider.setSelectedIndex(0);
 			}
+		else if (consider.equals(PROPERTY_CONSIDER_ALL)) {
+			mComboBoxConsider.setSelectedIndex(1);
+			}
 		else {
 			int pseudoColumn = getTableModel().findColumn(consider);
 			mComboBoxConsider.setSelectedItem(!hasInteractiveView() && pseudoColumn == -1 ? consider : getTableModel().getColumnTitleExtended(pseudoColumn));
@@ -165,6 +171,8 @@ public class DETaskSetMarkerBackgroundColor extends DETaskAbstractSetColor {
 		super.addDialogConfiguration(configuration);
 		if (mComboBoxConsider.getSelectedIndex() == 0)
 			configuration.setProperty(PROPERTY_CONSIDER, PROPERTY_CONSIDER_VISIBLE);
+		else if (mComboBoxConsider.getSelectedIndex() == 1)
+			configuration.setProperty(PROPERTY_CONSIDER, PROPERTY_CONSIDER_ALL);
 		else
 			configuration.setProperty(PROPERTY_CONSIDER, getTableModel().getColumnTitleNoAlias((String)mComboBoxConsider.getSelectedItem()));
 		configuration.setProperty(PROPERTY_RADIUS, ""+(mSliderRadius.getValue()));
@@ -175,8 +183,10 @@ public class DETaskSetMarkerBackgroundColor extends DETaskAbstractSetColor {
 	public void addViewConfiguration(Properties configuration) {
 		super.addViewConfiguration(configuration);
 		int hitlist = ((JVisualization2D)getVisualization()).getBackgroundColorConsidered();
-		if (hitlist == -1)
+		if (hitlist == JVisualization2D.BACKGROUND_VISIBLE_RECORDS)
 			configuration.setProperty(PROPERTY_CONSIDER, PROPERTY_CONSIDER_VISIBLE);
+		else if (hitlist == JVisualization2D.BACKGROUND_ALL_RECORDS)
+			configuration.setProperty(PROPERTY_CONSIDER, PROPERTY_CONSIDER_ALL);
 		else
 			configuration.setProperty(PROPERTY_CONSIDER, getTableModel().getColumnTitleNoAlias(CompoundTableHitlistHandler.getColumnFromHitlist(hitlist)));
 		configuration.setProperty(PROPERTY_RADIUS, ""+((JVisualization2D)getVisualization()).getBackgroundColorRadius());
@@ -187,7 +197,8 @@ public class DETaskSetMarkerBackgroundColor extends DETaskAbstractSetColor {
 	public boolean isViewConfigurationValid(CompoundTableView view, Properties configuration) {
 		if (view != null) {
 			String consider = configuration.getProperty(PROPERTY_CONSIDER, PROPERTY_CONSIDER_VISIBLE);
-			if (!consider.equals(PROPERTY_CONSIDER_VISIBLE)) {
+			if (!consider.equals(PROPERTY_CONSIDER_VISIBLE)
+			 && !consider.equals(PROPERTY_CONSIDER_ALL)) {
 				int pseudoColumn = getTableModel().findColumn(consider);
 				if (pseudoColumn == -1) {
 					showErrorMessage("Column '"+consider+"' not found.");
@@ -206,7 +217,9 @@ public class DETaskSetMarkerBackgroundColor extends DETaskAbstractSetColor {
 
 		String consider = configuration.getProperty(PROPERTY_CONSIDER, PROPERTY_CONSIDER_VISIBLE);
 		if (consider.equals(PROPERTY_CONSIDER_VISIBLE))
-			v2D.setBackgroundColorConsidered(-1);
+			v2D.setBackgroundColorConsidered(JVisualization2D.BACKGROUND_VISIBLE_RECORDS);
+		else if (consider.equals(PROPERTY_CONSIDER_ALL))
+			v2D.setBackgroundColorConsidered(JVisualization2D.BACKGROUND_ALL_RECORDS);
 		else
 			v2D.setBackgroundColorConsidered(CompoundTableHitlistHandler.getHitlistFromColumn(getTableModel().findColumn(consider)));
 

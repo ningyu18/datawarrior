@@ -44,6 +44,7 @@ public class RuntimeProperties extends TreeMap<String,Object> implements Compoun
     private static final String cCustomOrderCount = "customOrderCount";
     private static final String cCustomOrder = "customOrder";
     private static final String cSummaryCountHidden = "summaryCountHidden";
+    private static final String cStdDeviationShown = "stdDeviationShown";
 
 	protected CompoundTableModel	mTableModel;
 	protected BufferedWriter		mWriter;
@@ -133,6 +134,10 @@ public class RuntimeProperties extends TreeMap<String,Object> implements Compoun
 	    list = new RuntimePropertyColumnList(cSummaryCountHidden);
 	    for (int column=list.next(); column != -1; column=list.next())
             mTableModel.setColumnSummaryCountHidden(column, true);
+
+	    list = new RuntimePropertyColumnList(cStdDeviationShown);
+	    for (int column=list.next(); column != -1; column=list.next())
+            mTableModel.setColumnStdDeviationShown(column, true);
 
 	    for (int hiliteMode=1; hiliteMode<cHiliteModeOption.length; hiliteMode++) {
     	    list = new RuntimePropertyColumnList(cHiliteModeOption[hiliteMode]);
@@ -302,7 +307,18 @@ public class RuntimeProperties extends TreeMap<String,Object> implements Compoun
                 }
             if (columnList.length() != 0)
                 setProperty(cSummaryCountHidden, columnList);
-        	}
+
+            columnList = "";
+            for (int column=0; column<mTableModel.getTotalColumnCount(); column++) {
+                if (mTableModel.isColumnStdDeviationShown(column)) {
+                    if (columnList.length() != 0)
+                        columnList = columnList.concat("\t");
+                    columnList = columnList.concat(mTableModel.getColumnTitleNoAlias(column));
+                    }
+                }
+            if (columnList.length() != 0)
+                setProperty(cStdDeviationShown, columnList);
+    		}
 
         for (int hiliteMode=1; hiliteMode<cHiliteModeOption.length; hiliteMode++) {
             columnList = "";

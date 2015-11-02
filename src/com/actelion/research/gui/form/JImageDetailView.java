@@ -40,12 +40,13 @@ public class JImageDetailView extends JResultDetailView implements ImageObserver
 	public static final String TYPE_IMAGE_GIF = "image/gif";
     public static final String TYPE_IMAGE_PNG = "image/png";
 	public static final String TYPE_IMAGE_FROM_PATH = "zoomableImage";
-	public static final String TYPE_ORBIT_PLATE_TXT = "plate/txt";
 
 	private Image mPrintImage;
 	private int mImageStatus;
 	
-	public JImageDetailView(final ReferenceResolver referenceResolver, final ResultDetailPopupItemProvider popupItemProvider, final String detailSource) {
+	public JImageDetailView(final ReferenceResolver referenceResolver,
+							final ResultDetailPopupItemProvider popupItemProvider,
+							final RemoteDetailSource detailSource) {
 		super(referenceResolver, popupItemProvider, detailSource, new JImagePanel(null, true) {
 			private static final long serialVersionUID = 20120502L;
 

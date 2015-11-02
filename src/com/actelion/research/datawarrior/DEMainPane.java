@@ -142,6 +142,7 @@ public class DEMainPane extends JDockingPanel
 		if (!e.getValueIsAdjusting()) {
 			CompoundListSelectionModel selectionModel = (CompoundListSelectionModel)e.getSource();
 			if (selectionModel.getSelectionCount() == 1)
+if (selectionModel.getMinSelectionIndex() != selectionModel.getMaxSelectionIndex()) System.out.println("UNEXPECTED LARGE SELECTION RANGE"); else
 				mDetailPane.highlightChanged(mTableModel.getRecord(selectionModel.getMinSelectionIndex()));
 			}
 		}
@@ -212,7 +213,7 @@ public class DEMainPane extends JDockingPanel
 
 	public void compoundTableChanged(CompoundTableEvent e) {
 		if (e.getType() == CompoundTableEvent.cAddColumns) {
-			for (int column=e.getSpecifier(); column<mTableModel.getTotalColumnCount(); column++) {
+			for (int column=e.getColumn(); column<mTableModel.getTotalColumnCount(); column++) {
 				if (CompoundTableModel.cColumnTypeIDCode.equals(mTableModel.getColumnSpecialType(column))
 				 && mTableModel.getColumnTitleNoAlias(column).equals("Structure")) {
 					addStructureView("Structures", getSelectedViewTitle()+"\tcenter", column);
@@ -240,7 +241,7 @@ public class DEMainPane extends JDockingPanel
 				for (int column=0; column<mTableModel.getTotalColumnCount(); column++) {
 					if (CompoundTableModel.cColumnTypeIDCode.equals(mTableModel.getColumnSpecialType(column))) {
 						String title = mTableModel.getColumnTitleNoAlias(column).equals("Structure") ?
-								"Structures" : "Structures of "+mTableModel.getColumnTitle(column);
+								"Structures" : mTableModel.getColumnTitle(column);
 						addStructureView(title, "Table\tright", column);
 						break;
 						}
@@ -280,31 +281,42 @@ public class DEMainPane extends JDockingPanel
 		mStatusPanel.setNoOfVisible(mTableModel.getRowCount());
 		}
 
-	public JPopupMenu createPopupMenu(String title) {
+	public JPopupMenu createPopupMenu(String title, boolean isMaximized) {
 		JPopupMenu popup = new JPopupMenu();
 
 		// Currently there is always exactly one TableView.
 		//	  addPopupItem(popup, "New Table-View", "newTable_"+title);
 
-		addPopupItem(popup, "New 2D-View", "new2D");
-		addPopupItem(popup, "New 3D-View", "new3D");
-		addPopupItem(popup, "New Form View", "newForm");
-		for (int column=0; column<mTableModel.getTotalColumnCount(); column++) {
-			if (CompoundTableModel.cColumnTypeIDCode.equals(mTableModel.getColumnSpecialType(column))) {
-				addPopupItem(popup, "New Structure View", "newSGrid");
-				break;
+		if (!isMaximized()) {
+			addPopupItem(popup, "New 2D-View", "new2D");
+			addPopupItem(popup, "New 3D-View", "new3D");
+			addPopupItem(popup, "New Form View", "newForm");
+			for (int column=0; column<mTableModel.getTotalColumnCount(); column++) {
+				if (CompoundTableModel.cColumnTypeIDCode.equals(mTableModel.getColumnSpecialType(column))) {
+					addPopupItem(popup, "New Structure View", "newSGrid");
+					break;
+					}
 				}
+		   	addPopupItem(popup, "New Explanation View", "newExplanation");
+	//		if (System.getProperty("development") != null || System.getProperty("user.name").toLowerCase().equals("giraudi")) {
+			   	if (mAppViewFactory != null && !hasMacroEditorView())
+			   		addPopupItem(popup, "New Macro Editor", "newMacro");
+	//			}
+	
+			popup.addSeparator();
+	
+			if (isDuplicatableView((CompoundTableView)getDockable(title).getContent()))
+				addPopupItem(popup, "Duplicate View", COMMAND_DUPLICATE+title);
 			}
-	   	addPopupItem(popup, "New Explanation View", "newExplanation");
-//		if (System.getProperty("development") != null || System.getProperty("user.name").toLowerCase().equals("giraudi")) {
-		   	if (mAppViewFactory != null && !hasMacroEditorView())
-		   		addPopupItem(popup, "New Macro Editor", "newMacro");
-//			}
-
-		popup.addSeparator();
-
-		if (isDuplicatableView((CompoundTableView)getDockable(title).getContent()))
-			addPopupItem(popup, "Duplicate View", COMMAND_DUPLICATE+title);
+		else {
+			JMenuItem item1 = new JMenuItem("   De-maximize this view ");
+			item1.setEnabled(false);
+			popup.add(item1);
+			JMenuItem item2 = new JMenuItem("   to enable view creation!");
+			item2.setEnabled(false);
+			popup.add(item2);
+			popup.addSeparator();
+			}
 
 		addPopupItem(popup, "Rename View...", COMMAND_RENAME+title);
 
@@ -641,7 +653,7 @@ public class DEMainPane extends JDockingPanel
 	public DETableView addTableView(String title, String dockInfo) {
 		DETableView tableView = new DETableView(mParentFrame, mParentPane, mTableModel, mColorHandler, mListSelectionModel);
 		tableView.setDetailPopupProvider(mParentPane);
-		Dockable dockable = new Dockable(tableView, validateTitle(title), this, false);
+		Dockable dockable = new Dockable(this, tableView, validateTitle(title), this, false);
 		dockable.setContentMinimumSize(MINIMUM_VIEW_SIZE);
 		dockable.setPopupProvider(this);
 		dock(dockable, dockInfo);
@@ -651,7 +663,7 @@ public class DEMainPane extends JDockingPanel
 	public JStructureGrid addStructureView(String title, String dockInfo, int column) {
 		JStructureGrid structureGrid = new JStructureGrid(mParentFrame, mTableModel, mColorHandler, mListSelectionModel, column, 6);
 		structureGrid.setDetailPopupProvider(mParentPane);
-		Dockable dockable = new Dockable(structureGrid, validateTitle(title), this, true);
+		Dockable dockable = new Dockable(this, structureGrid, validateTitle(title), this, true);
 		dockable.setContentMinimumSize(MINIMUM_VIEW_SIZE);
 		dockable.setPopupProvider(this);
 		dock(dockable, dockInfo);
@@ -670,7 +682,7 @@ public class DEMainPane extends JDockingPanel
 		if (view == null)
 			view = new ErrorView("View type not supported!");
 
-		Dockable dockable = new Dockable((Component)view, validateTitle(title), this, true);
+		Dockable dockable = new Dockable(this, (Component)view, validateTitle(title), this, true);
 		dockable.setContentMinimumSize(MINIMUM_VIEW_SIZE);
 		dockable.setPopupProvider(this);
 		dock(dockable, dockInfo);
@@ -679,7 +691,7 @@ public class DEMainPane extends JDockingPanel
 
 	public ExplanationView addExplanationView(String title, String dockInfo) {
 		ExplanationView view = new ExplanationView(mTableModel);
-		Dockable dockable = new Dockable(view, validateTitle(title), this, true);
+		Dockable dockable = new Dockable(this, view, validateTitle(title), this, true);
 		dockable.setContentMinimumSize(MINIMUM_VIEW_SIZE);
 		dockable.setPopupProvider(this);
 		dock(dockable, dockInfo);
@@ -691,7 +703,7 @@ public class DEMainPane extends JDockingPanel
 			VisualizationPanel2D panel2D = new VisualizationPanel2D(mParentFrame, mTableModel, mListSelectionModel);
 			panel2D.getVisualization().setDetailPopupProvider(mParentPane);
 			panel2D.addVisualizationListener(this);
-			Dockable dockable = new Dockable(panel2D, validateTitle(title), this, true, true);
+			Dockable dockable = new Dockable(this, panel2D, validateTitle(title), this, true, true);
 			dockable.setContentMinimumSize(MINIMUM_VIEW_SIZE);
 			dockable.setPopupProvider(this);
 			dock(dockable, dockInfo);
@@ -708,7 +720,7 @@ public class DEMainPane extends JDockingPanel
 		VisualizationPanel3D panel3D = new VisualizationPanel3D(mParentFrame, mTableModel, mListSelectionModel);
 		panel3D.getVisualization().setDetailPopupProvider(mParentPane);
 		panel3D.addVisualizationListener(this);
-		Dockable dockable = new Dockable(panel3D, validateTitle(title), this, true, true);
+		Dockable dockable = new Dockable(this, panel3D, validateTitle(title), this, true, true);
 		dockable.setContentMinimumSize(MINIMUM_VIEW_SIZE);
 		dockable.setPopupProvider(this);
 		dock(dockable, dockInfo);
@@ -720,7 +732,7 @@ public class DEMainPane extends JDockingPanel
 		form.setDetailPopupProvider(mParentPane);
 		if (createDefaultLayout)
 			form.createDefaultLayout();
-		Dockable dockable = new Dockable(form, validateTitle(title), this, true);
+		Dockable dockable = new Dockable(this, form, validateTitle(title), this, true);
 		dockable.setContentMinimumSize(MINIMUM_VIEW_SIZE);
 		dockable.setPopupProvider(this);
 		dock(dockable, dockInfo);

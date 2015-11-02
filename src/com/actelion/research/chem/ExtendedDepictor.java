@@ -2,11 +2,11 @@
  * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
- * 
+ *
  * DataWarrior is free software: you can redistribute it and/or modify it under the terms of the
  * GNU General Public License as published by the Free Software Foundation, either version 3 of
  * the License, or (at your option) any later version.
- * 
+ *
  * DataWarrior is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
  * without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
  * See the GNU General Public License for more details.
@@ -23,6 +23,9 @@ import java.awt.geom.*;
 
 import com.actelion.research.chem.reaction.Reaction;
 import com.actelion.research.chem.reaction.ReactionArrow;
+
+
+
 
 public class ExtendedDepictor {
     private StereoMolecule[]		mMolecule;
@@ -91,7 +94,7 @@ public class ExtendedDepictor {
     private void initialize() {
             // for reactions and sets of molecules the availability of coordinates
             // is mandatory. However, every individual molecule may have its first
-            // atom at coords 0.0/0.0, e.g. if they are encoded idcodes or if 
+            // atom at coords 0.0/0.0, e.g. if they are encoded idcodes or if
         mTransformation = new DepictorTransformation();
         if (mMolecule != null) {
             mDepictor = new AbstractDepictor[mMolecule.length];

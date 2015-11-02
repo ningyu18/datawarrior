@@ -27,6 +27,8 @@ import javax.swing.JTextArea;
 import javax.swing.UIManager;
 import javax.swing.table.DefaultTableCellRenderer;
 
+import com.actelion.research.chem.StereoMolecule;
+import com.actelion.research.chem.reaction.Reaction;
 import com.actelion.research.gui.table.ChemistryCellRenderer;
 import com.actelion.research.gui.table.ChemistryRenderPanel;
 
@@ -53,7 +55,8 @@ public class DetailTableCellRenderer extends DefaultTableCellRenderer {
             return null;
 
         int column = mTableModel.convertFromDisplayableColumnIndex(row);
-	    if (mTableModel.getColumnSpecialType(column) != null) {
+//	    if (mTableModel.getColumnSpecialType(column) != null) {
+        if (value instanceof StereoMolecule || value instanceof Reaction) {
             if (mChemistryRenderer == null) {
                 mChemistryRenderer = new ChemistryCellRenderer();
                 mChemistryRenderer.setAlternatingRowBackground(TOGGLE_ROW_BACKGROUND);

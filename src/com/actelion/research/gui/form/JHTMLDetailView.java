@@ -41,7 +41,9 @@ public class JHTMLDetailView extends JResultDetailView {
 
 	private JEditorPane mEditorPane;
 
-	public JHTMLDetailView(ReferenceResolver referenceResolver, final ResultDetailPopupItemProvider popupItemProvider, String detailSource, String detailType) {
+	public JHTMLDetailView(ReferenceResolver referenceResolver,
+						   final ResultDetailPopupItemProvider popupItemProvider,
+						   RemoteDetailSource detailSource, String mimetype) {
 		super(referenceResolver, popupItemProvider, detailSource,
 					new JScrollPane(new JEditorPane() {
                         private static final long serialVersionUID = 0x20070509;
@@ -54,7 +56,7 @@ public class JHTMLDetailView extends JResultDetailView {
 									JScrollPane.HORIZONTAL_SCROLLBAR_NEVER));
 		mEditorPane = (JEditorPane)((JScrollPane)mDetailView).getViewport().getView();
 		mEditorPane.setEditable(false);
-		mEditorPane.setContentType(detailType);
+		mEditorPane.setContentType(mimetype);
 		((JScrollPane)mDetailView).setBorder(null);
         addPopupItem(COPY_TEXT);
 		}

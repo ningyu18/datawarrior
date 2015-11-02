@@ -44,7 +44,6 @@ public abstract class DETaskAbstractSaveFile extends ConfigurableTask implements
 	private JFilePathLabel	mFilePathLabel;
 	private JButton			mButtonEdit;
 	private JCheckBox		mCheckBoxInteractive;
-	private boolean			mIsInteractive;
 	private String			mDialogTitle;
 	private CompoundTableModel	mTableModel;
 
@@ -54,26 +53,20 @@ public abstract class DETaskAbstractSaveFile extends ConfigurableTask implements
 	 * Otherwise a file chooser is shown to directly select the file to be saved.
 	 * @param parent
 	 * @param dialogTitle
-	 * @param isInteractive
 	 */
-	public DETaskAbstractSaveFile(DEFrame parent, String dialogTitle, boolean isInteractive) {
-		super(parent, !isInteractive);	// non-interactive tasks use own thread
+	public DETaskAbstractSaveFile(DEFrame parent, String dialogTitle) {
+		super(parent, false);
 		mTableModel = parent.getTableModel();
 		mDialogTitle = dialogTitle;
-		mIsInteractive = isInteractive;
 		}
 
 	public CompoundTableModel getTableModel() {
 		return mTableModel;
 		}
 
-	public boolean isInteractive() {
-		return mIsInteractive;
-		}
-
 	@Override
 	public Properties getPredefinedConfiguration() {
-		if (mIsInteractive) {
+		if (isInteractive()) {
 
 			String fileName = askForFile(null);
 
@@ -99,7 +92,7 @@ public abstract class DETaskAbstractSaveFile extends ConfigurableTask implements
 		JPanel content = new JPanel();
 		content.setLayout(new TableLayout(size));
 
-		mFilePathLabel = new JFilePathLabel(!mIsInteractive);
+		mFilePathLabel = new JFilePathLabel(!isInteractive());
 		content.add(mFilePathLabel, "1,1,2,1");
 
 		mButtonEdit = new JButton(JFilePathLabel.BUTTON_TEXT);
@@ -206,10 +199,10 @@ public abstract class DETaskAbstractSaveFile extends ConfigurableTask implements
 	public String getSuggestedFileName() {
 		File file = mTableModel.getFile();
 		String suggestedName = (file == null) ? null : file.getAbsolutePath();
-		if (suggestedName != null && getFileType() != FileHelper.cFileTypeDataWarrior)
-			suggestedName = CompoundFileHelper.removeExtension(suggestedName);
 		if (suggestedName == null)
 			suggestedName = ((DEFrame)getParentFrame()).getTitle().replace(' ', '_');
+		if (suggestedName != null)
+			suggestedName = CompoundFileHelper.removeExtension(suggestedName);
 		return suggestedName;
 		}
 
@@ -222,7 +215,7 @@ public abstract class DETaskAbstractSaveFile extends ConfigurableTask implements
 	public void runTask(Properties configuration) {
 		String fileName = configuration.getProperty(PROPERTY_FILENAME);
 
-		if (mIsInteractive && ASK_FOR_FILE.equals(fileName))
+		if (isInteractive() && ASK_FOR_FILE.equals(fileName))
 			return;	// Is interactive and was cancelled. Don't create an error message.
 
 		if (ASK_FOR_FILE.equals(fileName)) {

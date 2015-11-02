@@ -33,9 +33,9 @@ public class DETaskApplyTemplateFromFile extends DETaskAbstractOpenFile {
 
     private DataWarrior mApplication;
 
-    public DETaskApplyTemplateFromFile(DataWarrior application, boolean isInteractive) {
+    public DETaskApplyTemplateFromFile(DataWarrior application) {
 		super(application.getActiveFrame(), "Open & Apply DataWarrior Template",
-				FileHelper.cFileTypeDataWarriorTemplateContaining, isInteractive);
+				FileHelper.cFileTypeDataWarriorTemplateContaining);
 		mApplication = application;
 		}
 

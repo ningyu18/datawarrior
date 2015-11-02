@@ -40,11 +40,6 @@ public class DETaskChangeListFilter extends DEAbstractFilterTask {
 		}
 
 	@Override
-	public boolean supportsColumnSelection() {
-		return false;
-		}
-
-	@Override
 	public String getTaskName() {
 		return TASK_NAME;
 		}
@@ -70,7 +65,7 @@ public class DETaskChangeListFilter extends DEAbstractFilterTask {
 		}
 
 	@Override
-	public Class<? extends JFilterPanel> getFilterClass() {
-		return JHitlistFilterPanel.class;
+	public int getFilterType() {
+		return JFilterPanel.FILTER_TYPE_ROWLIST;
 		}
 	}

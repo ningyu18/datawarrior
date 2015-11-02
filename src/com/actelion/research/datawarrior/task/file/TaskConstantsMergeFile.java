@@ -25,6 +25,7 @@ public interface TaskConstantsMergeFile {
 	public static final String PROPERTY_DEST_COLUMN = "destColumn";
 	public static final String PROPERTY_OPTION = "option";
 	public static final String PROPERTY_APPEND_ROWS = "appendRows";
+	public static final String PROPERTY_APPEND_COLUMNS = "appendColumns";
 
 	public static final String DEST_COLUMN_ADD = "<add>";
 	public static final String DEST_COLUMN_TRASH = "<trash>";

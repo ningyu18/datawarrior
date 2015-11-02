@@ -97,6 +97,9 @@ public class DETaskSetMarkerSize extends DETaskAbstractSetViewOptions {
 		for (int i=0; i<getTableModel().getTotalColumnCount(); i++)
 			if (getTableModel().isColumnTypeDouble(i))
 				mComboBox.addItem(getTableModel().getColumnTitleExtended(i));
+		for (int i=0; i<getTableModel().getTotalColumnCount(); i++)
+			if (getTableModel().isDescriptorColumn(i))
+				mComboBox.addItem(getTableModel().getColumnTitleExtended(i));
 		for (int i=0; i<getTableModel().getHitlistHandler().getHitlistCount(); i++)
 			mComboBox.addItem(getTableModel().getColumnTitleExtended(CompoundTableHitlistHandler.getColumnFromHitlist(i)));
         mComboBox.setEditable(!hasInteractiveView());
@@ -181,7 +184,9 @@ public class DETaskSetMarkerSize extends DETaskAbstractSetViewOptions {
 					showErrorMessage("Column '"+columnName+"' not found.");
 					return false;
 					}
-				if (!getTableModel().isColumnTypeDouble(column)) {
+				if (!getTableModel().isColumnTypeDouble(column)
+				 && !getTableModel().isDescriptorColumn(column)
+				 && !CompoundTableHitlistHandler.isHitlistColumn(column)) {
 					showErrorMessage("Column '"+columnName+"' does not contain numerical values.");
 					return false;
 					}

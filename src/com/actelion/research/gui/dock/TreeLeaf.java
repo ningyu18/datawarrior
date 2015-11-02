@@ -104,7 +104,7 @@ public class TreeLeaf extends TreeElement implements ChangeListener {
 							Dockable dockable = (Dockable)tp.getComponentAt(index);
 							PopupProvider pp = dockable.getPopupProvider();
 							if (pp != null) {
-								JPopupMenu popup = pp.createPopupMenu(dockable.getTitle());
+								JPopupMenu popup = pp.createPopupMenu(dockable.getTitle(), dockable.isMaximized());
 								popup.show(tp, e.getX(), e.getY());
 								}
 							}

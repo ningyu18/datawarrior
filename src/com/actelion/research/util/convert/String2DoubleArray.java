@@ -1,13 +1,22 @@
+/*
+ * Project: DD_core
+ * @(#)String2DoubleArray.java
+ *
+ * Copyright (c) 1997- 2015
+ * Actelion Pharmaceuticals Ltd.
+ * Gewerbestrasse 16
+ * CH-4123 Allschwil, Switzerland
+ *
+ * All Rights Reserved.
+ *
+ * This software is the proprietary information of Actelion Pharmaceuticals, Ltd.
+ * Use is subject to license terms.
+ *
+ * Author: MvK
+ */
+
 package com.actelion.research.util.convert;
 
-/**
- * <p>Title: </p>
- * <p>Description: </p>
- * <p>Copyright: Copyright (c) 2003</p>
- * <p>Company: </p>
- * @author modest von Korff
- * @version 1.0
- */
 import java.util.ArrayList;
 import java.util.StringTokenizer;
 

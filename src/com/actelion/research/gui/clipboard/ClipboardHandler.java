@@ -10,17 +10,19 @@
 package com.actelion.research.gui.clipboard;
 
 import com.actelion.research.chem.*;
-import com.actelion.research.chem.io.RXNFileCreator;
+import com.actelion.research.chem.AbstractDepictor;import com.actelion.research.chem.CoordinateInventor;import com.actelion.research.chem.Depictor;import com.actelion.research.chem.ExtendedMolecule;import com.actelion.research.chem.Molecule;import com.actelion.research.chem.MolfileParser;import com.actelion.research.chem.StereoMolecule;import com.actelion.research.chem.io.RXNFileCreator;
 import com.actelion.research.chem.io.RXNFileParser;
 import com.actelion.research.chem.reaction.Reaction;
 import com.actelion.research.gui.ReactionDepictor;
-import com.actelion.research.gui.wmf.WMF;
+import com.actelion.research.gui.clipboard.IClipboardHandler;import com.actelion.research.gui.clipboard.ImageClipboardHandler;import com.actelion.research.gui.clipboard.NativeClipboardHandler;import com.actelion.research.gui.wmf.WMF;
 import com.actelion.research.gui.wmf.WMFGraphics2D;
+import com.actelion.research.share.gui.AbstractReactionDepictor;
+import com.actelion.research.swing.gui.GraphicsContext;
 import com.actelion.research.util.Sketch;
 
 import java.awt.*;
-import java.awt.geom.Rectangle2D;
-import java.io.*;
+import java.awt.Color;import java.awt.Image;import java.awt.geom.Rectangle2D;
+import java.io.*;import java.io.ByteArrayInputStream;import java.io.ByteArrayOutputStream;import java.io.File;import java.io.FileOutputStream;import java.io.IOException;import java.io.ObjectInputStream;import java.io.ObjectOutputStream;import java.io.OutputStream;import java.lang.Exception;import java.lang.Object;import java.lang.String;import java.lang.System;
 
 /**
  * <p>Title: Actelion Library</p>
@@ -275,6 +277,7 @@ public class ClipboardHandler implements IClipboardHandler
             ok = writeMol2Metafile(new FileOutputStream(temp), m, sketch);
         } catch (Exception e) {
             System.err.println("error writing molfile " + e);
+            e.printStackTrace();
         }
         return ok;
     }
@@ -308,6 +311,8 @@ public class ClipboardHandler implements IClipboardHandler
         try {
             return writeRXN2Metafile(new FileOutputStream(temp), sketch, m);
         } catch (Exception e) {
+            System.err.println("Error writeRXN2Metafile " + e);
+            e.printStackTrace();
             return false;
         }
     }
@@ -318,9 +323,9 @@ public class ClipboardHandler implements IClipboardHandler
         int h = 300;
         WMF wmf = new WMF();
         WMFGraphics2D g = new WMFGraphics2D(wmf, w, h, Color.black, Color.white);
-        ReactionDepictor d = new ReactionDepictor(m);
-        d.updateCoords(g, 8, 8, w - 16, h - 16, AbstractDepictor.cModeInflateToMaxAVBL);
-        d.paint(g);
+        AbstractReactionDepictor d = new ReactionDepictor(m);
+        d.updateCoords(new GraphicsContext(g), 8, 8, w - 16, h - 16, AbstractDepictor.cModeInflateToMaxAVBL);
+        d.paint(new GraphicsContext(g));
         if (sketch != null) {
 //			byte MDLSK[] = {(byte)'M',(byte)'D',(byte)'L',(byte)'S',(byte)'K',0,0};
             byte temp[] = new byte[MDLSK.length + sketch.length];
@@ -333,22 +338,6 @@ public class ClipboardHandler implements IClipboardHandler
         return true;
     }
 
-    /**
-     * outcommented to avoid knowledge about ConformationSampler
-     * (something like this should be done in place if a 3D molecule is desired)
-     *
-     public ExtendedMolecule pasteMolecule3D()
-     {
-     ExtendedMolecule mol = NativeClipboardAccessor.pasteMolecule();
-
-     if (mol != null && !is3DMolecule(mol)) {
-     mol.ensureHelperArrays(Molecule.cHelperParities);	// to ensure stereo parities
-     new ConformationSampler((StereoMolecule)mol).generateConformer(false);
-     }
-
-     return mol;
-     }
-     */
 
     /**
      * Copies an Image to the clipboard

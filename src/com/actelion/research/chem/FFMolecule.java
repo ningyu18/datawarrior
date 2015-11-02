@@ -369,12 +369,6 @@ public class FFMolecule implements java.io.Serializable, Comparable<FFMolecule> 
 		return atomCharges[atm];
 	}
 	
-	public final Object getInfo(int atm, int n) {
-		return infos[atm][n];
-	}
-	
-	
-	
 	public final void setAtomDescription(int atm, String s) {
 		infos[atm][INFO_DESCRIPTION] = s;
 	}
@@ -533,7 +527,7 @@ public class FFMolecule implements java.io.Serializable, Comparable<FFMolecule> 
 	}
 	
 	public final String getAtomMM2Description(int atm) {
-		return (String) getInfo(atm, INFO_MM2ATOMDESCRIPTION);
+		return (String) infos[atm][INFO_MM2ATOMDESCRIPTION];
 	}
 	
 	public final int getAtomInteractionClass(int atm) {

@@ -50,7 +50,7 @@ public class JSingleStructureFilterPanel extends JStructureFilterPanel
 	 * @param mol
 	 */
 	public JSingleStructureFilterPanel(Frame parent, CompoundTableModel tableModel, StereoMolecule mol) {
-		this(parent, tableModel, -1, 0, mol);
+		this(parent, tableModel, -1, -1, mol);
 		}
 
 	public JSingleStructureFilterPanel(Frame parent, CompoundTableModel tableModel, int column, int exclusionFlag, StereoMolecule mol) {
@@ -70,11 +70,8 @@ public class JSingleStructureFilterPanel extends JStructureFilterPanel
 				return size;
 				} 
 			};
-		updateComboBox(cItemContains);
 		contentPanel.add(mComboBox, "1,0");
-
 		contentPanel.add(getSimilaritySlider(), "3,0,3,1");
-		getSimilaritySlider().setEnabled(((String)mComboBox.getSelectedItem()).startsWith(cItemIsSimilarTo));
 
 		if (mol == null) {
 			StereoMolecule fragment = new StereoMolecule();
@@ -83,15 +80,6 @@ public class JSingleStructureFilterPanel extends JStructureFilterPanel
 			}
 		else {
 			mStructureView = new JEditableStructureView(mol);
-
-				// select first similarity item
-			for (int i=0; i<mComboBox.getItemCount(); i++) {
-				if (((String)mComboBox.getItemAt(i)).startsWith(cItemIsSimilarTo)) {
-					mComboBox.setSelectedIndex(i);
-					break;
-					}
-				}
-			updateExclusion();
 			}
 
 		mStructureView.setClipboardHandler(new ClipboardHandler());
@@ -99,11 +87,25 @@ public class JSingleStructureFilterPanel extends JStructureFilterPanel
 		mStructureView.setPreferredSize(new Dimension(100, 100));
 		mStructureView.setBackground(getBackground());
 		mStructureView.addStructureListener(this);
+		mStructureView.setAllowFragmentStatusChangeOnDrop(true);
 		contentPanel.add(mStructureView, "1,1");
+
+		updateComboBox(mol==null ? cItemContains : cItemIsSimilarTo);
+		enableItems(isEnabled());
 
 		add(contentPanel, BorderLayout.CENTER);
 
+		if (mol != null)
+			updateExclusion(false);
+
 		mIsUserChange = true;
+		}
+
+	@Override
+	public void enableItems(boolean b) {
+		mComboBox.setEnabled(b);
+		getSimilaritySlider().setEnabled(b && ((String)mComboBox.getSelectedItem()).startsWith(cItemIsSimilarTo));
+		mStructureView.setEnabled(b);
 		}
 
 	@Override
@@ -121,11 +123,6 @@ public class JSingleStructureFilterPanel extends JStructureFilterPanel
 				getSimilaritySlider().setEnabled(false);
 				mStructureView.getMolecule().setFragment(true);
 				}
-			else if (item.equals(cItemDisabled)) {
-				setInverse(false);
-				getSimilaritySlider().setEnabled(false);
-				mStructureView.getMolecule().setFragment(true);
-				}
 			else {  // similarity
 				getSimilaritySlider().setEnabled(true);
 				mStructureView.getMolecule().setFragment(false);
@@ -134,7 +131,7 @@ public class JSingleStructureFilterPanel extends JStructureFilterPanel
 
 			mDisableEvents = false;
 
-			updateExclusion();
+			updateExclusion(mIsUserChange);
 			}
 		}
 
@@ -147,8 +144,9 @@ public class JSingleStructureFilterPanel extends JStructureFilterPanel
 
 		mSimilarity = null;
 		mol.removeAtomSelection();
+		String selectedItem = (String)mComboBox.getSelectedItem();
 		if (mol.isFragment()) {
-			if (((String)mComboBox.getSelectedItem()).startsWith(cItemIsSimilarTo)) {
+			if (!cItemContains.equals(selectedItem)) {
 				if (((String)mComboBox.getItemAt(0)).equals(cItemContains)) {
 					mComboBox.setSelectedItem(cItemContains);
 					getSimilaritySlider().setEnabled(false);
@@ -159,7 +157,7 @@ public class JSingleStructureFilterPanel extends JStructureFilterPanel
 				}
 			}
 		else {
-			if (((String)mComboBox.getSelectedItem()).equals(cItemContains)) {
+			if (selectedItem == null || !selectedItem.startsWith(cItemIsSimilarTo)) {
 				boolean found = false;
 				for (int i=0; i<mComboBox.getItemCount(); i++) {
 					if (((String)mComboBox.getItemAt(i)).startsWith(cItemIsSimilarTo)) {
@@ -179,7 +177,7 @@ public class JSingleStructureFilterPanel extends JStructureFilterPanel
 		if (mStructureView.getMolecule().getAllAtoms() == 0)
 			setInverse(false);
 
-		updateExclusion();
+		updateExclusion(mIsUserChange);
 		}
 
 	@Override
@@ -203,11 +201,18 @@ public class JSingleStructureFilterPanel extends JStructureFilterPanel
 		}
 
 	@Override
+	public void innerReset() {
+		if (mStructureView.getMolecule().getAllAtoms() != 0) {
+			mStructureView.getMolecule().deleteMolecule();
+			mStructureView.structureChanged();
+			}
+		}
+
+	@Override
 	public String getInnerSettings() {
 		if (mStructureView.getMolecule().getAllAtoms() != 0) {
 			String item = (String)mComboBox.getSelectedItem();
 			String settings = item.equals(cItemContains) ? cFilterBySubstructure
-					: item.equals(cItemDisabled) ? cFilterDisabled
 					: itemToDescriptor(item)+"\t"+getSimilaritySlider().getValue();
 
 			StereoMolecule mol = mStructureView.getMolecule();
@@ -226,32 +231,37 @@ public class JSingleStructureFilterPanel extends JStructureFilterPanel
 				mStructureView.setIDCode(idcode);
 				desiredItem = cItemContains;
 				}
-			else if (settings.startsWith(cFilterDisabled)) {
-				String idcode = settings.substring(cFilterDisabled.length()+1);
-				mStructureView.setIDCode(idcode);
-				setInverse(false);
-				desiredItem = cItemDisabled;
-				}
 			else {
 				int index1 = settings.indexOf('\t');
 				int index2 = settings.indexOf('\t', index1+1);
-				String descriptor = settings.substring(0, index1);
-
-					// to be compatible with format prior V2.7.0
-				if (descriptor.equals(cFilterBySimilarity))
-					descriptor = DESCRIPTOR_FFP512.shortName;
-
-				int similarity = Integer.parseInt(settings.substring(index1+1, index2));
-				getSimilaritySlider().setValue(similarity);
-				String idcode = settings.substring(index2+1);
-				mStructureView.setIDCode(idcode);
-				desiredItem = descriptorToItem(descriptor);
+				if (index1 == -1 || index2 == -1) {
+					mStructureView.setIDCode(null);
+					desiredItem = cItemContains;
+					}
+				else {
+					String descriptor = settings.substring(0, index1);
+	
+						// to be compatible with format prior V2.7.0
+					if (descriptor.equals(cFilterBySimilarity))
+						descriptor = DESCRIPTOR_FFP512.shortName;
+	
+					int similarity = Integer.parseInt(settings.substring(index1+1, index2));
+					getSimilaritySlider().setValue(similarity);
+					String idcode = settings.substring(index2+1);
+					mStructureView.setIDCode(idcode);
+					desiredItem = descriptorToItem(descriptor);
+					}
 				}
 
 			if (!desiredItem.equals(mComboBox.getSelectedItem()))
 				mComboBox.setSelectedItem(desiredItem);
 			else
-				updateExclusion();
+				updateExclusion(false);
 			}
+		}
+
+	@Override
+	public int getFilterType() {
+		return FILTER_TYPE_STRUCTURE;
 		}
 	}

@@ -34,7 +34,7 @@ public interface ReferenceResolver {
 	 * @param mode source specific mode/flags to more closely describe what data to deliver
 	 * @param consumer the receiver of the data
 	 */
-	public void requestData(String source, String reference, int mode, ReferencedDataConsumer consumer);
+	public void requestData(RemoteDetailSource source, String reference, int mode, ReferencedDataConsumer consumer);
 
 	/**
 	 * Synchronous way to retrieve image (or other) data.
@@ -43,5 +43,5 @@ public interface ReferenceResolver {
 	 * @param mode source specific mode/flags to more closely describe what data to deliver
 	 * @return the requested data or null, if not available or timed out
 	 */
-	public byte[] resolveReference(String source, String reference, int mode);
+	public byte[] resolveReference(RemoteDetailSource source, String reference, int mode);
 	}

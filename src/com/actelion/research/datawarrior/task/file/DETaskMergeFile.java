@@ -40,14 +40,12 @@ public class DETaskMergeFile extends AbstractTask implements TaskConstantsMergeF
 	private static Properties sRecentConfiguration;
 
 	private CompoundTableModel	mTableModel;
-	private boolean				mIsInteractive;
 	private UIDelegateMergeFile	mUIDelegate;
 	private CompoundTableLoader	mLoader;
 
-	public DETaskMergeFile(DEFrame parent, boolean isInteractive) {
-		super(parent, true);
+	public DETaskMergeFile(DEFrame parent) {
+		super(parent, false);
 		mTableModel = parent.getTableModel();
-		mIsInteractive = isInteractive;
 		}
 
 	@Override
@@ -72,7 +70,7 @@ public class DETaskMergeFile extends AbstractTask implements TaskConstantsMergeF
 
 	@Override
 	public TaskUIDelegate createUIDelegate() {
-		mUIDelegate = new UIDelegateMergeFile((DEFrame)getParentFrame(), this, mIsInteractive);
+		mUIDelegate = new UIDelegateMergeFile((DEFrame)getParentFrame(), this, isInteractive());
 		return mUIDelegate;
 		}
 
@@ -196,9 +194,11 @@ public class DETaskMergeFile extends AbstractTask implements TaskConstantsMergeF
 		int[] visibleDestColumn = new int[visibleFieldName.length];
 		int[] visibleMergeMode = new int[visibleFieldName.length];
 
-		// the default is to trash all not defined columns
+		boolean appendColumns = "true".equals(configuration.getProperty(PROPERTY_APPEND_COLUMNS));
+
+		// the default is to trash all not defined columns unless PROPERTY_APPEND_COLUMNS is "true"
 		for (int i=0; i<visibleFieldName.length; i++) {
-			visibleDestColumn[i] = CompoundTableLoader.NO_COLUMN;
+			visibleDestColumn[i] = appendColumns ? CompoundTableLoader.NEW_COLUMN : CompoundTableLoader.NO_COLUMN;
 			visibleMergeMode[i] = CompoundTableLoader.MERGE_MODE_APPEND;
 			}
 

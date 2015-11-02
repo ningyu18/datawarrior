@@ -72,6 +72,8 @@ public class TorsionDetail {
 	/**
 	 * Returns one of the atoms of the torsion fragment's central rotatable bond.
 	 * Two central and two terminal atoms define the strand that torsion angles refer to.
+	 * If the rotatable bond is extended by (a) triple bond(s) then the central atom
+	 * is one of the first non-sp atoms at the end of the linear atom strand.
 	 * @param no 0 or 1; 0 refers to the higher ranking central atom
 	 * @return
 	 */
@@ -81,8 +83,9 @@ public class TorsionDetail {
 
 	/**
 	 * Returns that neighbor atom of a central atom that lies in the rotatable bond axis.
-	 * Usually this is the other atom of the rotatable bond. As exception we may have
-	 * 2n sp-hybridized atoms inserted between both central atoms.
+	 * Usually this is the other atom of the rotatable bond. However, if the rotatable
+	 * bond is extended by (a) triple bond(s) then getRearAtom(no) returns that sp-atom,
+	 * which is attached to the atom returned by getCentralAtom(no).
 	 * @param no 0 or 1; 0 refers to that atom being connected to central atom 0
 	 * @return
 	 */
@@ -91,8 +94,8 @@ public class TorsionDetail {
 		}
 
 	/**
-	 * Returns the reference atom of one part of the torsion fragment.
-	 * Two central and two terminal atoms define the strand that torsion angles refer to.
+	 * Returns the reference atom of one part of the torsion fragment. Two central
+	 * and two terminal reference atoms define the strand that torsion angles refer to.
 	 * @param no 0 or 1; 0 refers to the side with higher ranking central bond atom
 	 * @return
 	 */
@@ -235,12 +238,18 @@ public class TorsionDetail {
             if (mol.isFlatNitrogen(mCentralAtom[i]))
                 mFragment.setAtomQueryFeature(mToFragmentAtom[mCentralAtom[i]], Molecule.cAtomQFFlatNitrogen, true);
 
-	        for (int j=0; j<mol.getConnAtoms(mCentralAtom[i]); j++) {
+            boolean delocalizedBondFound = false;
+            for (int j=0; j<mol.getConnAtoms(mCentralAtom[i]); j++) {
 	            int connAtom = mol.getConnAtom(mCentralAtom[i], j);
 	            if (connAtom != mRearAtom[i]) {
-	                if (mol.getAtomicNo(connAtom) == 6) {
+	            	int fragBond = mFragment.getBond(mToFragmentAtom[mCentralAtom[i]], mToFragmentAtom[connAtom]);
+	            	if (mFragment.getBondType(fragBond) == Molecule.cBondTypeDelocalized) {
+	            		delocalizedBondFound = true;
+	            		}
+	            	else if (mol.getAtomicNo(connAtom) == 6
+	            		  && !mol.isAromaticAtom(mCentralAtom[i])) {	// if not encoded on central atom
 	                    int feature = mol.isAromaticAtom(connAtom) ? Molecule.cAtomQFAromatic
-	                                                           : Molecule.cAtomQFNotAromatic;
+	                                                           		: Molecule.cAtomQFNotAromatic;
 	                    mFragment.setAtomQueryFeature(mToFragmentAtom[connAtom], feature, true);
 	                    }
 /*	                if (mol.isElectronegative(connAtom) && mFragment.getFreeValence(mToFragmentAtom[connAtom]) != 0) {
@@ -252,8 +261,7 @@ public class TorsionDetail {
 		            int connBond = mol.getConnBond(mCentralAtom[i], j);
 		            int ringSize = mol.getBondRingSize(connBond);
 		            if (ringSize == 3 || ringSize == 4)
-	                    mFragment.setBondQueryFeature(mFragment.getBond(mToFragmentAtom[mCentralAtom[i]], mToFragmentAtom[connAtom]),
-	                    							  ringSize << Molecule.cBondQFRingSizeShift, true);
+	                    mFragment.setBondQueryFeature(fragBond, ringSize << Molecule.cBondQFRingSizeShift, true);
 
 		            // account for allyl-1,3-strain
 		            if (mol.isAromaticBond(connBond)
@@ -272,16 +280,32 @@ public class TorsionDetail {
 		                    int feature = (Molecule.cAtomQFNeighbours & ~Molecule.cAtomQFNot3Neighbours);
 		                    mFragment.setAtomQueryFeature(mToFragmentAtom[connAtom], feature, true);
 		            		}
+		            	else if (mol.isAromaticBond(connBond)) {
+		            		// we show that there is no ortho substituent with 'has2neighbors'
+		                    int feature = (Molecule.cAtomQFNeighbours & ~Molecule.cAtomQFNot2Neighbours);
+		                    mFragment.setAtomQueryFeature(mToFragmentAtom[connAtom], feature, true);
+		            		}
 		            	}
 
 		            // account for gauche-pentane situations
-		            if (mol.getConnBondOrder(mCentralAtom[i], j) == 1
-		             && mol.getConnAtoms(connAtom) == 4) {
-	                    int feature = (Molecule.cAtomQFNeighbours & ~Molecule.cAtomQFNot4Neighbours);
-	                    mFragment.setAtomQueryFeature(mToFragmentAtom[connAtom], feature, true);
+		            if (mol.getConnBondOrder(mCentralAtom[i], j) == 1) {
+		            	if (mol.getConnAtoms(connAtom) == 4) {
+		                    int feature = (Molecule.cAtomQFNeighbours & ~Molecule.cAtomQFNot4Neighbours);
+		                    mFragment.setAtomQueryFeature(mToFragmentAtom[connAtom], feature, true);
+			            	}
+		            	else if (mol.getAtomicNo(connAtom) == 6) {
+		                    mFragment.setAtomQueryFeature(mToFragmentAtom[connAtom], Molecule.cAtomQFNot4Neighbours, true);
+		            		}
 		            	}
 	            	}
 	            }
+
+            if (!delocalizedBondFound) {
+            	if (mol.isAromaticAtom(mCentralAtom[i]))
+            		mFragment.setAtomQueryFeature(mToFragmentAtom[mCentralAtom[i]], Molecule.cAtomQFAromatic, true);
+            	else
+            		mFragment.setAtomQueryFeature(mToFragmentAtom[mCentralAtom[i]], Molecule.cAtomQFNotAromatic, true);
+            	}
         	}
 
     	mFragment.ensureHelperArrays(Molecule.cHelperSymmetrySimple | Molecule.cHelperBitIncludeNitrogenParities);

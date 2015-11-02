@@ -73,13 +73,13 @@ public class DECompoundTableExtensionHandler implements CompoundTableConstants,C
 		}
 
 	private void writeExplanation(BufferedWriter writer, String explanation) throws IOException {
-		writer.write("<datawarrior "+cExtensionNameFileExplanation+">");
+		writer.write(cFileExplanationStart);
 		writer.newLine();
 		for (String line:explanation.split("\\n")) {
 			writer.write(line);
 			writer.newLine();
 			}
-		writer.write("</datawarrior "+cExtensionNameFileExplanation+">");
+		writer.write(cFileExplanationEnd);
 		writer.newLine();
 		}
 
@@ -89,7 +89,7 @@ public class DECompoundTableExtensionHandler implements CompoundTableConstants,C
 			while (true) {
 				String theLine = reader.readLine();
 				if (theLine == null
-				 || theLine.equals("</datawarrior "+cExtensionNameFileExplanation+">")) {
+				 || theLine.equals(cFileExplanationEnd)) {
 					break;
 					}
 
@@ -104,13 +104,13 @@ public class DECompoundTableExtensionHandler implements CompoundTableConstants,C
 		}
 
 	private void writeMacroList(BufferedWriter writer, ArrayList<DEMacro> macroList) throws IOException {
-		writer.write("<datawarrior "+cExtensionNameMacroList+">");
+		writer.write(cMacroListStart);
 		writer.newLine();
 
 		for (DEMacro macro:macroList)
 			macro.writeMacro(writer);
 
-		writer.write("</datawarrior "+cExtensionNameMacroList+">");
+		writer.write(cMacroListEnd);
 		writer.newLine();
 		}
 
@@ -121,7 +121,7 @@ public class DECompoundTableExtensionHandler implements CompoundTableConstants,C
 			while (true) {
 				theLine = reader.readLine();
 				if (theLine == null
-				 || theLine.equals("</datawarrior "+cExtensionNameMacroList+">")) {
+				 || theLine.equals(cMacroListEnd)) {
 					break;
 					}
 
@@ -142,7 +142,7 @@ public class DECompoundTableExtensionHandler implements CompoundTableConstants,C
 		catch (Exception e) {
 			e.printStackTrace();
 			try {
-				while (theLine != null && !theLine.equals("</datawarrior "+cExtensionNameMacroList+">"))
+				while (theLine != null && !theLine.equals(cMacroListEnd))
 					theLine = reader.readLine();
 				}
 			catch (IOException ioe) {}

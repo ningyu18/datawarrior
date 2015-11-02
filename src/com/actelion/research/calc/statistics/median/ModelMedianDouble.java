@@ -1,3 +1,20 @@
+/*
+ * Project: DD_core
+ * @(#)ModelMedianDouble.java
+ *
+ * Copyright (c) 1997- 2015
+ * Actelion Pharmaceuticals Ltd.
+ * Gewerbestrasse 16
+ * CH-4123 Allschwil, Switzerland
+ *
+ * All Rights Reserved.
+ *
+ * This software is the proprietary information of Actelion Pharmaceuticals, Ltd.
+ * Use is subject to license terms.
+ *
+ * Author: MvK
+ */
+
 package com.actelion.research.calc.statistics.median;
 
 import java.util.List;
@@ -6,17 +23,6 @@ import com.actelion.research.util.Formatter;
 import com.actelion.research.util.StringFunctions;
 
 
-/**
- * 
- * 
- * ModelMedianDouble
- * <p>Copyright: Actelion Ltd., Inc. All Rights Reserved
- * This software is the proprietary information of Actelion Pharmaceuticals, Ltd.
- * Use is subject to license terms.</p>
- * @author Modest von Korff
- * @version 1.0
- * Mar 6, 2012 MvK: Start implementation
- */
 public class ModelMedianDouble {
 	
 	private static final int LENGTH = 7;

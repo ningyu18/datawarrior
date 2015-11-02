@@ -31,8 +31,9 @@ package com.actelion.research.chem;
 
 import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileReader;
+import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.io.StringReader;
 import java.util.TreeMap;
 
@@ -54,6 +55,11 @@ public class MolfileParser
 		try{
 			String line;
 			int natoms,nbonds,nlists,chiral,version;
+
+			if(mMol != null){
+				mMol.deleteMolecule();
+				mMol.setFragment(false);
+			}
 
 			/*** Name line ***/
 			String name = (line = reader.readLine());
@@ -87,11 +93,6 @@ public class MolfileParser
 			} catch(Exception e){
 				TRACE("Warning [readMoleculeFromBuffer]: Unable to interpret counts line\n");
 				return false;
-			}
-
-			if(mMol != null){
-				mMol.deleteMolecule();
-				mMol.setFragment(false);
 			}
 
 			if(version == 3){
@@ -837,7 +838,7 @@ public class MolfileParser
 	{
 		mMol = mol;
 		try{
-			return readMoleculeFromBuffer(new BufferedReader(new FileReader(file)));
+			return readMoleculeFromBuffer(new BufferedReader(new InputStreamReader(new FileInputStream(file), "UTF-8")));
 		} catch(IOException e){
 			System.err.println("Error reading file " + e);
 		}

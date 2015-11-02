@@ -62,7 +62,8 @@ public interface CompoundTableConstants {
     public static final String[] cStructureHiliteModeText = { "Recent Filter", "Current Row Similarity", "No Highlighting" };
     public static final String[] cHiliteModeOption = { "hiliteFilter", "hiliteCurrent", "hiliteNone" };
 
-	public static final String NEWLINE_STRING = "<NL>";	// used in .dwar, .txt and .cvs files to indicated next line within a cell
+	public static final String NEWLINE_STRING = "<NL>";	// used in .dwar, .txt and .cvs files to indicate next line within a cell
+	public static final String TAB_STRING = "<TAB>";	// used in .dwar, .txt and .cvs files to indicate a tabulator within a cell
     public static final String cEntrySeparator = "; ";
     public static final byte[] cEntrySeparatorBytes = { ';', ' '};
     public static final String cLineSeparator = "\n";
@@ -86,6 +87,7 @@ public interface CompoundTableConstants {
     public static final String cColumnPropertyDetailCount = "detailCount";
     public static final String cColumnPropertyDetailName = "detailName";
     public static final String cColumnPropertyDetailType = "detailType";
+    public static final String cColumnPropertyOrbitType = "orbitType";
     public static final String cColumnPropertyDetailSource = "detailSource";
     public static final String cColumnPropertyDetailSeparator = "detailSeparator";
     public static final String cColumnPropertyDescriptorVersion = "version";
@@ -96,6 +98,7 @@ public interface CompoundTableConstants {
     public static final String cColumnPropertyLookupCount = "lookupCount";
     public static final String cColumnPropertyLookupName = "lookupName";
     public static final String cColumnPropertyLookupURL = "lookupURL";
+    public static final String cColumnPropertyLookupDetailURL = "lookupDetailURL";
     public static final String cColumnPropertyReferencedColumn = "refColumn";
     public static final String cColumnPropertyReferenceStrengthColumn = "refStrengthColumn";
     public static final String cColumnPropertyReferenceType = "refType";
@@ -106,8 +109,6 @@ public interface CompoundTableConstants {
     public static final String cNativeFileHeaderEnd = "</datawarrior-fileinfo>";
     public static final String cNativeFileVersion = "version";
     public static final String cNativeFileRowCount = "rowcount";
-    public static final String cFileExplanationStart = "<fileexplanation format=html>";
-    public static final String cFileExplanationEnd = "</fileexplanation>";
 
     public static final String cColumnPropertyStart = "<column properties>";
     public static final String cColumnPropertyEnd = "</column properties>";
@@ -128,4 +129,10 @@ public interface CompoundTableConstants {
 
     public static final String cExtensionNameFileExplanation = "explanation";
     public static final String cExtensionNameMacroList = "macroList";
+
+    public static final String cFileExplanationStart = "<datawarrior "+cExtensionNameFileExplanation+">";
+    public static final String cFileExplanationEnd = "</datawarrior "+cExtensionNameFileExplanation+">";
+
+    public static final String cMacroListStart = "<datawarrior "+cExtensionNameMacroList+">";
+    public static final String cMacroListEnd = "</datawarrior "+cExtensionNameMacroList+">";
 	}

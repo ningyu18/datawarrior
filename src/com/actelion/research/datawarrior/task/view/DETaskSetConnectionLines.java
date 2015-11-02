@@ -62,12 +62,13 @@ public class DETaskSetConnectionLines extends DETaskAbstractSetViewOptions {
 
     private static final String PROPERTY_TREE_VIEW = "treeView";
     private static final String PROPERTY_SHOW_ALL = "showAll";
+    private static final String PROPERTY_DYNAMIC = "dynamic";
 
     private static Properties sRecentConfiguration;
 
 	JSlider             mSliderLineWidth,mSliderRadius;
 	JComboBox			mComboBox1,mComboBox2,mComboBox3;
-	JCheckBox			mCheckBox;
+	JCheckBox			mCheckBoxShowAll,mCheckBoxIsDynamic;
 	JLabel				mLabelRadius;
 
 	public DETaskSetConnectionLines(Frame owner, DEMainPane mainPane, VisualizationPanel view) {
@@ -88,7 +89,7 @@ public class DETaskSetConnectionLines extends DETaskAbstractSetViewOptions {
 	public JComponent createInnerDialogContent() {
 		double[][] size = { {8, TableLayout.PREFERRED, 8, TableLayout.PREFERRED, 8, TableLayout.PREFERRED, 8 },
     						{8, TableLayout.PREFERRED, 8, TableLayout.PREFERRED, 8, TableLayout.PREFERRED, 16,
-								TableLayout.PREFERRED, 8, TableLayout.PREFERRED, 8, TableLayout.PREFERRED, 8 } };
+								TableLayout.PREFERRED, 8, TableLayout.PREFERRED, 4, TableLayout.PREFERRED, 8, TableLayout.PREFERRED, 8 } };
 		JPanel cp = new JPanel();
 		cp.setLayout(new TableLayout(size));
 
@@ -140,20 +141,24 @@ public class DETaskSetConnectionLines extends DETaskAbstractSetViewOptions {
 		cp.add(new JLabel("Detail graph mode: "), "1,7");
 		cp.add(mComboBox3, "3,7,5,7");
 
-		mCheckBox = new JCheckBox("Show all markers if no tree root (current row) is chosen");
-		mCheckBox.addActionListener(this);
-		cp.add(mCheckBox, "1,9,5,9");
+		mCheckBoxShowAll = new JCheckBox("Show all markers if no tree root (current row) is chosen");
+		mCheckBoxShowAll.addActionListener(this);
+		cp.add(mCheckBoxShowAll, "1,9,5,9");
+
+		mCheckBoxIsDynamic = new JCheckBox("If nodes get invisible, re-arrange and remove sub-branches");
+		mCheckBoxIsDynamic.addActionListener(this);
+		cp.add(mCheckBoxIsDynamic, "1,11,5,11");
 
 		mSliderRadius = new JSlider(JSlider.HORIZONTAL, 0, 20, DEFAULT_RADIUS);
 //		mSliderRadius.setMinorTickSpacing(1);
 //		mSliderRadius.setMajorTickSpacing(5);
 		mSliderRadius.setPreferredSize(new Dimension(100, mSliderRadius.getPreferredSize().height));
 		mSliderRadius.addChangeListener(this);
-		cp.add(new JLabel("Detail graph levels:"), "1,11");
-		cp.add(mSliderRadius, "3,11");
+		cp.add(new JLabel("Detail graph levels:"), "1,13");
+		cp.add(mSliderRadius, "3,13");
 		mLabelRadius = new JLabel(""+DEFAULT_RADIUS);
 		mLabelRadius.setPreferredSize(new Dimension(32, mLabelRadius.getPreferredSize().height));
-		cp.add(mLabelRadius, "5,11");
+		cp.add(mLabelRadius, "5,13");
 
 		return cp;
 	    }
@@ -170,7 +175,8 @@ public class DETaskSetConnectionLines extends DETaskAbstractSetViewOptions {
 		mComboBox3.setSelectedItem(JVisualization.cTreeViewModeNone);
 		mSliderRadius.setValue(DEFAULT_RADIUS);
 		mSliderLineWidth.setValue((int)(50.0*Math.sqrt(DEFAULT_LINE_WIDTH)));
-		mCheckBox.setSelected(true);
+		mCheckBoxShowAll.setSelected(true);
+		mCheckBoxIsDynamic.setSelected(false);
 		}
 
 	@Override
@@ -194,7 +200,8 @@ public class DETaskSetConnectionLines extends DETaskAbstractSetViewOptions {
 		mComboBox3.setSelectedIndex(findListIndex(configuration.getProperty(PROPERTY_TREE_VIEW),
 					JVisualization.TREE_VIEW_MODE_CODE, JVisualization.cTreeViewModeNone));
 
-		mCheckBox.setSelected(configuration.getProperty(PROPERTY_SHOW_ALL, "true").equals("true"));
+		mCheckBoxShowAll.setSelected(configuration.getProperty(PROPERTY_SHOW_ALL, "true").equals("true"));
+		mCheckBoxIsDynamic.setSelected(configuration.getProperty(PROPERTY_DYNAMIC, "false").equals("true"));
 
 		int radius = DEFAULT_RADIUS;
 		try {
@@ -231,7 +238,8 @@ public class DETaskSetConnectionLines extends DETaskAbstractSetViewOptions {
 
 		configuration.setProperty(PROPERTY_TREE_VIEW, JVisualization.TREE_VIEW_MODE_CODE[mComboBox3.getSelectedIndex()]);
 
-		configuration.setProperty(PROPERTY_SHOW_ALL, mCheckBox.isSelected() ? "true" : "false");
+		configuration.setProperty(PROPERTY_SHOW_ALL, mCheckBoxShowAll.isSelected() ? "true" : "false");
+		configuration.setProperty(PROPERTY_DYNAMIC, mCheckBoxIsDynamic.isSelected() ? "true" : "false");
 
 		configuration.setProperty(PROPERTY_RADIUS, ""+mSliderRadius.getValue());
 		configuration.setProperty(PROPERTY_LINE_WIDTH, ""+((float)(mSliderLineWidth.getValue()*mSliderLineWidth.getValue())/2500.0f));
@@ -258,6 +266,7 @@ public class DETaskSetConnectionLines extends DETaskAbstractSetViewOptions {
 		configuration.setProperty(PROPERTY_TREE_VIEW, JVisualization.TREE_VIEW_MODE_CODE[getVisualization().getTreeViewMode()]);
 
 		configuration.setProperty(PROPERTY_SHOW_ALL, getVisualization().isTreeViewShowAll() ? "true" : "false");
+		configuration.setProperty(PROPERTY_DYNAMIC, getVisualization().isTreeViewDynamic() ? "true" : "false");
 
 		configuration.setProperty(PROPERTY_RADIUS, ""+getVisualization().getTreeViewRadius());
 		configuration.setProperty(PROPERTY_LINE_WIDTH, ""+getVisualization().getConnectionLineWidth());
@@ -314,9 +323,10 @@ public class DETaskSetConnectionLines extends DETaskAbstractSetViewOptions {
 		catch (NumberFormatException nfe) {}
 
 		boolean showAll = configuration.getProperty(PROPERTY_SHOW_ALL, "true").equals("true");
+		boolean isDynamic = configuration.getProperty(PROPERTY_DYNAMIC, "false").equals("true");
 
 		visualization.setConnectionColumns(column, orderColumn);
-		visualization.setTreeViewMode(mode, radius, showAll);
+		visualization.setTreeViewMode(mode, radius, showAll, isDynamic);
 		visualization.setConnectionLineWidth(lineWidth, isAdjusting);
 		}
 
@@ -338,7 +348,7 @@ public class DETaskSetConnectionLines extends DETaskAbstractSetViewOptions {
 
 		boolean showDetailGraph = ((!hasInteractiveView() || isReferencedConnection)
 								&& mComboBox3.getSelectedIndex() != JVisualization.cTreeViewModeNone);
-		mCheckBox.setEnabled(showDetailGraph);
+		mCheckBoxShowAll.setEnabled(showDetailGraph);
 		mSliderRadius.setEnabled(showDetailGraph);
 		}
 

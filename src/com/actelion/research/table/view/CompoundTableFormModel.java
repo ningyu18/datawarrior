@@ -22,6 +22,7 @@ import com.actelion.research.chem.StereoMolecule;
 import com.actelion.research.chem.reaction.Reaction;
 import com.actelion.research.gui.form.FormModel;
 import com.actelion.research.gui.form.FormObjectFactory;
+import com.actelion.research.gui.form.JHTMLDetailView;
 import com.actelion.research.gui.form.JImageDetailView;
 import com.actelion.research.gui.form.JStructure3DFormObject;
 import com.actelion.research.table.CompoundRecord;
@@ -29,6 +30,7 @@ import com.actelion.research.table.CompoundTableModel;
 
 public class CompoundTableFormModel implements FormModel {
 	protected static final String KEY_DETAIL_SEPARATOR = "#D#:";
+	protected static final String KEY_LOOKUP_SEPARATOR = "#L#:";
 
 	private CompoundTableModel	mTableModel;
     private CompoundRecord		mRecord;
@@ -56,8 +58,14 @@ public class CompoundTableFormModel implements FormModel {
         int keyCount = 0;
         for (int column=0; column<mTableModel.getTotalColumnCount(); column++) {
             String specialType = mTableModel.getColumnSpecialType(column);
-            if (specialType == null)
+            if (specialType == null) {
                 keyCount += 1+mTableModel.getColumnDetailCount(column);
+                int lookupCount = mTableModel.getColumnLookupCount(column);
+                for (int i=0; i<lookupCount; i++) {
+	                if (mTableModel.getColumnProperty(column, CompoundTableModel.cColumnPropertyLookupDetailURL+i) != null)
+	                	keyCount++;
+                	}
+            	}
             else if (specialType.equals(CompoundTableModel.cColumnTypeIDCode)
                   || specialType.equals(CompoundTableModel.cColumnTypeRXNCode)
                   || specialType.equals(CompoundTableModel.cColumnType3DCoordinates))
@@ -80,8 +88,7 @@ public class CompoundTableFormModel implements FormModel {
             }
 
         for (int column=0; column<mTableModel.getTotalColumnCount(); column++) {
-            String specialType = mTableModel.getColumnSpecialType(column);
-            if (specialType == null) {
+            if (mTableModel.getColumnSpecialType(column) == null) {
                 if (no == 0)
                     return mTableModel.getColumnTitleNoAlias(column);
 
@@ -91,6 +98,16 @@ public class CompoundTableFormModel implements FormModel {
                     return mTableModel.getColumnTitleNoAlias(column)+KEY_DETAIL_SEPARATOR+no;
 
                 no -= detailCount;
+
+                int lookupCount = mTableModel.getColumnLookupCount(column);
+                for (int i=0; i<lookupCount; i++) {
+                	if (mTableModel.getColumnProperty(column, CompoundTableModel.cColumnPropertyLookupDetailURL+i) != null) {
+                		if (no == 0)
+                			return mTableModel.getColumnTitleNoAlias(column)+KEY_LOOKUP_SEPARATOR+no;
+
+                		no--;
+                		}
+                	}
                 }
             }
 
@@ -107,6 +124,21 @@ public class CompoundTableFormModel implements FormModel {
 			try {
 				int detail = Integer.parseInt(key.substring(index+KEY_DETAIL_SEPARATOR.length()));
 				return mTableModel.getColumnDetailName(column, detail);
+				}
+			catch (NumberFormatException nfe) {
+				return null;
+				}
+			}
+
+		index = key.indexOf(KEY_LOOKUP_SEPARATOR);
+		if (index != -1) {
+			int column = mTableModel.findColumn(key.substring(0, index));
+			if (column == -1)
+				return "<detail missing>";
+
+			try {
+				int lookup = Integer.parseInt(key.substring(index+KEY_LOOKUP_SEPARATOR.length()));
+				return mTableModel.getColumnLookupName(column, lookup);
 				}
 			catch (NumberFormatException nfe) {
 				return null;
@@ -141,6 +173,16 @@ public class CompoundTableFormModel implements FormModel {
 				}
 			}
 
+		index = key.indexOf(KEY_LOOKUP_SEPARATOR);
+		if (index != -1) {
+			int column = mTableModel.findColumn(key.substring(0, index));
+			if (column == -1)
+				return null;
+			String[] html = new String[1];
+			html[0] = new String((byte[])mRecord.getData(column));
+			return html;
+			}
+
         int column = mTableModel.findColumn(key);
         if (column == -1)
             return null;
@@ -163,6 +205,10 @@ public class CompoundTableFormModel implements FormModel {
         int index = key.indexOf(KEY_DETAIL_SEPARATOR);
         if (index != -1)
             return false; // Detail form objects may not be edited currently. Therefore this should never happen.
+
+        index = key.indexOf(KEY_LOOKUP_SEPARATOR);
+        if (index != -1)
+            return false; // Lookup data comes from external source and cannot be edited. Therefore this should never happen.
 
         int column = mTableModel.findColumn(key);
         if (column == -1)
@@ -210,6 +256,11 @@ public class CompoundTableFormModel implements FormModel {
 			catch (NumberFormatException nfe) {
 				return null;
 				}
+			}
+
+		index = key.indexOf(KEY_LOOKUP_SEPARATOR);
+		if (index != -1) {
+			return JHTMLDetailView.TYPE_TEXT_HTML;
 			}
 
 		int column = mTableModel.findColumn(key);

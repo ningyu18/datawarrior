@@ -59,7 +59,7 @@ public class DECorrelationDialog extends JDialog implements ActionListener {
 
 		JPanel cbp = new JPanel();
 		cbp.add(new JLabel("Correlation Coefficient:"));
-		mComboBoxCorrelationType = new JComboBox(CorrelationCalculator.TYPE_NAME);
+		mComboBoxCorrelationType = new JComboBox(CorrelationCalculator.TYPE_LONG_NAME);
 		mComboBoxCorrelationType.addActionListener(this);
 		cbp.add(mComboBoxCorrelationType);
 		p.add(cbp, "1,1,3,1");
@@ -178,7 +178,7 @@ public class DECorrelationDialog extends JDialog implements ActionListener {
 	    if (e.getActionCommand().equals("Copy")) {
             int type = mComboBoxCorrelationType.getSelectedIndex();
 
-            StringBuilder buf = new StringBuilder("r ("+CorrelationCalculator.TYPE_NAME[type]+")\t");
+            StringBuilder buf = new StringBuilder("r ("+CorrelationCalculator.TYPE_LONG_NAME[type]+")\t");
 	        for (int i=0; i<mNumericalColumn.length; i++)
 	            buf.append('\t').append(""+(i+1));
 	        buf.append('\n');

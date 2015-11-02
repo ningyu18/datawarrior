@@ -1,3 +1,20 @@
+/*
+ * Project: DD_core
+ * @(#)Matrix.java
+ *
+ * Copyright (c) 1997- 2015
+ * Actelion Pharmaceuticals Ltd.
+ * Gewerbestrasse 16
+ * CH-4123 Allschwil, Switzerland
+ *
+ * All Rights Reserved.
+ *
+ * This software is the proprietary information of Actelion Pharmaceuticals, Ltd.
+ * Use is subject to license terms.
+ *
+ * Author: MvK
+ */
+
 package com.actelion.research.calc;
 
 
@@ -21,16 +38,6 @@ import java.util.Vector;
 import com.actelion.research.util.DoubleVec;
 import com.actelion.research.util.convert.String2DoubleArray;
 import com.actelion.research.util.datamodel.ScorePoint;
-
-/**
- * <p>Title: Matrix</p>
- * <p>Description: Matrix operations </p>
- * <p>Copyright: Actelion Ltd., Inc. All Rights Reserved
- * This software is the proprietary information of Actelion Pharmaceuticals, Ltd.
- * Use is subject to license terms.</p>
- * @author Modest von Korff
- * 19.11.2003 MvK: Start implementation
- */
 
 public class Matrix {
 
@@ -1598,7 +1605,7 @@ public class Matrix {
 	 * @param row
 	 * @return column index for the field with the largest value for the given row.
 	 */
-    public int getMaxColIndex(int row) {
+    public int getColIndexContainingMaxVal(int row) {
 
         int cols = getColDim();
         double max = -Double.MAX_VALUE;
@@ -1610,6 +1617,49 @@ public class Matrix {
             }
         }
         return col;
+    }
+    
+    /**
+     * 
+     * @param rowEnd the values in the matrix will be considered until this row (exclusively).
+     * @param colEnd the values in the matrix will be considered until this col (exclusively).
+     * @return
+     */
+    public ScorePoint getColIndexContainingMaxVal(int rowEnd, int colEnd) {
+    	
+    	int cols = colEnd;
+    	
+    	int rows = rowEnd;
+    	        
+        double max = -Double.MAX_VALUE;
+        
+        int rowMax = -1;
+        int colMax = -1;
+        
+        for (int i = 0; i < cols; i++) {
+        	
+        	double maxInCol = -Double.MAX_VALUE;
+        	
+        	int rowMaxInCol=-1;
+        	for (int j = 0; j < rows; j++) {
+        		if(data[j][i] > maxInCol) {
+        			maxInCol = data[j][i];
+        			rowMaxInCol=j;
+                }
+			}
+        	
+        	if(maxInCol>max){
+        		max = maxInCol;
+        		rowMax = rowMaxInCol;
+        		colMax = i;
+        	}
+        }
+        
+        ScorePoint sc = new ScorePoint(rowMax, colMax);
+        
+        sc.setScore(max);
+        
+        return sc;
     }
 
     public Matrix getNormalizedMatrix() {

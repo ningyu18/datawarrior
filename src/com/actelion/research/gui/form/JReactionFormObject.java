@@ -83,7 +83,7 @@ public class JReactionFormObject extends AbstractFormObject {
 		    if (data instanceof Reaction)
 		        mChemistry = (Reaction)data;
 		    else if (data instanceof String)
-		        mChemistry = ReactionEncoder.decode((String)data, true	/*, mComponent.getGraphics()*/ );
+		        mChemistry = ReactionEncoder.decode((String)data, true);
             }
 
         ((ChemistryRenderPanel)mComponent).setChemistry(mChemistry);
@@ -99,10 +99,10 @@ public class JReactionFormObject extends AbstractFormObject {
 			if (data instanceof Reaction)
 				rxn = (Reaction)data;
 			else if (data instanceof String)
-				rxn = ReactionEncoder.decode((String)data, true /* , g2D */);
+				rxn = ReactionEncoder.decode((String)data, true);
 	
 		    if (rxn != null) {
-				ExtendedDepictor d = new ExtendedDepictor(rxn, null, !rxn.hasAbsoluteCoordinates(), true);
+				ExtendedDepictor d = new ExtendedDepictor(rxn, null, rxn.isReactionLayoutRequired(), true);
 				d.validateView(g2D, r, AbstractDepictor.cModeInflateToMaxAVBL);
 				d.paint(g2D);
 				}

@@ -1,3 +1,20 @@
+/*
+ * Project: DD_jfx
+ * @(#)ChemDrawCDX.java
+ *
+ * Copyright (c) 1997- 2015
+ * Actelion Pharmaceuticals Ltd.
+ * Gewerbestrasse 16
+ * CH-4123 Allschwil, Switzerland
+ *
+ * All Rights Reserved.
+ *
+ * This software is the proprietary information of Actelion Pharmaceuticals, Ltd.
+ * Use is subject to license terms.
+ *
+ * Author: Christian Rufener
+ */
+
 package com.actelion.research.gui.clipboard.external;
 
 import com.actelion.research.chem.Molecule;
@@ -978,7 +995,7 @@ if (false) {
                     btype = 2;
                     break;
                 case Molecule.cBondTypeTriple: //			= 0x0004;
-                    btype = 3;
+                    btype = 4;
                     break;
                 case Molecule.cBondTypeDown: //			= 0x0009;
                     btype = 1;

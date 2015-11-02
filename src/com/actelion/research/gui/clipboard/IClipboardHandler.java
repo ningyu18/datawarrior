@@ -1,26 +1,24 @@
 /*
-* @(#)IClipboardHandler.java
-*
-* Copyright 2005 Actelion Ltd. All Rights Reserved.
-*
-* This software is the proprietary information of Actelion Ltd.
-* Use is subject to license terms.
-*
+ * Project: DD_jfx
+ * @(#)IClipboardHandler.java
+ *
+ * Copyright (c) 1997- 2015
+ * Actelion Pharmaceuticals Ltd.
+ * Gewerbestrasse 16
+ * CH-4123 Allschwil, Switzerland
+ *
+ * All Rights Reserved.
+ *
+ * This software is the proprietary information of Actelion Pharmaceuticals, Ltd.
+ * Use is subject to license terms.
+ *
+ * Author: Christian Rufener
  */
 package com.actelion.research.gui.clipboard;
 
 import com.actelion.research.chem.*;
 import com.actelion.research.chem.reaction.Reaction;
 
-/**
- *
- * <p>Title: Actelion Library</p>
- * <p>Description: Actelion Java Library</p>
- * <p>Copyright: Copyright (c) 2002-2003</p>
- * <p>Company: Actelion Ltd</p>
- * @author Thomas Sander, Christian Rufener
- * @version 1.0
- */
 public interface IClipboardHandler {
 	public StereoMolecule pasteMolecule();
 	public Reaction pasteReaction();

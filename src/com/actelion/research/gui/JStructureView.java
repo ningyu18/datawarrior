@@ -46,7 +46,7 @@ public class JStructureView extends JPanel implements ActionListener,MouseListen
 	private String mIDCode;
 	private StereoMolecule mMol,mDisplayMol;
     private Depictor2D mDepictor;
-	private boolean mShowBorder;
+	private boolean mShowBorder,mAllowFragmentStatusChangeOnDrop;
 	private int mChiralTextPosition,mDisplayMode;
 	private String[] mAtomText;
 	private IClipboardHandler mClipboardHandler;
@@ -156,6 +156,16 @@ public class JStructureView extends JPanel implements ActionListener,MouseListen
 				mDropAdapter.setActive(enable);
 			}
 		super.setEnabled(enable);
+		}
+
+	/**
+	 * When fragment status change on drop is allowed then dropping a fragment (molecule)
+	 * on a molecule (fragment) inverts the status of the view's chemical object.
+	 * As default status changes are prohibited.
+	 * @param allow
+	 */
+	public void setAllowFragmentStatusChangeOnDrop(boolean allow) {
+		mAllowFragmentStatusChangeOnDrop = allow;
 		}
 
 	public boolean canDrop() {
@@ -336,6 +346,7 @@ public class JStructureView extends JPanel implements ActionListener,MouseListen
 		final JStructureView outer = this;
 		mAllowedDragAction = dragAction;
 		mAllowedDropAction = dropAction;
+		mAllowFragmentStatusChangeOnDrop = false;
 
 		if(dragAction != DnDConstants.ACTION_NONE){
 			new MoleculeDragAdapter(this) {
@@ -361,9 +372,12 @@ public class JStructureView extends JPanel implements ActionListener,MouseListen
 			mDropAdapter = new MoleculeDropAdapter() {
 				public void onDropMolecule(StereoMolecule m,Point pt) {
 					if (m != null && canDrop()){
+						boolean isFragment = mMol.isFragment();
 						mMol = new StereoMolecule(m);
 				        mMol.removeAtomColors();
 				        mMol.removeBondHiliting();
+				        if (!mAllowFragmentStatusChangeOnDrop)
+				        	mMol.setFragment(isFragment);
 				        mDisplayMol = mMol;
 						repaint();
 						informListeners();

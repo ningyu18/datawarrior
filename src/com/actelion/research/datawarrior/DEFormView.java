@@ -38,6 +38,7 @@ import com.actelion.research.gui.JBrowseToolbar;
 import com.actelion.research.gui.form.AbstractFormObject;
 import com.actelion.research.gui.form.FormObjectFactory;
 import com.actelion.research.gui.form.JFormDesigner;
+import com.actelion.research.gui.form.JStructure3DFormObject;
 import com.actelion.research.table.CompoundRecord;
 import com.actelion.research.table.CompoundTableColorHandler;
 import com.actelion.research.table.CompoundTableEvent;
@@ -62,6 +63,9 @@ public class DEFormView extends JComponent implements ActionListener,CompoundTab
 
 	public DEFormView(Frame parent, CompoundTableModel tableModel, CompoundTableColorHandler colorHandler) {
 		mTableModel = tableModel;
+
+		if (JStructure3DFormObject.getActionProvider() == null)
+			JStructure3DFormObject.setActionProvider(new RayTraceActionProvider(parent));
 
 		mFormView = new JPanel();
 		mFormView.setLayout(new BorderLayout());

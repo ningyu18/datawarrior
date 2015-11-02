@@ -3,6 +3,7 @@ package com.actelion.research.gui.viewer2d;
 import javax.vecmath.*;
 
 import com.actelion.research.chem.Coordinates;
+import com.actelion.research.util.DoubleFormat;
 
 /**
  * @author freyssj
@@ -32,6 +33,17 @@ public class Visualizer3D{
 
 	public Matrix3d getRotationMatrix() {
 		return rotation;
+	}
+
+	public double[] getTranslation() {
+		double[] t = new double[3];
+		t[0] = translation[0] * 100 / (screenZoom * zoomPercent);
+		t[1] = translation[1] * 100 / (screenZoom * zoomPercent);
+		return t;
+	}
+
+	public double getZoomPercent() {
+		return zoomPercent;
 	}
 
 	/**

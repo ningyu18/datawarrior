@@ -60,7 +60,7 @@ public class JCategoryFilterPanel extends JFilterPanel
 	 * @param tableModel
 	 */
 	public JCategoryFilterPanel(CompoundTableModel tableModel) {
-		this(tableModel, 0, 0);
+		this(tableModel, 0, -1);
 		}
 
 	public JCategoryFilterPanel(CompoundTableModel tableModel, int columnIndex, int exclusionFlag) {
@@ -140,8 +140,15 @@ public class JCategoryFilterPanel extends JFilterPanel
 			}
 		}
 
-	public boolean isFilterEnabled() {
-		return true;
+	@Override
+	public void enableItems(boolean b) {
+		if (isActive()) {
+			for (int i=0; i<mCheckBox.length; i++)
+				mCheckBox[i].setEnabled(b);
+			}
+		else {
+			mTextArea.setEnabled(b);
+			}
 		}
 
 	public void mouseClicked(MouseEvent e) {}
@@ -167,7 +174,7 @@ public class JCategoryFilterPanel extends JFilterPanel
 					}
 				}
 			if (update)
-				updateExclusion();
+				updateExclusion(true);
 			return;
 			}
 		if (command.startsWith("Deselect All")) {
@@ -179,11 +186,11 @@ public class JCategoryFilterPanel extends JFilterPanel
 					}
 				}
 			if (update)
-				updateExclusion();
+				updateExclusion(true);
 			return;
 			}
 		if (command.startsWith("cat")) {
-			updateExclusion();
+			updateExclusion(true);
 			return;
 			}
 
@@ -197,13 +204,13 @@ public class JCategoryFilterPanel extends JFilterPanel
 
 		if (e.getType() == CompoundTableEvent.cAddRows
 		 || e.getType() == CompoundTableEvent.cDeleteRows
-		 || (e.getType() == CompoundTableEvent.cChangeColumnData && e.getSpecifier() == mColumnIndex)) {
+		 || (e.getType() == CompoundTableEvent.cChangeColumnData && e.getColumn() == mColumnIndex)) {
 			if (!mTableModel.isColumnTypeCategory(mColumnIndex)) {
 				removePanel();
 				return;
 				}
 			if (updateCheckboxes() && e.getType() != CompoundTableEvent.cDeleteRows)
-				updateExclusion();
+				updateExclusionLater();
 			}
 
 		mIsUserChange = true;
@@ -302,7 +309,7 @@ public class JCategoryFilterPanel extends JFilterPanel
 					index = index2+1;
 					}
 				}
-			updateExclusion();
+			updateExclusion(false);
 			}
 		else {
 			mTextArea.setText(settings.replace('\t', '\n'));
@@ -327,14 +334,20 @@ public class JCategoryFilterPanel extends JFilterPanel
 			}
 		}
 
-	private void updateExclusion() {
+	@Override
+	public void updateExclusion(boolean isUserChange) {
+		if (!isEnabled())
+			return;
+
 		boolean[] selected = new boolean[mCheckBox.length];
 		for (int j=0; j<mCheckBox.length; j++)
 			selected[j] = mCheckBox[j].isSelected();
 
 		if (isActive()) {
 			mTableModel.setCategoryExclusion(mExclusionFlag, mColumnIndex, selected, isInverse());
-			fireFilterChanged(FilterEvent.FILTER_UPDATED, false);
+
+			if (isUserChange)
+				fireFilterChanged(FilterEvent.FILTER_UPDATED, false);
 			}
 		}
 
@@ -345,5 +358,10 @@ public class JCategoryFilterPanel extends JFilterPanel
 				break;
 				}
 			}
+		}
+
+	@Override
+	public int getFilterType() {
+		return FILTER_TYPE_CATEGORY;
 		}
 	}

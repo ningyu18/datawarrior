@@ -58,7 +58,7 @@ public abstract class TransformManager {
   protected final Point3f navigationOffset = new Point3f();
   protected final Point3f navigationShiftXY = new Point3f();
 
-  protected final Matrix4f matrixTemp = new Matrix4f();
+  public final Matrix4f matrixTemp = new Matrix4f();
   protected final Vector3f vectorTemp = new Vector3f();
 
   /**

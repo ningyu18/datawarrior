@@ -702,6 +702,7 @@ public class DEInteractiveSARDialog extends JDialog
 	                context.getRealBuildingBlock(fragment, abb.getID());
 	                String idcode = new Canonizer(fragment, Canonizer.ENCODE_ATOM_CUSTOM_LABELS).getIDCode();
 	                sr.getCompoundRecord().setData(idcode.getBytes(), buildingBlockColumn[i]);
+	                mTableModel.removeChildDescriptorsAndCoordinates(sr.getCompoundRecord(), buildingBlockColumn[i]);
 
 	                for (int j=0; j<substituentColumn[i].length; j++) {
 	                    if (!substituentIsBB[i][j]) {
@@ -709,6 +710,7 @@ public class DEInteractiveSARDialog extends JDialog
     	                    if (fragment.getAllAtoms() != 0) {
     	                        idcode = new Canonizer(fragment, Canonizer.ENCODE_ATOM_CUSTOM_LABELS).getIDCode();
     	                        sr.getCompoundRecord().setData(idcode.getBytes(), substituentColumn[i][j]);
+    	    	                mTableModel.removeChildDescriptorsAndCoordinates(sr.getCompoundRecord(), substituentColumn[i][j]);
     	                        }
 	                        }
 	                    }
@@ -717,17 +719,17 @@ public class DEInteractiveSARDialog extends JDialog
 	        }
 
 	    if (sarSeriesColumn < firstNewColumn)
-	        mTableModel.finalizeChangeColumn(sarSeriesColumn, 0, mTableModel.getTotalRowCount());
+	        mTableModel.finalizeChangeAlphaNumericalColumn(sarSeriesColumn, 0, mTableModel.getTotalRowCount());
         for (int i=0; i<buildingBlockColumn.length; i++) {
             if (buildingBlockColumn[i] < firstNewColumn)
-                mTableModel.finalizeChangeColumn(buildingBlockColumn[i], 0, mTableModel.getTotalRowCount());
+                mTableModel.finalizeChangeChemistryColumn(buildingBlockColumn[i], 0, mTableModel.getTotalRowCount(), false);
             else
                 mTableModel.setColumnProperty(buildingBlockColumn[i], CompoundTableModel.cColumnPropertySpecialType, CompoundTableModel.cColumnTypeIDCode);
 
             for (int j=0; j<substituentColumn[i].length; j++) {
                 if (!substituentIsBB[i][j]) {
                     if (substituentColumn[i][j] < firstNewColumn)
-                        mTableModel.finalizeChangeColumn(substituentColumn[i][j], 0, mTableModel.getTotalRowCount());
+                        mTableModel.finalizeChangeChemistryColumn(substituentColumn[i][j], 0, mTableModel.getTotalRowCount(), false);
                     else
                         mTableModel.setColumnProperty(substituentColumn[i][j], CompoundTableModel.cColumnPropertySpecialType, CompoundTableModel.cColumnTypeIDCode);
                     }

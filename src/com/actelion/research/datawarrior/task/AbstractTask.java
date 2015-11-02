@@ -52,23 +52,27 @@ import com.actelion.research.gui.JProgressDialog;
 import com.actelion.research.table.CompoundTableModel;
 
 public abstract class AbstractTask implements ProgressController,Runnable {
+	public static final int ERROR_MESSAGE = JOptionPane.ERROR_MESSAGE;
+	public static final int WARNING_MESSAGE = JOptionPane.WARNING_MESSAGE;
+	public static final int INFORMATION_MESSAGE = JOptionPane.INFORMATION_MESSAGE;
+
 	private JDialog				mDialog;
 	private TaskUIDelegate		mUIDelegate;
 	private boolean				mStatusOK,mIsLive;
-    private volatile Frame		mParentFrame;
+	private volatile Frame		mParentFrame;
 	private volatile ProgressController	mProgressController;
 	private volatile Properties	mTaskConfiguration;
-	private volatile boolean	mUseOwnThread;
+	private volatile boolean	mUseOwnThread,mIsInteractive;
 
 	public static String configurationToString(Properties configuration) {
-	    try {
-	    	Writer writer = new StringWriter();
-	    	configuration.store(writer, null);
-	    	return writer.toString();
-	    	}
-	    catch (IOException ioe) {
-		    return null;
-	    	}
+		try {
+			Writer writer = new StringWriter();
+			configuration.store(writer, null);
+			return writer.toString();
+			}
+		catch (IOException ioe) {
+			return null;
+			}
 		}
 
 	public static Properties configurationFromString(String configurationString) {
@@ -77,9 +81,9 @@ public abstract class AbstractTask implements ProgressController,Runnable {
 			configuration.load(new StringReader(configurationString));
 			return configuration;
 			}
-	    catch (IOException ioe) {
-		    return null;
-	    	}
+		catch (IOException ioe) {
+			return null;
+			}
 		}
 
 	public static String constructTaskCodeFromName(String taskName) {
@@ -114,33 +118,33 @@ public abstract class AbstractTask implements ProgressController,Runnable {
 		}
 
 	/**
-     * Returns a unique task code to identify and distinguish this task
-     * from others within a task sequence file.
-     * @return unique task name
-     */
-    public String getTaskCode() {
-    	return constructTaskCodeFromName(getTaskName());
-    	}
+	 * Returns a unique task code to identify and distinguish this task
+	 * from others within a task sequence file.
+	 * @return unique task name
+	 */
+	public String getTaskCode() {
+		return constructTaskCodeFromName(getTaskName());
+		}
 
-    /**
-     * Returns a unique task name that serves as task identification for the user.
-     * In the default implementation this is also used to construct the unique task code,
-     * which serves as unique name in a task sequence file.
-     * @return unique task name
-     */
-    public abstract String getTaskName();
+	/**
+	 * Returns a unique task name that serves as task identification for the user.
+	 * In the default implementation this is also used to construct the unique task code,
+	 * which serves as unique name in a task sequence file.
+	 * @return unique task name
+	 */
+	public abstract String getTaskName();
 
-    /**
-     * Is supposed to check whether the given configuration is a valid one.<br>
-     * If isLive==true it checks, whether the task can be executed with the current dataset.<br>
-     * If isLive==true isConfigurable() was called before and returned true.<br>
-     * If isLive==false it checks, whether a dataset can exist for which the task can be executed.<br>
-     * In case of a problem showErrorMessage() should be called and 'false' returned.
-     * @param configuration t
-     * @param isLive if true then the 
-     * @return true if query definition is valid
-     */
-    public abstract boolean isConfigurationValid(Properties configuration, boolean isLive);
+	/**
+	 * Is supposed to check whether the given configuration is a valid one.<br>
+	 * If isLive==true it checks, whether the task can be executed with the current dataset.<br>
+	 * If isLive==true isConfigurable() was called before and returned true.<br>
+	 * If isLive==false it checks, whether a dataset can exist for which the task can be executed.<br>
+	 * In case of a problem showErrorMessage() should be called and 'false' returned.
+	 * @param configuration t
+	 * @param isLive true if a macro is running or the task is configured for direct execution
+	 * @return true if query definition is valid
+	 */
+	public abstract boolean isConfigurationValid(Properties configuration, boolean isLive);
 
 	/**
 	 * Performs the task with the given valid(!) configuration. The calling thread
@@ -196,18 +200,18 @@ public abstract class AbstractTask implements ProgressController,Runnable {
 		return mTaskConfiguration;
 		}
 
-    /**
-     * Any subclass is expected to keep a static copy of the most recently interactively
-     * defined and executed configuration, which is provided and requested by this superclass.
-     * @return recent configuration or null
-     */
+	/**
+	 * Any subclass is expected to keep a static copy of the most recently interactively
+	 * defined and executed configuration, which is provided and requested by this superclass.
+	 * @return recent configuration or null
+	 */
 	public abstract Properties getRecentConfiguration();
 
-    /**
-     * Any subclass is expected to keep a static copy of the most recently interactively
-     * defined and executed configuration, which is provided and requested by this superclass.
-     * @param configuration interactively used configuration
-     */
+	/**
+	 * Any subclass is expected to keep a static copy of the most recently interactively
+	 * defined and executed configuration, which is provided and requested by this superclass.
+	 * @param configuration interactively used configuration
+	 */
 	public abstract void setRecentConfiguration(Properties configuration);
 
 	public AbstractTask(Frame owner, boolean useOwnThread) {
@@ -255,21 +259,21 @@ public abstract class AbstractTask implements ProgressController,Runnable {
 	public Properties showDialog(Properties configuration, boolean isLive) {
 		if (isTaskWithoutConfiguration()) {
 			mStatusOK = true;
-	        return configuration;
+			return configuration;
 			}
 
 		Properties predefinedConfiguration = getPredefinedConfiguration();
 		if (predefinedConfiguration != null) {
 			mStatusOK = isPredefinedStatusOK(predefinedConfiguration)
 					 && isConfigurationValid(predefinedConfiguration, isLive);
-	        return predefinedConfiguration;
+			return predefinedConfiguration;
 			}
 
 		JComponent content = getUIDelegate().createDialogContent();
-	    if (content == null) {
+		if (content == null) {
 			mStatusOK = false;
-	        return configuration;
-	    	}
+			return configuration;
+			}
 
 		mDialog = new JDialog(mParentFrame, getDialogTitle(), true);
 		mDialog.getContentPane().setLayout(new BorderLayout());
@@ -342,20 +346,20 @@ public abstract class AbstractTask implements ProgressController,Runnable {
 			@Override
 			public void actionPerformed(ActionEvent e) {
 				if (e.getActionCommand().equals("Help")) {
-				    final JEditorPane helpPane = new JEditorPane();
+					final JEditorPane helpPane = new JEditorPane();
 					helpPane.setEditorKit(new HTMLEditorKit());
 					helpPane.setEditable(false);
-				    helpPane.addHyperlinkListener(new HyperlinkListener() {
-				    	public void hyperlinkUpdate(HyperlinkEvent e) {
-				    		if (e.getEventType() == HyperlinkEvent.EventType.ACTIVATED) {
-				    			URL url = e.getURL();
-				    			try {
-				    				helpPane.setPage(url);
-				    				}
-				    			catch(IOException ioe) {}
-				    			}
-				    		}
-				    	});
+					helpPane.addHyperlinkListener(new HyperlinkListener() {
+						public void hyperlinkUpdate(HyperlinkEvent e) {
+							if (e.getEventType() == HyperlinkEvent.EventType.ACTIVATED) {
+								URL url = e.getURL();
+								try {
+									helpPane.setPage(url);
+									}
+								catch(IOException ioe) {}
+								}
+							}
+						});
 
 					URL url = createURL(getHelpURL());
 					if (url != null)
@@ -364,8 +368,8 @@ public abstract class AbstractTask implements ProgressController,Runnable {
 					JDialog helpDialog = new JDialog(getDialog(), "Help "+getTaskName(), false);
 					helpDialog.setSize(720, 500);
 					helpDialog.getContentPane().add(new JScrollPane(helpPane,
-					        		JScrollPane.VERTICAL_SCROLLBAR_ALWAYS,
-					        		JScrollPane.HORIZONTAL_SCROLLBAR_NEVER));
+									JScrollPane.VERTICAL_SCROLLBAR_ALWAYS,
+									JScrollPane.HORIZONTAL_SCROLLBAR_NEVER));
 					helpDialog.setVisible(true);
 					return;
 					}
@@ -462,36 +466,36 @@ public abstract class AbstractTask implements ProgressController,Runnable {
 		}
 
 	private URL createURL(String urlText) {
-    	String ref = null;
-    	int index = urlText.indexOf('#');
-    	if (index != -1) {
-    		ref = urlText.substring(index);
-    		urlText = urlText.substring(0, index);
-    		}
-    	URL theURL = getClass().getResource(urlText);
-    	if (ref != null) {
-    		try {
-    			theURL = new URL(theURL, ref);
-    			}
-    		catch (IOException e) {
-    			return null;
-    			}
+		String ref = null;
+		int index = urlText.indexOf('#');
+		if (index != -1) {
+			ref = urlText.substring(index);
+			urlText = urlText.substring(0, index);
+			}
+		URL theURL = getClass().getResource(urlText);
+		if (ref != null) {
+			try {
+				theURL = new URL(theURL, ref);
+				}
+			catch (IOException e) {
+				return null;
+				}
 			}
 		return theURL;
 		}
 
-    public final Frame getParentFrame() {
-    	return mParentFrame;
-    	}
+	public final Frame getParentFrame() {
+		return mParentFrame;
+		}
 
-    public void startProgress(String text, int min, int max) {
-    	if (mProgressController != null)
-    		mProgressController.startProgress(text, min, max);
-    	}
+	public void startProgress(String text, int min, int max) {
+		if (mProgressController != null)
+			mProgressController.startProgress(text, min, max);
+		}
 
 	public void updateProgress(int value) {
-    	if (mProgressController != null)
-    		mProgressController.updateProgress(value);
+		if (mProgressController != null)
+			mProgressController.updateProgress(value);
 		}
 
 	public void stopProgress() {
@@ -505,14 +509,34 @@ public abstract class AbstractTask implements ProgressController,Runnable {
 	 * @param message
 	 */
 	public void showErrorMessage(String message) {
-		if (mProgressController == null)
-			showInteractiveTaskMessage(message, JOptionPane.ERROR_MESSAGE);
-		else
-			mProgressController.showErrorMessage("Error in task '"+getTaskName()+"':\n"+message);
+		showMessage(message, ERROR_MESSAGE);
+		}
+
+	/**
+	 * This should be used during task validity checking and task execution.
+	 * @param message
+	 * @param messageType one of ERROR_MESSAGE, WARNING_MESSAGE, INFORMATION_MESSAGE
+	 */
+	public void showMessage(String message, int messageType) {
+		if (mProgressController == null) {
+			showInteractiveTaskMessage(message, messageType);
+			}
+		else {
+			String type = (messageType == ERROR_MESSAGE) ? "Error"
+						: (messageType == WARNING_MESSAGE) ? "Warning" : "Information in ";
+			mProgressController.showErrorMessage(type+" in task '"+getTaskName()+"':\n"+message);
+			}
 		}
 
 	public boolean threadMustDie() {
 		return (mProgressController == null) ? false : mProgressController.threadMustDie();
+		}
+
+	/**
+	 * @return whether this task is interactively launched from the menu, which triggered a call to defineAndRun()
+	 */
+	public final boolean isInteractive() {
+		return mIsInteractive;
 		}
 
 	/**
@@ -524,45 +548,61 @@ public abstract class AbstractTask implements ProgressController,Runnable {
 	 * If the user clicks OK and the configuration is invalid, a message is
 	 * displayed and the dialog is kept open.
 	 */
-    public void defineAndRun() {
-    	if (isConfigurable()) {
-	    	Properties configuration = showDialog(getRecentConfiguration(), true);
-	    	if (mStatusOK) {	// the configuration is valid
-	    		setRecentConfiguration(configuration);
+	public void defineAndRun() {
+		mIsInteractive = true;
+		if (isConfigurable()) {
+			Properties configuration = showDialog(getRecentConfiguration(), true);
+			if (mStatusOK) {	// the configuration is valid
+				setRecentConfiguration(configuration);
 
-	    		if (!(this instanceof GenericTaskRunMacro))
-	    			DEMacroRecorder.record(this, configuration);
-	    		
-    			mTaskConfiguration = configuration;
-    			if (mUseOwnThread) {
-    		        mProgressController = new JProgressDialog(mParentFrame, true);
-    		        Thread t = new Thread(this, getTaskCode());
-    		        t.setPriority(Thread.MIN_PRIORITY);
-    		        t.start();
-    				}
-    			else {
-    				runTask(configuration);
-    				}
-	    		}
-    		}
-    	}
+				if (!(this instanceof GenericTaskRunMacro))
+					DEMacroRecorder.record(this, configuration);
+				
+				mTaskConfiguration = configuration;
+				if (mUseOwnThread) {
+					mProgressController = new JProgressDialog(mParentFrame, true);
+					Thread t = new Thread(this, getTaskCode());
+					t.setPriority(Thread.MIN_PRIORITY);
+					t.start();
+					}
+				else {
+					runTask(configuration);
+					}
+				}
+			}
+		}
 
-    /**
-     * Provided the task is configurable and the given configuration is valid,
-     * this method runs the task. This method must not be called from the EventDispatchThread.
-     * This method is called when a sequence of predefined tasks is executed.
-     * For interactively running one task use defineAndRun().
-     * @param configuration
-     * @param pc
-     */
+	/**
+	 * Executes this one task as a subtask of another running task with the given configuration,
+	 * provided the task is configurable and the configuration is valid. This task is not recorded,
+	 * because the calling task is supposed to be recorded. The task is called in the calling
+	 * thread.
+	 */
+	public void executeAsSubtask(final Properties configuration, final ProgressController pc) {
+		mProgressController = pc;
+		if (isConfigurable()
+		 && isConfigurationValid(configuration, true)) {
+			mTaskConfiguration = configuration;
+			runTask(configuration);
+			}
+		}
+
+	/**
+	 * Provided the task is configurable and the given configuration is valid,
+	 * this method runs the task. This method must not be called from the EventDispatchThread.
+	 * This method is called when a sequence of predefined tasks is executed.
+	 * For interactively running one task use defineAndRun().
+	 * @param configuration
+	 * @param pc
+	 */
 	public void execute(final Properties configuration, final ProgressController pc) {
 		mProgressController = pc;
-    	if (isConfigurable()
-    	 && isConfigurationValid(configuration, true)) {
+		if (isConfigurable()
+		 && isConfigurationValid(configuration, true)) {
 			mTaskConfiguration = configuration;
 
-    		if (!(this instanceof GenericTaskRunMacro))
-    			DEMacroRecorder.record(this, configuration);
+			if (!(this instanceof GenericTaskRunMacro))
+				DEMacroRecorder.record(this, configuration);
 
 			if (!mUseOwnThread) {
 				try {
@@ -603,7 +643,7 @@ public abstract class AbstractTask implements ProgressController,Runnable {
 
 		mProgressController.stopProgress();
 		((JProgressDialog)mProgressController).close(getNewFrontFrame());
-    	mProgressController = null;
+		mProgressController = null;
 		}
 
 	/**
@@ -637,22 +677,22 @@ public abstract class AbstractTask implements ProgressController,Runnable {
 	 * @param tableModel
 	 */
 	public void selectColumnsInList(JList list, String columnNames, CompoundTableModel tableModel) {
-    	list.clearSelection();
-    	String columnList = columnNames;
-    	if (columnList != null) {
-    		for (String columnName:columnList.split("\\t")) {
-    			int column = tableModel.findColumn(columnName);
-    			if (column != -1) {
-    				String nameInList = tableModel.getColumnTitle(column);
-    		    	for (int i=0; i<list.getModel().getSize(); i++) {
-    		    		if (nameInList.equals(list.getModel().getElementAt(i))) {
-    		    			list.addSelectionInterval(i, i);
-    		    			break;
-    		    			}
-    		    		}
-    				}
-    			}
-    		}
+		list.clearSelection();
+		String columnList = columnNames;
+		if (columnList != null) {
+			for (String columnName:columnList.split("\\t")) {
+				int column = tableModel.findColumn(columnName);
+				if (column != -1) {
+					String nameInList = tableModel.getColumnTitle(column);
+					for (int i=0; i<list.getModel().getSize(); i++) {
+						if (nameInList.equals(list.getModel().getElementAt(i))) {
+							list.addSelectionInterval(i, i);
+							break;
+							}
+						}
+					}
+				}
+			}
 		}
 
 	/**
@@ -663,24 +703,24 @@ public abstract class AbstractTask implements ProgressController,Runnable {
 	 * @param defaultIndex
 	 * @return
 	 */
-    public static int findListIndex(String item, String[] itemList, int defaultIndex) {
-    	if (item != null)
-    		for (int i=0; i<itemList.length; i++)
-    			if (item.equals(itemList[i]))
-    				return i;
-    	return defaultIndex;
-    	}
+	public static int findListIndex(String item, String[] itemList, int defaultIndex) {
+		if (item != null)
+			for (int i=0; i<itemList.length; i++)
+				if (item.equals(itemList[i]))
+					return i;
+		return defaultIndex;
+		}
 
-    /**
-     * Checks whether the file (and path) are valid and in case of saving,
-     * whether the parent directory is existing and permissions are OK.
-     * If there is a problem, showErrorMessage() is called and false is returned.
-     * @param filename complete path and file name as from File.getPath()
-     * @param isSaving true if save, false if open
-     * @param askOverwrite if true and if isSaving and if the file exists the user is asked whether to replace the existing file
-     * @return true if file is readable (isSaving==false) / can be written (isSaving==true)
-     */
-    public boolean isFileAndPathValid(String filename, boolean isSaving, boolean askOverwrite) {
+	/**
+	 * Checks whether the file (and path) are valid and in case of saving,
+	 * whether the parent directory is existing and permissions are OK.
+	 * If there is a problem, showErrorMessage() is called and false is returned.
+	 * @param filename complete path and file name as from File.getPath()
+	 * @param isSaving true if save, false if open
+	 * @param askOverwrite if true and if isSaving and if the file exists the user is asked whether to replace the existing file
+	 * @return true if file is readable (isSaving==false) / can be written (isSaving==true)
+	 */
+	public boolean isFileAndPathValid(String filename, boolean isSaving, boolean askOverwrite) {
 		if (filename == null || filename.length() == 0) {
 			showErrorMessage("No file name specified.");
 			return false;
@@ -703,7 +743,7 @@ public abstract class AbstractTask implements ProgressController,Runnable {
 			try {
 				// Create and delete a dummy file in order to check file permissions.
 				file.createNewFile();
-			    file.delete();
+				file.delete();
 				}
 			catch(IOException e) {
 				showErrorMessage("No privileges to write in directory.");
@@ -730,7 +770,7 @@ public abstract class AbstractTask implements ProgressController,Runnable {
 				}
 			}
 		return true;
-    	}
+		}
 
 	public String resolveVariables(String path) {
 		return DataWarrior.resolveVariables(path);
@@ -744,7 +784,7 @@ public abstract class AbstractTask implements ProgressController,Runnable {
 	 * @param column
 	 */
 	public void waitForDescriptor(CompoundTableModel tableModel, int column) {
-    	if (!tableModel.isDescriptorAvailable(column)) {
+		if (!tableModel.isDescriptorAvailable(column)) {
 			startProgress("Waiting descriptor calculation: "+tableModel.getColumnTitle(column)+"'...", 0, 0);
 			while (!threadMustDie() && !tableModel.isDescriptorAvailable(column)) {
 				try {
@@ -754,7 +794,7 @@ public abstract class AbstractTask implements ProgressController,Runnable {
 					}
 				catch (InterruptedException e) {}
 				}
-    		}
+			}
 		}
 
 	/**

@@ -28,8 +28,9 @@ public interface ResultDetailPopupItemProvider {
 	 * JResultDetailView's rendering component. Items may be specific for a particular source,
 	 * e.g. an item to launch an associated application.
 	 * @param source
+	 * @param mimetype
 	 * @param reference
 	 * @return
 	 */
-	public ArrayList<JMenuItem> getExternalPopupItems(String source, String reference);
+	public ArrayList<JMenuItem> getExternalPopupItems(RemoteDetailSource source, String reference);
 	}

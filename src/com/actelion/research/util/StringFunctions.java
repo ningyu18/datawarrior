@@ -1,3 +1,20 @@
+/*
+ * Project: DD_core
+ * @(#)StringFunctions.java
+ *
+ * Copyright (c) 1997- 2015
+ * Actelion Pharmaceuticals Ltd.
+ * Gewerbestrasse 16
+ * CH-4123 Allschwil, Switzerland
+ *
+ * All Rights Reserved.
+ *
+ * This software is the proprietary information of Actelion Pharmaceuticals, Ltd.
+ * Use is subject to license terms.
+ *
+ * Author: MvK
+ */
+
 package com.actelion.research.util;
 
 import java.awt.Point;
@@ -13,16 +30,6 @@ import java.util.regex.MatchResult;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/**
- * 
- * StringFunctions
- * <p>Copyright: Actelion Ltd., Inc. All Rights Reserved
- * This software is the proprietary information of Actelion Pharmaceuticals, Ltd.
- * Use is subject to license terms.</p>
- * @author Modest von Korff
- * @version 1.0
- * 15.07.2003 MvK: Start implementation
- */
 public class StringFunctions {
 	
 	public static final String [] REGEX_META_CHARACTERS = {"*","%","@","&","+", "(", ")"};
@@ -736,6 +743,20 @@ public class StringFunctions {
 		return sb.toString();
 	}
 	
+	public static String toStringLong(List<Long> li, String sep) {
+		StringBuilder sb = new StringBuilder();
+		
+		for (int i = 0; i < li.size(); i++) {
+			sb.append(li.get(i));
+			
+			if(i < li.size()-1){
+				sb.append(sep);
+			}
+		}
+		
+		return sb.toString();
+	}
+	
 	public static String toSortedString(List<String> li) {
 		StringBuilder sb = new StringBuilder();
 		
@@ -806,7 +827,7 @@ public class StringFunctions {
 	}
 
 	/**
-	 * finds the next corresponding closing bracket "]" to the first open bracket
+	 * finds the next balanced closing bracket "]" to the first open bracket
 	 * "[" in the string.
 	 * @param sLine String
 	 * @param iIndexStart start index
@@ -881,29 +902,39 @@ public class StringFunctions {
 	/**
 	 * finds the next corresponding closing bracket char to the first open char
 	 * @param txt
-	 * @param iIndexStart
+	 * @param indexStart
 	 * @param cOpen
 	 * @param cClose
 	 * @return
 	 */	
-	public static int nextClosing(String txt, int iIndexStart, char cOpen, char cClose) {
+	public static int nextClosing(String txt, int indexStart, char cOpen, char cClose) {
 		// sLine = "[[(Com)][(.*I)]][ny)it)]";
 
-		int iIndexBracket = -1;
-		int iIndexOpenBracket = txt.indexOf(cOpen, iIndexStart);
-		int iNumberOpenBrackets = 1;
-		for (int ii = iIndexOpenBracket + 1; ii < txt.length(); ii++) {
-			if (txt.charAt(ii) == cOpen) {
-				iNumberOpenBrackets++;
-			} else if (txt.charAt(ii) ==  cClose) {
-				iNumberOpenBrackets--;
+		int indexBracket = -1;
+		
+		int indexOpenBracket = txt.indexOf(cOpen, indexStart);
+		
+		int numberOpenBrackets = 1;
+		
+		for (int i = indexOpenBracket + 1; i < txt.length(); i++) {
+			
+			if (txt.charAt(i) == cOpen) {
+				
+				numberOpenBrackets++;
+				
+			} else if (txt.charAt(i) ==  cClose) {
+				
+				numberOpenBrackets--;
 			}
-			if (iNumberOpenBrackets == 0) {
-				iIndexBracket = ii;
+			
+			if (numberOpenBrackets == 0) {
+				
+				indexBracket = i;
 				break;
 			}
 		}
-		return iIndexBracket;
+		
+		return indexBracket;
 	}
 	
 	public static boolean isAllLetter(String s) {

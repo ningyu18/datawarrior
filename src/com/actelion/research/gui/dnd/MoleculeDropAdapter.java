@@ -1,3 +1,20 @@
+/*
+ * Project: DD_jfx
+ * @(#)MoleculeDropAdapter.java
+ *
+ * Copyright (c) 1997- 2015
+ * Actelion Pharmaceuticals Ltd.
+ * Gewerbestrasse 16
+ * CH-4123 Allschwil, Switzerland
+ *
+ * All Rights Reserved.
+ *
+ * This software is the proprietary information of Actelion Pharmaceuticals, Ltd.
+ * Use is subject to license terms.
+ *
+ * Author: Christian Rufener
+ */
+
 package com.actelion.research.gui.dnd;
 
 import com.actelion.research.chem.*;
@@ -6,15 +23,6 @@ import java.awt.*;
 import java.awt.datatransfer.DataFlavor;
 import java.awt.datatransfer.Transferable;
 import java.awt.dnd.*;
-/**
- * <p>Title: Mercury</p>
- * <p>Description: Actelion Electronic Lab Notebook</p>
- * <p>Copyright: Copyright (c) 2003</p>
- * <p>Company: </p>
- * @author Christian Rufener
- * @version 1.0
- */
-
 public class MoleculeDropAdapter implements DropTargetListener
 {
     public static final boolean debug = false;

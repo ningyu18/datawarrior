@@ -65,7 +65,7 @@ public class UIDelegateMergeFile implements ActionListener,ItemListener,TaskUIDe
 	private JLabel[]			mLabelSourceColumn;
 	private JComboBox[]			mComboBoxUsage;
 	private JComboBox[]			mComboBoxOldColumn;
-	private JCheckBox			mCheckBoxAppendRows;
+	private JCheckBox			mCheckBoxAppendRows,mCheckBoxAppendColumns;
 	private CompoundTableLoader	mLoader;
 	private String[]			mTotalFieldName;
 	private boolean 			mIsInteractive;
@@ -88,7 +88,7 @@ public class UIDelegateMergeFile implements ActionListener,ItemListener,TaskUIDe
 			}
 
 		double[][] size1 = { {8, TableLayout.PREFERRED, 4, TableLayout.PREFERRED, TableLayout.FILL, TableLayout.PREFERRED, 8},
-							 {8, TableLayout.PREFERRED, 8, TableLayout.PREFERRED, 8, TableLayout.PREFERRED, 8} };
+							 {8, TableLayout.PREFERRED, 8, TableLayout.PREFERRED, 8, TableLayout.PREFERRED, 8, TableLayout.PREFERRED, 8} };
 		mDialogPanel = new JPanel();
 		mDialogPanel.setLayout(new TableLayout(size1));
 
@@ -101,14 +101,17 @@ public class UIDelegateMergeFile implements ActionListener,ItemListener,TaskUIDe
 		mDialogPanel.add(mFilePathLabel, "3,1");
 		mDialogPanel.add(buttonEdit, "5,1");
 
-//		JPanel cbp = new JPanel();
 		mCheckBoxAppendRows = new JCheckBox("Append rows not existing in current data", true);
-//		cbp.add(mCheckBoxAppendRows);
 
 		if (mIsInteractive)
 			updateUIFromFile(file);
 
 		mDialogPanel.add(mCheckBoxAppendRows, "1,5,5,5");
+
+		if (!mIsInteractive) {
+			mCheckBoxAppendColumns = new JCheckBox("Append all columns not defined here", true);
+			mDialogPanel.add(mCheckBoxAppendColumns, "1,7,5,7");
+			}
 
 		return mDialogPanel;
 		}
@@ -346,6 +349,7 @@ public class UIDelegateMergeFile implements ActionListener,ItemListener,TaskUIDe
 			}
 
 		configuration.setProperty(PROPERTY_APPEND_ROWS, mCheckBoxAppendRows.isSelected() ? "true" : "false");
+		configuration.setProperty(PROPERTY_APPEND_COLUMNS, mCheckBoxAppendColumns != null && mCheckBoxAppendColumns.isSelected() ? "true" : "false");
 
 		return configuration;
 		}
@@ -399,6 +403,9 @@ public class UIDelegateMergeFile implements ActionListener,ItemListener,TaskUIDe
 		catch (NumberFormatException nfe) {}
 
 		mCheckBoxAppendRows.setSelected("true".equals(configuration.getProperty(PROPERTY_APPEND_ROWS, "true")));
+
+		if (mCheckBoxAppendColumns != null)
+			mCheckBoxAppendColumns.setSelected("true".equals(configuration.getProperty(PROPERTY_APPEND_COLUMNS)));
 		}
 
 	@Override

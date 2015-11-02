@@ -53,6 +53,7 @@ import com.actelion.research.table.MultiLineCellRenderer;
 public class DETable extends JTableWithRowNumbers implements CompoundTableListener {
     private static final long serialVersionUID = 0x20060904;
 
+	private static final Color LOOKUP_COLOR = new Color(99, 99, 156);
     private static final Color EMBEDDED_DETAIL_COLOR = new Color(108, 156, 99);
 	private static final Color REFERENCED_DETAIL_COLOR = new Color(156, 99, 99);
 
@@ -66,6 +67,9 @@ public class DETable extends JTableWithRowNumbers implements CompoundTableListen
 
         // to eliminate the disabled default action of the JTable when typing menu-V
         getInputMap(JTable.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT).put(KeyStroke.getKeyStroke(KeyEvent.VK_V, Toolkit.getDefaultToolkit().getMenuShortcutKeyMask()), "none");
+
+        // to eliminate the default action of the JTable when typing menu-C that the higher level DataWarrior menu can take over (and include the header line when copying)
+        getInputMap(JTable.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT).put(KeyStroke.getKeyStroke(KeyEvent.VK_C, Toolkit.getDefaultToolkit().getMenuShortcutKeyMask()), "none");
 
         putClientProperty("Quaqua.Table.style", "striped");
         putClientProperty(org.jvnet.lafwidget.LafWidget.ANIMATION_KIND, org.jvnet.lafwidget.utils.LafConstants.AnimationKind.NONE);
@@ -87,17 +91,18 @@ public class DETable extends JTableWithRowNumbers implements CompoundTableListen
 
         String specialType = ((CompoundTableModel)getModel()).getColumnSpecialType(column);
         if (specialType != null) {
-        	if (!(tc.getCellRenderer() instanceof CompoundTableChemistryCellRenderer)) {
-	            CompoundTableChemistryCellRenderer renderer = new CompoundTableChemistryCellRenderer();
-	            renderer.setAlternatingRowBackground(DetailTableCellRenderer.TOGGLE_ROW_BACKGROUND);
+        	TableCellRenderer renderer = tc.getCellRenderer();
+        	if (!(renderer instanceof CompoundTableChemistryCellRenderer)) {
+	            renderer = new CompoundTableChemistryCellRenderer();
+	            ((CompoundTableChemistryCellRenderer)renderer).setAlternatingRowBackground(DetailTableCellRenderer.TOGGLE_ROW_BACKGROUND);
 				tc.setCellRenderer(renderer);
-	            if (specialType.equals(CompoundTableModel.cColumnTypeRXNCode)) {
-	                tc.setPreferredWidth(2*tc.getWidth());
-	                }
         		}
+        	boolean isReaction = specialType.equals(CompoundTableModel.cColumnTypeRXNCode);
+        	((CompoundTableChemistryCellRenderer)renderer).setReaction(isReaction);
+           	if (isReaction)
+           		tc.setPreferredWidth(2*tc.getWidth());
             return 80;
 			}
-
 
      // use one of the following to test the original Substance renderers
      /*
@@ -206,32 +211,43 @@ public class DETable extends JTableWithRowNumbers implements CompoundTableListen
 				}
 
 			for (int column=firstColumn; column<=lastColumn; column++) {
+				CompoundTableModel tableModel = (CompoundTableModel)getModel();
 				int modelColumn = convertTotalColumnIndexFromView(column);
-				int detailCount = ((CompoundTableModel)getModel()).getColumnDetailCount(modelColumn);
-				if (detailCount != 0) {
+				int detailCount = tableModel.getColumnDetailCount(modelColumn);
+				int lookupCount = tableModel.getColumnLookupCount(modelColumn);
+				if (detailCount != 0 || lookupCount != 0) {
 					g.setFont(new Font("Helvetica", 0, 7));
-					boolean isReferenced = false;	// if at least one detail is non-embedded, then use reference color
-					for (int detail=0; detail<detailCount; detail++)
-						if (!((CompoundTableModel)getModel()).getColumnDetailSource(modelColumn, detail).equals(CompoundTableDetailHandler.EMBEDDED))
-							isReferenced = true;
 					for (int row=firstRow; row<=lastRow; row++) {
-						String[][] detail = ((CompoundTableModel)getModel()).getRecord(row).getDetailReferences(modelColumn);
-						if (detail != null) {
-							int count = 0;
-							for (int i=0; i<detail.length; i++)
-								if (detail[i] != null)
-									count += detail[i].length;
+						Color color = LOOKUP_COLOR;	// lowest priority
+						int count = 0;
 
-							if (count != 0) {
-								String detailString = ""+count;
-								int stringWidth = g.getFontMetrics().stringWidth(detailString);
-								int drawWidth = Math.max(stringWidth, 12);
-								Rectangle cellRect = getCellRect(row, column, false);
-								g.setColor(isReferenced ? REFERENCED_DETAIL_COLOR : EMBEDDED_DETAIL_COLOR);
-								g.fillRect(cellRect.x+cellRect.width-drawWidth, cellRect.y, drawWidth, 9);
-								g.setColor(Color.white);
-								g.drawString(detailString, cellRect.x+cellRect.width-(drawWidth+stringWidth)/2, cellRect.y+7);
+						String[][] detail = tableModel.getRecord(row).getDetailReferences(modelColumn);
+						if (detail != null) {
+							for (int i=0; i<detail.length; i++) {
+								if (detail[i] != null) {
+									count += detail[i].length;
+									if (!tableModel.getColumnDetailSource(modelColumn, i).equals(CompoundTableDetailHandler.EMBEDDED))
+										color = REFERENCED_DETAIL_COLOR;
+									else if (color == LOOKUP_COLOR)
+										color = EMBEDDED_DETAIL_COLOR;
+									}
 								}
+							}
+
+						// if we have a lookup key we have potentially one detail per lookup-URL
+						String[] key = tableModel.separateUniqueEntries(tableModel.encodeData(tableModel.getRecord(row), modelColumn));
+						if (key != null)
+							count += lookupCount * key.length;
+
+						if (count != 0) {
+							String detailString = ""+count;
+							int stringWidth = g.getFontMetrics().stringWidth(detailString);
+							int drawWidth = Math.max(stringWidth, 12);
+							Rectangle cellRect = getCellRect(row, column, false);
+							g.setColor(color);
+							g.fillRect(cellRect.x+cellRect.width-drawWidth, cellRect.y, drawWidth, 9);
+							g.setColor(Color.white);
+							g.drawString(detailString, cellRect.x+cellRect.width-(drawWidth+stringWidth)/2, cellRect.y+7);
 							}
 						}
 					}

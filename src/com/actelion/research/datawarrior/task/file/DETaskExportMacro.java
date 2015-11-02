@@ -22,8 +22,9 @@ import info.clearthought.layout.TableLayout;
 
 import java.io.BufferedWriter;
 import java.io.File;
-import java.io.FileWriter;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.OutputStreamWriter;
 import java.util.ArrayList;
 import java.util.Properties;
 
@@ -47,7 +48,7 @@ public class DETaskExportMacro extends DETaskAbstractSaveFile {
 	private JComboBox mComboBoxMacroName;
 
 	public DETaskExportMacro(DEFrame parent, String macroName) {
-		super(parent, "", macroName != null);
+		super(parent, "");
 		mMacroName = macroName;
 		}
 
@@ -167,7 +168,7 @@ public class DETaskExportMacro extends DETaskAbstractSaveFile {
 		for (DEMacro macro:macroList) {
 			if (macro.getName().equals(macroName)) {
 				try {
-					BufferedWriter writer = new BufferedWriter(new FileWriter(file));
+					BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(file),"UTF-8"));
 					macro.writeMacro(writer);
 					writer.close();
 					}

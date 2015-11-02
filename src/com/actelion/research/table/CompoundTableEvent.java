@@ -24,49 +24,61 @@ public class CompoundTableEvent extends EventObject {
     private static final long serialVersionUID = 0x20060831;
 
 	public static final int cNewTable = 1;
-	public static final int cChangeColumnData = 2;	// specifier is column index, change of column values, column type may also have changed
-//	public static final int cChangeValueRange = 3;	// specifier is column index, change of value range while keeping column type
+	public static final int cChangeColumnData = 2;	// change of column values, column type may also have changed
 	public static final int cAddRows = 4;			// specifier is first new row
     public static final int cDeleteRows = 5;		// mapping is row mapping
 
-	public static final int cAddColumns = 6;		// specifier is column index of first new column
+	public static final int cAddColumns = 6;		// column index is index of first new column
 	public static final int cRemoveColumns = 7;
 
-	public static final int cChangeColumnName = 8;	// specifier is column index
-	public static final int cRemoveColumnDetails = 9;	// specifier is column, mapping is detail mapping
-	public static final int cChangeColumnDetailSource = 10;	// specifier is column, mapping[0] detail
+	public static final int cChangeColumnName = 8;
+	public static final int cRemoveColumnDetails = 9;	// mapping is detail mapping
+	public static final int cChangeColumnDetailSource = 10;	// mapping[0] detail
 
 	public static final int cChangeExcluded = 11;	// specifier is exclusionMask
 	public static final int cChangeSelection = 12;	// This event is for ListSelectionModel only. Other components listen there
-	public static final int cChangeVisibleInView = 13;	// 
-	public static final int cChangeSortOrder = 14;
-	public static final int cChangeActiveRow = 15;
+	public static final int cChangeSortOrder = 13;
+	public static final int cChangeActiveRow = 14;
 
 	public static final int cChangeExtensionData = 21;	// the content data of one of the registered file extensions changed
 
-	public static final int cSpecifierNoRuntimeProperties = 1;		// used if type = cNewTable
-	public static final int cSpecifierDefaultRuntimeProperties = 2;	// used if type = cNewTable
+	public static final int cSpecifierNoRuntimeProperties = 1;		// used as specifier if type = cNewTable
+	public static final int cSpecifierDefaultRuntimeProperties = 2;	// used as specifier if type = cNewTable
 
-	private int		mType,mSpecifier;
+	private int		mType,mColumn,mSpecifier;
 	private int[]	mMapping;    // maps new to original columns/rows after column/row removal
 	private boolean	mIsAdjusting;
 
-    public CompoundTableEvent(Object source, int type, int specifier) {
+	/**
+	 * @param source
+	 * @param type
+	 * @param column absolute column index, or index of first column if multiple columns are concerned
+	 */
+    public CompoundTableEvent(Object source, int type, int column) {
+		this(source, type, column, -1);
+	    }
+
+	/**
+	 * @param source
+	 * @param type
+	 * @param column absolute column index, or index of first column if multiple columns are concerned
+	 * @param specifier special meaning in case of cNewTable,cAddRows,cChangeColumnData,cChangeExcluded,cChangeExtensionData
+	 */
+    public CompoundTableEvent(Object source, int type, int column, int specifier) {
 		super(source);
 		mType = type;
+		mColumn = column;
 		mSpecifier = specifier;
 	    }
 
     public CompoundTableEvent(Object source, int type, int[] mapping) {
-		super(source);
-		mType = type;
-		mMapping = mapping;
+		this(source, type, -1, mapping);
 	    }
 
-    public CompoundTableEvent(Object source, int type, int specifier, int[] mapping) {
+    public CompoundTableEvent(Object source, int type, int column, int[] mapping) {
 		super(source);
 		mType = type;
-		mSpecifier = specifier;
+		mColumn = column;
 		mMapping = mapping;
 	    }
 
@@ -79,6 +91,10 @@ public class CompoundTableEvent extends EventObject {
 
 	public int getType() {
 		return mType;
+		}
+
+	public int getColumn() {
+		return mColumn;
 		}
 
 	public int getSpecifier() {

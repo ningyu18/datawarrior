@@ -29,6 +29,7 @@ import java.util.Hashtable;
 
 import javax.swing.JComboBox;
 import javax.swing.JLabel;
+import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JSlider;
 import javax.swing.event.ChangeEvent;
@@ -43,22 +44,22 @@ import com.actelion.research.table.CompoundTableModel;
 
 public class JReactionFilterPanel extends JFilterPanel
 				implements ChangeListener,ItemListener,MouseListener,StructureListener {
-    private static final long serialVersionUID = 0x20061002;
+	private static final long serialVersionUID = 0x20061002;
 
-    private static final String	cFilterBySubstructure = "#substructure#";
+	private static final String	cFilterBySubstructure = "#substructure#";
 	private static final String	cFilterBySimilarity = "#similarity#";
 
-    private static final String cItemContains = "contains";
-    private static final String cItemIsSimilarTo = "is similar to";
-    private static final String cItemDisabled = "<disabled>";
+	private static final String cItemContains = "contains";
+	private static final String cItemIsSimilarTo = "is similar to";
+	private static final String cItemDisabled = "<disabled>";
 
-	private Frame               mParentFrame;
+	private Frame				mParentFrame;
 	private ChemistryRenderPanel mReactionView;
-    private Reaction            mReaction;
-	private JComboBox           mComboBox;
-	private JSlider			    mSimilaritySlider;
-	private float[]             mSimilarity;
-    private int[]               mDescriptorColumn;
+	private Reaction			mReaction;
+	private JComboBox			mComboBox;
+	private JSlider				mSimilaritySlider;
+	private float[]				mSimilarity;
+	private int[]				mDescriptorColumn;
 
 	/**
 	 * Creates the filter panel as UI to configure a task as part of a macro
@@ -66,11 +67,11 @@ public class JReactionFilterPanel extends JFilterPanel
 	 * @param tableModel
 	 * @param rxn
 	 */
-    public JReactionFilterPanel(Frame parent, CompoundTableModel tableModel, Reaction rxn) {
-    	this(parent, tableModel, -1, 0, rxn);
-    	}
+	public JReactionFilterPanel(Frame parent, CompoundTableModel tableModel, Reaction rxn) {
+		this(parent, tableModel, -1, -1, rxn);
+		}
 
-    public JReactionFilterPanel(Frame parent, CompoundTableModel tableModel, int column, int exclusionFlag, Reaction rxn) {
+	public JReactionFilterPanel(Frame parent, CompoundTableModel tableModel, int column, int exclusionFlag, Reaction rxn) {
 		super(tableModel, column, exclusionFlag, false);
 		mParentFrame = parent;
 
@@ -79,7 +80,7 @@ public class JReactionFilterPanel extends JFilterPanel
 		JPanel p1 = new JPanel();
 
 		mComboBox = new JComboBox();
-        populateCompoBox();
+		populateCompoBox();
 		mComboBox.addItemListener(this);
 		p1.add(mComboBox);
 
@@ -100,73 +101,86 @@ public class JReactionFilterPanel extends JFilterPanel
 		mSimilaritySlider.addChangeListener(this);
 		add(mSimilaritySlider, BorderLayout.EAST);
 
-        if (rxn == null) {
-    		mReaction = new Reaction();
-    		mReactionView = new ChemistryRenderPanel();
-            mReactionView.setChemistry(mReaction);
-            }
-        else {
-        	mReaction = rxn;
-    		mReactionView = new ChemistryRenderPanel();
-    		mComboBox.setSelectedIndex(1);
-	    	updateExclusion();
-            }
+		if (rxn == null) {
+			mReaction = new Reaction();
+			mReactionView = new ChemistryRenderPanel();
+			mReactionView.setChemistry(mReaction);
+			}
+		else {
+			mReaction = rxn;
+			mReactionView = new ChemistryRenderPanel();
+			mComboBox.setSelectedIndex(1);
+			updateExclusion(false);
+			}
 
-//        mReactionView.setClipboardHandler(new ClipboardHandler());
-        mReactionView.setMinimumSize(new Dimension(100, 100));
-        mReactionView.setPreferredSize(new Dimension(100, 100));
-        mReactionView.setBackground(getBackground());
-//        mReactionView.setEmptyMoleculeMessage("<double-click to edit>");
-//        mReactionView.addStructureListener(this);
-        mReactionView.addMouseListener(this);
+//		mReactionView.setClipboardHandler(new ClipboardHandler());
+		mReactionView.setMinimumSize(new Dimension(100, 100));
+		mReactionView.setPreferredSize(new Dimension(100, 100));
+		mReactionView.setBackground(getBackground());
+//		mReactionView.setEmptyMoleculeMessage("<double-click to edit>");
+//		mReactionView.addStructureListener(this);
+		mReactionView.addMouseListener(this);
 		p.add(mReactionView, BorderLayout.CENTER);
 
 		add(p, BorderLayout.CENTER);
 
 		mIsUserChange = true;
-    	}
+		}
 
-    private void populateCompoBox() {
-        int fingerprintColumn = -1;
-        int descriptorCount = 0;
-        for (int column=0; column<mTableModel.getColumnCount(); column++) {
-            if (mTableModel.isDescriptorColumn(column)
-             && mTableModel.getParentColumn(column) == mColumnIndex) {
-                descriptorCount++;
-                if (mTableModel.getDescriptorHandler(column) instanceof DescriptorHandlerFFP512)
-                    fingerprintColumn = column;
-                }
-            }
+	@Override
+	public boolean canEnable() {
+		if (isActive() && mComboBox.getItemCount() == 0) {
+			JOptionPane.showMessageDialog(mParentFrame, "This reaction filter cannot be enabled, because\n" +
+					"'"+mTableModel.getColumnTitle(mColumnIndex)+"' has no descriptor columns.");
+			return false;
+			}
+		return true;
+		}
 
-        mComboBox.removeAllItems();
-        mDescriptorColumn = new int[descriptorCount+((fingerprintColumn == -1) ? 0:1)];
-        int descriptorIndex = 0;
-        if (fingerprintColumn != -1) {
-            mDescriptorColumn[0] = fingerprintColumn;
-            mComboBox.addItem(cItemContains);
-            descriptorIndex++;
-            }
-        for (int column=0; column<mTableModel.getColumnCount(); column++) {
-            if (mTableModel.isDescriptorColumn(column)
-             && mTableModel.getParentColumn(column) == mColumnIndex) {
-                mDescriptorColumn[descriptorIndex++] = column;
-                mComboBox.addItem(descriptorToItem(mTableModel.getDescriptorHandler(column).getInfo().shortName));
-                }
-            }
-        mComboBox.addItem(cItemDisabled);
-        }
+	@Override
+	public void enableItems(boolean b) {
+		mComboBox.setEnabled(b);
+		mSimilaritySlider.setEnabled(b && ((String)mComboBox.getSelectedItem()).startsWith(cItemIsSimilarTo));
+		mReactionView.setEnabled(b);
+		}
 
-    public boolean isFilterEnabled() {
-    	return !cItemDisabled.equals(mComboBox.getSelectedItem());
-    	}
+	private void populateCompoBox() {
+		int fingerprintColumn = -1;
+		int descriptorCount = 0;
+		for (int column=0; column<mTableModel.getColumnCount(); column++) {
+			if (mTableModel.isDescriptorColumn(column)
+			 && mTableModel.getParentColumn(column) == mColumnIndex) {
+				descriptorCount++;
+				if (mTableModel.getDescriptorHandler(column) instanceof DescriptorHandlerFFP512)
+					fingerprintColumn = column;
+				}
+			}
 
-    public void mouseClicked(MouseEvent e) {
-/*	    if (e.getClickCount() == 2) {
+		mComboBox.removeAllItems();
+		mDescriptorColumn = new int[descriptorCount+((fingerprintColumn == -1) ? 0:1)];
+		int descriptorIndex = 0;
+		if (fingerprintColumn != -1) {
+			mDescriptorColumn[0] = fingerprintColumn;
+			mComboBox.addItem(cItemContains);
+			descriptorIndex++;
+			}
+		for (int column=0; column<mTableModel.getColumnCount(); column++) {
+			if (mTableModel.isDescriptorColumn(column)
+			 && mTableModel.getParentColumn(column) == mColumnIndex) {
+				mDescriptorColumn[descriptorIndex++] = column;
+				mComboBox.addItem(descriptorToItem(mTableModel.getDescriptorHandler(column).getInfo().shortName));
+				}
+			}
+		mComboBox.addItem(cItemDisabled);
+		}
+
+	public void mouseClicked(MouseEvent e) {
+/*		if (e.getClickCount() == 2) {
 			JDrawDialog theDialog = new JDrawDialog(mParentFrame, mStructureView.getMolecule());
-	    	theDialog.addStructureListener(mStructureView);
-		    theDialog.setVisible(true);
-	    	}
-*/	    }
+			theDialog.addStructureListener(mStructureView);
+			theDialog.setVisible(true);
+			}
+*/		}
 
 	public void mouseEntered(MouseEvent e) {}
 	public void mouseExited(MouseEvent e) {}
@@ -175,25 +189,25 @@ public class JReactionFilterPanel extends JFilterPanel
 
 	public void itemStateChanged(ItemEvent e) {
 /*		if (e.getSource() == mComboBox && e.getStateChange() == ItemEvent.SELECTED) {
-            String item = (String)mComboBox.getSelectedItem();
+			String item = (String)mComboBox.getSelectedItem();
 			if (item.equals(cFilterBySubstructure)) {
 				mSimilaritySlider.setEnabled(false);
 				mStructureView.getMolecule().setFragment(true);
-                }
-            else if (item.equals(cItemDisabled)) {
-                mSimilaritySlider.setEnabled(false);
-                mStructureView.getMolecule().setFragment(true);
-                }
-            else {  // similarity
+				}
+			else if (item.equals(cItemDisabled)) {
+				mSimilaritySlider.setEnabled(false);
+				mStructureView.getMolecule().setFragment(true);
+				}
+			else {  // similarity
 				mSimilaritySlider.setEnabled(true);
 				mStructureView.getMolecule().setFragment(false);
 				}
-		    mStructureView.structureChanged();
-		    }
+			mStructureView.structureChanged();
+			}
 */		}
 
 	public void stateChanged(ChangeEvent e) {
-		updateExclusion();
+		updateExclusion(mIsUserChange);
 		}
 
 	public synchronized void structureChanged(StereoMolecule mol) {
@@ -201,13 +215,16 @@ public class JReactionFilterPanel extends JFilterPanel
 		mol.removeAtomSelection();
 		if (!mol.isFragment())
 			mComboBox.setSelectedIndex(1);
-		updateExclusion();
+		updateExclusion(mIsUserChange);
 		}
 
-	public void updateExclusion() {
-/*        String item = (String)mComboBox.getSelectedItem();
+	public void updateExclusion(boolean isUserChange) {
+		if (!isEnabled())
+			return;
+
+/*		String item = (String)mComboBox.getSelectedItem();
 		if (!item.equals(cItemDisabled)
-         && !mTableModel.isColumnDataAvailable(mDescriptorColumn[mComboBox.getSelectedIndex()])
+		 && !mTableModel.isColumnDataAvailable(mDescriptorColumn[mComboBox.getSelectedIndex()])
 		 && mStructureView.getMolecule().getAllAtoms() != 0) {
 			mComboBox.setSelectedItem(cItemDisabled);
 			JOptionPane.showMessageDialog(mParentFrame, "A structure filter cannot be used before the appropriate indexation has completed.");
@@ -218,22 +235,24 @@ public class JReactionFilterPanel extends JFilterPanel
 		else {
 			if (item.equals(cItemContains)) {
 				mTableModel.setSubStructureExclusion(mExclusionMask, mColumnIndex, mStructureView.getMolecule(), mInverse);
-                }
-            else if (item.equals(cItemDisabled)) {
-                mTableModel.clearCompoundFlag(mExclusionMask);
-                }
-            else {
+				}
+			else if (item.equals(cItemDisabled)) {
+				mTableModel.clearCompoundFlag(mExclusionMask);
+				}
+			else {
 				if (mSimilarity == null)
 					mSimilarity = mTableModel.createSimilarityList(mStructureView.getMolecule(),
-			                            mDescriptorColumn[mComboBox.getSelectedIndex()]);
+										mDescriptorColumn[mComboBox.getSelectedIndex()]);
 
 				mTableModel.setSimilarityExclusion(mExclusionMask,
-				        mDescriptorColumn[mComboBox.getSelectedIndex()], mSimilarity,
-					    (float)mSimilaritySlider.getValue() / (float)100.0, mInverse,
+						mDescriptorColumn[mComboBox.getSelectedIndex()], mSimilarity,
+						(float)mSimilaritySlider.getValue() / (float)100.0, mInverse,
 						mSimilaritySlider.getValueIsAdjusting());
 				}
-		    }
-    	fireFilterChanged(FilterEvent.FILTER_UPDATED, false);
+			}
+
+		if (isUserChange)
+			fireFilterChanged(FilterEvent.FILTER_UPDATED, false);
 */		}
 
 	@Override
@@ -242,7 +261,7 @@ public class JReactionFilterPanel extends JFilterPanel
 		 && mComboBox.getSelectedIndex() != mComboBox.getItemCount()-1) {
 			StereoMolecule mol = mStructureView.getMolecule();
 			String idcode = new Canonizer(mol).getIDCode();
-            String item = (String)mComboBox.getSelectedItem();
+			String item = (String)mComboBox.getSelectedItem();
 			if (item.equals(cItemContains))
 				settings = attachSetting(settings, cFilterBySubstructure);
 			else
@@ -256,7 +275,7 @@ public class JReactionFilterPanel extends JFilterPanel
 	@Override
 	public void applyInnerSettings(String settings) {
 /*		if (settings != null) {
-            String item = (String)mComboBox.getSelectedItem();
+			String item = (String)mComboBox.getSelectedItem();
 			if (settings.startsWith(cFilterBySubstructure)) {
 				String idcode = settings.substring(cFilterBySubstructure.length()+1);
 				mStructureView.setIDCode(idcode);
@@ -266,15 +285,15 @@ public class JReactionFilterPanel extends JFilterPanel
 					updateExclusion();
 				}
 			else {
-                int index1 = settings.indexOf('\t');
+				int index1 = settings.indexOf('\t');
 				int index2 = settings.indexOf('\t', index1+1);
-                String descriptor = settings.substring(index1);
+				String descriptor = settings.substring(index1);
 
-                    // to be compatible with format prior V2.7.0
-                if (descriptor.equals(cFilterBySimilarity))
-                    descriptor = new DescriptorHandlerFP512().getShortName();
+					// to be compatible with format prior V2.7.0
+				if (descriptor.equals(cFilterBySimilarity))
+					descriptor = new DescriptorHandlerFP512().getShortName();
 
-                int similarity = Integer.parseInt(settings.substring(index1+1, index2));
+				int similarity = Integer.parseInt(settings.substring(index1+1, index2));
 				mSimilaritySlider.setValue(similarity);
 				String idcode = settings.substring(index2+1);
 				mStructureView.setIDCode(idcode);
@@ -287,19 +306,24 @@ public class JReactionFilterPanel extends JFilterPanel
 */
 		}
 
-    private String descriptorToItem(String descriptor) {
-        return cItemIsSimilarTo+" ["+descriptor+"]";
-        }
+	private String descriptorToItem(String descriptor) {
+		return cItemIsSimilarTo+" ["+descriptor+"]";
+		}
 
-    private String itemToDescriptor(String item) {
-        return item.substring(cItemIsSimilarTo.length()+2, item.length()-1);
-        }
+	private String itemToDescriptor(String item) {
+		return item.substring(cItemIsSimilarTo.length()+2, item.length()-1);
+		}
 
 	@Override
 	public void innerReset() {
-/*		if (mStructureView.getMolecule().getAllAtoms() != 0
-         && mComboBox.getSelectedIndex() != mComboBox.getItemCount()-1)
-			mComboBox.setSelectedIndex(mComboBox.getItemCount()-1);
-*/
-    	}
+/*		if (mStructureView.getMolecule().getAllAtoms() != 0) {
+			mStructureView.getMolecule().deleteMolecule();
+			mStructureView.structureChanged();
+			}*/
+		}
+
+	@Override
+	public int getFilterType() {
+		return FILTER_TYPE_REACTION;
+		}
 	}

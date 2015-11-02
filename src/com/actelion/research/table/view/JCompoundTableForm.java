@@ -44,6 +44,7 @@ import com.actelion.research.gui.form.JStructure3DFormObject;
 import com.actelion.research.gui.form.ReferenceFormObject;
 import com.actelion.research.table.CompoundRecord;
 import com.actelion.research.table.CompoundTableColorHandler;
+import com.actelion.research.table.CompoundTableDetailSpecification;
 import com.actelion.research.table.CompoundTableEvent;
 import com.actelion.research.table.CompoundTableListener;
 import com.actelion.research.table.CompoundTableModel;
@@ -54,7 +55,7 @@ public class JCompoundTableForm extends JFormView implements CompoundTableColorH
     public static final int PRINT_MODE_CURRENT_RECORD = 0;
     public static final int PRINT_MODE_VISIBLE_RECORDS = 1;
     public static final int PRINT_MODE_ALL_RECORDS = 2;
-    
+
     private Frame				mParentFrame;
 	private CompoundTableModel	mTableModel;
 	private CompoundTableColorHandler	mColorHandler;
@@ -67,7 +68,7 @@ public class JCompoundTableForm extends JFormView implements CompoundTableColorH
 		addSupportedType(JImageDetailView.TYPE_IMAGE_FROM_PATH, JImageFormObject.class);
 		addSupportedType(JImageDetailView.TYPE_IMAGE_JPEG, JImageFormObject.class);
 		addSupportedType(JImageDetailView.TYPE_IMAGE_GIF, JImageFormObject.class);
-		addSupportedType(JImageDetailView.TYPE_ORBIT_PLATE_TXT, JImageFormObject.class);
+		addSupportedType(JImageDetailView.TYPE_IMAGE_PNG, JImageFormObject.class);
 		addSupportedType(JStructure3DFormObject.FORM_OBJECT_TYPE, JStructure3DFormObject.class);
 		addSupportedType(JHTMLDetailView.TYPE_TEXT_PLAIN, JHTMLFormObject.class);
 		addSupportedType(JHTMLDetailView.TYPE_TEXT_HTML, JHTMLFormObject.class);
@@ -148,10 +149,18 @@ public class JCompoundTableForm extends JFormView implements CompoundTableColorH
 								FormObjectFactory.TYPE_MULTI_LINE_TEXT : FormObjectFactory.TYPE_SINGLE_LINE_TEXT);
 				}
 
+            int columnLookupCount = mTableModel.getColumnLookupCount(column);
+			for (int i=0; i<columnLookupCount; i++) {
+				String lookupURL = mTableModel.getColumnProperty(column, CompoundTableModel.cColumnPropertyLookupDetailURL);
+				if (lookupURL != null)
+					addFormObject(mTableModel.getColumnTitleNoAlias(column)+CompoundTableFormModel.KEY_LOOKUP_SEPARATOR+i,
+							JHTMLDetailView.TYPE_TEXT_HTML);
+				}
+
 			int columnDetailCount = mTableModel.getColumnDetailCount(column);
-			for (int detail=0; detail<columnDetailCount; detail++)
-				addFormObject(mTableModel.getColumnTitleNoAlias(column)+CompoundTableFormModel.KEY_DETAIL_SEPARATOR+detail,
-							  mTableModel.getColumnDetailType(column, detail));
+			for (int i=0; i<columnDetailCount; i++)
+				addFormObject(mTableModel.getColumnTitleNoAlias(column)+CompoundTableFormModel.KEY_DETAIL_SEPARATOR+i,
+							  mTableModel.getColumnDetailType(column, i));
 			}
 
 		super.createDefaultLayout();
@@ -179,7 +188,7 @@ public class JCompoundTableForm extends JFormView implements CompoundTableColorH
 			updateCurrentRecord();
 		else if (e.getType() == CompoundTableEvent.cAddColumns) {
 			boolean needsUpdate = false;
-			for (int column=e.getSpecifier(); column<mTableModel.getTotalColumnCount(); column++) {
+			for (int column=e.getColumn(); column<mTableModel.getTotalColumnCount(); column++) {
 				String key = mTableModel.getColumnTitleNoAlias(column);
 				for (int i=0; i<getFormObjectCount(); i++) {
 					if (key.equals(getFormObject(i).getKey())) {
@@ -218,7 +227,7 @@ public class JCompoundTableForm extends JFormView implements CompoundTableColorH
 				if (index != -1) {
 					String columnName = key.substring(0, index);
 					int column = mTableModel.findColumn(columnName);
-					if (e.getSpecifier() == column) {
+					if (e.getColumn() == column) {
 						try {
 							int detail = Integer.parseInt(key.substring(index + CompoundTableFormModel.KEY_DETAIL_SEPARATOR.length()));
 							int newDetailIndex = e.getMapping()[detail];
@@ -246,12 +255,12 @@ public class JCompoundTableForm extends JFormView implements CompoundTableColorH
 					if (index != -1) {
 						String columnName = key.substring(0, index);
 						int column = mTableModel.findColumn(columnName);
-						if (e.getSpecifier() == column) {
+						if (e.getColumn() == column) {
 							try {
 								int detail = Integer.parseInt(key.substring(index + CompoundTableFormModel.KEY_DETAIL_SEPARATOR.length()));
-								if (column == e.getSpecifier()
+								if (column == e.getColumn()
 								 && detail == e.getMapping()[0])
-								    formObject.setReferenceSource(mTableModel.getColumnDetailSource(column, detail));
+								    formObject.setReferenceSource(new CompoundTableDetailSpecification(mTableModel, column, detail));
 								}
 							catch (NumberFormatException nfe) {}
 							}
@@ -261,7 +270,7 @@ public class JCompoundTableForm extends JFormView implements CompoundTableColorH
 			}
 		else if (e.getType() == CompoundTableEvent.cChangeColumnName) {
 			boolean needsUpdate = false;
-			int column = e.getSpecifier();
+			int column = e.getColumn();
 			String key = mTableModel.getColumnTitleNoAlias(column);
 			for (int i=0; i<getFormObjectCount(); i++) {
 				if (key.equals(getFormObject(i).getKey())) {
@@ -331,7 +340,29 @@ public class JCompoundTableForm extends JFormView implements CompoundTableColorH
 		}
 
 	private void initializeReferenceResolution(AbstractFormObject formObject) {
+
+		// formerly we used the real detail source string as source. Now we just pass columnName,separator,detailIndex
 		if (formObject instanceof ReferenceFormObject) {
+			String key = formObject.getKey();
+			int index = key.indexOf(CompoundTableFormModel.KEY_DETAIL_SEPARATOR);
+			if (index == -1)
+				index = key.indexOf(CompoundTableFormModel.KEY_LOOKUP_SEPARATOR);
+
+			if (index != -1) {
+				int column = mTableModel.findColumn(key.substring(0, index));
+				if (column != -1) {
+					try {
+						int detail = Integer.parseInt(key.substring(index+CompoundTableFormModel.KEY_DETAIL_SEPARATOR.length()));
+						((ReferenceFormObject)formObject).setReferenceResolver(mTableModel.getDetailHandler());
+						((ReferenceFormObject)formObject).setReferenceSource(new CompoundTableDetailSpecification(mTableModel, column, detail));
+						}
+					catch (NumberFormatException nfe) {}
+					}
+				return;
+				}
+			}
+
+/*		if (formObject instanceof ReferenceFormObject) {
 			String key = formObject.getKey();
 			int index = key.indexOf(CompoundTableFormModel.KEY_DETAIL_SEPARATOR);
 			if (index != -1) {
@@ -344,8 +375,24 @@ public class JCompoundTableForm extends JFormView implements CompoundTableColorH
 						}
 					catch (NumberFormatException nfe) {}
 					}
+				return;
 				}
-			}
+
+			index = key.indexOf(CompoundTableFormModel.KEY_LOOKUP_SEPARATOR);
+			if (index != -1) {
+				int column = mTableModel.findColumn(key.substring(0, index));
+				if (column != -1) {
+					try {
+						int lookup = Integer.parseInt(key.substring(index+CompoundTableFormModel.KEY_LOOKUP_SEPARATOR.length()));
+						((ReferenceFormObject)formObject).setReferenceResolver(mTableModel.getDetailHandler());
+						((ReferenceFormObject)formObject).setReferenceSource(CompoundTableDetailHandler.URL_RESPONSE
+								+mTableModel.getColumnProperty(column, CompoundTableConstants.cColumnPropertyLookupDetailURL+lookup));
+						}
+					catch (NumberFormatException nfe) {}
+					}
+				return;
+				}
+			}	*/
 		return;
 		}
 

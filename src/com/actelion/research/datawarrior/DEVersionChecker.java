@@ -29,7 +29,10 @@ import java.awt.event.ActionListener;
 import java.io.BufferedReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.UnsupportedEncodingException;
+import java.net.MalformedURLException;
 import java.net.URL;
+import java.net.URLEncoder;
 import java.util.prefs.Preferences;
 
 import javax.swing.JButton;
@@ -45,18 +48,19 @@ import com.actelion.research.util.BrowserControl;
 
 public class DEVersionChecker extends JDialog implements ActionListener {
 	private static final long serialVersionUID = 20140209;
-	private static final String DATAWARRIOR_VERSION = "v04.01.01";	// format v00.00.00[_beta]
+	private static final String DATAWARRIOR_VERSION = "v04.02.02";	// format v00.00.00[_beta]
 	public static void checkVersion(final Frame parent, final boolean showUpToDateMessage) {
 		new Thread(new Runnable() {
 			public void run() {
+				Preferences prefs = Preferences.userRoot().node(DataWarrior.PREFERENCES_ROOT);
+				String id = ""+prefs.getLong(DataWarrior.PREFERENCES_KEY_FIRST_LAUNCH, 0L);
+				String os = System.getProperty("os.name").replace(' ', '_');
+				final String url = "http://dwversion.openmolecules.org?what=detail&os="+os
+									+"&current="+DATAWARRIOR_VERSION+"&id="+id;
 				try {
-					Preferences prefs = Preferences.userRoot().node(DataWarrior.PREFERENCES_ROOT);
-					String id = ""+prefs.getLong(DataWarrior.PREFERENCES_KEY_FIRST_LAUNCH, 0L);
-					String os = System.getProperty("os.name").replace(' ', '_');
-					Object content = new URL("http://dwversion.openmolecules.org?what=detail&os="+os
-											+"&current="+DATAWARRIOR_VERSION+"&id="+id).getContent();
-					if (content != null) {
-						BufferedReader reader = new BufferedReader(new InputStreamReader((InputStream)content, "UTF-8"));
+					InputStream is = new URL(url).openStream();
+					if (is != null) {
+						BufferedReader reader = new BufferedReader(new InputStreamReader(is));
 						String version = reader.readLine();
 						if (version != null) {
 							if (version.compareTo(DATAWARRIOR_VERSION) > 0) {
@@ -85,10 +89,28 @@ public class DEVersionChecker extends JDialog implements ActionListener {
 									});
 								}
 							}
+						reader.close();
 						}
 					}
-				catch(Exception e) {
-					e.printStackTrace();
+				catch (MalformedURLException mue) {}
+				catch (Exception e) {
+					final String error = e.toString();
+					SwingUtilities.invokeLater(new Runnable() {
+						@Override
+						public void run() {
+							int answer = JOptionPane.showConfirmDialog(parent,
+									"DataWarrior could not check whether you have the latest version.\n"
+								  + "A firewall, local security software, or settings may prevent contacting the server.\n"
+								  + "Do you want DataWarrior to open your web browser for checking?",
+								  	"DataWarrior Update Check in Web-Browser", JOptionPane.OK_CANCEL_OPTION);
+							if (answer == JOptionPane.OK_OPTION) {
+								try {
+									BrowserControl.displayURL(url+"&error="+URLEncoder.encode(error, "UTF-8"));
+									}
+								catch (UnsupportedEncodingException uee) {}
+								}
+							}
+						});
 					}
 				}
 			}).start();

@@ -80,7 +80,7 @@ public abstract class DEAbstractFilterTask extends ConfigurableTask {
 		        			{8, TableLayout.PREFERRED, 16, TableLayout.PREFERRED, 16, TableLayout.PREFERRED, 8} };
         p.setLayout(new TableLayout(size));
 
-        if (supportsColumnSelection()) {
+        if (needsColumnSelection()) {
 	        p.add(new JLabel("Column name:", JLabel.RIGHT), "1,1");
 	        mComboBox = new JComboBox();
 	        for (int column=0; column<mTableModel.getTotalColumnCount(); column++)
@@ -107,9 +107,11 @@ public abstract class DEAbstractFilterTask extends ConfigurableTask {
 	 */
 	public abstract JFilterPanel createFilterUI();
 
-	public abstract Class<? extends JFilterPanel> getFilterClass();
+	public abstract int getFilterType();
 
-	public abstract boolean supportsColumnSelection();
+	private boolean needsColumnSelection() {
+		return DETaskAddNewFilter.FILTER_NEEDS_COLUMN[getFilterType()];
+		}
 
 	/**
 	 * @param column
@@ -124,7 +126,7 @@ public abstract class DEAbstractFilterTask extends ConfigurableTask {
 
 		Properties configuration = new Properties();
 		int column = mFilter.getColumnIndex();
-		if (supportsColumnSelection())
+		if (needsColumnSelection())
 			configuration.setProperty(PROPERTY_COLUMN, mTableModel.getColumnTitleNoAlias(column));
 		configuration.setProperty(PROPERTY_DUPLICATE, Integer.toString(1+mPruningPanel.getFilterDuplicateIndex(mFilter, mFilter.getColumnIndex())));
 		String filterSettings = mFilter.getSettings();
@@ -136,7 +138,7 @@ public abstract class DEAbstractFilterTask extends ConfigurableTask {
 	@Override
 	public Properties getDialogConfiguration() {
 		Properties configuration = new Properties();
-		if (supportsColumnSelection()) {
+		if (needsColumnSelection()) {
 			String columnName = mTableModel.getColumnTitleNoAlias((String)mComboBox.getSelectedItem());
 			if (columnName != null)
 				configuration.setProperty(PROPERTY_COLUMN, columnName);
@@ -150,7 +152,7 @@ public abstract class DEAbstractFilterTask extends ConfigurableTask {
 
 	@Override
 	public void setDialogConfiguration(Properties configuration) {
-		if (supportsColumnSelection())
+		if (needsColumnSelection())
 			mComboBox.setSelectedItem(configuration.getProperty(PROPERTY_COLUMN, ""));
 		mTextFieldIndex.setText(configuration.getProperty(PROPERTY_DUPLICATE, "1"));
 		mFilter.applySettings(configuration.getProperty(PROPERTY_SETTINGS));
@@ -158,7 +160,7 @@ public abstract class DEAbstractFilterTask extends ConfigurableTask {
 
 	@Override
 	public void setDialogConfigurationToDefault() {
-		if (supportsColumnSelection()
+		if (needsColumnSelection()
 		 && mComboBox.getItemCount() != 0)
 			mComboBox.setSelectedIndex(0);
 		mTextFieldIndex.setText("1");
@@ -166,7 +168,7 @@ public abstract class DEAbstractFilterTask extends ConfigurableTask {
 
 	@Override
 	public boolean isConfigurable() {
-		if (!supportsColumnSelection())
+		if (!needsColumnSelection())
 			return true;	// allow hitlist filters and category browsers any time
 
 		for (int column=0; column<mTableModel.getTotalColumnCount(); column++)
@@ -180,13 +182,14 @@ public abstract class DEAbstractFilterTask extends ConfigurableTask {
 	@Override
 	public boolean isConfigurationValid(Properties configuration, boolean isLive) {
 		String columnName = configuration.getProperty(PROPERTY_COLUMN);
-		if (supportsColumnSelection() && columnName == null) {
+		if (needsColumnSelection() && columnName == null) {
 			showErrorMessage("Column name not defined.");
 			return false;
 			}
 
-		if (isLive && supportsColumnSelection()) {
-			int column = mTableModel.findColumn(columnName);
+		int column = -1;
+		if (isLive && needsColumnSelection()) {
+			column = mTableModel.findColumn(columnName);
 			if (column == -1) {
 				showErrorMessage("Column '"+columnName+"' not found.");
 				return false;
@@ -203,6 +206,13 @@ public abstract class DEAbstractFilterTask extends ConfigurableTask {
 			if (index < 0 || index > 31) {
 				showErrorMessage("Duplicate filter number must be a small positive integer.");
 				return false;
+				}
+			if (isLive) {
+				JFilterPanel filter = mPruningPanel.getFilter(getFilterType(), column, index);
+				if (filter == null) {
+					showErrorMessage("Filter not found.");
+					return false;
+					}
 				}
 			}
 		catch (NumberFormatException nfe) {
@@ -222,13 +232,6 @@ public abstract class DEAbstractFilterTask extends ConfigurableTask {
 		}
 
 	/**
-	 * @return true if this task was launched interactively
-	 */
-	public boolean isInteractive() {
-		return mFilter != null;
-		}
-
-	/**
 	 * @return the task's table model (is never null)
 	 */
 	public CompoundTableModel getTableModel() {
@@ -237,10 +240,10 @@ public abstract class DEAbstractFilterTask extends ConfigurableTask {
 
 	@Override
 	public void runTask(Properties configuration) {
-		int column = supportsColumnSelection() ? mTableModel.findColumn(configuration.getProperty(PROPERTY_COLUMN)) : -1;
+		int column = needsColumnSelection() ? mTableModel.findColumn(configuration.getProperty(PROPERTY_COLUMN)) : -1;
 		int duplicate = Integer.parseInt(configuration.getProperty(PROPERTY_DUPLICATE, "1")) - 1;
 		String settings = configuration.getProperty(PROPERTY_SETTINGS);
-		JFilterPanel filter = mPruningPanel.getFilter(getFilterClass(), column, duplicate);
+		JFilterPanel filter = mPruningPanel.getFilter(getFilterType(), column, duplicate);
 		if (filter != null)
 			filter.applySettings(settings);
 		}

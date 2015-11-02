@@ -58,6 +58,7 @@ public class MoleculeViewer extends MoleculeCanvas implements MouseListener {
 	/** defaultStyles if <> null, will enable the default feature */ 
 	private int[] defaultStyles = null;
 	private List<FFMolecule> undo = new ArrayList<FFMolecule>();
+	private ArrayList<ActionProvider> mActionProviderList;
 
 	/**
 	 * Creates a new Viewer3DPanel with a default configuration 
@@ -101,6 +102,17 @@ public class MoleculeViewer extends MoleculeCanvas implements MouseListener {
 		this();
 		setMolecule(mol);
 		
+	}
+
+	public void addActionProvider(ActionProvider ap) {
+		if (mActionProviderList == null)
+			mActionProviderList = new ArrayList<ActionProvider>();
+		mActionProviderList.add(ap);
+	}
+
+	public void removeActionProvider(ActionProvider ap) {
+		if (mActionProviderList != null)
+			mActionProviderList.remove(ap);
 	}
 
 	/**
@@ -188,12 +200,8 @@ public class MoleculeViewer extends MoleculeCanvas implements MouseListener {
 		info.add(createMenuItem(new ActionInfoInteractions(), (char)0, isMode(MODE_INTERACTIONS)));	
 		info.add(new JSeparator());
 		menu.add(info);
-		
-		
-		
-		
-		processSubPopupMenu(menu);
 
+		processSubPopupMenu(menu);
 				
 		menu.add(createMenuItem(new ActionClearDecorations(), 'C', false));
 		
@@ -205,7 +213,13 @@ public class MoleculeViewer extends MoleculeCanvas implements MouseListener {
 		//menu.add(createMenuItem(new ActionCopy(), 'c', false, KeyEvent.CTRL_DOWN_MASK ));
 		//menu.add(createMenuItem(new ActionPaste(), 'p', false, KeyEvent.CTRL_DOWN_MASK ));
 		menu.add(createMenuItem(new ActionSaveImage(), 'i', false));
-		
+
+		if (mActionProviderList != null) {
+			menu.add(new JSeparator());
+			for (ActionProvider ap:mActionProviderList)
+				menu.add(createMenuItem(new ActionExternal(ap), (char)0, false));
+			}
+
 		return menu;
 	}
 
@@ -500,6 +514,14 @@ public class MoleculeViewer extends MoleculeCanvas implements MouseListener {
 		public ActionShowHideHydrogen() {super((isMode(MoleculeCanvas.HIDE_HYDROGENS)?"Show":"Hide") + " Hydrogens");}
 		public void actionPerformed(ActionEvent e) {
 			setMode(MoleculeCanvas.HIDE_HYDROGENS, !isMode(MoleculeCanvas.HIDE_HYDROGENS));repaint();
+		}
+	}
+	private class ActionExternal extends AbstractAction {
+		public ActionExternal(ActionProvider ap) {super(ap.getActionName());}
+		public void actionPerformed(ActionEvent e) {
+			for (ActionProvider ap:mActionProviderList)
+				if (ap.getActionName().equals(e.getActionCommand()))
+					ap.performAction(MoleculeViewer.this);
 		}
 	}
 

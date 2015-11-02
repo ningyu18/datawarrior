@@ -22,7 +22,7 @@ import java.awt.event.ActionListener;
 import java.util.Properties;
 
 import com.actelion.research.datawarrior.DataWarrior;
-import com.actelion.research.datawarrior.task.DETaskAbstractNewColumns;
+import com.actelion.research.datawarrior.task.data.DETaskAbstractNewColumns;
 
 
 public class DETaskNewFile extends DETaskAbstractNewColumns implements ActionListener {

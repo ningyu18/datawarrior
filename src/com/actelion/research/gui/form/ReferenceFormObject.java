@@ -54,7 +54,7 @@ public abstract class ReferenceFormObject extends AbstractFormObject {
 		((JResultDetailView)mComponent).setReferenceResolver(referenceResolver);
 		}
 
-	public void setReferenceSource(String referenceSource) {
+	public void setReferenceSource(RemoteDetailSource referenceSource) {
 		((JResultDetailView)mComponent).setDetailSource(referenceSource);
 		}
 

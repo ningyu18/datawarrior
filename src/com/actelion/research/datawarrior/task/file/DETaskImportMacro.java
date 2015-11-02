@@ -37,8 +37,8 @@ public class DETaskImportMacro extends DETaskAbstractOpenFile {
 
     private CompoundTableModel	mTableModel;
 
-    public DETaskImportMacro(DEFrame parent, boolean isInteractive) {
-		super(parent, "Import DataWarrior Macro", FileHelper.cFileTypeDataWarriorMacro, isInteractive);
+    public DETaskImportMacro(DEFrame parent) {
+		super(parent, "Import DataWarrior Macro", FileHelper.cFileTypeDataWarriorMacro);
 		mTableModel = parent.getTableModel();
 		}
 

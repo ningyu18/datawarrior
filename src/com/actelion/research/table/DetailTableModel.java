@@ -21,6 +21,9 @@ package com.actelion.research.table;
 import javax.swing.event.*;
 import javax.swing.table.DefaultTableModel;
 
+import com.actelion.research.chem.IDCodeParser;
+import com.actelion.research.gui.JStructureView;
+
 public class DetailTableModel extends DefaultTableModel
             implements CompoundTableListener,TableModelListener {
     private static final long serialVersionUID = 0x20060929;
@@ -76,13 +79,13 @@ public class DetailTableModel extends DefaultTableModel
 			initialize();
 			}
 		else if (e.getType() == CompoundTableEvent.cChangeColumnData) {
-            int column = e.getSpecifier();
+            int column = e.getColumn();
             int row = mParentModel.convertToDisplayableColumnIndex(column);
 			if (row != -1 && mParentRecord != null)
 	    		setValueAt(mParentModel.encodeData(mParentRecord, column), row, 1);
 			}
 		else if (e.getType() == CompoundTableEvent.cChangeColumnName) {
-            int column = e.getSpecifier();
+            int column = e.getColumn();
             int row = mParentModel.convertToDisplayableColumnIndex(column);
 			if (row != -1 && mParentRecord != null)
 			    setValueAt(mParentModel.getColumnTitle(column), row, 0);
@@ -98,10 +101,22 @@ public class DetailTableModel extends DefaultTableModel
 			for (int row=0; row<getRowCount(); row++) {
                 int column = mParentModel.convertFromDisplayableColumnIndex(row);
                 String type = mParentModel.getColumnSpecialType(column);
-                Object value = CompoundTableModel.cColumnTypeIDCode.equals(type) ?
-                                    mParentModel.getChemicalStructure(record, column, CompoundTableModel.ATOM_COLOR_MODE_ALL, null)
-                                  : mParentModel.encodeData(record, column);
-				setValueAt(value, row, 1);
+                if (CompoundTableModel.cColumnTypeIDCode.equals(type)) {
+        			int coordinateColumn = (column == -1) ? -1
+        					: mParentModel.getChildColumn(column, CompoundTableModel.cColumnType2DCoordinates);
+        			byte[] idcode = (byte[])record.getData(column);
+        			if (idcode != null
+        			 && (coordinateColumn == -1 || record.getData(coordinateColumn) == null)
+        			 && new IDCodeParser().getAtomCount(idcode, 0) > CompoundTableChemistryCellRenderer.ON_THE_FLY_COORD_MAX_ATOMS) {
+        				setValueAt("Calc. 2D-atom coords for large molecules!", row, 1);
+        				}
+        			else {
+        				setValueAt(mParentModel.getChemicalStructure(record, column, CompoundTableModel.ATOM_COLOR_MODE_ALL, null), row, 1);
+        				}
+                	}
+                else {
+    				setValueAt(mParentModel.encodeData(record, column), row, 1);
+                	}
                 }
 
 		fireTableDataChanged();

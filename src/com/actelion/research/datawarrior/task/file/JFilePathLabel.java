@@ -35,9 +35,10 @@ public class JFilePathLabel extends JLabel {
 	private static final String NO_FILE_SPECIFIED = "<not specified>";
 
 	private ActionListener	mListener;
-	private String mPath = NO_FILE_SPECIFIED;
+	private String			mPath;
 
 	public JFilePathLabel(boolean allowEditing) {
+		mPath = null;
 		if (allowEditing) {
 			setToolTipText("Double-click to edit");
 			addMouseListener(new MouseAdapter() {

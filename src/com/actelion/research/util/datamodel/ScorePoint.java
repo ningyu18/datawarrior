@@ -1,18 +1,27 @@
+
+
 package com.actelion.research.util.datamodel;
 
 import java.awt.Point;
 
+
 import com.actelion.research.util.Formatter;
 
-/**
- * 
- * ScorePoint
- * <p>Copyright: Actelion Ltd., Inc. All Rights Reserved
+/*
+ * Project: DD_core
+ * @(#)ScorePoint.java
+ *
+ * Copyright (c) 2003 - 2015
+ * Actelion Pharmaceuticals Ltd.
+ * Gewerbestrasse 16
+ * CH-4123 Allschwil, Switzerland
+ *
+ * All Rights Reserved.
+ *
  * This software is the proprietary information of Actelion Pharmaceuticals, Ltd.
- * Use is subject to license terms.</p>
- * @author Modest von Korff
- * @version 1.0
- * 10 Dec 2010 MvK: Start implementation
+ * Use is subject to license terms.
+ *
+ * Author: MvK
  */
 public class ScorePoint extends Point {
 
@@ -26,6 +35,11 @@ public class ScorePoint extends Point {
 
 	public ScorePoint(Point p) {
 		super(p);
+	}
+	
+	public ScorePoint(Point p, double value) {
+		super(p);
+		score = value;
 	}
 	
 	public ScorePoint(int x, int y) {

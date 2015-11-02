@@ -31,6 +31,7 @@ import javax.swing.BorderFactory;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JColorChooser;
+import javax.swing.JComboBox;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
@@ -40,6 +41,7 @@ import javax.swing.JTabbedPane;
 import com.actelion.research.datawarrior.DEMainPane;
 import com.actelion.research.table.view.CompoundTableView;
 import com.actelion.research.table.view.JVisualization;
+import com.actelion.research.table.view.JVisualization2D;
 import com.actelion.research.table.view.JVisualization3D;
 import com.actelion.research.table.view.VisualizationColor;
 import com.actelion.research.table.view.VisualizationPanel;
@@ -50,7 +52,7 @@ public class DETaskSetGeneralViewProperties extends DETaskAbstractSetViewOptions
 
 	private static final String PROPERTY_FONT_SIZE = "fontSize";
 	private static final String PROPERTY_HIDE_GRID = "hideGrid";
-	private static final String PROPERTY_HIDE_SCALE = "hideScale";
+	private static final String PROPERTY_HIDE_SCALE = "hideScale";	// allowed: x,y,true,false
 	private static final String PROPERTY_SHOW_EMPTY = "showEmpty";
 	private static final String PROPERTY_GLOBAL_EXCLUSION = "globalExclusion";
 	private static final String PROPERTY_FAST_RENDERING = "fastRendering";
@@ -62,8 +64,9 @@ public class DETaskSetGeneralViewProperties extends DETaskAbstractSetViewOptions
 
 	private static Properties sRecentConfiguration;
 
+	private JComboBox			mComboBoxScaleMode;
 	private JSlider				mSliderScaleFontSize;
-	private JCheckBox			mCheckBoxHideScale,mCheckBoxHideGrid,mCheckBoxShowNaN,mCheckBoxGlobalExclusion,mCheckBoxFastRendering;
+	private JCheckBox			mCheckBoxHideGrid,mCheckBoxShowNaN,mCheckBoxGlobalExclusion,mCheckBoxFastRendering;
 	private DEColorPanel		mDefaultDataColorPanel,mMissingDataColorPanel,mBackgroundColorPanel,mGraphFaceColorPanel,mTitleBackgroundPanel;
 
 	/**
@@ -88,22 +91,24 @@ public class DETaskSetGeneralViewProperties extends DETaskAbstractSetViewOptions
 	public JComponent createInnerDialogContent() {
 		JPanel scalePanel = new JPanel();
 		double[][] sizeScalePanel = { {8, TableLayout.FILL, TableLayout.PREFERRED, 8, TableLayout.PREFERRED, TableLayout.FILL, 8},
-									  {8, TableLayout.PREFERRED, 16, TableLayout.PREFERRED, TableLayout.PREFERRED, 8 } };
+									  {8, TableLayout.PREFERRED, 8, TableLayout.PREFERRED, 8, TableLayout.PREFERRED, 8 } };
 		scalePanel.setLayout(new TableLayout(sizeScalePanel));
+
+		scalePanel.add(new JLabel("Show scales:"), "2,1");
+		mComboBoxScaleMode = new JComboBox((!hasInteractiveView() || getVisualization() instanceof JVisualization2D) ?
+							JVisualization2D.SCALE_MODE_TEXT : JVisualization3D.SCALE_MODE_TEXT);
+		mComboBoxScaleMode.addActionListener(this);
+		scalePanel.add(mComboBoxScaleMode, "4,1");
 
 		mSliderScaleFontSize = new JSlider(JSlider.HORIZONTAL, 0, 150, 50);
 		mSliderScaleFontSize.setPreferredSize(new Dimension(150, 20));
 		mSliderScaleFontSize.addChangeListener(this);
-		scalePanel.add(new JLabel("Scale font size:"), "2,1");
-		scalePanel.add(mSliderScaleFontSize, "4,1");
-
-		mCheckBoxHideScale = new JCheckBox("Hide scales", false);
-		mCheckBoxHideScale.addActionListener(this);
-		scalePanel.add(mCheckBoxHideScale, "4,3");
+		scalePanel.add(new JLabel("Scale font size:"), "2,3");
+		scalePanel.add(mSliderScaleFontSize, "4,3");
 
 		mCheckBoxHideGrid = new JCheckBox("Hide grid", false);
 		mCheckBoxHideGrid.addActionListener(this);
-		scalePanel.add(mCheckBoxHideGrid, "4,4");
+		scalePanel.add(mCheckBoxHideGrid, "4,5");
 
 		JPanel staticColorPanel = new JPanel();
 		double[][] sizeStaticColorPanel = { {8, TableLayout.FILL, TableLayout.PREFERRED, 8, 64, 12, TableLayout.PREFERRED, TableLayout.FILL, 8},
@@ -117,7 +122,7 @@ public class DETaskSetGeneralViewProperties extends DETaskAbstractSetViewOptions
 				VisualizationColor.cMissingDataColor, staticColorPanel);
 		mBackgroundColorPanel = addColorChooser("Background color:", "changeBGC", 1+2*colorIndex++,
 				Color.WHITE, staticColorPanel);
-		if (!hasInteractiveView() || getVisualization().isSplitView())
+		if (!hasInteractiveView() || getVisualization().isSplitViewConfigured())
 			mTitleBackgroundPanel = addColorChooser("Splitting title area:", "changeTAC", 1+2*colorIndex++,
 					JVisualization.DEFAULT_TITLE_BACKGROUND, staticColorPanel);
 		if (!hasInteractiveView() || getVisualization() instanceof JVisualization3D)
@@ -167,8 +172,8 @@ public class DETaskSetGeneralViewProperties extends DETaskAbstractSetViewOptions
 
 	@Override
 	public void setDialogToDefault() {
+		mComboBoxScaleMode.setSelectedIndex(0);
 		mSliderScaleFontSize.setValue(50);
-		mCheckBoxHideScale.setSelected(false);
 		mCheckBoxHideGrid.setSelected(false);
 		mCheckBoxShowNaN.setSelected(false);
 		mCheckBoxGlobalExclusion.setSelected(true);
@@ -190,10 +195,10 @@ public class DETaskSetGeneralViewProperties extends DETaskAbstractSetViewOptions
 	public void setDialogToConfiguration(Properties configuration) {
 		double fontSize = 1.0;
 		try { fontSize = Double.parseDouble(configuration.getProperty(PROPERTY_FONT_SIZE, "1.0")); } catch (NumberFormatException nfe) {}
+		int scaleMode = findListIndex(configuration.getProperty(PROPERTY_HIDE_SCALE), JVisualization.SCALE_MODE_CODE, 0);
+		mComboBoxScaleMode.setSelectedIndex(scaleMode<mComboBoxScaleMode.getItemCount() ? scaleMode : 0);
 		mSliderScaleFontSize.setValue(50+(int)(50.0*Math.log(fontSize)));
-		boolean hideScale = "true".equals(configuration.getProperty(PROPERTY_HIDE_SCALE));
 		boolean hideGrid = "true".equals(configuration.getProperty(PROPERTY_HIDE_GRID, configuration.getProperty(PROPERTY_HIDE_SCALE)));
-		mCheckBoxHideScale.setSelected(hideScale);
 		mCheckBoxHideGrid.setSelected(hideGrid);
 		mCheckBoxShowNaN.setSelected("true".equals(configuration.getProperty(PROPERTY_SHOW_EMPTY)));
 		mCheckBoxGlobalExclusion.setSelected(!"false".equals(configuration.getProperty(PROPERTY_GLOBAL_EXCLUSION)));
@@ -219,7 +224,7 @@ public class DETaskSetGeneralViewProperties extends DETaskAbstractSetViewOptions
 	public void addDialogConfiguration(Properties configuration) {
 		float size = (float)Math.exp((double)(mSliderScaleFontSize.getValue()-50)/50.0);
 		configuration.setProperty(PROPERTY_FONT_SIZE, ""+size);
-		configuration.setProperty(PROPERTY_HIDE_SCALE, mCheckBoxHideScale.isSelected() ? "true" : "false");
+		configuration.setProperty(PROPERTY_HIDE_SCALE, JVisualization.SCALE_MODE_CODE[mComboBoxScaleMode.getSelectedIndex()]);
 		configuration.setProperty(PROPERTY_HIDE_GRID, mCheckBoxHideGrid.isSelected() ? "true" : "false");
 		configuration.setProperty(PROPERTY_SHOW_EMPTY, mCheckBoxShowNaN.isSelected() ? "true" : "false");
 		configuration.setProperty(PROPERTY_GLOBAL_EXCLUSION, mCheckBoxGlobalExclusion.isSelected() ? "true" : "false");
@@ -240,7 +245,7 @@ public class DETaskSetGeneralViewProperties extends DETaskAbstractSetViewOptions
 	@Override
 	public void addViewConfiguration(Properties configuration) {
 		configuration.setProperty(PROPERTY_FONT_SIZE, ""+getVisualization().getFontSize());
-		configuration.setProperty(PROPERTY_HIDE_SCALE, getVisualization().isScaleSuppressed() ? "true" : "false");
+		configuration.setProperty(PROPERTY_HIDE_SCALE, JVisualization.SCALE_MODE_CODE[getVisualization().getScaleMode()]);
 		configuration.setProperty(PROPERTY_HIDE_GRID, getVisualization().isGridSuppressed() ? "true" : "false");
 		configuration.setProperty(PROPERTY_SHOW_EMPTY, getVisualization().getShowNaNValues() ? "true" : "false");
 		configuration.setProperty(PROPERTY_GLOBAL_EXCLUSION, getVisualization().getAffectGlobalExclusion() ? "true" : "false");
@@ -267,13 +272,16 @@ public class DETaskSetGeneralViewProperties extends DETaskAbstractSetViewOptions
 	@Override
 	public void applyConfiguration(CompoundTableView view, Properties configuration, boolean isAdjusting) {
 		JVisualization v = ((VisualizationPanel)view).getVisualization();
+		int scaleMode = findListIndex(configuration.getProperty(PROPERTY_HIDE_SCALE), JVisualization.SCALE_MODE_CODE, 0);
+		if ((v instanceof JVisualization2D && scaleMode<JVisualization2D.SCALE_MODE_TEXT.length)
+		 || (v instanceof JVisualization3D && scaleMode<JVisualization3D.SCALE_MODE_TEXT.length))
+			v.setScaleMode(scaleMode);
 		try {
 			v.setFontSize(Float.parseFloat(configuration.getProperty(PROPERTY_FONT_SIZE, "1.0")), isAdjusting);
 			}
 		catch (NumberFormatException nfe) {}
-		boolean hideScale = "true".equals(configuration.getProperty(PROPERTY_HIDE_SCALE));
 		boolean hideGrid = "true".equals(configuration.getProperty(PROPERTY_HIDE_GRID, configuration.getProperty(PROPERTY_HIDE_SCALE)));
-		v.setSuppressScale(hideScale, hideGrid);
+		v.setSuppressGrid(hideGrid);
 		v.setShowNaNValues("true".equals(configuration.getProperty(PROPERTY_SHOW_EMPTY)));
 		v.setAffectGlobalExclusion(!"false".equals(configuration.getProperty(PROPERTY_GLOBAL_EXCLUSION)));
 		v.setFastRendering("true".equals(configuration.getProperty(PROPERTY_FAST_RENDERING)));

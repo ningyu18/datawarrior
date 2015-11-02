@@ -1,14 +1,21 @@
-package com.actelion.research.gui.dnd;
-
-/**
- * <p>Title: DD_GUI</p>
- * Copyright 1997-2011 Actelion Ltd., Inc. All Rights Reserved.
+/*
+ * Project: DD_jfx
+ * @(#)MoleculeFlavors.java
+ *
+ * Copyright (c) 1997- 2015
+ * Actelion Pharmaceuticals Ltd.
+ * Gewerbestrasse 16
+ * CH-4123 Allschwil, Switzerland
+ *
+ * All Rights Reserved.
  *
  * This software is the proprietary information of Actelion Pharmaceuticals, Ltd.
  * Use is subject to license terms.
- * @author Christian Rufener
- * @version 1.0
+ *
+ * Author: Christian Rufener
  */
+
+package com.actelion.research.gui.dnd;
 
 import java.awt.datatransfer.DataFlavor;
 

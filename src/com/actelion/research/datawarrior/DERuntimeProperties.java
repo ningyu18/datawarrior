@@ -131,8 +131,11 @@ public class DERuntimeProperties extends RuntimeProperties {
 	private static final String cTreeViewMode = "treeViewMode";
 	private static final String cTreeViewRadius = "treeViewRadius";
 	private static final String cTreeViewShowAll = "treeViewShowAll";
+	private static final String cTreeViewIsDynamic = "treeViewIsDynamic";
 	private static final String cSplitViewColumn1 = "splitViewColumn1";
 	private static final String cSplitViewColumn2 = "splitViewColumn2";
+	private static final String cSplitViewAspect = "splitViewAspect";
+	private static final String cSplitViewShowEmpty = "splitViewShowEmpty";
 	private static final String cCaseSeparationColumn = "caseSeparationColumn";
 	private static final String cCaseSeparationValue = "caseSeparationValue";
 	private static final String cChartType = "chartType";
@@ -274,7 +277,8 @@ public class DERuntimeProperties extends RuntimeProperties {
 					dockInfo = refTitle + "\tcenter";
 					}
 
-				CompoundTableView view = viewType.equals(cViewTypeTable) ? mMainPane.addTableView(tabName, dockInfo)
+				CompoundTableView view = (viewType == null) ? null
+							   : viewType.equals(cViewTypeTable) ? mMainPane.addTableView(tabName, dockInfo)
 							   : viewType.equals(cViewType2D) ? mMainPane.add2DView(tabName, dockInfo)
 							   : viewType.equals(cViewType3D) ? mMainPane.add3DView(tabName, dockInfo)
 							   : viewType.equals(cViewTypeForm) ? mMainPane.addFormView(tabName, dockInfo, false)
@@ -612,8 +616,13 @@ public class DERuntimeProperties extends RuntimeProperties {
 					}
 
 				if (column1 != JVisualization.cColumnUnassigned
-				 || column2 != JVisualization.cColumnUnassigned)
-					visualization.setSplittingColumns(column1, column2);
+				 || column2 != JVisualization.cColumnUnassigned) {
+					value = getProperty(cSplitViewAspect+viewName);
+					float aspect = (value != null) ? Float.parseFloat(value) : 1.0f;
+					value = getProperty(cSplitViewShowEmpty+viewName);
+					boolean showEmpty = (value == null) ? true : "true".equals(value);
+					visualization.setSplittingColumns(column1, column2, aspect, showEmpty);
+					}
 				}
 
 			applyMarkerLabelDisplayerProperties(viewName, visualization);
@@ -641,7 +650,9 @@ public class DERuntimeProperties extends RuntimeProperties {
 							try { radius = Integer.parseInt(value); } catch (NumberFormatException nfe) {}
 						value = getProperty(cTreeViewShowAll+viewName);
 						boolean showAll = (value == null || value.equals("true"));
-						visualization.setTreeViewMode(treeViewMode, radius, showAll);
+						value = getProperty(cTreeViewIsDynamic+viewName);
+						boolean isDynamic = (value != null && value.equals("true"));
+						visualization.setTreeViewMode(treeViewMode, radius, showAll, isDynamic);
 						}
 					}
 				}
@@ -652,11 +663,13 @@ public class DERuntimeProperties extends RuntimeProperties {
 			value = getProperty(cAffectGlobalExclusion+viewName);
 			visualization.setAffectGlobalExclusion(value == null || value.equals("true"));
 
-			value = getProperty(cSuppressScale+viewName);
-			boolean hideScale = "true".equals(value);
+			int scaleMode = decodeProperty(cSuppressScale+viewName, JVisualization.SCALE_MODE_CODE);
+			if (scaleMode != -1)
+				visualization.setScaleMode(scaleMode);
+
 			value = getProperty(cSuppressGrid+viewName);
-			boolean hideGrid = (value == null) ? hideScale : "true".equals(value);
-			visualization.setSuppressScale(hideScale, hideGrid);
+			boolean hideGrid = (value == null) ? (scaleMode == JVisualization.cScaleModeHideAll) : "true".equals(value);
+			visualization.setSuppressGrid(hideGrid);
 
 			value = getProperty(cShowFoldChange+viewName);
 			visualization.setShowFoldChange(value != null && value.equals("true"));
@@ -770,7 +783,10 @@ public class DERuntimeProperties extends RuntimeProperties {
 							if (value != null) {
 								if (value.equals("visibleRecords"))
 									((JVisualization2D)visualization).setBackgroundColorConsidered(
-													JVisualization2D.cVisibleRecords);
+													JVisualization2D.BACKGROUND_VISIBLE_RECORDS);
+								else if (value.equals("allRecords"))
+									((JVisualization2D)visualization).setBackgroundColorConsidered(
+													JVisualization2D.BACKGROUND_ALL_RECORDS);
 								else if (value.startsWith("fromHitlist")) {
 									String hitlistName = value.substring(value.indexOf('\t')+1);
 									int hitlistIndex = mTableModel.getHitlistHandler().getHitlistIndex(hitlistName);
@@ -1090,7 +1106,7 @@ public class DERuntimeProperties extends RuntimeProperties {
 				if (!visualization.getViewBackground().equals(Color.WHITE))
 					setProperty(cViewBackground+viewName, ""+visualization.getViewBackground().getRGB());
 
-				if (visualization.isSplitView())
+				if (visualization.isSplitViewConfigured())
 					setProperty(cTitleBackground+viewName, ""+((JVisualization)visualization).getTitleBackground().getRGB());
 
 				if (visualization.getJittering() != 0.0)
@@ -1156,6 +1172,8 @@ public class DERuntimeProperties extends RuntimeProperties {
 										CompoundTableHitlistHandler.getHitlistFromColumn(sc[0])));
 					else
 						setProperty(cSplitViewColumn1+viewName, mTableModel.getColumnTitleNoAlias(sc[0]));
+					setProperty(cSplitViewAspect+viewName, ""+visualization.getSplittingAspectRatio());
+					setProperty(cSplitViewShowEmpty+viewName, visualization.isShowEmptyInSplitView() ? "true" : "false");
 					}
 				if (sc[1] != JVisualization.cColumnUnassigned) {
 					if (CompoundTableHitlistHandler.isHitlistColumn(sc[1]))
@@ -1196,6 +1214,7 @@ public class DERuntimeProperties extends RuntimeProperties {
 						setProperty(cTreeViewMode+viewName, JVisualization.TREE_VIEW_MODE_CODE[visualization.getTreeViewMode()]);
 						setProperty(cTreeViewRadius+viewName, ""+visualization.getTreeViewRadius());
 						setProperty(cTreeViewShowAll+viewName, visualization.isTreeViewShowAll() ? "true" : "false");
+						setProperty(cTreeViewIsDynamic+viewName, visualization.isTreeViewDynamic() ? "true" : "false");
 						}
 					}
 
@@ -1205,11 +1224,11 @@ public class DERuntimeProperties extends RuntimeProperties {
 				if (!visualization.getAffectGlobalExclusion())
 					setProperty(cAffectGlobalExclusion+viewName, "false");
 
-				if (visualization.isGridSuppressed() != visualization.isScaleSuppressed())
+				if (visualization.isGridSuppressed())
 					setProperty(cSuppressGrid+viewName, visualization.isGridSuppressed() ? "true" : "false");
 
-				if (visualization.isScaleSuppressed())
-					setProperty(cSuppressScale+viewName, "true");
+				if (visualization.getScaleMode() != JVisualization.cScaleModeShowAll)
+					setProperty(cSuppressScale+viewName, JVisualization.SCALE_MODE_CODE[visualization.getScaleMode()]);
 
 				if (visualization.isShowFoldChange())
 					setProperty(cShowFoldChange+viewName, "true");
@@ -1280,8 +1299,9 @@ public class DERuntimeProperties extends RuntimeProperties {
 							}
 
 						int hitlist = ((JVisualization2D)visualization).getBackgroundColorConsidered();
-						String value = (hitlist == JVisualization2D.cVisibleRecords) ? "visibleRecords"
-								: "fromHitlist\t" + mTableModel.getHitlistHandler().getHitlistName(hitlist);
+						String value = (hitlist == JVisualization2D.BACKGROUND_VISIBLE_RECORDS) ? "visibleRecords"
+									 : (hitlist == JVisualization2D.BACKGROUND_ALL_RECORDS) ? "allRecords"
+									 : "fromHitlist\t" + mTableModel.getHitlistHandler().getHitlistName(hitlist);
 						setProperty(cBackgroundColorRecords, value);
 						setProperty(cBackgroundColorRadius+viewName, ""+((JVisualization2D)visualization).getBackgroundColorRadius());
 						setProperty(cBackgroundColorFading+viewName, ""+((JVisualization2D)visualization).getBackgroundColorFading());

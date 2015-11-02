@@ -54,7 +54,7 @@ as they have been, when  the <span class="keyword">Template</span> file was save
 state of views and filters of an open <span class="keyword">DataWarrior</span> window in order to possibly restore
 it later with the same or another dataset, you may save a <span class="keyword">Template</span> file. To re-apply a
 formerly stored template to an open <span class="keyword">DataWarrior</span> window, choose
-<span class="menu">Open Special -> Template...</span> from the <span class="menu">File</span> menu.
+<span class="menu">Open Special -> Apply Template...</span> from the <span class="menu">File</span> menu.
 You may then select either a <b>.dwat</b> or a <b>.dwar</b> file. In both cases the template will be read from
 the file and all views and filters will be replaced by new ones as defined in the file. 
 </p>
@@ -66,7 +66,7 @@ DataWarrior Macro Files</i></h3>
 <span class="keyword">DataWarrior</span> version 4.0 and above support recording, editing and replaying entire workflows.
 These may be stored as part of a native <span class="keyword">DataWarrior</span> file or can be exported into a dedicated
 macro file. Similar to templates you may run a macro by opening a dedicated macro file with
-<span class="menu">Open Special -> Macro...</span> from the <span class="menu">File</span> menu.
+<span class="menu">Open Special -> Run Macro...</span> from the <span class="menu">File</span> menu.
 </p>
 <br>
 
@@ -94,7 +94,7 @@ It rather contains a database query that is performed when the file is opened. M
 it may contain the template information needed to construct certain views and filter settings
 after the query result data has been retrieved. Query files are used if data in a database is
 frequently changing or to confidentially communicate new results, e.g. via e-mail.
-To open a <b>.dwaq</b> file, select <span class="keyword">Open Special -> Query...</span> from the
+To open a <b>.dwaq</b> file, select <span class="menu">Open Special -> Run Query...</span> from the
 <span class="menu">File</span> menu, or double-click the icon representing the file.
 </p>
 <br>
@@ -124,10 +124,9 @@ in the status area, these functions e.g. sub-structure search are not yet availa
 most portable file formats because they can be created by many programs.
 In these text files each line represents a row and all fields within the
 row are separated by TABs or commas.
-In case a text file contains chemical structures in SMILES format, then
-this column's header must be <span class="keyword">Smiles</span>, if you wish
-<span class="keyword">DataWarrior</span> to interpret the SMILES and to automatically generate the appropriate
-structures.
+In case one or more columns of the text file contains chemical structures in SMILES format,
+then <span class="keyword">DataWarrior</span> automatically recognizes them and creates an
+additional column with chemical structures for every SMILES containing column.
 From the <span class="menu">File</span> menu, select <span class="menu">Open Special</span>
 and choose <span class="menu">Textfile...</span></p><br>
 
@@ -156,9 +155,9 @@ and then copied to the clipboard with Ctrl-C.</p>
 
 <p>After switching to <span class="keyword">DataWarrior</span> and after choosing <span class="menu">Paste</span>
 (Ctrl-V) <span class="keyword">DataWarrior</span> responds by displaying the clipboard's content in a new window.
-It has recognized the column named "Smiles" and created an additional column with chemical structures
-from the SMILES strings. It also created two graphical default views and, since the data now contains
-chemical structures, it also created a dedicated structure view.</p>
+It has recognized the column named "Smiles" to contain valid SMILES codes and automatically created an additional
+column with chemical structures from the SMILES strings. It also created two graphical default views and, since
+the data now contains chemical structures, it also created a dedicated structure view.</p>
 
 <p align="center"><img src="help/img/import/pasted.jpeg"></p>
 <br>

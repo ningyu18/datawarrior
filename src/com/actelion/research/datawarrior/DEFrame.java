@@ -128,7 +128,8 @@ public class DEFrame extends JFrame implements ApplicationViewFactory,CompoundTa
 		}
 
 	public void compoundTableChanged(CompoundTableEvent e) {
-		if (e.getType() != CompoundTableEvent.cChangeSelection)
+		if (e.getType() != CompoundTableEvent.cChangeExcluded
+		 && e.getType() != CompoundTableEvent.cChangeSelection)
 			setDirty(true);
 		}
 
@@ -225,9 +226,9 @@ public class DEFrame extends JFrame implements ApplicationViewFactory,CompoundTa
 	
 		if (save == JOptionPane.YES_OPTION) {
 			if (hasFile)
-				new DETaskSaveFile(this, true).defineAndRun();
+				new DETaskSaveFile(this).defineAndRun();
 			else
-				new DETaskSaveFileAs(this, true).defineAndRun();
+				new DETaskSaveFileAs(this).defineAndRun();
 
 			return !mIsDirty;
 			}
@@ -254,6 +255,16 @@ public class DEFrame extends JFrame implements ApplicationViewFactory,CompoundTa
 			}
 	
 		return false;
+		}
+
+	/**
+	 * Depending on whether a macro is currently recording or running, this method
+	 * updates enabling of macro menu and the macro display area.
+	 */
+	public void updateMacroStatus() {
+		mMenuBar.enableMacroItems();
+		getMainFrame().getMainPane().getMacroProgressPanel().showMessage(
+				DEMacroRecorder.getInstance().isRecording() ? DEMacroRecorder.RECORDING_MESSAGE : "");
 		}
 
 	public DECompoundTableModel getTableModel() {

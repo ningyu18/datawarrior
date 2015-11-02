@@ -21,6 +21,8 @@ package com.actelion.research.datawarrior.task.file;
 import java.io.File;
 import java.util.Properties;
 
+import javax.swing.SwingUtilities;
+
 import com.actelion.research.datawarrior.DEFrame;
 import com.actelion.research.datawarrior.DERuntimeProperties;
 import com.actelion.research.datawarrior.DataWarrior;
@@ -33,9 +35,9 @@ public class DETaskOpenFile extends DETaskAbstractOpenFile {
 
     private DataWarrior mApplication;
 
-    public DETaskOpenFile(DataWarrior application, boolean isInteractive) {
+    public DETaskOpenFile(DataWarrior application) {
 		super(application.getActiveFrame(), "Open DataWarrior-, SD- or Text-File",
-				FileHelper.cFileTypeDataWarriorCompatibleData, isInteractive);
+				FileHelper.cFileTypeDataWarriorCompatibleData);
 		mApplication = application;
 		}
 
@@ -66,9 +68,8 @@ public class DETaskOpenFile extends DETaskAbstractOpenFile {
 		final DEFrame emptyFrame = mApplication.getEmptyFrame(file.getName());
 		new CompoundTableLoader(emptyFrame, emptyFrame.getTableModel(), this) {
 			public void finalStatus(boolean success) {
-				if (success && filetype == FileHelper.cFileTypeDataWarrior) {
+				if (success && filetype == FileHelper.cFileTypeDataWarrior)
 					emptyFrame.setDirty(false);
-					}
 				}
 			}.readFile(file, new DERuntimeProperties(emptyFrame.getMainFrame()), filetype);
 

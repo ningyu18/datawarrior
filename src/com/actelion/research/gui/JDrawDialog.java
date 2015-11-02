@@ -28,7 +28,9 @@ import javax.swing.JDialog;
 import javax.swing.JPanel;
 
 import com.actelion.research.chem.*;
+import com.actelion.research.chem.reaction.IReactionMapper;
 import com.actelion.research.chem.reaction.Reaction;
+import com.actelion.research.chem.reaction.ReactionMapper;
 import com.actelion.research.gui.clipboard.ClipboardHandler;
 
 public class JDrawDialog extends JDialog implements ActionListener,KeyListener {
@@ -111,6 +113,7 @@ public class JDrawDialog extends JDialog implements ActionListener,KeyListener {
 
 		mListener = new ArrayList<StructureListener>();
 
+        mArea.setMapper(new ReactionMapper());
 		pack();
 		setLocationRelativeTo(owner);
 		}
@@ -127,6 +130,13 @@ public class JDrawDialog extends JDialog implements ActionListener,KeyListener {
 	    mButtonPanel.add(accessory, BorderLayout.NORTH);
 		pack();
 		}
+
+/*
+    public void setMapper(IReactionMapper mapper)
+    {
+        mArea.setMapper(mapper);
+    }
+*/
 
 	public StereoMolecule getStructure() {
 		return mMolecule;

@@ -1,8 +1,8 @@
 /*
- * Project: DD_gui
+ * Project: DD_jfx
  * @(#)WMF.java
  *
- * Copyright (c) 1997- 2014
+ * Copyright (c) 1997- 2015
  * Actelion Pharmaceuticals Ltd.
  * Gewerbestrasse 16
  * CH-4123 Allschwil, Switzerland

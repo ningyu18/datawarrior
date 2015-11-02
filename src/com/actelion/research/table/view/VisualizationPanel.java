@@ -434,7 +434,7 @@ public abstract class VisualizationPanel extends JPanel
 				int column = mVisualization.getColumnIndex(axis);
 				if (column != JVisualization.cColumnUnassigned
 				 && (e.getType() != CompoundTableEvent.cChangeColumnData
-				  || column == e.getSpecifier())) {
+				  || column == e.getColumn())) {
 					boolean found = false;
 					for (int j=0; j<=mSecondChoiceColumns; j++) {
 						if (selected[axis] == mQualifyingColumn[j]) {
@@ -483,7 +483,7 @@ public abstract class VisualizationPanel extends JPanel
 				}
 			}
 		else if (e.getType() == CompoundTableEvent.cChangeColumnName) {
-			int column = e.getSpecifier();
+			int column = e.getColumn();
 			for (int i=0; i<mSecondChoiceColumns; i++) {
 				if (mQualifyingColumn[i] == column) {
 					for (int axis=0; axis<mDimensions; axis++) {

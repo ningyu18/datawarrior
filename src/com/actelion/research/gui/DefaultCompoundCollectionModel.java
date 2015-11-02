@@ -165,11 +165,13 @@ public abstract class DefaultCompoundCollectionModel<T> implements CompoundColle
             }
 
         public void setMolecule(int index, StereoMolecule mol) {
-            setCompound(index, new Canonizer(mol).getIDCode());
+        	Canonizer c = new Canonizer(mol);
+            setCompound(index, c.getIDCode()+" "+c.getEncodedCoordinates());
             }
 
         public void addMolecule(int index, StereoMolecule mol) {
-            addCompound(index, new Canonizer(mol).getIDCode());
+        	Canonizer c = new Canonizer(mol);
+            addCompound(index, c.getIDCode()+" "+c.getEncodedCoordinates());
             }
         }
 

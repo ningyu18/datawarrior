@@ -105,7 +105,7 @@ public class DEDetailPopupMenu extends JPopupMenu implements ActionListener,Item
 	private static final String ADD_TO_LIST = "add" + DELIMITER;
 	private static final String REMOVE_FROM_LIST = "remove" + DELIMITER;
 	private static final String LOOKUP = "lookup" + DELIMITER;
-//	private static final String CONFORMERS = "Explore conformers of '";
+	private static final String CONFORMERS = "Explore conformers of '";
 	private static final String NEW_FILTER = "filter";
 	private static final String NEW_FILTER_THIS = "filterT" + DELIMITER;
 	private static final String NEW_FILTER_SELECTED = "filterS" + DELIMITER;
@@ -235,9 +235,9 @@ public class DEDetailPopupMenu extends JPopupMenu implements ActionListener,Item
 					}
 				add(filterMenu);
 
-/*				for (String columnName : idcodeColumnList) {	 taken out because of unclear copyright situation with CCDC concerning torsion statistics
+				for (String columnName : idcodeColumnList) {	// taken out because of unclear copyright situation with CCDC concerning torsion statistics
 					addMenuItem(CONFORMERS+columnName+"'");
-					}	*/
+					}
 				}
 
 			boolean lookupFound = false;
@@ -256,15 +256,23 @@ public class DEDetailPopupMenu extends JPopupMenu implements ActionListener,Item
 						if (lookupCount != null) {
 							int count = Integer.parseInt(lookupCount);
 							for (int i=0; i<count; i++) {
-								String[] key = mTableModel.separateEntries(mTableModel.encodeData(record, column));
-								if (key.length != 1 || key[0].length() != 0) {
+								String[] key = mTableModel.separateUniqueEntries(mTableModel.encodeData(record, column));
+								if (key != null) {
 									String name = mTableModel.getColumnProperty(column, CompoundTableModel.cColumnPropertyLookupName+i);
 									String url = mTableModel.getColumnProperty(column, CompoundTableModel.cColumnPropertyLookupURL+i);
 									if (name != null && url != null) {	// just to make sure
-										JMenu lookupMenu = new JMenu("Lookup "+name);
-										for (int j=0; j<key.length; j++)
-											addSubmenuItem(lookupMenu, key[j], LOOKUP+url.replace("%s", key[j]));
-										add(lookupMenu);
+										if (key.length == 1) {
+											JMenuItem item = new JMenuItem("Open "+name+" of "+key[0]+" in Web-Browser");
+											item.addActionListener(this);
+											item.setActionCommand(LOOKUP+url.replace("%s", key[0].replace(' ', '_')));
+											add(item);
+											}
+										else {
+											JMenu lookupMenu = new JMenu("Open "+name+" in Web-Browser");
+											for (int j=0; j<key.length; j++)
+												addSubmenuItem(lookupMenu, key[j], LOOKUP+url.replace("%s", key[j].replace(' ', '_')));
+											add(lookupMenu);
+											}
 										}
 									}
 								}
@@ -561,13 +569,13 @@ public class DEDetailPopupMenu extends JPopupMenu implements ActionListener,Item
 				JOptionPane.showMessageDialog(getParentFrame(), "Please calculate a descriptor for the column '"+columnName+"' before creating a structure filter.");
 				}
 			}
-/*		else if (actionCommand.startsWith(CONFORMERS)) {	 taken out because of unclear copyright situation with CCDC concerning torsion statistics
+		else if (actionCommand.startsWith(CONFORMERS)) {	// taken out because of unclear copyright situation with CCDC concerning torsion statistics
 			int index = actionCommand.lastIndexOf('\'');
 			final int idcodeColumn = mTableModel.findColumn(actionCommand.substring(CONFORMERS.length(), index));
 			StereoMolecule mol = mTableModel.getChemicalStructure(mRecord, idcodeColumn, CompoundTableModel.ATOM_COLOR_MODE_NONE, null);
 			if (mol != null)
 				new DEConformerDialog(getParentFrame(), mol).generateConformers();
-			}*/
+			}
 		else if (actionCommand.startsWith(LOOKUP)) {
 			BrowserControl.displayURL(getCommandColumn(actionCommand));
 			}

@@ -32,8 +32,8 @@ import javax.swing.JScrollPane;
 
 import com.actelion.research.chem.StereoMolecule;
 import com.actelion.research.chem.reaction.Reaction;
+import com.actelion.research.datawarrior.task.AbstractTask;
 import com.actelion.research.datawarrior.task.DEMacroRecorder;
-import com.actelion.research.datawarrior.task.filter.DEAbstractFilterTask;
 import com.actelion.research.datawarrior.task.filter.DETaskChangeCategoryBrowser;
 import com.actelion.research.datawarrior.task.filter.DETaskChangeCategoryFilter;
 import com.actelion.research.datawarrior.task.filter.DETaskChangeListFilter;
@@ -42,6 +42,7 @@ import com.actelion.research.datawarrior.task.filter.DETaskChangeSimilarStructur
 import com.actelion.research.datawarrior.task.filter.DETaskChangeStructureFilter;
 import com.actelion.research.datawarrior.task.filter.DETaskChangeSubstructureListFilter;
 import com.actelion.research.datawarrior.task.filter.DETaskChangeTextFilter;
+import com.actelion.research.datawarrior.task.filter.DETaskCloseFilter;
 import com.actelion.research.gui.VerticalFlowLayout;
 import com.actelion.research.table.CompoundTableEvent;
 import com.actelion.research.table.CompoundTableHitlistEvent;
@@ -135,6 +136,9 @@ public class DEPruningPanel extends JScrollPane
 				filter.addFilterListener(this);
 				mContent.add(filter);
 				}
+
+			validate();
+			repaint();
 			}
 		catch (FilterException fpe) {
 			JOptionPane.showMessageDialog(mOwner, fpe.getMessage());
@@ -233,7 +237,7 @@ public class DEPruningPanel extends JScrollPane
         if (e.getType() == CompoundTableEvent.cAddColumns) {
 		    assert(e.getSource() == mTableModel);
 			try {
-				for (int column=e.getSpecifier(); column<mTableModel.getTotalColumnCount(); column++)
+				for (int column=e.getColumn(); column<mTableModel.getTotalColumnCount(); column++)
 					addDefaultFilter(column);
 				}
 			catch (FilterException fpe) {
@@ -278,7 +282,7 @@ public class DEPruningPanel extends JScrollPane
         }
 
     public JCategoryBrowser addCategoryBrowser(CompoundTableModel tableModel) throws FilterException {
-        JCategoryBrowser filter = new JCategoryBrowser(tableModel, allocateFilterFlag());
+        JCategoryBrowser filter = new JCategoryBrowser(mOwner, tableModel, allocateFilterFlag());
 		filter.addFilterListener(this);
         mContent.add(filter);
         validate();
@@ -358,6 +362,18 @@ public class DEPruningPanel extends JScrollPane
 		return filter;
 		}
 
+	public void disableAllFilters() {
+		Component[] filter = mContent.getComponents();
+		for (int i=0; i<filter.length; i++)
+			((JFilterPanel)filter[i]).setEnabled(false);
+		}
+
+	public void enableAllFilters() {
+		Component[] filter = mContent.getComponents();
+		for (int i=0; i<filter.length; i++)
+			((JFilterPanel)filter[i]).setEnabled(true);
+		}
+
 	public void removeAllFilters() {
 		Component[] filter = mContent.getComponents();
 		for (int i=0; i<filter.length; i++)
@@ -391,14 +407,15 @@ public class DEPruningPanel extends JScrollPane
 		return index;
 		}
 
-	public JFilterPanel getFilter(Class<? extends JFilterPanel> filterClass, int column, int duplicateIndex) {
+	public JFilterPanel getFilter(int filterType, int column, int duplicateIndex) {
 		int index = 0;
-		Component[] filter = mContent.getComponents();
-		for (int i=0; i<filter.length; i++) {
-			if (filterClass == filter[i].getClass()
-			 && column == ((JFilterPanel)filter[i]).getColumnIndex()) {
+		Component[] component = mContent.getComponents();
+		for (int i=0; i<component.length; i++) {
+			JFilterPanel filter = (JFilterPanel)component[i];
+			if (filterType == filter.getFilterType()
+			 && column == filter.getColumnIndex()) {
 				if (index == duplicateIndex)
-					return (JFilterPanel)filter[i];
+					return filter;
 				index++;
 				}
 			}
@@ -425,9 +442,11 @@ public class DEPruningPanel extends JScrollPane
 	@Override
 	public void filterChanged(FilterEvent e) {
 		if (DEMacroRecorder.getInstance().isRecording()) {
-			DEAbstractFilterTask task = null;
+			AbstractTask task = null;
 			JFilterPanel filter = e.getSource();
-			if (e.getSource() instanceof JCategoryBrowser)
+			if (e.getType() == FilterEvent.FILTER_CLOSED)
+				task = new DETaskCloseFilter(mOwner, this, filter);
+			else if (e.getSource() instanceof JCategoryBrowser)
 				task = new DETaskChangeCategoryBrowser(mOwner, this, filter);
 			else if (e.getSource() instanceof JCategoryFilterPanel)
 				task = new DETaskChangeCategoryFilter(mOwner, this, filter);

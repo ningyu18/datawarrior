@@ -377,6 +377,10 @@ public class Canonizer {
 			  && explicitAbnormalValence >= mMol.getOccupiedValence(atom)))
 				valence = (byte)explicitAbnormalValence;
 			}
+		else if (!mMol.supportsImplicitHydrogen(atom)
+			  && mMol.getAllAtoms() != mMol.getAtoms()) {
+			valence = mMol.getOccupiedValence(atom) - mMol.getElectronValenceCorrection(atom);
+			}
 
 		canSetAbnormalValence(atom, valence);
 		return valence;
@@ -1770,10 +1774,13 @@ System.out.println("noOfRanks:"+canRank);
 		if (!mMol.isBINAPChiralityBond(bond))
 			return false;
 
-		EZHalfParity halfParity1 = new EZHalfParity(mMol, mCanRank, mMol.getBondAtom(0, bond), mMol.getBondAtom(1, bond));
+		int atom1 = mMol.getBondAtom(0, bond);
+		int atom2 = mMol.getBondAtom(1, bond);
+
+		EZHalfParity halfParity1 = new EZHalfParity(mMol, mCanRank, atom1, atom2);
 		if (halfParity1.mRanksEqual && !calcProParity)
 			return false;
-		EZHalfParity halfParity2 = new EZHalfParity(mMol, mCanRank, mMol.getBondAtom(1, bond), mMol.getBondAtom(0, bond));
+		EZHalfParity halfParity2 = new EZHalfParity(mMol, mCanRank, atom2, atom1);
 		if (halfParity2.mRanksEqual && !calcProParity)
 			return false;
 
@@ -1781,8 +1788,10 @@ System.out.println("noOfRanks:"+canRank);
 			return false;	// both ends of DB bear equal substituents
 
 		if (calcProParity) {
-			if (halfParity1.mRanksEqual || halfParity2.mRanksEqual)
-				mProEZAtomsInSameFragment[bond] = true;
+			if (halfParity1.mRanksEqual)	// this is a hack, we should find a better solution considering other proparities as well
+				mProEZAtomsInSameFragment[bond] = hasSecondBINAPBond(atom2);
+			if (halfParity2.mRanksEqual)
+				mProEZAtomsInSameFragment[bond] = hasSecondBINAPBond(atom1);
 			}
 
 		int hp1 = halfParity1.getValue();
@@ -1833,6 +1842,22 @@ System.out.println("noOfRanks:"+canRank);
 			}
 
 		return true;
+		}
+
+
+	private boolean hasSecondBINAPBond(int atom) {
+		RingCollection ringSet = mMol.getRingSet();
+		for (int i=0; i<ringSet.getSize(); i++) {
+			if (ringSet.isAromatic(i) && ringSet.isAtomMember(i, atom)) {
+				for (int j:ringSet.getRingAtoms(i))
+					if (j != atom)
+						for (int k=0; k<mMol.getConnAtoms(j); k++)
+							if (mMol.isBINAPChiralityBond(mMol.getConnBond(j, k)))
+								return true;
+				return false;
+				}
+			}
+		return false;
 		}
 
 
@@ -3073,36 +3098,35 @@ System.out.println();
 			return;
 			}
 
+		// if we have 3D-coords and explicit hydrogens and if all hydrogens are explicit then encode hydrogen coordinates
+		boolean includeHydrogenCoordinates = false;
+		if (mZCoordinatesAvailable
+		 && mMol.getAllAtoms() > mMol.getAtoms()
+		 && !mMol.isFragment()) {
+			includeHydrogenCoordinates = true;
+			for (int i=0; i<mMol.getAtoms(); i++) {
+				if (mMol.getImplicitHydrogens(i) != 0) {
+					includeHydrogenCoordinates = false;
+					break;
+					}
+				}
+			}
+
 		int resolutionBits = mZCoordinatesAvailable ? 16 : 8;	// must be an even number
 		encodeBitsStart();
-		mEncodingBuffer.append('!');
+		mEncodingBuffer.append(includeHydrogenCoordinates ? '#' : '!');
 		encodeBits(mZCoordinatesAvailable ? 1 : 0, 1);
 		encodeBits(keepAbsoluteValues ? 1 : 0, 1);
 		encodeBits(resolutionBits/2, 4);	// resolution bits devided by 2
 
 		float maxDelta = 0.0f;
-		for (int i=1; i<mMol.getAtoms(); i++) {
-			int atom = mGraphAtom[i];
-			int from = (mGraphFrom[i] == -1) ? -1 : mGraphAtom[mGraphFrom[i]];
-
-			float deltaX = (from == -1) ?
-							Math.abs(mMol.getAtomX(atom) - mMol.getAtomX(mGraphAtom[0])) / 8.0f
-						  : Math.abs(mMol.getAtomX(atom) - mMol.getAtomX(from));
-			if (maxDelta < deltaX)
-				maxDelta = deltaX;
-
-			float deltaY = (from == -1) ?
-							Math.abs(mMol.getAtomY(atom) - mMol.getAtomY(mGraphAtom[0])) / 8.0f
-						  : Math.abs(mMol.getAtomY(atom) - mMol.getAtomY(from));
-			if (maxDelta < deltaY)
-				maxDelta = deltaY;
-
-			if (mZCoordinatesAvailable) {
-				float deltaZ = (from == -1) ?
-								Math.abs(mMol.getAtomZ(atom) - mMol.getAtomZ(mGraphAtom[0])) / 8.0f
-							  : Math.abs(mMol.getAtomZ(atom) - mMol.getAtomZ(from));
-				if (maxDelta < deltaZ)
-					maxDelta = deltaZ;
+		for (int i=1; i<mMol.getAtoms(); i++)
+			maxDelta = getMaxDelta(mGraphAtom[i], (mGraphFrom[i] == -1) ? -1 : mGraphAtom[mGraphFrom[i]], maxDelta);
+		if (includeHydrogenCoordinates) {
+			for (int i=0; i<mMol.getAtoms(); i++) {
+				int atom = mGraphAtom[i];
+				for (int j=mMol.getConnAtoms(atom); j<mMol.getAllConnAtoms(atom); j++)
+					maxDelta = getMaxDelta(mMol.getConnAtom(atom, j), atom, maxDelta);
 				}
 			}
 
@@ -3113,29 +3137,15 @@ System.out.println();
 
 		int binCount = (1 << resolutionBits);
 		float increment = maxDelta / (binCount / 2.0f - 1);
-		float halfIncrement = increment / 2.0f;
+		float maxDeltaPlusHalfIncrement = maxDelta + increment / 2.0f;
 
-		for (int i=1; i<mMol.getAtoms(); i++) {
-			int atom = mGraphAtom[i];
-			int from = (mGraphFrom[i] == -1) ? -1 : mGraphAtom[mGraphFrom[i]];
-
-			float deltaX = (from == -1) ?
-							(mMol.getAtomX(atom) - mMol.getAtomX(mGraphAtom[0])) / 8.0f
-						   : mMol.getAtomX(atom) - mMol.getAtomX(from);
-
-			float deltaY = (from == -1) ?
-							(mMol.getAtomY(atom) - mMol.getAtomY(mGraphAtom[0])) / 8.0f
-						   : mMol.getAtomY(atom) - mMol.getAtomY(from);
-
-			encodeBits((int)((maxDelta + deltaX + halfIncrement) / increment), resolutionBits);
-			encodeBits((int)((maxDelta + deltaY + halfIncrement) / increment), resolutionBits);
-
-			if (mZCoordinatesAvailable) {
-				float deltaZ = (from == -1) ?
-								(mMol.getAtomZ(atom) - mMol.getAtomZ(mGraphAtom[0])) / 8.0f
-							   : mMol.getAtomZ(atom) - mMol.getAtomZ(from);
-
-				encodeBits((int)((maxDelta + deltaZ + halfIncrement) / increment), resolutionBits);
+		for (int i=1; i<mMol.getAtoms(); i++)
+			encodeAtomCoords(mGraphAtom[i], (mGraphFrom[i] == -1) ? -1 : mGraphAtom[mGraphFrom[i]], maxDeltaPlusHalfIncrement, increment, resolutionBits);
+		if (includeHydrogenCoordinates) {
+			for (int i=0; i<mMol.getAtoms(); i++) {
+				int atom = mGraphAtom[i];
+				for (int j=mMol.getConnAtoms(atom); j<mMol.getAllConnAtoms(atom); j++)
+					encodeAtomCoords(mMol.getConnAtom(atom, j), atom, maxDeltaPlusHalfIncrement, increment, resolutionBits);
 				}
 			}
 
@@ -3150,6 +3160,51 @@ System.out.println();
 			}
 
 		mCoordinates = encodeBitsEnd();
+		}
+
+	private float getMaxDelta(int atom, int from, float maxDelta) {
+		float deltaX = (from == -1) ?
+						Math.abs(mMol.getAtomX(atom) - mMol.getAtomX(mGraphAtom[0])) / 8.0f
+					  : Math.abs(mMol.getAtomX(atom) - mMol.getAtomX(from));
+		if (maxDelta < deltaX)
+			maxDelta = deltaX;
+
+		float deltaY = (from == -1) ?
+						Math.abs(mMol.getAtomY(atom) - mMol.getAtomY(mGraphAtom[0])) / 8.0f
+					  : Math.abs(mMol.getAtomY(atom) - mMol.getAtomY(from));
+		if (maxDelta < deltaY)
+			maxDelta = deltaY;
+
+		if (mZCoordinatesAvailable) {
+			float deltaZ = (from == -1) ?
+							Math.abs(mMol.getAtomZ(atom) - mMol.getAtomZ(mGraphAtom[0])) / 8.0f
+						  : Math.abs(mMol.getAtomZ(atom) - mMol.getAtomZ(from));
+			if (maxDelta < deltaZ)
+				maxDelta = deltaZ;
+			}
+
+		return maxDelta;
+		}
+
+	private void encodeAtomCoords(int atom, int from, float maxDeltaPlusHalfIncrement, float increment, int resolutionBits) {
+		float deltaX = (from == -1) ?
+						(mMol.getAtomX(atom) - mMol.getAtomX(mGraphAtom[0])) / 8.0f
+					   : mMol.getAtomX(atom) - mMol.getAtomX(from);
+
+		float deltaY = (from == -1) ?
+						(mMol.getAtomY(atom) - mMol.getAtomY(mGraphAtom[0])) / 8.0f
+					   : mMol.getAtomY(atom) - mMol.getAtomY(from);
+
+		encodeBits((int)((maxDeltaPlusHalfIncrement + deltaX) / increment), resolutionBits);
+		encodeBits((int)((maxDeltaPlusHalfIncrement + deltaY) / increment), resolutionBits);
+
+		if (mZCoordinatesAvailable) {
+			float deltaZ = (from == -1) ?
+							(mMol.getAtomZ(atom) - mMol.getAtomZ(mGraphAtom[0])) / 8.0f
+						   : mMol.getAtomZ(atom) - mMol.getAtomZ(from);
+
+			encodeBits((int)((maxDeltaPlusHalfIncrement + deltaZ) / increment), resolutionBits);
+			}
 		}
 
 	/**

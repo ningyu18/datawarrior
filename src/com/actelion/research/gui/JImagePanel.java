@@ -59,28 +59,28 @@ public class JImagePanel extends JPanel implements ActionListener,ImageObserver,
 	private static final int MIN_SELECTION_PIXELS = 8;
 	private static final float MAX_ZOOM_FACTOR = 8f;
 
-	private String		        mImagePath,mFileName;
-	private Image		        mImage,mOffImage,mLowResImage;
+	private String				mImagePath,mFileName;
+	private Image				mImage,mOffImage,mLowResImage;
 	private byte[]				mImageData;
-	private Graphics	        mOffG;
-	private boolean		        mOffImageValid,mImageIsThumbNail,mUseThumbNail,mAltIsDown,mMouseIsDown,mMouseIsInside;
-	private int                 mImageStatus,mImageCenterOffsetX,mImageCenterOffsetY,mCurrentCursor;
+	private Graphics			mOffG;
+	private boolean				mOffImageValid,mImageIsThumbNail,mUseThumbNail,mAltIsDown,mMouseIsDown,mMouseIsInside;
+	private int					mImageStatus,mImageCenterOffsetX,mImageCenterOffsetY,mCurrentCursor,mImageUpdateCount;
 	private float				mZoomFactor;
 	private Point				mMouseLocation;
-	private Rectangle           mSelectionRect,mImageRect;
+	private Rectangle			mSelectionRect,mImageRect;
 	private ImageDataSource		mImageDataSource;
 	private PopupItemProvider	mPopupItemProvider;
 
-    public JImagePanel() {
+	public JImagePanel() {
 		this("", false);
 		}
 
-    public JImagePanel(String imagePath) {
+	public JImagePanel(String imagePath) {
 		this(imagePath, false);
 		}
 
-    public JImagePanel(String imagePath, boolean useThumbNail) {
-        setFocusable(true);
+	public JImagePanel(String imagePath, boolean useThumbNail) {
+		setFocusable(true);
 		addKeyListener(this);
 		addMouseListener(this);
 		addMouseMotionListener(this);
@@ -89,28 +89,28 @@ public class JImagePanel extends JPanel implements ActionListener,ImageObserver,
 		mUseThumbNail = useThumbNail;
 		mImageRect = new Rectangle();
 		resetZoomState();
-        mCurrentCursor = CursorHelper.cPointerCursor;
+		mCurrentCursor = CursorHelper.cPointerCursor;
 		}
 
-    /**
-     * If this panel uses thumbnails and if this panel is not based on path names,
-     * then use this method to define the source for high resolution image data.
-     * @param source
-     */
-    public void setHighResolutionImageSource(ImageDataSource source) {
-    	mImageDataSource = source;
-    	}
+	/**
+	 * If this panel uses thumbnails and if this panel is not based on path names,
+	 * then use this method to define the source for high resolution image data.
+	 * @param source
+	 */
+	public void setHighResolutionImageSource(ImageDataSource source) {
+		mImageDataSource = source;
+		}
 
-    /**
-     * Use this, if you want the popup menu to contain more than just "Copy Full Image"
-     * and "Copy Visible".
-     * @param pip
-     */
-    public void setPopupItemProvider(PopupItemProvider pip) {
-    	mPopupItemProvider = pip;
-    	}
+	/**
+	 * Use this, if you want the popup menu to contain more than just "Copy Full Image"
+	 * and "Copy Visible".
+	 * @param pip
+	 */
+	public void setPopupItemProvider(PopupItemProvider pip) {
+		mPopupItemProvider = pip;
+		}
 
-    public void paintComponent(Graphics g) {
+	public void paintComponent(Graphics g) {
 		Dimension theSize = getSize();
 		if (theSize.width == 0 || theSize.height == 0)
 			return;
@@ -143,10 +143,10 @@ public class JImagePanel extends JPanel implements ActionListener,ImageObserver,
 						drawImage(mLowResImage);
 
 					String message = (mUseThumbNail && !mImageIsThumbNail) ?
-							"high resolution image loading..." : "image loading...";
-					mOffG.setColor(Color.black);
+							"higher resolution loading..." : "image loading...";
+					mOffG.setColor(Color.blue);
 					mOffG.drawString(message, 4, theSize.height - 4);
-                    }
+					}
 				else if (mImageStatus == IMAGE_ERROR) {
 					mOffG.setColor(Color.red);
 					mOffG.drawString("image loading error.", 4, theSize.height - 4);
@@ -160,14 +160,14 @@ public class JImagePanel extends JPanel implements ActionListener,ImageObserver,
 
 		g.drawImage(mOffImage, 0, 0, null);
 		if (mSelectionRect != null) {
-		    g.setColor(mSelectionRect.width >= MIN_SELECTION_PIXELS
-		    		&& mSelectionRect.height >= MIN_SELECTION_PIXELS ? Color.GREEN : Color.RED);
+			g.setColor(mSelectionRect.width >= MIN_SELECTION_PIXELS
+					&& mSelectionRect.height >= MIN_SELECTION_PIXELS ? Color.GREEN : Color.RED);
 			g.drawRect(mSelectionRect.x-1, mSelectionRect.y-1, mSelectionRect.width+2, mSelectionRect.height+2);
 			g.drawRect(mSelectionRect.x-2, mSelectionRect.y-2, mSelectionRect.width+4, mSelectionRect.height+4);
 			}
 		}
 
-    private void drawImage(Image image) {
+	private void drawImage(Image image) {
 		if (image.getWidth(this) > 0 && image.getHeight(this) > 0) {
 			if (mZoomFactor == 1f) {
 				mImageRect.x = (int)mImageCenterOffsetX + (mOffImage.getWidth(null) - image.getWidth(this)) / 2;
@@ -184,9 +184,9 @@ public class JImagePanel extends JPanel implements ActionListener,ImageObserver,
 				mOffG.drawImage(image, mImageRect.x, mImageRect.y, mImageRect.width, mImageRect.height, this);
 				}
 			}
-    	}
+		}
 
-    public void update(Graphics g) {
+	public void update(Graphics g) {
 		paint(g);
 		}
 
@@ -195,16 +195,19 @@ public class JImagePanel extends JPanel implements ActionListener,ImageObserver,
 			| ImageObserver.ERROR
 			| ImageObserver.ABORT) & flags) != 0) {
 
+			final int request = ++mImageUpdateCount;
 			SwingUtilities.invokeLater(new Runnable() {
 				public void run() {
-				    mImageStatus = ((ImageObserver.ALLBITS & flags) == 0) ? IMAGE_ERROR : IMAGE_AVAILABLE;
-					if (mImageStatus == IMAGE_AVAILABLE)
-						setInitialFullImageZoomState();
-					mOffImageValid = false;
-					repaint();
+					if (mImage != null && request == mImageUpdateCount) {	// check whether this is the latest request
+						mImageStatus = ((ImageObserver.ALLBITS & flags) == 0) ? IMAGE_ERROR : IMAGE_AVAILABLE;
+						if (mImageStatus == IMAGE_AVAILABLE)
+							setInitialFullImageZoomState();
+						mOffImageValid = false;
+						repaint();
+						}
 					}
 				} );
-		    return false;
+			return false;
 			}
 
 		return true;
@@ -280,11 +283,27 @@ public class JImagePanel extends JPanel implements ActionListener,ImageObserver,
 	private void loadFullImage() {
 		mImageIsThumbNail = false;
 
+		mLowResImage = mImage;
+		mImageStatus = IMAGE_LOADING;
+		repaint();
+
+		if (mImageData != null) {
+			SwingUtilities.invokeLater(new Runnable() {
+				@Override
+				public void run() {
+					mImageData = mImageDataSource.getImageData();
+					createAndPrepareImage();
+					}
+				} );
+			}
+
+/*		mImageIsThumbNail = false;
+
 		if (mImageData != null)
 			mImageData = mImageDataSource.getImageData();
 
 		mLowResImage = mImage;
-		createAndPrepareImage();
+		createAndPrepareImage();	*/
 		}
 
 	public void setImagePath(String imagePath) {
@@ -298,7 +317,7 @@ public class JImagePanel extends JPanel implements ActionListener,ImageObserver,
 		}
 
 	public String getImagePath() {
-	    return mImagePath;
+		return mImagePath;
 		}
 
 	public void setUseThumbNail(boolean value) {
@@ -309,31 +328,31 @@ public class JImagePanel extends JPanel implements ActionListener,ImageObserver,
 		return mUseThumbNail;
 		}
 
-    public void keyPressed(KeyEvent e) {
-        if (e.getKeyCode() == KeyEvent.VK_ALT) {
-            mAltIsDown = true;
-            updateCursor();
-            }
-    	}
+	public void keyPressed(KeyEvent e) {
+		if (e.getKeyCode() == KeyEvent.VK_ALT) {
+			mAltIsDown = true;
+			updateCursor();
+			}
+		}
 
-    public void keyReleased(KeyEvent e) {
-        if (e.getKeyCode() == KeyEvent.VK_ALT) {
-        	mAltIsDown = false;
-            updateCursor();
-            }
-        if ((e.getModifiers() & Toolkit.getDefaultToolkit().getMenuShortcutKeyMask()) != 0) {
-            if (e.getKeyCode() == KeyEvent.VK_C)
-    			copyVisible();
-            }
-        }
+	public void keyReleased(KeyEvent e) {
+		if (e.getKeyCode() == KeyEvent.VK_ALT) {
+			mAltIsDown = false;
+			updateCursor();
+			}
+		if ((e.getModifiers() & Toolkit.getDefaultToolkit().getMenuShortcutKeyMask()) != 0) {
+			if (e.getKeyCode() == KeyEvent.VK_C)
+				copyVisible();
+			}
+		}
 
-    public void keyTyped(KeyEvent e) {}
+	public void keyTyped(KeyEvent e) {}
 
 	public void mouseClicked(MouseEvent e) {}
 
 	public void mousePressed(MouseEvent e) {
 		if (handlePopupTrigger(e))
-		    return;
+			return;
 
 		mMouseIsDown = true;
 
@@ -344,16 +363,16 @@ public class JImagePanel extends JPanel implements ActionListener,ImageObserver,
 				mSelectionRect = new Rectangle(e.getX(), e.getY(), 0, 0);
 			}
 
-        updateCursor();
+		updateCursor();
 		repaint();
 		}
 
 	public void mouseReleased(MouseEvent e) {
 		if (handlePopupTrigger(e))
-		    return;
+			return;
 
 		mMouseIsDown = false;
-        updateCursor();
+		updateCursor();
 
 		if (mSelectionRect != null) {
 			Rectangle sharedRect = mSelectionRect.intersection(mImageRect);
@@ -380,7 +399,7 @@ public class JImagePanel extends JPanel implements ActionListener,ImageObserver,
 	public void mouseEntered(MouseEvent e) {
 		requestFocusInWindow();
 		mMouseIsInside = true;
-        updateCursor();
+		updateCursor();
 		}
 
 	public void mouseExited(MouseEvent e) {
@@ -397,7 +416,7 @@ public class JImagePanel extends JPanel implements ActionListener,ImageObserver,
 			mSelectionRect.height = Math.abs(mMouseLocation.y - e.getY());
 			repaint();
 			}
-		else {
+		else if (mImageStatus == IMAGE_AVAILABLE) {
 			int dx = e.getX() - mMouseLocation.x;
 			int dy = e.getY() - mMouseLocation.y;
 			mImageCenterOffsetX += dx;
@@ -481,7 +500,7 @@ public class JImagePanel extends JPanel implements ActionListener,ImageObserver,
 		mImageCenterOffsetY = 0;
 		}
 
-    private void setInitialFullImageZoomState() {
+	private void setInitialFullImageZoomState() {
 		if (mLowResImage != null) {	// translate zoom from thumbnail to high-res image
 			mZoomFactor *= (float)mLowResImage.getWidth(null) / (float)mImage.getWidth(null);
 			mLowResImage = null;	// use high-res image from now on
@@ -494,11 +513,11 @@ public class JImagePanel extends JPanel implements ActionListener,ImageObserver,
 			mImageCenterOffsetX = 0;
 			mImageCenterOffsetY = 0;
 			}
-    	}
+		}
 
 	private boolean handlePopupTrigger(MouseEvent e) {
 		if (e.isPopupTrigger()) {
-		    if (mImageStatus == IMAGE_AVAILABLE) {
+			if (mImageStatus == IMAGE_AVAILABLE) {
 				JPopupMenu popup = new JPopupMenu();
 				JMenuItem item1 = new JMenuItem("Copy Full Image");
 				item1.addActionListener(this);
@@ -515,7 +534,7 @@ public class JImagePanel extends JPanel implements ActionListener,ImageObserver,
 						}
 					}
 				popup.show(this, e.getX(), e.getY());
-		    	}
+				}
 			return true;
 			}
 		return false;
@@ -524,11 +543,11 @@ public class JImagePanel extends JPanel implements ActionListener,ImageObserver,
 	public void actionPerformed(ActionEvent e) {
 		if (e.getActionCommand().equals("Copy Full Image")) {
 			copyImage();
-	    	return;
-	    	}
+			return;
+			}
 		if (e.getActionCommand().equals("Copy Visible")) {
 			copyVisible();
-    		return;
+			return;
 			}
 		}
 
@@ -539,34 +558,34 @@ public class JImagePanel extends JPanel implements ActionListener,ImageObserver,
 
 	private void copyVisible() {
 		if (mImageStatus == IMAGE_AVAILABLE) {
-    		Rectangle visRect = mImageRect.intersection(new Rectangle(0, 0, getWidth(), getHeight()));
-    		if (!visRect.isEmpty()) {
-    			int visWidth = (int)((float)visRect.width / mZoomFactor);
-    			int visHeight = (int)((float)visRect.height / mZoomFactor);
-	    		Image image = createImage(visWidth, visHeight);
-	    		int x = (int)((float)(mImageRect.x-visRect.x)/mZoomFactor);
-	    		int y = (int)((float)(mImageRect.y-visRect.y)/mZoomFactor);
-		        image.getGraphics().drawImage(mImage, x, y, this);
-		        ImageClipboardHandler.copyImage(image);
-    			}
+			Rectangle visRect = mImageRect.intersection(new Rectangle(0, 0, getWidth(), getHeight()));
+			if (!visRect.isEmpty()) {
+				int visWidth = (int)((float)visRect.width / mZoomFactor);
+				int visHeight = (int)((float)visRect.height / mZoomFactor);
+				Image image = createImage(visWidth, visHeight);
+				int x = (int)((float)(mImageRect.x-visRect.x)/mZoomFactor);
+				int y = (int)((float)(mImageRect.y-visRect.y)/mZoomFactor);
+				image.getGraphics().drawImage(mImage, x, y, this);
+				ImageClipboardHandler.copyImage(image);
+				}
 			}
 		}
 
 	private void updateCursor() {
-    	if (mMouseIsInside) {
-	        int cursor = CursorHelper.cPointerCursor;
+		if (mMouseIsInside) {
+			int cursor = CursorHelper.cPointerCursor;
 
-	        if (mImageStatus == IMAGE_AVAILABLE) {
-	        	if (mAltIsDown)
-	        		cursor = CursorHelper.cSelectRectCursor;
-	        	else
-		        	cursor = mMouseIsDown ? CursorHelper.cFistCursor : CursorHelper.cHandCursor;
-	        	}
+			if (mImageStatus == IMAGE_AVAILABLE) {
+				if (mAltIsDown)
+					cursor = CursorHelper.cSelectRectCursor;
+				else
+					cursor = mMouseIsDown ? CursorHelper.cFistCursor : CursorHelper.cHandCursor;
+				}
 
-	        if (mCurrentCursor != cursor) {
-	            mCurrentCursor = cursor;
-	            setCursor(CursorHelper.getCursor(cursor));
-	            }
-    		}
-        }
+			if (mCurrentCursor != cursor) {
+				mCurrentCursor = cursor;
+				setCursor(CursorHelper.getCursor(cursor));
+				}
+			}
+		}
 	}

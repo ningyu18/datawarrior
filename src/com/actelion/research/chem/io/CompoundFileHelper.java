@@ -267,7 +267,7 @@ public abstract class CompoundFileHelper {
 		}
 
 	/**
-	 * Provided that fileName has a leading file path, then path and separator are removed.
+	 * Provided that filePath has a recognized extension, then the extension is removed.
 	 * @param filePath file name with or without complete path and with or without extension
 	 * @return file name or path without extension
 	 */

@@ -20,7 +20,11 @@ package com.actelion.research.gui;
 
 import java.awt.*;
 import java.util.ArrayList;
+
 import javax.swing.JPanel;
+
+import com.actelion.research.util.ColorHelper;
+
 import java.awt.event.*;
 
 /**
@@ -111,7 +115,7 @@ public class JPruningBar extends JPanel implements MouseListener, MouseMotionLis
 				y2 = theSize.height - cBorder - 1;
 				}
 
-			g.setColor(cShadowColor);
+			setColor(g, cShadowColor);
 			g.drawLine(x1+1, y1+1, x1+1, y2-1);
 			g.drawLine(x1+1, y1+1, x2-1, y1+1);
 
@@ -135,7 +139,7 @@ public class JPruningBar extends JPanel implements MouseListener, MouseMotionLis
 				int waterStart = mPosition1 + cThumbHeight + 1;
 				int waterStop = mPosition2 - 2;
 				for (int i=0; i<14; i++) {
-					g.setColor(mUseRedColor ? cWaterRedColor[i] : cWaterBlueColor[i]);
+					setColor(g, mUseRedColor ? cWaterRedColor[i] : cWaterBlueColor[i]);
 					if (mIsHorizontal)
 						g.drawLine(x1+waterStart, y1+i+1, x1+waterStop, y1+i+1);
 					else
@@ -143,7 +147,7 @@ public class JPruningBar extends JPanel implements MouseListener, MouseMotionLis
 					}
 				}
 
-			g.setColor(cDarkShadowColor);
+			setColor(g, cDarkShadowColor);
 			g.drawRect(x1, y1, x2-x1, y2-y1);
 			}
 		}
@@ -320,6 +324,9 @@ public class JPruningBar extends JPanel implements MouseListener, MouseMotionLis
 		}
 
 	public void mousePressed(MouseEvent e) {
+		if (!isEnabled())
+			return;
+
 		if (mIsHorizontal)
 			mMousePosition = e.getX();
 		else
@@ -351,6 +358,9 @@ public class JPruningBar extends JPanel implements MouseListener, MouseMotionLis
 	public void mouseClicked(MouseEvent e) {}
 
 	public synchronized void mouseDragged(MouseEvent e) {
+		if (!isEnabled())
+			return;
+
 		int position;
 		if (mIsHorizontal)
 			position = e.getX();
@@ -437,7 +447,7 @@ public class JPruningBar extends JPanel implements MouseListener, MouseMotionLis
 	private void drawThumb(Graphics g, int x1, int y1, int position) {
 		int x,y;
 
-		g.setColor(cThumbColor);
+		setColor(g, cThumbColor);
 		if (mIsHorizontal) {
 			g.fillRect(x1+position+1, y1+2, cThumbHeight-1, cOverallWidth-3);
 			x = x1+position+2;
@@ -449,7 +459,7 @@ public class JPruningBar extends JPanel implements MouseListener, MouseMotionLis
 			y = y1+position+2;
 			}
 
-		g.setColor(cThumbHighlightColor);
+		setColor(g, cThumbHighlightColor);
 		if (mIsHorizontal) {
 			g.drawLine(x1+position, y1+1, x1+position+cThumbHeight-2, y1+1);
 			g.drawLine(x1+position, y1+1, x1+position, y1+cOverallWidth-2);
@@ -463,7 +473,7 @@ public class JPruningBar extends JPanel implements MouseListener, MouseMotionLis
 				if (((i + j) & 1) == 0)
 					g.drawLine(x+i*2, y+j*2, x+i*2, y+j*2);
 
-		g.setColor(cThumbShadowColor);
+		setColor(g, cThumbShadowColor);
 		if (mIsHorizontal) {
 			g.drawLine(x1+position-1, y1+1, x1+position-1, y1+cOverallWidth-2);
 			g.drawLine(x1+position+cThumbHeight, y1+1, x1+position+cThumbHeight, y1+cOverallWidth-2);
@@ -476,6 +486,10 @@ public class JPruningBar extends JPanel implements MouseListener, MouseMotionLis
 			for (int j=0; j<5; j++)
 				if (((i + j) & 1) == 0)
 					g.drawLine(x+i*2+1, y+j*2+1, x+i*2+1, y+j*2+1);
+		}
+
+	private void setColor(Graphics g, Color color) {
+		g.setColor(isEnabled() ? color : ColorHelper.intermediateColor(color, Color.LIGHT_GRAY, 0.7f));
 		}
 
 	private void init() {

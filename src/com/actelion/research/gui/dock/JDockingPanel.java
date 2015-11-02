@@ -81,7 +81,8 @@ public class JDockingPanel extends JPanel implements ActionListener,AWTEventList
 				Component content = dockable.borrowContent();
 
 				// create dummy dockable to hold the maximized view
-				mMaximizedView = new Dockable(content, title, this, false, dockable.hasMenuButton());
+				mMaximizedView = new Dockable(this, content, title, this, false, dockable.hasMenuButton());
+				mMaximizedView.setPopupProvider(dockable.getPopupProvider());
 				mMaximizedView.setVisible(true);
 				add(mMaximizedView);
 
@@ -429,6 +430,11 @@ public class JDockingPanel extends JPanel implements ActionListener,AWTEventList
 		leaf.changeTitle(oldTitle, newTitle);
 		mLeafMap.remove(oldTitle);
 		mLeafMap.put(newTitle, leaf);
+
+		if (mMaximizedView != null
+		 && mMaximizedView.getTitle().equals(oldTitle))
+			mMaximizedView.setTitle(newTitle);
+
 		return true;
 		}
 

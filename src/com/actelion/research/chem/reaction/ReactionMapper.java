@@ -26,7 +26,7 @@ import com.actelion.research.chem.StereoMolecule;
 import java.util.ArrayList;
 import java.util.Arrays;
 
-public class ReactionMapper
+public class ReactionMapper implements IReactionMapper
 {
     private static int COLORTABLE[] = {
         Molecule.cAtomColorBlack,
@@ -59,6 +59,7 @@ public class ReactionMapper
         return matchReaction(r,null);
     }
 
+    @Override
     public Reaction matchReaction(Reaction r,SSSearcher sss)
     {
         Reaction ok = null;
@@ -119,11 +120,15 @@ public class ReactionMapper
                 StereoMolecule mol = reaction.getMolecule(i);
                 for (int j = 0; j < mol.getAllAtoms(); j++) {
                     if (mol.getAtomicNo(j) == REACTANTFLAG_ATOMNUMBER) {
-                        mol.setAtomicNo(j, mol.getAtomList(j)[0] - REACTANTFLAG);
-                        mol.setAtomList(j, null);
+                        if(mol.getAtomList(j) != null) {
+                            mol.setAtomicNo(j, mol.getAtomList(j)[0] - REACTANTFLAG);
+                            mol.setAtomList(j, null);
+                        }
                     } else if (mol.getAtomicNo(j) == PRODUCTFLAG_ATOMNUMBER) {
-                        mol.setAtomicNo(j, mol.getAtomList(j)[0] - PRODUCTFLAG);
-                        mol.setAtomList(j, null);
+                        if(mol.getAtomList(j) != null) {
+                            mol.setAtomicNo(j, mol.getAtomList(j)[0] - PRODUCTFLAG);
+                            mol.setAtomList(j, null);
+                        }
                     }
                 }
             }

@@ -39,11 +39,9 @@ public class DETaskSaveFile extends ConfigurableTask {
 	private static Properties sRecentConfiguration;
 
 	private JCheckBox mCheckBoxEmbedDetails;
-	private boolean mIsInteractive;
 
-	public DETaskSaveFile(DEFrame parent, boolean isInteractive) {
+	public DETaskSaveFile(DEFrame parent) {
 		super(parent, false);
-		mIsInteractive = isInteractive;
 		}
 
 	@Override
@@ -58,7 +56,7 @@ public class DETaskSaveFile extends ConfigurableTask {
 
 	@Override
 	public Properties getPredefinedConfiguration() {
-		if (mIsInteractive) {
+		if (isInteractive()) {
 			Properties configuration = new Properties();
 			if (((DEFrame)getParentFrame()).getTableModel().hasReferencedDetail()) {
 				int option = JOptionPane.showConfirmDialog(getParentFrame(),

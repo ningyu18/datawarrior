@@ -80,19 +80,17 @@ public class DETaskCreateEvolutionaryLibrary extends AbstractTask implements Act
 	private JLabel				mLabelGeneration;
 	private JProgressPanel		mProgressPanel;
 	private FitnessEvolutionPanel mFitnessEvolutionPanel;
-	private boolean				mIsInteractive;
 	private volatile boolean	mKeepData,mStopProcessing;
 	private float				mBestFitness;
 	private int					mCurrentResultID;
 	private TreeSet<EvolutionResult> mParentGeneration;
 
-	public DETaskCreateEvolutionaryLibrary(DEFrame owner, DataWarrior application, boolean isInteractive) {
+	public DETaskCreateEvolutionaryLibrary(DEFrame owner, DataWarrior application) {
 		super(owner, false);
 
 		mParentFrame = owner;
 		mSourceTableModel = owner.getTableModel();
 		mApplication = application;
-		mIsInteractive = isInteractive;
 		}
 
 	@Override
@@ -287,7 +285,7 @@ public class DETaskCreateEvolutionaryLibrary extends AbstractTask implements Act
 		String generationsString = configuration.getProperty(PROPERTY_GENERATION_COUNT, DEFAULT_GENERATIONS);
 		int generationCount = generationsString.equals(GENERATIONS_AUTOMATIC) ? Integer.MAX_VALUE-1
 							: generationsString.equals(GENERATIONS_UNLIMITED) ? Integer.MAX_VALUE : Integer.parseInt(generationsString);
-		if (!mIsInteractive
+		if (!isInteractive()
 		 && generationCount == Integer.MAX_VALUE)
 			generationCount -= -1;	// don't allow unlimited processing, if is running a macro
 
@@ -388,7 +386,7 @@ public class DETaskCreateEvolutionaryLibrary extends AbstractTask implements Act
 				}
 
 			if (currentGeneration.size() == 0) {
-				if (mIsInteractive) {
+				if (isInteractive()) {
 					try {
 						SwingUtilities.invokeAndWait(new Runnable() {
 							public void run() {
@@ -426,7 +424,7 @@ public class DETaskCreateEvolutionaryLibrary extends AbstractTask implements Act
 					mControllingDialog.setVisible(false);
 					mControllingDialog.dispose();
 
-					if (!mIsInteractive || mKeepData) {
+					if (!isInteractive() || mKeepData) {
 						mTargetFrame = mApplication.getEmptyFrame("Evolutionary Library");
 						createDocument(resultSet, fitnessOption);
 						}

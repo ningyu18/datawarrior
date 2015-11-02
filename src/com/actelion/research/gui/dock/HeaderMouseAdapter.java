@@ -30,7 +30,7 @@ public class HeaderMouseAdapter extends MouseInputAdapter {
 
     private void handlePopupTrigger(MouseEvent e) {
         if (mPopupProvider != null && e.isPopupTrigger()) {
-            JPopupMenu popup = mPopupProvider.createPopupMenu(mHeader.getTitle());
+            JPopupMenu popup = mPopupProvider.createPopupMenu(mHeader.getTitle(), mHeader.getDockable().isMaximized());
             popup.show(mHeader, e.getX(), e.getY());
             }
         }

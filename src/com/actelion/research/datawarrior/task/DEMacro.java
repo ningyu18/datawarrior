@@ -21,8 +21,9 @@ package com.actelion.research.datawarrior.task;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
-import java.io.FileReader;
+import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.Properties;
 
@@ -34,6 +35,7 @@ public class DEMacro {
 	private String			mName;
 	private ArrayList<Task> mTaskList;
 	private ArrayList<DEMacroListener> mListenerList;
+	private ArrayList<Loop> mLoopList;
 	private DEMacro			mParentMacro;
 	private int				mParentIndex;
 
@@ -87,7 +89,7 @@ public class DEMacro {
 	public DEMacro(File file, ArrayList<DEMacro> macroList) throws IOException {
 		mTaskList = new ArrayList<Task>();
 		mListenerList = new ArrayList<DEMacroListener>();
-		BufferedReader reader = new BufferedReader(new FileReader(file));
+		BufferedReader reader = new BufferedReader(new InputStreamReader(new FileInputStream(file), "UTF-8"));
 		String headerLine = reader.readLine();
 		mName = extractMacroName(headerLine);
 		if (mName != null) {
@@ -275,6 +277,38 @@ public class DEMacro {
 		mParentIndex = parentIndex;
 		}
 
+	/**
+	 * Defines a sequence of tasks to be repeated for a couple of times.
+	 * @param firstTask
+	 * @param lastTask
+	 * @param count how many times the task sequence should be run
+	 */
+	public void defineLoop(int firstTask, int lastTask, int count) {
+		if (mLoopList == null)
+			mLoopList = new ArrayList<Loop>();
+		mLoopList.add(new Loop(firstTask, lastTask, count-1));
+		}
+
+	/**
+	 * If currentTask refers to the last task of an active loop, then the index
+	 * of the first task of that loop is returned and the loop counter decremented.
+	 * @param currentTask
+	 * @return the index of the loop's first task or -1, if not at the end of a look
+	 */
+	public int getLoopStart(int currentTask) {
+		if (mLoopList != null) {
+			int loop = mLoopList.size()-1;
+			Loop currentLoop = mLoopList.get(loop);
+			if (currentTask == currentLoop.lastTask) {
+				int firstTask = currentLoop.firstTask;
+				if (--currentLoop.count == 0)
+					mLoopList.remove(loop);
+				return firstTask;
+				}
+			}
+		return -1;
+		}
+
 	public class Task {
 		private String code;
 		private Properties configuration;
@@ -302,6 +336,16 @@ public class DEMacro {
 
 		public void setConfiguration(Properties configuration) {
 			this.configuration = configuration;
+			}
+		}
+
+	private class Loop {
+		private int firstTask,lastTask,count;
+
+		public Loop(int firstTask, int lastTask, int count) {
+			this.firstTask = firstTask;
+			this.lastTask = lastTask;
+			this.count = count;
 			}
 		}
 	}

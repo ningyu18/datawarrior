@@ -51,13 +51,28 @@ public class DataWarrior implements WindowFocusListener {
 	private DEFrame				mFrameOnFocus;
 	private StandardTaskFactory	mTaskFactory;
 
+	/**
+	 * If the given path starts with a valid variable name, then this
+	 * is replaced by the corresponding path on the current system and all file separators
+	 * are converted to the correct ones for the current platform.
+	 * Currently, the only valid variable names is $HOME.
+	 * @param path possibly starting with variable, e.g. "$HOME/drugs.dwar"
+	 * @return untouched path or path with resolved variable, e.g. "/home/thomas/drugs.dwar"
+	 */
 	public static String resolveVariables(String path) {
-		if (path != null && path.toLowerCase().startsWith("$home")) {
-			String home = System.getProperty("user.home");
-			String rest = path.substring(5);
-			return home.concat(Platform.isWindows() ? rest.replace('/', '\\') : rest.replace('\\', '/'));
-			}
+		if (path != null && path.toLowerCase().startsWith("$home"))
+			return System.getProperty("user.home").concat(correctFileSeparators(path.substring(5)));
+
 		return path;
+		}
+
+	/**
+	 * Replaces all path separator of the given path with the correct ones for the current platform.
+	 * @param path
+	 * @return
+	 */
+	public static String correctFileSeparators(String path) {
+		return Platform.isWindows() ? path.replace('/', '\\') : path.replace('\\', '/');
 		}
 
 	public DataWarrior() {
@@ -160,6 +175,8 @@ public class DataWarrior implements WindowFocusListener {
 			if (f.getMainFrame().getTableModel().isEmpty()
 			 && f.getMainFrame().getTableModel().lock()) {
 				f.setTitle(title);
+				f.toFront();
+				mFrameOnFocus = f;
 				return f;
 				}
 
@@ -210,6 +227,12 @@ public class DataWarrior implements WindowFocusListener {
 		}
 
 	private boolean safelyDisposeFrame(DEFrame frame) {
+		if (frame == mFrameOnFocus
+		 && DEMacroRecorder.getInstance().isRunningMacro()) {
+			JOptionPane.showMessageDialog(frame, "You cannot close the font window while a macro is running.");
+			return false;
+			}
+
 		if (frame.askStopRecordingMacro()
 		 && frame.askSaveDataIfDirty()) {
 			mFrameList.remove(frame);
@@ -259,6 +282,39 @@ public class DataWarrior implements WindowFocusListener {
 			return null;
 			}
 		}	*/
+
+	/**
+	 * When the program is launched with file names as arguments, and if file names
+	 * contain white space, then this method tries to reconstruct the original file names.
+	 * @param arg
+	 * @return list of file names
+	 */
+	public String[] deduceFileNamesFromArgs(String[] args) {
+		if (args == null || args.length < 2)
+			return args;
+
+		int validCount = 0;
+		boolean[] hasValidExtention = new boolean[args.length];
+		for (int i=0; i<args.length; i++) {
+			hasValidExtention[i] = (FileHelper.getFileType(args[i]) != FileHelper.cFileTypeUnknown);
+			if (hasValidExtention[i])
+				validCount++;
+			}
+
+		if (validCount == 0 || validCount == args.length)
+			return args;
+
+		// we need to concatenate assuming that the white space is a simple SPACE
+		int argIndex = -1;
+		String[] filename = new String[validCount];
+		for (int i=0; i<validCount; i++) {
+			filename[i] = args[++argIndex];
+			while (!hasValidExtention[argIndex])
+				filename[i] = filename[i].concat(" ").concat(args[++argIndex]);
+			}
+
+		return filename;
+		}
 
 	/**
 	 * Opens the file, runs the query, starts the macro depending on the file type.
@@ -345,6 +401,8 @@ public class DataWarrior implements WindowFocusListener {
 		f.setVisible(true);
 		f.toFront();
 		f.addWindowFocusListener(this);
+
+		f.updateMacroStatus();
 		}
 
 	/**

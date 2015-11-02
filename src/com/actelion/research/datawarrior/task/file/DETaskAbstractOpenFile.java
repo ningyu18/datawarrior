@@ -31,12 +31,14 @@ import javax.swing.JCheckBox;
 import javax.swing.JPanel;
 
 import com.actelion.research.datawarrior.DEFrame;
+import com.actelion.research.datawarrior.DataWarrior;
 import com.actelion.research.datawarrior.task.ConfigurableTask;
 import com.actelion.research.gui.FileHelper;
+import com.actelion.research.util.Platform;
 
 
 public abstract class DETaskAbstractOpenFile extends ConfigurableTask implements ActionListener {
-	public static final String[] RESOURCE_DIR = { "Reference", "Example" };
+	public static final String[] RESOURCE_DIR = { "Reference", "Example", "Tutorial" };
 	public static final String MACRO_DIR = "Macro";
 
 	protected static final String PROPERTY_FILENAME = "fileName";
@@ -47,11 +49,17 @@ public abstract class DETaskAbstractOpenFile extends ConfigurableTask implements
 	private JButton			mButtonEdit;
 	private JCheckBox		mCheckBoxInteractive;
 	private int				mAllowedFileTypes;
-	private boolean			mIsInteractive;
 	private String			mDialogTitle;
 	private String			mPredefinedFilePath;
 	private DEFrame			mNewFrame;
 
+	/**
+	 * Tries to find the directory with the specified name in the DataWarrior installation directory.
+	 * resourceDir may contain capital letters, but is is converted to lower case before checked against
+	 * installed resource directories, which are supposed to be lower case.
+	 * @param resourceDir as shown to the user, e.g. "Example"
+	 * @return null or full path to resource directory
+	 */
 	public static File resolveResourcePath(String resourceDir) {
 		String dirname = "C:\\Program Files\\DataWarrior\\"+resourceDir.toLowerCase();
 		File directory = new File(dirname);
@@ -75,28 +83,44 @@ public abstract class DETaskAbstractOpenFile extends ConfigurableTask implements
 			dirname = "/mnt/rim/Datawarrior/"+resourceDir.toLowerCase();
 			directory = new File(dirname);
 			}
-		return directory;
+		return directory.exists() ? directory : null;
 		}
 
+	/**
+	 * Creates a path variable name from a resource directory name.
+	 * @param resourceDir as shown to the user, e.g. "Example"
+	 * @return path variable name, e.g. $EXAMPLE
+	 */
 	public static String makePathVariable(String resourceDir) {
 		return "$"+resourceDir.toUpperCase();
 		}
 
+	/**
+	 * If the given path starts with a valid variable name, then this
+	 * is replaced by the corresponding path on the current system and all file separators
+	 * are converted to the correct ones for the current platform.
+	 * Valid variable names are $HOME or resource file names.
+	 * @param path possibly starting with variable, e.g. "$EXAMPLE/drugs.dwar"
+	 * @return untouched path or path with resolved variable, e.g. "/opt/datawarrior/example/drugs.dwar"
+	 */
 	@Override
 	public String resolveVariables(String path) {
 		path = super.resolveVariables(path);
 		if (path != null && path.startsWith("$")) {
-			for (String resDir:RESOURCE_DIR) {
-				if (path.startsWith(makePathVariable(resDir))) {
-					File dir = resolveResourcePath(resDir);
-					if (dir != null)
-						return dir.getAbsolutePath()+File.separator+path.substring(2+resDir.length());
+			for (String dirName:RESOURCE_DIR) {
+				String varName = makePathVariable(dirName);
+				if (path.startsWith(varName)) {
+					File dir = resolveResourcePath(dirName);
+					if (dir != null) {
+						return dir.getAbsolutePath().concat(DataWarrior.correctFileSeparators(path.substring(varName.length())));
+						}
 					}
 				}
-			if (path.startsWith(makePathVariable(MACRO_DIR))) {
+			String varName = makePathVariable(MACRO_DIR);
+			if (path.startsWith(varName)) {
 				File dir = resolveResourcePath(MACRO_DIR);
 				if (dir != null)
-					return dir.getAbsolutePath()+File.separator+path.substring(2+MACRO_DIR.length());
+					return dir.getAbsolutePath().concat(DataWarrior.correctFileSeparators(path.substring(varName.length())));
 				}
 			}
 		return path;
@@ -111,11 +135,11 @@ public abstract class DETaskAbstractOpenFile extends ConfigurableTask implements
 	 * @param allowedFileTypes
 	 * @param isInteractive
 	 */
-	public DETaskAbstractOpenFile(Frame parent, String dialogTitle, int allowedFileTypes, boolean isInteractive) {
-		super(parent, !isInteractive);	// non-interactive tasks use own thread
+	public DETaskAbstractOpenFile(Frame parent, String dialogTitle, int allowedFileTypes) {
+		super(parent, true);	// we want a progress bar
+//		super(parent, !isInteractive);	// non-interactive tasks use own thread
 		mDialogTitle = dialogTitle;
 		mAllowedFileTypes = allowedFileTypes;
-		mIsInteractive = isInteractive;
 		mPredefinedFilePath = null;
 		}
 
@@ -128,17 +152,16 @@ public abstract class DETaskAbstractOpenFile extends ConfigurableTask implements
 	 * @param file
 	 */
 	public DETaskAbstractOpenFile(Frame parent, String dialogTitle, int allowedFileTypes, String filePath) {
-		super(parent, false);
+		super(parent, true);	// we want a progress bar
+//		super(parent, false);
 		mDialogTitle = dialogTitle;
 		mAllowedFileTypes = allowedFileTypes;
-		mIsInteractive = true;
 		mPredefinedFilePath = filePath;
 		}
 
 	@Override
 	public Properties getPredefinedConfiguration() {
-		if (mIsInteractive) {
-
+		if (isInteractive()) {
 			String fileName = mPredefinedFilePath;
 			if (fileName == null) {
 				File file = askForFile(null);
@@ -165,10 +188,6 @@ public abstract class DETaskAbstractOpenFile extends ConfigurableTask implements
 		return mNewFrame;
 		}
 
-	public boolean isInteractive() {
-		return mIsInteractive;
-		}
-
 	@Override
 	public JPanel createDialogContent() {
 		double[][] size = { {8, TableLayout.PREFERRED, TableLayout.FILL, 8},
@@ -177,7 +196,7 @@ public abstract class DETaskAbstractOpenFile extends ConfigurableTask implements
 		JPanel content = new JPanel();
 		content.setLayout(new TableLayout(size));
 
-		mFilePathLabel = new JFilePathLabel(!mIsInteractive);
+		mFilePathLabel = new JFilePathLabel(!isInteractive());
 		content.add(mFilePathLabel, "1,1,2,1");
 
 		mButtonEdit = new JButton(JFilePathLabel.BUTTON_TEXT);
@@ -291,7 +310,7 @@ public abstract class DETaskAbstractOpenFile extends ConfigurableTask implements
 	public void runTask(Properties configuration) {
 		String fileName = configuration.getProperty(PROPERTY_FILENAME);
 
-		if (mIsInteractive && ASK_FOR_FILE.equals(fileName))
+		if (isInteractive() && ASK_FOR_FILE.equals(fileName))
 			return;	// Is interactive and was cancelled. Don't create an error message.
 
 		File file = ASK_FOR_FILE.equals(fileName) ? askForFile(null) : new File(resolveVariables(fileName));

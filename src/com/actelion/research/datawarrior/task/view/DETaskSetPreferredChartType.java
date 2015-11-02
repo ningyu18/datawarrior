@@ -106,9 +106,7 @@ public class DETaskSetPreferredChartType extends DETaskAbstractSetViewOptions {
 		}
 
 	private boolean columnQualifies(int column) {
-		return getTableModel().isColumnDataComplete(column)
-			&& getTableModel().isColumnTypeDouble(column)
-			&& getTableModel().hasNumericalVariance(column);
+		return getTableModel().isColumnTypeDouble(column);
 		}
 
 	@Override
@@ -141,7 +139,7 @@ public class DETaskSetPreferredChartType extends DETaskAbstractSetViewOptions {
 		if (type == JVisualization.cChartTypeBars || type == JVisualization.cChartTypePies) {
 			int mode = mComboBoxMode.getSelectedIndex();
 			configuration.setProperty(PROPERTY_MODE, JVisualization.CHART_MODE_CODE[mode]);
-			if (mode != JVisualization.cChartModeCount && mode != JVisualization.cChartModePercent)
+			if (mode != JVisualization.cChartModeCount && mode != JVisualization.cChartModePercent && mComboBoxColumn.getItemCount() != 0)
 				configuration.setProperty(PROPERTY_COLUMN, ""+getTableModel().getColumnTitleNoAlias((String)mComboBoxColumn.getSelectedItem()));
 			}
 		}
@@ -160,19 +158,23 @@ public class DETaskSetPreferredChartType extends DETaskAbstractSetViewOptions {
 
 	@Override
 	public boolean isViewConfigurationValid(CompoundTableView view, Properties configuration) {
-		if (view != null) {
-			int type = findListIndex(configuration.getProperty(PROPERTY_TYPE), JVisualization.CHART_TYPE_CODE, JVisualization.cChartTypeScatterPlot);
-			if (type == JVisualization.cChartTypeBars || type == JVisualization.cChartTypePies) {
-				int mode = findListIndex(configuration.getProperty(PROPERTY_MODE), JVisualization.CHART_MODE_CODE, JVisualization.cChartModeCount);
-				if (mode != JVisualization.cChartModeCount && mode != JVisualization.cChartModePercent) {
-					String columnName = configuration.getProperty(PROPERTY_COLUMN);
+		int type = findListIndex(configuration.getProperty(PROPERTY_TYPE), JVisualization.CHART_TYPE_CODE, JVisualization.cChartTypeScatterPlot);
+		if (type == JVisualization.cChartTypeBars || type == JVisualization.cChartTypePies) {
+			int mode = findListIndex(configuration.getProperty(PROPERTY_MODE), JVisualization.CHART_MODE_CODE, JVisualization.cChartModeCount);
+			if (mode != JVisualization.cChartModeCount && mode != JVisualization.cChartModePercent) {
+				String columnName = configuration.getProperty(PROPERTY_COLUMN);
+				if (columnName == null) {
+					showErrorMessage("No numerical column available or defined.");
+					return false;
+					}
+				if (view != null) {
 					int column = view.getTableModel().findColumn(columnName);
 					if (column == -1) {
 						showErrorMessage("Column '"+columnName+"' not found.");
 						return false;
 						}
 					if (!columnQualifies(column)) {
-						showErrorMessage("Column '"+columnName+"' is not complete or not numerical.");
+						showErrorMessage("Column '"+columnName+"' is not numerical.");
 						return false;
 						}
 					}

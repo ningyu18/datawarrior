@@ -27,8 +27,8 @@ public class DETaskSaveFileAs extends DETaskAbstractSaveNativeFile {
 
 	private static Properties sRecentConfiguration;
 
-	public DETaskSaveFileAs(DEFrame parent, boolean isInteractive) {
-		super(parent, "Save File As", false, isInteractive);
+	public DETaskSaveFileAs(DEFrame parent) {
+		super(parent, "Save File As", false);
 		}
 
 	@Override

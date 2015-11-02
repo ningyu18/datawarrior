@@ -58,7 +58,7 @@ public class DEParentPane extends JComponent implements DetailPopupProvider  {
 		add(statusPanel, BorderLayout.SOUTH);
 
 		mMainSplitPane = new JSplitPane();
-		mTabbedDetailViews = new DEDetailPane(mTableModel);
+		mTabbedDetailViews = detailPane;
 		mTabbedDetailViews.setBorder(new ShadowBorder(1,1,3,6));
 		mTabbedMainViews = new DEMainPane(mParentFrame, mTableModel, mTabbedDetailViews, statusPanel, this);
 		mRightSplitPane = new JSplitPane();

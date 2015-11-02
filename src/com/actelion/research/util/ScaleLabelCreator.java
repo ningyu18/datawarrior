@@ -63,7 +63,7 @@ public class ScaleLabelCreator {
 		while ((float)value < (rangeLow + range)) {
 			float position = ((float)value-rangeLow) / range;
 
-			labelList.add(new ScaleLabel(DoubleFormat.toString(value, exponent), position, (float)value*(float)Math.pow(10, exponent)));
+			labelList.add(new ScaleLabel(DoubleFormat.toShortString(value, exponent), position, (float)value*(float)Math.pow(10, exponent)));
 
 			value += gridSpacing;
 			}
@@ -146,7 +146,7 @@ public class ScaleLabelCreator {
             while ((float)value < (start + length)) {
                 float log = (float)Math.log10(value) + exponent;
                 float position = (float)(log-rangeLow) / range;
-                labelList.add(new ScaleLabel(DoubleFormat.toString(value, exponent), position, log));
+                labelList.add(new ScaleLabel(DoubleFormat.toShortString(value, exponent), position, log));
                 value += gridSpacing;
                 }
             }
@@ -157,7 +157,7 @@ public class ScaleLabelCreator {
     private static void addLogarithmicScaleLabel(ArrayList<ScaleLabel> labelList, float value, float rangeLow, float range) {
         if (value >= rangeLow && value <= rangeLow+range) {
             float position = (value-rangeLow) / range;
-            labelList.add(new ScaleLabel(DoubleFormat.toString(Math.pow(10, value), 3), position, value));
+            labelList.add(new ScaleLabel(DoubleFormat.toString(Math.pow(10, value), 3, true), position, value));
             }
         }
 	}

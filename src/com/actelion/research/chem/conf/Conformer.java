@@ -8,7 +8,8 @@ public class Conformer {
 	private short[] bondTorsion;
 
 	/**
-	 * Creates a new set of atom coordinates of the given Molecule.
+	 * Creates a new set of empty(!!!) atom coordinates for the given Molecule.
+	 * If the coordinates of mol shall be cloned then call copyFrom(mol).
 	 * @param mol
 	 */
 	public Conformer(StereoMolecule mol) {
@@ -64,6 +65,18 @@ public class Conformer {
 	 */
 	public StereoMolecule getMolecule() {
 		return mMol;
+		}
+
+	/**
+	 * Copies the molecule's atom coordinates to this Conformer.
+	 * @param mol molecule identical to the original molecule passed in the Constructor
+	 */
+	public void copyFrom(StereoMolecule mol) {
+		for (int atom=0; atom<mol.getAllAtoms(); atom++) {
+			x[atom] = mol.getAtomX(atom);
+			y[atom] = mol.getAtomY(atom);
+			z[atom] = mol.getAtomZ(atom);
+			}
 		}
 
 	/**

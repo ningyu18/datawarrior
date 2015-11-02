@@ -143,7 +143,7 @@ public class DECompoundTableModel extends CompoundTableModel {
 			ensureCurrentRowColorInfo(0);
 			}
         else if (e.getType() == CompoundTableEvent.cAddColumns) {
-        	ensureCurrentRowColorInfo(e.getSpecifier());
+        	ensureCurrentRowColorInfo(e.getColumn());
             }
 		else if (e.getType() == CompoundTableEvent.cRemoveColumns) {
 			int[] columnMapping = e.getMapping();

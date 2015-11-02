@@ -187,7 +187,7 @@ public class VectorSOM extends SelfOrganizedMap {
 
 		double sum = 0.0;
 		for (int i=0; i<v1.length; i++) {
-			double dif = v1[i] - v2[i];
+			double dif = Math.abs(v1[i] - v2[i]);
 			sum += dif * dif;
 			}
 

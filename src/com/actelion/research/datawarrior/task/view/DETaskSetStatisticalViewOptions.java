@@ -88,7 +88,7 @@ public class DETaskSetStatisticalViewOptions extends DETaskAbstractSetViewOption
 		JTabbedPane tabbedPane = new JTabbedPane();
 
 		double[][] scatterPlotSize = { {8, TableLayout.PREFERRED, 8, TableLayout.PREFERRED, 8},
-									   {8, TableLayout.PREFERRED, 24, TableLayout.PREFERRED, 4, TableLayout.PREFERRED, 8} };
+									   {8, TableLayout.PREFERRED, 24, TableLayout.PREFERRED, 8, TableLayout.PREFERRED, 4, TableLayout.PREFERRED, 8} };
 		JPanel scatterPlotPanel = new JPanel();
 		scatterPlotPanel.setLayout(new TableLayout(scatterPlotSize));
 
@@ -96,8 +96,8 @@ public class DETaskSetStatisticalViewOptions extends DETaskAbstractSetViewOption
 
 		mComboBoxCorrelationType = new JComboBox();
 		mComboBoxCorrelationType.addItem("<none>");
-		for (int i=0; i<CorrelationCalculator.TYPE_NAME.length; i++)
-	        mComboBoxCorrelationType.addItem(CorrelationCalculator.TYPE_NAME[i]);
+		for (int i=0; i<CorrelationCalculator.TYPE_LONG_NAME.length; i++)
+	        mComboBoxCorrelationType.addItem(CorrelationCalculator.TYPE_LONG_NAME[i]);
 		mComboBoxCorrelationType.addActionListener(this);
 		scatterPlotPanel.add(mComboBoxCorrelationType, "3,1");
 
@@ -106,22 +106,15 @@ public class DETaskSetStatisticalViewOptions extends DETaskAbstractSetViewOption
 		mComboBoxLineMode.addActionListener(this);
 		scatterPlotPanel.add(mComboBoxLineMode, "3,3");
 
-		JPanel innerCheckBoxPanel = new JPanel();
-		innerCheckBoxPanel.setLayout(new GridLayout(2, 1));
 		mCheckBoxStdDev = new JCheckBox("Display Standard Deviation");
         mCheckBoxStdDev.setEnabled(false);
 		mCheckBoxStdDev.addActionListener(this);
-		innerCheckBoxPanel.add(mCheckBoxStdDev);
+		scatterPlotPanel.add(mCheckBoxStdDev, "3,5");
 
 		mCheckBoxMultipleCurves = new JCheckBox("Split By Color-Category");
 		mCheckBoxMultipleCurves.setEnabled(false);
 		mCheckBoxMultipleCurves.addActionListener(this);
-		innerCheckBoxPanel.add(mCheckBoxMultipleCurves);
-
-		JPanel checkBoxPanel = new JPanel();
-		checkBoxPanel.setLayout(new BorderLayout());
-		checkBoxPanel.add(innerCheckBoxPanel, BorderLayout.EAST);
-		scatterPlotPanel.add(checkBoxPanel, "1,5,3,5");
+		scatterPlotPanel.add(mCheckBoxMultipleCurves, "3,7");
 
 		tabbedPane.add(scatterPlotPanel, "Scatter Plot");
 

@@ -19,5 +19,5 @@
 package com.actelion.research.gui.form;
 
 public interface ReferencedDataConsumer {
-	public void setReferencedData(String source, String reference, byte[] data);
+	public void setReferencedData(String reference, byte[] data);
 	}

@@ -1,3 +1,19 @@
+/*
+ * Project: DD_core
+ * @(#)CompareUtils.java
+ *
+ * Copyright (c) 1997- 2015
+ * Actelion Pharmaceuticals Ltd.
+ * Gewerbestrasse 16
+ * CH-4123 Allschwil, Switzerland
+ *
+ * All Rights Reserved.
+ *
+ * This software is the proprietary information of Actelion Pharmaceuticals, Ltd.
+ * Use is subject to license terms.
+ *
+ */
+
 package com.actelion.research.util;
 
 import java.util.ArrayList;
@@ -109,6 +125,15 @@ public class CompareUtils {
 	    return ival;
 	}
 	
+	public static int compare(Object[] a1, Object[] a2) {
+		for (int i = 0; i < a1.length || i < a2.length; i++) {
+			Object o1 = i < a1.length? a1[i]: null;
+			Object o2 = i < a2.length? a2[i]: null;
+			int c = CompareUtils.compare(o1, o2);
+			if(c!=0) return c;
+		}
+		return 0;
+	}
 	public static int compare(Object o1, Object o2) {
 		if(o1==null && o2==null) return 0; 
 		if(o1==null) return 1; //Null at the end
@@ -116,8 +141,10 @@ public class CompareUtils {
 
 		if((o1 instanceof String) && (o2 instanceof String)) {
 			return compare((String) o1, (String) o2);
-		} else if((o1 instanceof Comparable) && (o2 instanceof Comparable)) {
-			return ((Comparable) o1).compareTo((Comparable) o2);
+		} else if((o1 instanceof Object[]) && (o2 instanceof Object[])) {
+			return compare((Object[]) o1, (Object[]) o2);
+		} else if((o1 instanceof Comparable) /*&& o2.getClass().isAssignableFrom(o1.getClass())*/) {			
+			return ((Comparable) o1).compareTo(o2);
 		} else {
 			return compare(o1.toString(), o2.toString());			
 		}
@@ -130,12 +157,11 @@ public class CompareUtils {
 		
 		Date d1 = Formatter.parseDateTime(o1.toString());
 		Date d2 = Formatter.parseDateTime(o2.toString());
-		
 		if(d1!=null && d2!=null) {
 			return d1.compareTo(d2);
-		} else if(d1==null) {
+		} else if(d1==null && d2!=null) {
 			return 1;
-		} else if(d2==null) {
+		} else if(d1!=null && d2==null) {
 			return -1;
 		} else {
 			return compare(o1, o2);
@@ -146,7 +172,8 @@ public class CompareUtils {
 	/**
 	 * Comparator to allow null values
 	 */
-	public static final Comparator<Object> OBJECT_COMPARATOR = new Comparator<Object>() {		
+	public static final Comparator<Object> OBJECT_COMPARATOR = new Comparator<Object>() {
+		@Override
 		public int compare(Object o1, Object o2) {
 			if(o1==null && o2==null) return 0; 
 			if(o1==null) return 1; //Null at the end
@@ -160,7 +187,8 @@ public class CompareUtils {
 	/**
 	 * Comparator for strings, comparing blocks separately so that the order becomes SLIDE-1, SLIDE-2, SLIDE-10, SLIDE-10-1, ...
 	 */
-	public static final Comparator<Object> STRING_COMPARATOR = new Comparator<Object>() {		
+	public static final Comparator<Object> STRING_COMPARATOR = new Comparator<Object>() {
+		@Override
 		public int compare(Object o1, Object o2) {
 			return CompareUtils.compare(o1, o2);
 		}
@@ -170,27 +198,33 @@ public class CompareUtils {
 	 * Comparator for dates, allowing formats such as yyyy, mm.yyyy, ...
 	 */
 	public static final Comparator<Object> DATE_COMPARATOR = new Comparator<Object>() {		
+		@Override
 		public int compare(Object o1, Object o2) {
 			return CompareUtils.compareAsDate(o1, o2);
 		}
 	};
 
-	
+	public static boolean equals(Object obj1, Object obj2) {
+		return obj1==null? obj2==null: obj1.equals(obj2);
+			
+	}
+
 	/**
 	 * Test Speed
 	 * @param args
 	 */
 	public static void main(String[] args) {
-		List<String> initial = Arrays.asList(new String[] {"heart", "", "lung", "lung/left", "1", "10", "2", "3", "11", "Box1","Box10", "Box2", "Box 2", "Box 1", "Box 10", "10.9.2012", "11.9.12", "2012", "Genomics", "_2", "_3", "_10", " 1", "_1", "-10", "-1. 0", "-2", "-1.00", "-1. 00", "-1.  00", "1-1", "1-10", "Proteomics", "Clinical Analysis", "Lung/Right", "Lung", "Lung/Left", "1", "-1", "-1.1", "-1.10", "2.A", "10.B-1", "10.B-10", "10.B-2", "1.C", "21.D", "3.B-3", "Heart","11.C", "11. C", "10. B-1", "2.C", "1.B","d030; Heart","d030; Heart/Left ventricle + Septum","d030; Heart/Right ventricle"});
+//		List<String> initial = Arrays.asList(new String[] {"heart", "", "lung", "lung/left", "1", "10", "2", "3", "11", "Box1","Box10", "Box2", "Box 2", "Box 1", "Box 10", "10.9.2012", "11.9.12", "2012", "Genomics", "_2", "_3", "_10", " 1", "_1", "-10", "-1. 0", "-2", "-1.00", "-1. 00", "-1.  00", "1-1", "1-10", "Proteomics", "Clinical Analysis", "Lung/Right", "Lung", "Lung/Left", "1", "-1", "-1.1", "-1.10", "2.A", "10.B-1", "10.B-10", "10.B-2", "1.C", "21.D", "3.B-3", "Heart","11.C", "11. C", "10. B-1", "2.C", "1.B","d030; Heart","d030; Heart/Left ventricle + Septum","d030; Heart/Right ventricle"});
+		List<String> initial = Arrays.asList(new String[] {"1", "4", "2B", "2A", "3A", "3B", "a", "A", "b", "B", "c", "C", "1", "11", "12", "2", "21", "22"});
 		List<String> l = new ArrayList<String>();
 		l.addAll(initial);
-		l.addAll(initial);
-		l.addAll(initial);
-		l.addAll(initial);
-		l.addAll(initial);
-		l.addAll(initial);
-		l.addAll(initial);
-		l.addAll(initial);
+//		l.addAll(initial);
+//		l.addAll(initial);
+//		l.addAll(initial);
+//		l.addAll(initial);
+//		l.addAll(initial);
+//		l.addAll(initial);
+//		l.addAll(initial);
 		
 		
 		List<String> l2 = new ArrayList<String>(l);
@@ -215,8 +249,8 @@ public class CompareUtils {
 		System.out.println("CompareUtils.normal: "+t1);
 		System.out.println("CompareUtils.date: "+t2);
 		System.out.println("CompareUtils.string: "+t3);
-		System.out.println("CompareUtils.string: "+compare("Rat", "rat"));
 	}
 
 
+	
 }

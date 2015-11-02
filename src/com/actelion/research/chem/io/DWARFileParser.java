@@ -20,8 +20,9 @@ package com.actelion.research.chem.io;
 
 import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileReader;
+import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.io.Reader;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -58,11 +59,10 @@ public class DWARFileParser extends CompoundFileParser implements DescriptorCons
     /**
      * Constructs a DWARFileParser from a file name with coordinate mode MODE_COORDINATES_PREFER_2D.
      * @param fileName
-     * @throws IOException
      */
 	public DWARFileParser(String fileName) {
         try {
-            mReader = new BufferedReader(new FileReader(fileName));
+            mReader = new BufferedReader(new InputStreamReader(new FileInputStream(fileName), "UTF-8"));
             mMode = MODE_COORDINATES_PREFER_2D;
             init();
             }
@@ -74,11 +74,10 @@ public class DWARFileParser extends CompoundFileParser implements DescriptorCons
     /**
      * Constructs a DWARFileParser from a File with coordinate mode MODE_COORDINATES_PREFER_2D.
      * @param file
-     * @throws IOException
      */
 	public DWARFileParser(File file) {
         try {
-            mReader = new BufferedReader(new FileReader(file));
+            mReader = new BufferedReader(new InputStreamReader(new FileInputStream(file), "UTF-8"));
             mMode = MODE_COORDINATES_PREFER_2D;
             init();
             }
@@ -90,11 +89,10 @@ public class DWARFileParser extends CompoundFileParser implements DescriptorCons
     /**
      * Constructs a DWARFileParser from a Reader with coordinate mode MODE_COORDINATES_PREFER_2D.
      * @param reader
-     * @throws IOException
      */
-	public DWARFileParser(Reader reader) throws IOException {
-		mReader = new BufferedReader(reader);
+	public DWARFileParser(Reader reader) {
         try {
+    		mReader = new BufferedReader(reader);
             mMode = MODE_COORDINATES_PREFER_2D;
             init();
             }
@@ -107,11 +105,10 @@ public class DWARFileParser extends CompoundFileParser implements DescriptorCons
      * Constructs a DWARFileParser from a file name with the specified coordinate mode.
      * @param fileName
      * @param mode one of 4 MODE_COORDINATE... modes
-     * @throws IOException
      */
     public DWARFileParser(String fileName, int mode) {
         try {
-            mReader = new BufferedReader(new FileReader(fileName));
+            mReader = new BufferedReader(new InputStreamReader(new FileInputStream(fileName), "UTF-8"));
             mMode = mode;
             init();
             }
@@ -124,11 +121,10 @@ public class DWARFileParser extends CompoundFileParser implements DescriptorCons
      * Constructs a DWARFileParser from a File with the specified coordinate mode.
      * @param file
      * @param mode one of 4 MODE_COORDINATE... modes
-     * @throws IOException
      */
     public DWARFileParser(File file, int mode) {
         try {
-            mReader = new BufferedReader(new FileReader(file));
+            mReader = new BufferedReader(new InputStreamReader(new FileInputStream(file), "UTF-8"));
             mMode = mode;
             init();
             }
@@ -141,11 +137,10 @@ public class DWARFileParser extends CompoundFileParser implements DescriptorCons
      * Constructs a DWARFileParser from a Reader with the specified coordinate mode.
      * @param reader
      * @param mode one of 4 MODE_COORDINATE... modes
-     * @throws IOException
      */
-    public DWARFileParser(Reader reader, int mode) throws IOException {
-        mReader = new BufferedReader(reader);
+    public DWARFileParser(Reader reader, int mode) {
         try {
+            mReader = new BufferedReader(reader);
             mMode = mode;
             init();
             }
@@ -198,10 +193,12 @@ public class DWARFileParser extends CompoundFileParser implements DescriptorCons
         line = readHeadOrTailLine();
 
         if (line != null
-         && line.equals(cFileExplanationStart)) {
+         && (line.equals(cFileExplanationStart)
+          || line.equals(cMacroListStart))) {
             line = readHeadOrTailLine();
             while (line != null
-                && !line.equals(cFileExplanationEnd))
+                && !line.equals(cFileExplanationEnd)
+                && !line.equals(cMacroListEnd))
                 line = readHeadOrTailLine();
             line = readHeadOrTailLine();
         	}

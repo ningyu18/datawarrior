@@ -125,8 +125,8 @@ public class DEMacroEditor extends JSplitPane implements ActionListener,Compound
 			mMacroList = new ArrayList<DEMacro>();
 			parentFrame.getTableModel().setExtensionData(CompoundTableConstants.cExtensionNameMacroList, mMacroList);
 			}
-		if (mMacroList.size() == 0)
-			addNewMacro(parentFrame, null);
+//		if (mMacroList.size() == 0)	 don't automatically create a new macro. This seems more confusing than convenient, TLS 08May15
+//			addNewMacro(parentFrame, null);
 		for (DEMacro m:mMacroList)
 			mComboBoxMacro.addItem(m.getName());
 		if (mComboBoxMacro.getItemCount() != 0)
@@ -550,7 +550,7 @@ public class DEMacroEditor extends JSplitPane implements ActionListener,Compound
 			DEMacro macro = mMacroList.get(mComboBoxMacro.getSelectedIndex());
 			DEMacro.Task macroTask = macro.getTask(taskIndex);
 			AbstractTask task = mTaskFactory.createTask(mParentFrame, macroTask.getCode());
-			if (!task.isTaskWithoutConfiguration()) {
+			if (task != null && !task.isTaskWithoutConfiguration()) {
 				Properties newConfiguration = task.showDialog(macroTask.getConfiguration(), false);
 				if (newConfiguration != macroTask.getConfiguration()) {
 					macroTask.setConfiguration(newConfiguration);

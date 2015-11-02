@@ -154,7 +154,7 @@ public class JVisualizationLegend {
 	                    value = (float)Math.pow(10.0, value);
 					String label = (!mTableModel.isDescriptorColumn(mColumn) && mTableModel.isColumnTypeDate(mColumn)) ?
 							DateFormat.getDateInstance().format(new Date(86400000*(long)(value)))
-						  : DoubleFormat.toString(value, 3);
+						  : DoubleFormat.toString(value, 3, true);
 					scaleX -= mVisualization.getStringWidth(label)/2;
 					mVisualization.drawString(label, scaleX, scaleY);
 					}

@@ -32,6 +32,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -47,6 +48,7 @@ import com.actelion.research.chem.CoordinateInventor;
 import com.actelion.research.chem.IDCodeParser;
 import com.actelion.research.chem.Molecule;
 import com.actelion.research.chem.SSSearcherWithIndex;
+import com.actelion.research.chem.SortedStringList;
 import com.actelion.research.chem.StereoMolecule;
 import com.actelion.research.chem.descriptor.DescriptorConstants;
 import com.actelion.research.chem.descriptor.DescriptorHandler;
@@ -103,16 +105,18 @@ public class CompoundTableModel extends AbstractTableModel
 	private long				mAllocatedExclusionFlags,mAllocatedCompoundFlags,
 								mDirtyCompoundFlags;
 	private int					mLastSortColumn,mParseDoubleValueCount,
-								mColumns,mRecords,mNonExcludedRecords;
+								mColumns,mNonExcludedRecords,mExclusionTag;
 	private int[]				mDisplayableColumnToColumn,mColumnToDisplayableColumn;
 	private String				mParseDoubleModifier;
 	private float[]				mSimilarityListSMP;
 	private CompoundTableColumnInfo[] mColumnInfo;
 	private volatile boolean	mSMPProcessWaiting,mSMPStopDescriptorCalculation;
-	private AtomicInteger		mSMPRecordIndex,mSMPWorkingThreads,mSSSRecordIndex;
+	private volatile int		mRecords;
+	private AtomicInteger		mSMPIndex,mSMPRecordIndex,mSMPWorkingThreads,mSSSRecordIndex;
 	private DescriptorColumnSpec[] mSMPColumnSpec;
 	private int					mSMPErrorCount;
 	private AtomicBoolean		mLock;
+	private volatile ConcurrentHashMap<String,float[]> mFlexophoreSimilarityListCache;	// TODO prevent this to grow to much
 
 	/**
 	 * This is the single point of assigning DescriptorHandlers to shortNames and, thus, defines
@@ -264,11 +268,14 @@ public class CompoundTableModel extends AbstractTableModel
 		if (mDetailHandler != null)
 			mDetailHandler.clearDetailData();
 
+		mFlexophoreSimilarityListCache = null;
+
 		if (fireEvents)
-			fireEvents(new CompoundTableEvent(this,
+			fireEventsNow(new CompoundTableEvent(this,
 								CompoundTableEvent.cNewTable,
+								-1,
 								CompoundTableEvent.cSpecifierNoRuntimeProperties),
-					   new TableModelEvent(this, TableModelEvent.HEADER_ROW));
+						  new TableModelEvent(this, TableModelEvent.HEADER_ROW));
 
 		mRecord = new CompoundRecord[rows];
 		mNonExcludedRecord = new CompoundRecord[rows];
@@ -313,9 +320,9 @@ public class CompoundTableModel extends AbstractTableModel
 		analyzeData(0, listener);
 		createDisplayableColumnMap();
 		compileVisibleRecords();
-		CompoundTableEvent cte = new CompoundTableEvent(this, CompoundTableEvent.cNewTable, specifier);
+		CompoundTableEvent cte = new CompoundTableEvent(this, CompoundTableEvent.cNewTable, -1, specifier);
 		TableModelEvent tme = new TableModelEvent(this, TableModelEvent.HEADER_ROW);
-		fireEvents(cte, tme);
+		fireEventsNow(cte, tme);
 		unlock();
 		}
 
@@ -368,8 +375,10 @@ public class CompoundTableModel extends AbstractTableModel
 	 * Returns display value. Multiple numbers may be summarized if the
 	 * columns display mode is not cDisplayModeNormal (e.g. mean, max, sum)
 	 * In case of logarithmic view mode a mean value is a geometric mean.
+	 * Descriptors are encoded and empty values are returned as empty String.
 	 * @param row is index in non excluded row list
 	 * @param column is index in visible(!!!) column list
+	 * @return 
 	 */
 	public Object getValueAt(int row, int column) {
 		return getValue(mNonExcludedRecord[row], mDisplayableColumnToColumn[column]);
@@ -379,6 +388,7 @@ public class CompoundTableModel extends AbstractTableModel
 	 * Returns display value. Multiple numbers may be summarized if the
 	 * columns display mode is not cSummaryModeNormal (e.g. mean, max, sum).
 	 * In case of logarithmic view mode a mean value is a geometric mean.
+	 * Descriptors are encoded and empty values are returned as empty String.
 	 * @param record
 	 * @param column is index in total column list
 	 * @return
@@ -390,7 +400,7 @@ public class CompoundTableModel extends AbstractTableModel
 				if (entry.length > 1) {
 					if ((mColumnInfo[column].type & cColumnTypeDate) != 0)
 						return DateFormat.getDateInstance().format(new Date(
-								86400000*(long)record.mFloat[column]+43200000))+getSummaryModeString(mColumnInfo[column].summaryMode, entry.length);
+								86400000*(long)record.mFloat[column]+43200000))+getSummaryModeString(column, entry.length);
 	
 					float value = (mColumnInfo[column].logarithmicViewMode) ?
 							(float)Math.pow(10.0, record.mFloat[column])
@@ -403,9 +413,9 @@ public class CompoundTableModel extends AbstractTableModel
 					try {   // this is to generate modifier and value count
 						tryParseDouble(encodeData(record, column), column);
 						} catch (NumberFormatException nfe) {}
-	
+
 					return mColumnInfo[column].summaryCountHidden ? mParseDoubleModifier+numPart
-							: mParseDoubleModifier+numPart+getSummaryModeString(mColumnInfo[column].summaryMode, mParseDoubleValueCount);
+							: mParseDoubleModifier+numPart+getSummaryModeString(column, mParseDoubleValueCount);
 					}
 				}
 
@@ -447,18 +457,19 @@ public class CompoundTableModel extends AbstractTableModel
 		return encodeData(record, column);
 		}
 
-	public String getSummaryModeString(int mode, int valueCount) {
-		switch (mode) {
+	private String getSummaryModeString(int column, int valueCount) {
+		String end = mColumnInfo[column].stdDeviationShown ? ", stdDev=<soon>)" : ")";
+		switch (mColumnInfo[column].summaryMode) {
 		case cSummaryModeMean:
-			return " (mean, n="+valueCount+")";
+			return " (mean, n="+valueCount+end;
 		case cSummaryModeMedian:
-			return " (median, n="+valueCount+")";
+			return " (median, n="+valueCount+end;
 		case cSummaryModeMinimum:
-			return " (min of "+valueCount+")";
+			return " (min of "+valueCount+end;
 		case cSummaryModeMaximum:
-			return " (max of "+valueCount+")";
+			return " (max of "+valueCount+end;
 		case cSummaryModeSum:
-			return " (sum of "+valueCount+")";
+			return " (sum of "+valueCount+end;
 		default:
 			return "";
 			}
@@ -492,6 +503,14 @@ public class CompoundTableModel extends AbstractTableModel
 		return mRecord[row].mFloat[column];
 		}
 
+	/**
+	 * Returns stored original value without detail information.
+	 * This method does not consider any column display or summary modes.
+	 * The returned value may be split into multiple entries by passing it to separateEntries().
+	 * @param row index referring to all rows
+	 * @param column index referring to all columns
+	 * @return 
+	 */
 	public String getTotalValueAt(int row, int column) {
 		return encodeData(mRecord[row], column);
 		}
@@ -826,6 +845,25 @@ public class CompoundTableModel extends AbstractTableModel
 		}
 
 	/**
+	 * Use this method whenever a column title shall be exported within tab delimited content.
+	 * For displayable columns this method returns the original column name
+	 * plus the special type in square brackets, if the column contains a special type.
+	 * This way it is ensures that the special type can be recreated, when pasting or reading the
+	 * text data again. For non-displayable columns this method returns null.<br>
+	 * findColumn(String columnName) is guaranteed to correctly return the column index from this title.
+	 * @param column absolute (total) column index
+	 * @return column alias or name [with attached special type], or null, if column not displayable
+	 */
+	public String getColumnTitleWithSpecialType(int column) {
+		if (column < 0 || getParentColumn(column) != -1)
+			return null;
+
+		String name = mColumnInfo[column].name;
+		String type = getColumnSpecialType(column);
+		return (type == null) ? name : name.concat(" [".concat(type).concat("]"));
+		}
+
+	/**
 	 * Use this method or getColumnTitle() whenever you need to display a column title.
 	 * This method works as getColumnTitle(), except for the following:<br>
 	 * - If a numerical column's summary mode is set, then this is reflected in the name as <i>mean of myName</i><br>
@@ -939,19 +977,6 @@ public class CompoundTableModel extends AbstractTableModel
 				}
 			}
 
-/*	  for (int i=0; i<mColumnInfo.length; i++) {
-			if (mColumnInfo[i].logarithmicViewMode) {
-				if (mColumnInfo[i].alias != null) {
-					if (columnName.equals("log("+mColumnInfo[i].alias+")"))
-						return i;
-					}
-				else {
-					if (columnName.equals("log("+mColumnInfo[i].name+")"))
-						return i;
-					}
-				}
-			}*/
-
 		// to match old OSIRIS test columns "testName.paramName" to new ones "testName.paramName [unit]"
 		if (columnName.matches("[\\d\\w\\s_]+\\..+"))	// matches "#.* [*]" with # is one or more digits,letters,whitespace
 			for (int i=0; i<mColumnInfo.length; i++)
@@ -959,15 +984,25 @@ public class CompoundTableModel extends AbstractTableModel
 		   		 && mColumnInfo[i].name.substring(columnName.length()).matches(" \\[.+]"))
 					return i;
 
-		// to match child columns from display name as "Structure [FragFp]"
 		if (columnName.matches(".+ \\[.+\\]")) {	// matches "* [*]" with * is one or more visible characters
 			for (int i=0; i<mColumnInfo.length; i++) {
 				String parent = getColumnProperty(i, cColumnPropertyParentColumn);
-				if (parent != null && !isColumnDisplayable(i)) {
-					String type = " ["+getColumnSpecialTypeForDisplay(i)+"]";
-					if (columnName.equals(parent+type)
-					 || (columnName.equals(parent+" Similarity"+type) && isDescriptorColumn(i)))
+
+				// to match special columns encoded for text files as "Structure [idcode]"
+				if (parent == null) {
+					String type = " ["+getColumnSpecialType(i)+"]";
+					if (columnName.equals(mColumnInfo[i].name+type))
 				   		return i;
+					}
+
+				// to match child columns from display name as "Structure [FragFp]"
+				else {
+					if (!isColumnDisplayable(i)) {
+						String type = " ["+getColumnSpecialTypeForDisplay(i)+"]";
+						if (columnName.equals(parent+type)
+						 || (columnName.equals(parent+" Similarity"+type) && isDescriptorColumn(i)))
+					   		return i;
+						}
 					}
 				}
 			}
@@ -1096,8 +1131,7 @@ public class CompoundTableModel extends AbstractTableModel
 													  column,
 													  TableModelEvent.UPDATE);
 
-			fireEvents(new CompoundTableEvent(this,
-								CompoundTableEvent.cChangeColumnName, column), tme);
+			fireEventsNow(new CompoundTableEvent(this, CompoundTableEvent.cChangeColumnName, column), tme);
 			}
 		}
 
@@ -1108,17 +1142,33 @@ public class CompoundTableModel extends AbstractTableModel
 		mColumnInfo[column].description = description;
 		}
 
+	/**
+	 * Index refers to visible records rather than to all ones
+	 * @param value null or String representation of the cell data
+	 * @param row
+	 * @param column
+	 */
 	public void setValueAt(String value, int row, int column) {
 		mNonExcludedRecord[row].setData(decodeData(value, column), column);
 		}
 
+	/**
+	 * Index refers to all records rather than to the visible ones
+	 * @param value null or String representation of the cell data
+	 * @param row
+	 * @param column
+	 */
 	public void setTotalValueAt(String value, int row, int column) {
-		// index refers to all records rather than to the visible ones
 		mRecord[row].setData(decodeData(value, column), column);
 		}
 
+	/**
+	 * Index refers to all records rather than to the visible ones
+	 * @param value null or in-memory representation of the cell data
+	 * @param row
+	 * @param column
+	 */
 	public void setTotalDataAt(Object value, int row, int column) {
-		// index refers to all records rather than to the visible ones
 		mRecord[row].setData(value, column);
 		}
 
@@ -1144,7 +1194,7 @@ public class CompoundTableModel extends AbstractTableModel
 				TableModelEvent tme = (mColumnInfo[column].summaryMode != cSummaryModeNormal) ?
 						new TableModelEvent(this, 0, mNonExcludedRecords-1, mColumnToDisplayableColumn[column], TableModelEvent.UPDATE) : null;
 	
-				fireEvents(new CompoundTableEvent(this, CompoundTableEvent.cChangeColumnData, column), tme);
+				fireEventsNow(new CompoundTableEvent(this, CompoundTableEvent.cChangeColumnData, column), tme);
 				}
 			}
 		}
@@ -1209,7 +1259,7 @@ public class CompoundTableModel extends AbstractTableModel
 
 		if (changed) {
 			updateMinAndMaxFromDouble(column);
-			fireEvents(new CompoundTableEvent(this, CompoundTableEvent.cChangeColumnData, column), null);
+			fireEventsNow(new CompoundTableEvent(this, CompoundTableEvent.cChangeColumnData, column), null);
 			}
 		}
 	
@@ -1228,10 +1278,10 @@ public class CompoundTableModel extends AbstractTableModel
 			if (column < mColumns) {	// if we change the mode of already finalized columns
 				setupDoubleValues(column, 0);
 	
-				fireEvents(new CompoundTableEvent(this, CompoundTableEvent.cChangeColumnName, column),
+				fireEventsNow(new CompoundTableEvent(this, CompoundTableEvent.cChangeColumnName, column),
 						   new TableModelEvent(this, TableModelEvent.HEADER_ROW, TableModelEvent.HEADER_ROW,
 								   			   mColumnToDisplayableColumn[column], TableModelEvent.UPDATE));
-				fireEvents(new CompoundTableEvent(this, CompoundTableEvent.cChangeColumnData, column),
+				fireEventsNow(new CompoundTableEvent(this, CompoundTableEvent.cChangeColumnData, column),
 						   new TableModelEvent(this, 0, mNonExcludedRecords-1,
 								   			   mColumnToDisplayableColumn[column], TableModelEvent.UPDATE));
 				}
@@ -1248,7 +1298,24 @@ public class CompoundTableModel extends AbstractTableModel
 			mColumnInfo[column].summaryCountHidden = isHidden;
 
 			if (column < mColumns) {	// if we change the mode of already finalized columns
-				fireEvents(null,
+				fireEventsNow(null,
+						   new TableModelEvent(this, 0, mNonExcludedRecords-1,
+								   			   mColumnToDisplayableColumn[column], TableModelEvent.UPDATE));
+				}
+			}
+		}
+
+	/**
+	 * This hides the text following any summarizing number, e.g. '(mean of 4)'.
+	 * This way data can be copied or exported for further numerical analysis.
+	 * @param isHidden
+	 */
+	public void setColumnStdDeviationShown(int column, boolean isShown) {
+		if (mColumnInfo[column].stdDeviationShown != isShown) {
+			mColumnInfo[column].stdDeviationShown = isShown;
+
+			if (column < mColumns) {	// if we change the mode of already finalized columns
+				fireEventsNow(null,
 						   new TableModelEvent(this, 0, mNonExcludedRecords-1,
 								   			   mColumnToDisplayableColumn[column], TableModelEvent.UPDATE));
 				}
@@ -1266,8 +1333,8 @@ public class CompoundTableModel extends AbstractTableModel
 			mColumnInfo[column].structureHiliteMode = mode;
 
 			if (column < mColumns)	// if we change the mode of already finalized columns
-				fireEvents(new CompoundTableEvent(this, CompoundTableEvent.cChangeColumnData, column),
-						   new TableModelEvent(this, 0, mNonExcludedRecords-1, mColumnToDisplayableColumn[column], TableModelEvent.UPDATE));
+				fireEventsNow(new CompoundTableEvent(this, CompoundTableEvent.cChangeColumnData, column),
+							  new TableModelEvent(this, 0, mNonExcludedRecords-1, mColumnToDisplayableColumn[column], TableModelEvent.UPDATE));
 			}
 		}
 
@@ -1281,8 +1348,8 @@ public class CompoundTableModel extends AbstractTableModel
 			mColumnInfo[column].significantDigits = digits;
 
 			if (column < mColumns)	// if we change the mode of already finalized columns
-				fireEvents(new CompoundTableEvent(this, CompoundTableEvent.cChangeColumnData, column),
-						   new TableModelEvent(this, 0, mNonExcludedRecords-1, mColumnToDisplayableColumn[column], TableModelEvent.UPDATE));
+				fireEventsNow(new CompoundTableEvent(this, CompoundTableEvent.cChangeColumnData, column),
+							  new TableModelEvent(this, 0, mNonExcludedRecords-1, mColumnToDisplayableColumn[column], TableModelEvent.UPDATE));
 			}
 		}
 
@@ -1302,7 +1369,7 @@ public class CompoundTableModel extends AbstractTableModel
 				mTableExtensionMap = new TreeMap<String,Object>();
 			if (mTableExtensionMap != null)
 				mTableExtensionMap.put(name, data);
-			fireEvents(new CompoundTableEvent(this, CompoundTableEvent.cChangeExtensionData, mExtensionHandler.getID(name)), null);
+			fireEventsNow(new CompoundTableEvent(this, CompoundTableEvent.cChangeExtensionData, -1, mExtensionHandler.getID(name)), null);
 			}
 		}
 
@@ -1316,7 +1383,7 @@ public class CompoundTableModel extends AbstractTableModel
 			if ((mRecord[row].mFlags & mask) != 0)
 				mRecord[row].mFlags &= ~CompoundRecord.cFlagMaskSelected;
 
-		fireEvents(new CompoundTableEvent(this, CompoundTableEvent.cChangeSelection, -1), null);
+		fireEventsNow(new CompoundTableEvent(this, CompoundTableEvent.cChangeSelection, -1), null);
 		}
 	
 	/**
@@ -1329,7 +1396,7 @@ public class CompoundTableModel extends AbstractTableModel
 			if ((mRecord[row].mFlags & mask) != 0)
 				mRecord[row].mFlags |= CompoundRecord.cFlagMaskSelected;
 
-		fireEvents(new CompoundTableEvent(this, CompoundTableEvent.cChangeSelection, -1), null);
+		fireEventsNow(new CompoundTableEvent(this, CompoundTableEvent.cChangeSelection, -1), null);
 		}
 	
 	public void invertSelection() {
@@ -1342,7 +1409,7 @@ public class CompoundTableModel extends AbstractTableModel
 			else
 				mRecord[row].mFlags |= CompoundRecord.cFlagMaskSelected;
 
-		fireEvents(new CompoundTableEvent(this, CompoundTableEvent.cChangeSelection, -1), null);
+		fireEventsNow(new CompoundTableEvent(this, CompoundTableEvent.cChangeSelection, -1), null);
 		}
 
 	public void addNewRows(int newRowCount) {
@@ -1510,7 +1577,7 @@ public class CompoundTableModel extends AbstractTableModel
 		updateDescriptors();
 		createDisplayableColumnMap();
 		mColumns = mColumnInfo.length;
-		fireEvents(new CompoundTableEvent(this, CompoundTableEvent.cAddColumns, column), null);
+		fireEventsNow(new CompoundTableEvent(this, CompoundTableEvent.cAddColumns, column), null);
 		return column;
 		}
 
@@ -1576,8 +1643,8 @@ public class CompoundTableModel extends AbstractTableModel
 
 			setupDoubleValues(column, 0);
 
-			fireEvents(new CompoundTableEvent(this, CompoundTableEvent.cChangeColumnData, column),
-					   new TableModelEvent(this, 0, mNonExcludedRecords-1, mColumnToDisplayableColumn[column], TableModelEvent.UPDATE));
+			fireEventsNow(new CompoundTableEvent(this, CompoundTableEvent.cChangeColumnData, column),
+						  new TableModelEvent(this, 0, mNonExcludedRecords-1, mColumnToDisplayableColumn[column], TableModelEvent.UPDATE));
 			}
 		}
 
@@ -1680,7 +1747,7 @@ public class CompoundTableModel extends AbstractTableModel
 												  removalCount,
 												  TableModelEvent.DELETE);
 
-		fireEvents(new CompoundTableEvent(this, CompoundTableEvent.cRemoveColumns, columnMapping), tme);
+		fireEventsNow(new CompoundTableEvent(this, CompoundTableEvent.cRemoveColumns, columnMapping), tme);
 
 		if (stopDescriptorCalculation) {
 			updateDescriptors();
@@ -1696,9 +1763,8 @@ public class CompoundTableModel extends AbstractTableModel
 		analyzeData(firstRow, listener);
 		createDisplayableColumnMap();
 		compileVisibleRecords();
-		Runtime.getRuntime().gc();
-		fireEvents(new CompoundTableEvent(this, CompoundTableEvent.cAddRows, firstRow),
-				   new TableModelEvent(this, firstRow, mNonExcludedRecords-1, TableModelEvent.ALL_COLUMNS, TableModelEvent.INSERT));
+		fireEventsNow(new CompoundTableEvent(this, CompoundTableEvent.cAddRows, -1, firstRow),
+					  new TableModelEvent(this, firstRow, mNonExcludedRecords-1, TableModelEvent.ALL_COLUMNS, TableModelEvent.INSERT));
 		}
 
 	public void finalizeNewColumns(int firstNewColumn, ProgressListener listener) {
@@ -1713,13 +1779,18 @@ public class CompoundTableModel extends AbstractTableModel
 		updateDescriptors();
 		createDisplayableColumnMap();
 		mColumns = mColumnInfo.length;
-		Runtime.getRuntime().gc();
-		TableModelEvent tme = new TableModelEvent(this,
-												  TableModelEvent.HEADER_ROW,
-												  TableModelEvent.HEADER_ROW,
-												  0,
-												  TableModelEvent.INSERT);
-		fireEvents(new CompoundTableEvent(this, CompoundTableEvent.cAddColumns, firstNewColumn), tme);
+		TableModelEvent tme = new TableModelEvent(this, TableModelEvent.HEADER_ROW, TableModelEvent.HEADER_ROW, 0, TableModelEvent.INSERT);
+		fireEventsNow(new CompoundTableEvent(this, CompoundTableEvent.cAddColumns, firstNewColumn), tme);
+
+		// if we add atom coordinates to an existing structure column, fire a column changed on the structure column
+		for (int column=firstNewColumn; column<mColumns; column++) {
+			if (cColumnType2DCoordinates.equals(getColumnSpecialType(column))) {
+				int chemistryColumn = getParentColumn(column);
+				if (chemistryColumn < firstNewColumn)
+					fireEventsNow(new CompoundTableEvent(this, CompoundTableEvent.cChangeColumnData, chemistryColumn),
+								  new TableModelEvent(this, 0, mNonExcludedRecords-1, mColumnToDisplayableColumn[chemistryColumn], TableModelEvent.UPDATE));
+				}
+			}
 		}
 
 	/**
@@ -1743,30 +1814,55 @@ public class CompoundTableModel extends AbstractTableModel
 					analyzeCompleteness(i, 0);
 				else
 					mColumnInfo[i].isComplete &= spec.isComplete;
+
+				fireEventsNow(new CompoundTableEvent(this, CompoundTableEvent.cChangeColumnData, i, record.getID()), null);
 				}
 			}
 
-		fireEvents(new CompoundTableEvent(this, CompoundTableEvent.cChangeColumnData, column),
-				   new TableModelEvent(this, 0, mNonExcludedRecords-1, mColumnToDisplayableColumn[column], TableModelEvent.UPDATE));
+		fireEventsNow(new CompoundTableEvent(this, CompoundTableEvent.cChangeColumnData, column, record.getID()),
+					  new TableModelEvent(this, 0, mNonExcludedRecords-1, mColumnToDisplayableColumn[column], TableModelEvent.UPDATE));
 		}
 
 	/**
-	 * Needs to be called after changing individual values of one displayable column.
-	 * It re-analyzes the data type and completeness. If the column has descriptors
-	 * as child columns, then the descriptor update thread is started.
+	 * Needs to be called after changing individual values of one alpha-numerical column.
+	 * It re-analyzes the data type and completeness. For displayable columns that have
+	 * descriptor child columns, e.g. structure columns, use finalizeChangeSpecialColumn(...).
 	 * @param column
 	 * @param fromIndex first row index
 	 * @param toIndex last row index + 1
 	 */
-	public void finalizeChangeColumn(int column, int fromIndex, int toIndex) {
+	public void finalizeChangeAlphaNumericalColumn(int column, int fromIndex, int toIndex) {
+		analyzeColumn(column, 0, false);
+
+		int row = (fromIndex + 1 == toIndex) ? mNonExcludedRecord[fromIndex].getID() : -1;
+		fireEventsNow(new CompoundTableEvent(this, CompoundTableEvent.cChangeColumnData, column, row),
+					  new TableModelEvent(this, 0, mNonExcludedRecords-1, mColumnToDisplayableColumn[column], TableModelEvent.UPDATE));
+		}
+
+	/**
+	 * Needs to be called after changing individual values of one displayable column,
+	 * which has (a) descriptor child column(s). This method re-analyzes the data completeness.<br>
+	 * If removeAllDescriptor==true, then all descriptors of all records in the updated range
+	 * are removed and the descriptor update thread is started. If only some records in the given
+	 * range have been updated, it is more efficient for the caller to only remove the corresponding
+	 * outdated descriptors and then to call this method with removeAllDescriptors==false.
+	 * In the latter case this method does not remove any descriptors, but starts the descriptor update thread.
+	 * @param column
+	 * @param fromIndex first row index
+	 * @param toIndex last row index + 1
+	 * @param removeAllDescriptors if false, then the caller has to remove all descriptor in changed rows
+	 */
+	public void finalizeChangeChemistryColumn(int column, int fromIndex, int toIndex, boolean removeAllDescriptors) {
 		analyzeColumn(column, 0, false);
 
 		for (int i=0; i<mColumnInfo.length; i++) {
 			if (i != column && isDescriptorColumn(i) && getParentColumn(i) == column) {
 				boolean needsUpdate = false;
 				for (int row=fromIndex; row<toIndex; row++) {
-					mRecord[row].setData(null, i);
-					if (mRecord[row].getData(column) != null)
+					if (removeAllDescriptors)
+						mRecord[row].setData(null, i);
+					if (mRecord[row].getData(column) != null
+					 && mRecord[row].getData(i) == null)
 						needsUpdate = true;
 					}
 				if (needsUpdate) {
@@ -1775,9 +1871,49 @@ public class CompoundTableModel extends AbstractTableModel
 					}
 				}
 			}
-		
-		fireEvents(new CompoundTableEvent(this, CompoundTableEvent.cChangeColumnData, column),
-				   new TableModelEvent(this, 0, mNonExcludedRecords-1, mColumnToDisplayableColumn[column], TableModelEvent.UPDATE));
+
+		mFlexophoreSimilarityListCache = null;
+
+		fireEventsNow(new CompoundTableEvent(this, CompoundTableEvent.cChangeColumnData, column),
+					  new TableModelEvent(this, 0, mNonExcludedRecords-1, mColumnToDisplayableColumn[column], TableModelEvent.UPDATE));
+		}
+
+	/**
+	 * This removes all descriptors and coordinates in the given row that are a child of parentColumn.
+	 * This method may be called after changing the parent data object, e.g. a chemical structure.
+	 * @param row refers to all rows
+	 * @param parentColumn
+	 * @return true if descriptors have to be re-calculated
+	 */
+	public boolean removeChildDescriptorsAndCoordinates(int row, int parentColumn) {
+		return removeChildDescriptorsAndCoordinates(mRecord[row], parentColumn);
+		}
+
+	/**
+	 * This removes all descriptors and coordinates in the given row that are a child of parentColumn.
+	 * This method may be called after changing the parent data object, e.g. a chemical structure.
+	 * @param record
+	 * @param parentColumn
+	 * @return true if descriptors have to be re-calculated
+	 */
+	public boolean removeChildDescriptorsAndCoordinates(CompoundRecord record, int parentColumn) {
+		boolean descriptorChange = false;
+		for (int i=0; i<mColumnInfo.length; i++) {
+			if (i != parentColumn && getParentColumn(i) == parentColumn) {
+				String type = getColumnSpecialType(i);
+				if (type != null) {
+					if (DescriptorHelper.isDescriptorShortName(type)) {
+						record.setData(null, i);
+						descriptorChange = true;
+						}
+					else if (type.equals(cColumnType2DCoordinates)
+						  || type.equals(cColumnType3DCoordinates)) {
+						record.setData(null, i);
+						}
+					}
+				}
+			}
+		return descriptorChange && record.getData(parentColumn) != null;
 		}
 
 	public void allocateColumnDetail(int column, String name, String type, String source) {
@@ -1811,9 +1947,22 @@ public class CompoundTableModel extends AbstractTableModel
 
 	public void setColumnDetailSource(int column, int detail, String source) {
 		setColumnProperty(column, cColumnPropertyDetailSource+detail, source);
-			int[] detailList = new int[1];
-			detailList[0] = detail;
-		fireEvents(new CompoundTableEvent(this, CompoundTableEvent.cChangeColumnDetailSource, column, detailList), null);
+		int[] detailList = new int[1];
+		detailList[0] = detail;
+		fireEventsNow(new CompoundTableEvent(this, CompoundTableEvent.cChangeColumnDetailSource, column, detailList), null);
+		}
+
+	public int getColumnLookupCount(int column) {
+		String countString = getColumnProperty(column, cColumnPropertyLookupCount);
+		int count = 0;
+		if (countString != null)
+			try { count = Integer.parseInt(countString); } catch (NumberFormatException nfe) {};
+
+		return count;
+		}
+
+	public String getColumnLookupName(int column, int no) {
+		return getColumnProperty(column, cColumnPropertyLookupName+no);
 		}
 
 	public int getColumnSummaryMode(int column) {
@@ -1822,6 +1971,10 @@ public class CompoundTableModel extends AbstractTableModel
 
 	public boolean isColumnSummaryCountHidden(int column) {
 		return mColumnInfo[column].summaryCountHidden;
+		}
+
+	public boolean isColumnStdDeviationShown(int column) {
+		return mColumnInfo[column].stdDeviationShown;
 		}
 
 	public int getStructureHiliteMode(int column) {
@@ -1934,13 +2087,15 @@ public class CompoundTableModel extends AbstractTableModel
 			if (calculateDescriptors)
 				updateDescriptors();
 
+			mFlexophoreSimilarityListCache = null;
+
 			TableModelEvent tme = null;
 			if (visibleChanged) {
 				compileVisibleRecords();
 				tme = new TableModelEvent(this, 0, mNonExcludedRecords-1,
 								TableModelEvent.ALL_COLUMNS, TableModelEvent.DELETE);
 				}
-			fireEvents(new CompoundTableEvent(this, CompoundTableEvent.cDeleteRows, mapping), tme);
+			fireEventsNow(new CompoundTableEvent(this, CompoundTableEvent.cDeleteRows, mapping), tme);
 			}
 		}
 
@@ -2020,6 +2175,8 @@ public class CompoundTableModel extends AbstractTableModel
 		else if (mColumnInfo[column].type == cColumnTypeRangeCategory
 		 || (mColumnInfo[column].type & cColumnTypeDouble) != 0)
 			Arrays.sort(mRecord, new DoubleComparator(column, descending, selectedFirst));
+		else if ("Actelion No".equals(mColumnInfo[column].name))
+			Arrays.sort(mRecord, new ActNoComparator(column, descending, selectedFirst));
 		else
 			Arrays.sort(mRecord, new StringComparator(column, descending, selectedFirst));
 
@@ -2027,10 +2184,12 @@ public class CompoundTableModel extends AbstractTableModel
 
 		compileVisibleRecords();
 
+		mFlexophoreSimilarityListCache = null;
+
 		if (calculateDescriptors)
 			updateDescriptors();
 
-		fireEvents(new CompoundTableEvent(this, CompoundTableEvent.cChangeSortOrder, -1),
+		fireEventsNow(new CompoundTableEvent(this, CompoundTableEvent.cChangeSortOrder, -1),
 				   new TableModelEvent(this, 0, mNonExcludedRecords-1,
 							TableModelEvent.ALL_COLUMNS, TableModelEvent.UPDATE));
 		}
@@ -2085,7 +2244,7 @@ public class CompoundTableModel extends AbstractTableModel
 
 	/**
 	 * @param column
-	 * @return true if every row has a unique not empty value
+	 * @return true if every row has exactly one non empty unique value that may serve as row key
 	 */
 	public boolean isColumnDataUnique(int column) {
 		return mColumnInfo[column].isUnique;
@@ -2218,8 +2377,26 @@ public class CompoundTableModel extends AbstractTableModel
 		return (record.mFlags & mask) == CompoundRecord.cFlagMaskSelected;
 		}
 
+	public boolean isSelected(CompoundRecord record) {
+		return ((record.mFlags & CompoundRecord.cFlagMaskSelected) != 0);
+		}
+
+	/**
+	 * @param index refers to the visible rows rather than all rows
+	 */
 	public boolean isSelected(int index) {
 		return ((mNonExcludedRecord[index].mFlags & CompoundRecord.cFlagMaskSelected) != 0);
+		}
+
+	/**
+	 * Checks, whether any row is selected and returns true if one is found.
+	 */
+	public boolean hasSelectedRows() {
+		for (int row=0; row<mNonExcludedRecords; row++)
+			if ((mNonExcludedRecord[row].mFlags & CompoundRecord.cFlagMaskSelected) != 0)
+				return true;
+
+		return false;
 		}
 
 	public boolean isVisibleNeglecting(CompoundRecord record, int exclusionFlagNo) {
@@ -2237,10 +2414,16 @@ public class CompoundTableModel extends AbstractTableModel
 		updateVisibleRecords(isAdjusting, exclusionFlagNo);
 		}
 
+	/**
+	 * @param index refers to the visible rows rather than all rows
+	 */
 	public void clearSelected(int index) {
 		mNonExcludedRecord[index].mFlags &= ~CompoundRecord.cFlagMaskSelected;
 		}
 
+	/**
+	 * @param index refers to the visible rows rather than all rows
+	 */
 	public void setSelected(int index) {
 		mNonExcludedRecord[index].mFlags |= CompoundRecord.cFlagMaskSelected;
 		}
@@ -2641,7 +2824,7 @@ public class CompoundTableModel extends AbstractTableModel
 
 	public float[] createSimilarityList(Object chemObject, int descriptorColumn) {
 		Object refDescriptor = mColumnInfo[descriptorColumn].getCachedDescriptor(chemObject);
-		DescriptorHandler descriptorHandler = mColumnInfo[descriptorColumn].descriptorHandler;
+		DescriptorHandler<Object,Object> descriptorHandler = mColumnInfo[descriptorColumn].descriptorHandler;
 		float[] similarity = new float[mRecord.length];
 		for (int row=0; row<mRecord.length; row++) {
 			Object descriptor = mRecord[row].getData(descriptorColumn);
@@ -2653,19 +2836,43 @@ public class CompoundTableModel extends AbstractTableModel
 		}
 
 	/**
-	 * Calculates multi-threaded on all available cores the similarities of all records
-	 * against the given chemistry object (molecule or reaction) or the given descriptor.
-	 * This method returns before the calculation is finished. The calling thread needs to
-	 * wait until the stopProgress() is called on the ProgressController and must then
-	 * call getSimilarityListSMP() to obtain the result.
+	 * Checks, whether the cache contains a matching similarity list for the given idcode
+	 * (currently only flexophores are cached).
+	 * @param idcode
+	 * @param descriptorColumn
+	 * @return
+	 */
+	public float[] getSimilarityListFromCache(String idcode, int descriptorColumn) {
+		if (mFlexophoreSimilarityListCache != null
+		 && idcode != null
+		 && mColumnInfo[descriptorColumn].descriptorHandler instanceof DescriptorHandlerFlexophore) {
+			return mFlexophoreSimilarityListCache.get(idcode);
+			}
+
+		return null;
+		}
+
+	/**
+	 * If a valid similarity list can be obtained from the cache, then it is returned
+	 * (currently only flexophores are cached). The given idcode is used as key for the cache.
+	 * If idcode==null then the idcode is constructed from chemObject.<br>
+	 * If the cache didn't contain a matching similarity list, then this method calculates on
+	 * all available cores the similarities of all rows against the given chemistry object
+	 * (molecule or reaction) or the given descriptor. Then, this method returns before the
+	 * calculation is finished. The calling thread needs to wait until the stopProgress() is
+	 * called on the ProgressController and must then call getSimilarityListSMP() to obtain the result.
+	 * In case of a problem showErrorMessage() is called on pc.
 	 * @param chemObject null or StereoMolecule/Reaction
 	 * @param descriptor null if chemObject != null and vice versa
+	 * @param idcode used to compare against the cache; if idcode and chemObject are null, then no caching is used
 	 * @param descriptorColumn column containing the descriptor
 	 * @param pc the ProgressController informed about progress and when it is done
 	 */
-	public void createSimilarityListSMP(final Object chemObject, final Object descriptor, final int descriptorColumn, final ProgressController pc) {
+	public void createSimilarityListSMP(final Object chemObject, final Object descriptor, final String idcode,
+											final int descriptorColumn, final ProgressController pc) {
 		mSimilarityListSMP = new float[mRecord.length];
 
+System.out.println("CompoundTabelModel createSimilarityListSMP() Start");
 		new Thread("Similarity Calculator") {
 			public void run() {
 				final int threadCount = Runtime.getRuntime().availableProcessors();
@@ -2673,7 +2880,7 @@ public class CompoundTableModel extends AbstractTableModel
 				mSMPWorkingThreads = new AtomicInteger(threadCount);
 				mSMPErrorCount = 0;
 
-				final DescriptorHandler dh = mColumnInfo[descriptorColumn].descriptorHandler;
+				final DescriptorHandler<Object,Object> dh = mColumnInfo[descriptorColumn].descriptorHandler;
 
 				pc.startProgress("Calculating query descriptor...", 0, 0);
 		
@@ -2708,14 +2915,26 @@ public class CompoundTableModel extends AbstractTableModel
 								pc.updateProgress(-1);
 								recordIndex = mSMPRecordIndex.decrementAndGet();
 								}
-		
+
+System.out.println("CompoundTabelModel createSimilarityListSMP() threads left:"+(mSMPWorkingThreads.get()-1));
+
 							if (mSMPWorkingThreads.decrementAndGet() == 0) {
 								if (pc.threadMustDie())
 									mSimilarityListSMP = null;
 								else if (mSMPErrorCount != 0)
 									pc.showErrorMessage(getColumnSpecialType(descriptorColumn)
 											+" similarity calculation failed on "+mSMPErrorCount+" molecules.");
-		
+								else {
+									String key = idcode;
+									if (key == null && chemObject != null)
+										key = new Canonizer((StereoMolecule)chemObject).getIDCode();
+									if (key != null) {
+										if (mFlexophoreSimilarityListCache == null)
+											mFlexophoreSimilarityListCache = new ConcurrentHashMap<String,float[]>();
+										mFlexophoreSimilarityListCache.put(idcode, mSimilarityListSMP);
+										}
+									}
+
 								pc.stopProgress();
 								}
 							}
@@ -2734,6 +2953,7 @@ public class CompoundTableModel extends AbstractTableModel
 	 * @return similarity list
 	 */
 	public float[] getSimilarityListSMP() {
+System.out.println("CompoundTabelModel getSimilarityListSMP()");
 		float[] list = mSimilarityListSMP;
 		mSimilarityListSMP = null;
 		return list;
@@ -2773,18 +2993,28 @@ public class CompoundTableModel extends AbstractTableModel
 		return (order == null || order.size() == 0) ? null : order.toArray(new String[0]);
 		}
 
-	public void setCategoryCustomOrder(int column, String[] customOrder) {
-		if (customOrder == null || customOrder.length == 0) {
+	/**
+	 * Defines a new order of category items in a category column.
+	 * A custom category list is tolerant, which means that it neither has to
+	 * contain all existing categories nor is it restricted to existing categories.
+	 * If a custom category list contains items that are not in the dataset,
+	 * then the constructed category list contains first all custom categories
+	 * in their order and then the missing categories in their natural order.
+	 * @param column
+	 * @param categoryInCustomOrder
+	 */
+	public void setCategoryCustomOrder(int column, String[] categoryInCustomOrder) {
+		if (categoryInCustomOrder == null || categoryInCustomOrder.length == 0) {
 			mColumnInfo[column].mCategoryCustomOrder = null;
 			}
 		else {
 			mColumnInfo[column].mCategoryCustomOrder = new UniqueList<String>();
-			for (String s:customOrder)
+			for (String s:categoryInCustomOrder)
 				mColumnInfo[column].mCategoryCustomOrder.add(s);
 			}
 		mColumnInfo[column].categoryList = setupCategoryList(column);
-		assignRecordsToCategories(column);
-		fireEvents(new CompoundTableEvent(this, CompoundTableEvent.cChangeColumnData, column), null);
+		assignRecordsToCategories(column, 0);
+		fireEventsNow(new CompoundTableEvent(this, CompoundTableEvent.cChangeColumnData, column), null);
 		}
 
 	public void setHighlightedRow(CompoundRecord record) {
@@ -2806,7 +3036,7 @@ public class CompoundTableModel extends AbstractTableModel
 	public void setActiveRow(CompoundRecord record) {
 		if (mActiveRow != record) {
 			mActiveRow = record;
-			fireEvents(new CompoundTableEvent(this, CompoundTableEvent.cChangeActiveRow, -1), null);
+			fireEventsNow(new CompoundTableEvent(this, CompoundTableEvent.cChangeActiveRow, -1), null);
 			}
 		}
 
@@ -3035,7 +3265,7 @@ public class CompoundTableModel extends AbstractTableModel
 			for (int i=0; i<detailCount; i++)
 				if (!detailFound[i])
 					newDetailIndex[i] = -1;
-			fireEvents(new CompoundTableEvent(this, CompoundTableEvent.cRemoveColumnDetails, column, newDetailIndex), null);
+			fireEventsNow(new CompoundTableEvent(this, CompoundTableEvent.cRemoveColumnDetails, column, newDetailIndex), null);
 			}
 		}
 
@@ -3252,8 +3482,8 @@ public class CompoundTableModel extends AbstractTableModel
 
 			if (mColumnInfo[column].categoryList != null
 			 && (mColumnInfo[column].categoryList.getSize() != categoryCountBeforeChange
-			  || (firstRow == 0 && !isAfterDeletion)))	// neither append nor deletion
-				assignRecordsToCategories(column);
+			  || !isAfterDeletion))	// neither append nor deletion
+				assignRecordsToCategories(column, firstRow);
 			}
 		}
 
@@ -3310,14 +3540,16 @@ public class CompoundTableModel extends AbstractTableModel
 	 * (min, max and values remain untouched in float- or date-categories)
 	 * @param column
 	 */
-	private void assignRecordsToCategories(int column) {
+	private void assignRecordsToCategories(int column, int firstRow) {
 		if ((mColumnInfo[column].type & (cColumnTypeCategory | cColumnTypeDouble | cColumnTypeDate)) == cColumnTypeCategory) {
-			int categoryCount = mColumnInfo[column].categoryList.getSize();
-			mColumnInfo[column].minValue = 0.0f;
-			mColumnInfo[column].maxValue = mColumnInfo[column].belongsToMultipleCategories ?
-											categoryCount+1 : categoryCount;
+			if (firstRow == 0) {
+				int categoryCount = mColumnInfo[column].categoryList.getSize();
+				mColumnInfo[column].minValue = 0.0f;
+				mColumnInfo[column].maxValue = mColumnInfo[column].belongsToMultipleCategories ?
+												categoryCount+1 : categoryCount;
+				}
 
-			for (int row=0; row<mRecord.length; row++)
+			for (int row=firstRow; row<mRecord.length; row++)
 				mRecord[row].mFloat[column] = 0.5f + calcCategoryIndex(column, mRecord[row]);
 			}
 		}
@@ -3685,11 +3917,24 @@ public class CompoundTableModel extends AbstractTableModel
 		else
 			mode = TableModelEvent.UPDATE;
 
-		fireEvents(new CompoundTableEvent(this,
+		mExclusionTag++;
+
+		fireEventsLater(new CompoundTableEvent(this,
 								CompoundTableEvent.cChangeExcluded, exclusionFlagNo,
 								isAdjusting),
-				   new TableModelEvent(this, 0, mNonExcludedRecords-1,
+						new TableModelEvent(this, 0, mNonExcludedRecords-1,
 								TableModelEvent.ALL_COLUMNS, mode));
+		}
+
+	/**
+	 * Returns an integer that uniquely identifies the most recent change row visibility.
+	 * Since CompoundTableEvent after row visibility change are sent delayed, a listener
+	 * may track by examining exclusion tags, whether the current tableModel visibility
+	 * information is still up-to-date
+	 * @return
+	 */
+	public int getExclusionTag() {
+		return mExclusionTag;
 		}
 
 	private void compileVisibleRecords() {
@@ -3848,6 +4093,10 @@ public class CompoundTableModel extends AbstractTableModel
 		return false;
 		}
 
+	/**
+	 * @param data cell content in String form as returned from encodeData() or getTotalValueAt()
+	 * @return complete list of entries in original order or String[1] with empty String, if data is empty
+	 */
 	public String[] separateEntries(String data) {
 		if (data == null || data.length() == 0) {
 			String[] entry = { "" };
@@ -3855,6 +4104,19 @@ public class CompoundTableModel extends AbstractTableModel
 			}
 
 		return data.split(cSeparatorRegex, -1);
+		}
+
+	/**
+	 * @param data cell content in String form as returned from encodeData() or getTotalValueAt()
+	 * @return sorted list of all distinct entries or null, if data is empty
+	 */
+	public String[] separateUniqueEntries(String data) {
+		SortedStringList list = new SortedStringList();
+		String[] entries = separateEntries(data);
+		for (String entry:entries)
+			if (entry.length() != 0)
+				list.addString(entry);
+		return list.getSize() == 0 ? null : list.toArray();
 		}
 
 	private String[] getEntrySeparators(String data, String[] entry) {
@@ -3877,30 +4139,49 @@ public class CompoundTableModel extends AbstractTableModel
 		return (separator == null) ? cDefaultDetailSeparator : separator;
 		}
 
-	private void fireEvents(CompoundTableEvent cte, TableModelEvent tme) {
+	/**
+	 * We have to call this method rather than fireEventsNow() whenever
+	 * the cause for the change may be actually have been triggered by another
+	 * CompoundTableEvent. We need to avoid nested events and inform all listeners
+	 * about changes one after another.
+	 * A typical example is a CompoundTableEvent(changeColumnData) that causes a
+	 * filter or view to call set...Exclusion(), which then would trigger a nested
+	 * CompoundTableEvent(updateVisible) if not delayed by this method.
+	 * @param cte
+	 * @param tme
+	 */
+	private void fireEventsLater(final CompoundTableEvent cte, final TableModelEvent tme) {
+		SwingUtilities.invokeLater(new Runnable() {
+			public void run() {
+				try {
+					if (cte != null)
+						fireCompoundTableChanged(cte);
+					if (tme != null)
+						fireTableChanged(tme);
+					}
+				catch (Exception e) {
+					e.printStackTrace();
+					}
+				}
+			} );
+		}
+
+	private void fireEventsNow(final CompoundTableEvent cte, final TableModelEvent tme) {
 		if (SwingUtilities.isEventDispatchThread()) {
-			try {
-				if (cte != null)
-					fireCompoundTableChanged(cte);
-				if (tme != null)
-					fireTableChanged(tme);
-				}
-			catch (Exception e) {
-				e.printStackTrace();
-				}
+			if (cte != null)
+				fireCompoundTableChanged(cte);
+			if (tme != null)
+				fireTableChanged(tme);
 			}
 		else {
-				// if we are not in the event dispatcher thread we need to use invokeAndWait
-			final CompoundTableEvent _cte = cte;
-			final TableModelEvent _tme = tme;
 			try {
 				SwingUtilities.invokeAndWait(new Runnable() {
 					public void run() {
 						try {
-							if (_cte != null)
-								fireCompoundTableChanged(_cte);
-							if (_tme != null)
-								fireTableChanged(_tme);
+							if (cte != null)
+								fireCompoundTableChanged(cte);
+							if (tme != null)
+								fireTableChanged(tme);
 							}
 						catch (Exception e) {
 							e.printStackTrace();
@@ -3951,34 +4232,40 @@ public class CompoundTableModel extends AbstractTableModel
 					}
 
 				if (descriptorColumnCount != 0) {
+					Arrays.sort(mSMPColumnSpec);	// sort descriptors by ascending calculation priority
+
 					int threadCount = Runtime.getRuntime().availableProcessors();
 					mSMPWorkingThreads = new AtomicInteger(threadCount);
-					mSMPRecordIndex = new AtomicInteger(mRecords);
+					mSMPIndex = new AtomicInteger(mRecords*descriptorColumnCount);
 					mSMPRecord = mRecord;
 
-					for (int i=0; i<mProgressListener.size(); i++)
-						mProgressListener.get(i).startProgress("Calculating descriptors...", 0, mSMPRecord.length-1);
-
+					final int _records = mRecords;
 					for (int i=0; i<threadCount; i++) {
 						Thread t = new Thread("Descriptor Calculator "+(i+1)) {
 							public void run() {
 								StereoMolecule molecule = new StereoMolecule();	// this is the default
-								int recordIndex = mSMPRecordIndex.decrementAndGet();
-								while (recordIndex >= 0 && !mSMPStopDescriptorCalculation) {
-									for (DescriptorColumnSpec spec:mSMPColumnSpec)
-										updateDescriptor(mSMPRecord[recordIndex], spec, molecule);
+								int index = mSMPIndex.decrementAndGet();
+								while (index >= 0 && !mSMPStopDescriptorCalculation) {
+									int descriptorIndex = index / _records;
+									int recordIndex = index % _records;
+
+									DescriptorColumnSpec spec = mSMPColumnSpec[descriptorIndex];
+
+									if (recordIndex == _records-1) {
+										for (int i=0; i<mProgressListener.size(); i++)
+											mProgressListener.get(i).startProgress("Calculating "
+													+spec.descriptorHandler.getInfo().shortName+"...", 0, _records);
+										}
+
+									updateDescriptor(mSMPRecord[recordIndex], spec, molecule);
 
 									for (ProgressListener pl:mProgressListener)
 										pl.updateProgress(-1);
 
-									recordIndex = mSMPRecordIndex.decrementAndGet();
-									}
-
-								if (mSMPWorkingThreads.decrementAndGet() == 0) {
-									synchronized(CompoundTableModel.this) {
-										if (!mSMPStopDescriptorCalculation) {
-											String errorMsg = null;
-											for (DescriptorColumnSpec spec:mSMPColumnSpec) {
+									if (recordIndex == 0) {	// one descriptor was completed for all records
+										synchronized(CompoundTableModel.this) {
+											if (!mSMPStopDescriptorCalculation) {
+												String errorMsg = null;
 												if (spec.isOutdated)
 													setColumnProperty(spec.descriptorColumn, cColumnPropertyDescriptorVersion, spec.descriptorHandler.getVersion());
 
@@ -3989,21 +4276,24 @@ public class CompoundTableModel extends AbstractTableModel
 												if (spec.errorCount != 0) {
 													errorMsg = ((errorMsg == null) ? "" : errorMsg + "/n")
 															 + "Descriptor '"+ getColumnSpecialType(spec.descriptorColumn)+"' calculation failed in "+spec.errorCount+" cases.";
+													for (ProgressListener pl:mProgressListener)
+														pl.showErrorMessage(errorMsg);
 													}
 												}
-											if (errorMsg != null)
-												for (ProgressListener pl:mProgressListener)
-													pl.showErrorMessage(errorMsg);
-											}
 
-										if (!mSMPProcessWaiting)
-											for (int i=0; i<mProgressListener.size(); i++)
-												((ProgressListener)mProgressListener.get(i)).stopProgress();
-
-										if (!mSMPStopDescriptorCalculation)
-											for (DescriptorColumnSpec spec:mSMPColumnSpec)
+											if (!mSMPStopDescriptorCalculation)
 												if (spec.updateCount != 0)
-													fireEvents(new CompoundTableEvent(this, CompoundTableEvent.cChangeColumnData, spec.descriptorColumn), null);
+													fireEventsLater(new CompoundTableEvent(this, CompoundTableEvent.cChangeColumnData, spec.descriptorColumn), null);
+											}
+										}
+
+									index = mSMPIndex.decrementAndGet();
+									}
+
+								if (mSMPWorkingThreads.decrementAndGet() == 0) {
+									synchronized(CompoundTableModel.this) {
+										for (int i=0; i<mProgressListener.size(); i++)
+											((ProgressListener)mProgressListener.get(i)).stopProgress();
 
 										mSMPColumnSpec = null;
 										mSMPRecord = null;
@@ -4027,6 +4317,7 @@ public class CompoundTableModel extends AbstractTableModel
 		try {
 			byte[] coords = null;
 			boolean needsCoords = false;
+			DescriptorHandler<Object,Object> descriptorHandler = null;
 			synchronized(CompoundTableModel.this) {
 				if (!mSMPStopDescriptorCalculation) {
 					if (!spec.isOutdated && record.getData(spec.descriptorColumn) != null) {
@@ -4040,6 +4331,8 @@ public class CompoundTableModel extends AbstractTableModel
 							coords = (coordsColumn == -1) ? null : (byte[])record.getData(coordsColumn);
 							}
 						}
+
+					descriptorHandler = mColumnInfo[spec.descriptorColumn].descriptorHandler;
 					}
 				}
 
@@ -4058,7 +4351,7 @@ public class CompoundTableModel extends AbstractTableModel
 						}
 					}
 	
-				descriptor = mColumnInfo[spec.descriptorColumn].descriptorHandler.createDescriptor(chemObject);
+				descriptor = descriptorHandler.createDescriptor(chemObject);
 				}
 			}
 		catch (Throwable t) {
@@ -4085,12 +4378,12 @@ public class CompoundTableModel extends AbstractTableModel
 		mSMPStopDescriptorCalculation = true;
 		}
 
-	private class DescriptorColumnSpec {
+	private class DescriptorColumnSpec implements Comparable<DescriptorColumnSpec> {
 		int descriptorColumn;
 		int parentColumn;
 		int updateCount;
 		int errorCount;
-		DescriptorHandler descriptorHandler;
+		DescriptorHandler<Object,Object> descriptorHandler;
 		boolean isOutdated,isComplete,isCompleteChild,isReaction;
 
 		public DescriptorColumnSpec(int descriptorColumn) {
@@ -4104,6 +4397,28 @@ public class CompoundTableModel extends AbstractTableModel
 			updateCount = 0;
 			errorCount = 0;
 			}
+
+		@Override
+		public int compareTo(DescriptorColumnSpec o) {
+			String name1 = descriptorHandler.getInfo().shortName;
+			String name2 = o.descriptorHandler.getInfo().shortName;
+			if (name1.equals(DescriptorConstants.DESCRIPTOR_FFP512.shortName))	// 1st priority
+				return 1;
+			if (name2.equals(DescriptorConstants.DESCRIPTOR_FFP512.shortName))
+				return -1;
+			if (name1.equals(DescriptorConstants.DESCRIPTOR_SkeletonSpheres.shortName))	// 2nd priority
+				return 1;
+			if (name2.equals(DescriptorConstants.DESCRIPTOR_SkeletonSpheres.shortName))
+				return -1;
+
+			if (name1.equals(DescriptorConstants.DESCRIPTOR_Flexophore.shortName))	// last priority because of long calculation
+				return -1;
+			if (name2.equals(DescriptorConstants.DESCRIPTOR_Flexophore.shortName))
+				return 1;
+
+			// the rest we don't care about priories and do it just by name
+			return name1.compareTo(name2);
+			}
 		}
 	}
 
@@ -4113,7 +4428,7 @@ class CompoundTableColumnInfo {
 	protected boolean			isComplete,isCompleteChild,isUnique,
 								containsMultiLineText,hasDetail,hasMultipleEntries,
 								belongsToMultipleCategories,logarithmicViewMode,
-								hasModifiers,excludeModifierValues,summaryCountHidden;
+								hasModifiers,excludeModifierValues,summaryCountHidden,stdDeviationShown;
 	protected float				minValue,maxValue,dataMin,dataMax;
 	protected CategoryList<?>	categoryList;
 	protected UniqueList<String> mCategoryCustomOrder;
@@ -4121,7 +4436,7 @@ class CompoundTableColumnInfo {
 	protected String			alias;		  // is treated as runtime property
 	protected String			description;	// is treated as runtime property
 	private HashMap<String,String> properties;		// belong to table data
-	protected DescriptorHandler descriptorHandler;
+	protected DescriptorHandler<Object,Object> descriptorHandler;
 	private TreeMap<String,DescriptorCacheEntry> descriptorCache;
 
 	protected CompoundTableColumnInfo(String name) {
@@ -4264,6 +4579,44 @@ class StringComparator implements Comparator<CompoundRecord> {
 		}
 	}
 
+class ActNoComparator implements Comparator<CompoundRecord> {
+	private int mColumn;
+	private boolean mInverse,mSelectedFirst;
+
+	public ActNoComparator(int column, boolean inverse, boolean selectedFirst) {
+		mColumn = column;
+		mInverse = inverse;
+		mSelectedFirst = selectedFirst;
+		}
+
+	public int compare(CompoundRecord o1, CompoundRecord o2) {
+		if (mSelectedFirst && (o1.isSelected() != o2.isSelected()))
+			return o1.isSelected() ? -1 : 1;
+		byte[] s1 = (byte[])o1.getData(mColumn);
+		byte[] s2 = (byte[])o2.getData(mColumn);
+		if (s1 == null)
+			return (s2 == null) ? 0 : 1;
+		if (s2 == null)
+			return -1;
+		int comparison = compare(s1, s2);
+		return (mInverse) ? -comparison : comparison;
+		}
+
+	private int compare(byte[] s1, byte[] s2) {
+		// if we have old and new ActNo formats, the new one is larger
+		if ((s1.length > 11 && s1[8] == '-') ^ (s2.length > 11 && s2[8] == '-'))
+			return (s2.length > 11 && s2[8] == '-') ? -1 : 1;
+
+		for (int i=0; i<s1.length; i++) {
+			if (s2.length == i)
+				return 1;
+			if (s1[i] != s2[i])
+				return (s1[i] < s2[i]) ? -1 : 1;
+			}
+		return (s2.length > s1.length) ? -1 : 0;
+		}
+	}
+
 class IDCodeComparator implements Comparator<CompoundRecord> {
 	private int mColumn;
 	private boolean mInverse,mSelectedFirst;
@@ -4343,7 +4696,9 @@ class EntryAnalysis {
 				   || entry.equals("NaN")
 				   || entry.equals("#N/A")
 				   || entry.equals("N/A")
-				   || entry.equals("NA"));
+				   || entry.equals("NA")
+				   || entry.equals("-")
+				   || entry.equals("?"));
 			if (!mIsNaN)
 				analyzeModifier(entry);
 			}

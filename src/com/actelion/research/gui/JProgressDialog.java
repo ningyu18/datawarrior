@@ -100,14 +100,19 @@ public class JProgressDialog extends JDialog implements ActionListener,ProgressC
 			}
 		}
 
+	/**
+	 * Sets progress back to zero, hides the progress bar, but keeps the dialog open.
+	 * May be called safely from any thread
+	 */
 	public void stopProgress() {
-			// may be called safely from any thread
 		mAction |= sActionStop;
 		update();
 		}
 
 	/**
-	 * If you need to move a newly created window to the front, then use close(Frame newFrontFrame)
+	 * Closes and disposes the dialog.
+	 * If you need to move a newly created window to the front, then use close(Frame newFrontFrame).
+	 * May be called safely from any thread
 	 */
 	public void close() {
 		close(null);

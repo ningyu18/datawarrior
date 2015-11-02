@@ -2,11 +2,11 @@
  * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
- * 
+ *
  * DataWarrior is free software: you can redistribute it and/or modify it under the terms of the
  * GNU General Public License as published by the Free Software Foundation, either version 3 of
  * the License, or (at your option) any later version.
- * 
+ *
  * DataWarrior is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
  * without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
  * See the GNU General Public License for more details.
@@ -20,6 +20,7 @@ package com.actelion.research.chem;
 
 import com.actelion.research.chem.reaction.Reaction;
 
+import java.awt.*;
 import java.awt.geom.Rectangle2D;
 
 
@@ -150,7 +151,6 @@ public class ChemistryHelper
 
     public static Rectangle2D.Double getArrowBoundingRect(Reaction r)
     {
-        double avgblen = getAverageBondLength(r);
         Rectangle2D rr = getReactantsBoundingRect(r);
         Rectangle2D rp = getProductsBoundingRect(r);
         if (rr != null && rp != null) {
@@ -158,7 +158,6 @@ public class ChemistryHelper
             double y = union.getHeight() / 2 + union.getY();
             double rx = rr.getMaxX();
             double px = rp.getMinX();
-//            return scaleTo(new Rectangle2D.Double(rx < px ? rx : px,y,Math.abs(px - rx),0),avgblen * 3,0);
             return new Rectangle2D.Double(rx < px ? rx : px, y, Math.abs(px - rx), 0);
         } else if (rr != null) {
             double y = rr.getHeight() / 2 + rr.getY();
@@ -168,7 +167,6 @@ public class ChemistryHelper
 
         } else if (rp != null) {
             double y = rp.getHeight() / 2 + rp.getY();
-//            double width = rp.getWidth();
             double width = 0;
             double rx = rp.getMinX();
             return new Rectangle2D.Double(rx, y, width, 0);
@@ -283,8 +281,12 @@ public class ChemistryHelper
             Rectangle2D rb = getBoundingRect(reactants);
             Rectangle2D pb = getBoundingRect(products);
 
-//            System.out.printf("Reactant rectangle %s\n", rb);
-//            System.out.printf("Product rectangle %s\n", pb);
+/*
+            System.out.printf("\n\nReactant rectangle %s\n", rb);
+            System.out.printf("Product rectangle %s\n", pb);
+            System.out.printf("Dest rectangle %s\n",new Rectangle2D.Double(x,y,width,height));
+            System.out.printf("Arrow len:  %f\n\n",arrowSize);
+*/
             // left and right space
             double w = (width - arrowSize) / 2;
             double h = height;
@@ -294,14 +296,18 @@ public class ChemistryHelper
 
             double scale;
             if (scaleHorizontal < scaleVertical) {   // scale on x-dimension
-                scale = w / Math.max((float) rb.getWidth(), (float) pb.getWidth()) / 2;
+                scale = w / Math.max((float) rb.getWidth(), (float) pb.getWidth()) ;
                 //            System.out.printf("Scaling horiz %f\n", scale);
             } else {                                // scale on y-dimension
-                scale = h / Math.max((float) rb.getHeight(), (float) pb.getHeight()) / 2;
+                scale = h / Math.max((float) rb.getHeight(), (float) pb.getHeight()) ;
                 //            System.out.printf("Scaling vert %f\n", scale);
             }
 
-
+            double avbl = getAverageBondLength(reaction);
+//            double sc = AbstractDepictor.cOptAvBondLen/avbl;
+            scale = Math.min(AbstractDepictor.cOptAvBondLen/avbl,scale);
+//            if (reactants.length <= 1 && products.length <= 1)
+//                scale /= 4;
             {
 
                 transformMolecules(reactants, 0, 0, scale);
@@ -319,52 +325,9 @@ public class ChemistryHelper
                 transformMolecules(products, dx, dy, 1);
             }
 
-            //        for (int i = 0; i < reactants.length; i++) {
-            //            ExtendedMolecule m = reactants[i];
-            //            transformMolecule(m, 0, 0, scale);
-            //            Rectangle2D bounds = getBoundingRect(m);
-            //            double dx = x - bounds.getMinX() + (w - bounds.getWidth()) / 2;
-            //            double dy = y - bounds.getMinY() + (h - bounds.getHeight()) / 2;
-            //            transformMolecule(m, dx, dy, 1);
-            //        }
-
-            //        for (int i = 0; i < products.length; i++) {
-            //            ExtendedMolecule m = products[i];
-            //            transformMolecule(m, 0, 0, scale);
-            //            Rectangle2D bounds = getBoundingRect(m);
-            //            double dx = x + w + arrowSize - bounds.getMinX() + (w - bounds.getWidth()) / 2;
-            //            double dy = y - bounds.getMinY() + (h - bounds.getHeight()) / 2;
-            //            transformMolecule(m, dx, dy, 1);
-            //        }
         }
     }
 
-//    private static void foo(ExtendedMolecule[] mols, double x, double y, double width, double height, double arrowSize)
-//    {
-//        {
-//            double w = (width - arrowSize) / 2;
-//            double h = height;
-//            Rectangle2D rb = getBoundingRect(mols);
-//            if (rb != null) {
-//                double scaleHorizontal = width / rb.getWidth();
-//                double scaleVertical = width / rb.getHeight();
-//                double scale;
-//                if (scaleHorizontal < scaleVertical) {   // scale on x-dimension
-//                    scale = w / (float) rb.getWidth();
-//                } else {                                // scale on y-dimension
-//                    scale = h / (float) rb.getHeight();
-//                }
-//                for (int i = 0; i < mols.length; i++) {
-//                    ExtendedMolecule m = mols[i];
-//                    transformMolecule(m, 0, 0, scale / 3);
-//                    Rectangle2D bounds = getBoundingRect(m);
-//                    double dx = x - bounds.getMinX() + (w - bounds.getWidth()) / 2;
-//                    double dy = y - bounds.getMinY() + (h - bounds.getHeight()) / 2;
-//                    transformMolecule(m, dx, dy, 1);
-//                }
-//            }
-//        }
-//    }
 
     public static ExtendedMolecule[] getReactants(Reaction r)
     {

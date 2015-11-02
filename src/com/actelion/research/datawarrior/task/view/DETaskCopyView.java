@@ -35,8 +35,9 @@ import java.awt.event.KeyEvent;
 import java.awt.geom.Rectangle2D;
 import java.awt.image.BufferedImage;
 import java.io.File;
-import java.io.FileWriter;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.OutputStreamWriter;
 import java.io.Writer;
 import java.util.Properties;
 
@@ -481,7 +482,7 @@ public class DETaskCopyView extends DEAbstractViewTask implements ActionListener
 			if (FORMAT_SVG.equals(configuration.getProperty(PROPERTY_FORMAT))) {
 				File file = new File(resolveVariables(configuration.getProperty(PROPERTY_FILENAME)));
 				try {
-					Writer writer = new FileWriter(file);
+					Writer writer = new OutputStreamWriter(new FileOutputStream(file),"UTF-8");
 					writeSVG(viewComponent, size.width, size.height, dpi/75, transparentBG, writer);
 					writer.close();
 					}
@@ -592,7 +593,7 @@ public class DETaskCopyView extends DEAbstractViewTask implements ActionListener
 	/**
 	 * This creates and writes an SVG to the given writer using the JFreeSVG library.
 	 * (not used because the tested version 2.1 of JFreeSVG seems to create larger files
-	 * and converts non-filed reactangles into 4 lines which do not touch at the corners)
+	 * and converts non-filled rectangles into 4 lines which do not touch at the corners)
 	 * @param c
 	 * @param width
 	 * @param height
@@ -614,7 +615,7 @@ public class DETaskCopyView extends DEAbstractViewTask implements ActionListener
 		}*/
 
 	/*
-	 * This creates and writes an SVG to the given writer using the JFreeSVG library.
+	 * This creates and writes an SVG to the given writer using the Batik library.
 	 */
 	private void writeSVG(JComponent viewComponent, int width, int height, float fontScaling,
 							boolean transparentBG, Writer writer) throws IOException {
@@ -658,8 +659,7 @@ public class DETaskCopyView extends DEAbstractViewTask implements ActionListener
 			((JStructureGrid)viewComponent).paintHighResolution(g2d, new Dimension(width, height), fontScaling, transparentBG);
 			}
 
-		// Finally, stream out SVG to the standard output using
-		// UTF-8 encoding.
+		// Finally, stream out SVG to the standard output using UTF-8 encoding.
 		boolean useCSS = true; // we want to use CSS style attributes
 //		Writer writer = new OutputStreamWriter(System.out, "UTF-8");	we have our own writer
 		g2d.stream(writer, useCSS);

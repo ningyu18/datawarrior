@@ -33,8 +33,8 @@ import com.actelion.research.table.CompoundTableHitlistListener;
 import com.actelion.research.table.CompoundTableModel;
 
 public class JHitlistFilterPanel extends JFilterPanel implements ActionListener,CompoundTableHitlistListener {
-    private static final long serialVersionUID = 0x20061013;
-    private static final String LIST_ANY = "<any>";
+	private static final long serialVersionUID = 0x20061013;
+	private static final String LIST_ANY = "<any>";
 
 	private JComboBox		mComboBox;
 
@@ -42,134 +42,142 @@ public class JHitlistFilterPanel extends JFilterPanel implements ActionListener,
 	 * Creates the filter panel as UI to configure a task as part of a macro
 	 * @param tableModel
 	 */
-    public JHitlistFilterPanel(CompoundTableModel tableModel) {
-		this(tableModel, 0);
-    	}
+	public JHitlistFilterPanel(CompoundTableModel tableModel) {
+		this(tableModel, -1);
+		}
 
-    public JHitlistFilterPanel(CompoundTableModel tableModel, int exclusionFlag) {
+	public JHitlistFilterPanel(CompoundTableModel tableModel, int exclusionFlag) {
 		super(tableModel, -4, exclusionFlag, false);	// pass pseudo column for first hitlist
 
-    	JPanel p1 = new JPanel();
-        p1.setOpaque(false);
+		JPanel p1 = new JPanel();
+		p1.setOpaque(false);
 		p1.add(new JLabel("List name:"));
 
 		mComboBox = new JComboBox();
 		mComboBox.addItem(CompoundTableHitlistHandler.HITLISTNAME_NONE);
 		for (int i=0; i<mTableModel.getHitlistHandler().getHitlistCount(); i++)
 			mComboBox.addItem(mTableModel.getHitlistHandler().getHitlistName(i));
-        mComboBox.addItem(CompoundTableHitlistHandler.HITLISTNAME_ANY);
-        if (isActive())
-        	mComboBox.addActionListener(this);
-        else
-        	mComboBox.setEditable(true);
+		mComboBox.addItem(CompoundTableHitlistHandler.HITLISTNAME_ANY);
+		if (isActive())
+			mComboBox.addActionListener(this);
+		else
+			mComboBox.setEditable(true);
 		p1.add(mComboBox);
 
 		add(p1, BorderLayout.CENTER);
 
 		mIsUserChange = true;
-    	}
+		}
 
-    @Override
+	@Override
+	public void enableItems(boolean b) {
+		mComboBox.setEnabled(b);
+		}
+
+	@Override
 	public void actionPerformed(ActionEvent e) {
 		if (e.getSource() == mComboBox) {
-			updateExclusion();
+			updateExclusion(mIsUserChange);
 			return;
 			}
 
 		super.actionPerformed(e);
 		}
 
-    @Override
-    public boolean isFilterEnabled() {
-    	return mComboBox.getSelectedIndex() != 0;
-    	}
+	private int getHitlistIndex() {
+		int selectedIndex = mComboBox.getSelectedIndex();
+		return (selectedIndex == 0) ?
+					CompoundTableHitlistHandler.HITLISTINDEX_NONE
+			 : (selectedIndex == mComboBox.getItemCount()-1) ?
+					CompoundTableHitlistHandler.HITLISTINDEX_ANY
+			 :	  selectedIndex - 1;
+		}
 
-    private int getHitlistIndex() {
-        int selectedIndex = mComboBox.getSelectedIndex();
-        return (selectedIndex == 0) ?
-                    CompoundTableHitlistHandler.HITLISTINDEX_NONE
-             : (selectedIndex == mComboBox.getItemCount()-1) ?
-                    CompoundTableHitlistHandler.HITLISTINDEX_ANY
-             :      selectedIndex - 1;
-        }
-
-    private void updateExclusion() {
-		if (isActive()) {
+	@Override
+	public void updateExclusion(boolean isUserChange) {
+		if (isActive() && isEnabled()) {
 			mTableModel.setHitlistExclusion(getHitlistIndex(), mExclusionFlag, isInverse());
-	    	fireFilterChanged(FilterEvent.FILTER_UPDATED, false);
+
+			if (isUserChange)
+				fireFilterChanged(FilterEvent.FILTER_UPDATED, false);
 			}
 		}
 
-    @Override
+	@Override
 	public String getInnerSettings() {
-    	String selected = (String)mComboBox.getSelectedItem();
+		String selected = (String)mComboBox.getSelectedItem();
 		return (CompoundTableHitlistHandler.HITLISTNAME_NONE.equals(selected)) ? null
 			 : (CompoundTableHitlistHandler.HITLISTNAME_ANY.equals(selected)) ? LIST_ANY
 			 : selected;
-    	}
+		}
 
 	@Override
 	public void applyInnerSettings(String settings) {
-        if (settings != null
-         && !CompoundTableHitlistHandler.HITLISTNAME_NONE.equals(settings)) {		// was this an ancient way of encoding???
-            if (LIST_ANY.equals(settings)) {
-                mComboBox.setSelectedIndex(mComboBox.getItemCount()-1);
-                }
-            else {
-            	if (!isActive()) {
+		if (settings != null
+		 && !CompoundTableHitlistHandler.HITLISTNAME_NONE.equals(settings)) {		// was this an ancient way of encoding???
+			if (LIST_ANY.equals(settings)) {
+				mComboBox.setSelectedIndex(mComboBox.getItemCount()-1);
+				}
+			else {
+				if (!isActive()) {
 					mComboBox.setSelectedItem(settings);
-            		}
-            	else {
-	    			for (int i=0; i<mTableModel.getHitlistHandler().getHitlistCount(); i++) {
-	    				if (mTableModel.getHitlistHandler().getHitlistName(i).equals(settings)) {
-	    					mComboBox.setSelectedIndex(i+1);
-	    					break;
-	    					}
-	    				}
-	                }
-            	}
-            }
+					}
+				else {
+					for (int i=0; i<mTableModel.getHitlistHandler().getHitlistCount(); i++) {
+						if (mTableModel.getHitlistHandler().getHitlistName(i).equals(settings)) {
+							mComboBox.setSelectedIndex(i+1);
+							break;
+							}
+						}
+					}
+				}
+			}
 
-        if (isInverse() || mComboBox.getSelectedIndex() != 0)
-            updateExclusion();
+		if (isInverse() || mComboBox.getSelectedIndex() != 0)
+			updateExclusion(false);
 		}
 
 	@Override
 	public void innerReset() {
 		if (mComboBox.getSelectedIndex() != 0) {
 			mComboBox.setSelectedIndex(0);
-			updateExclusion();
+			updateExclusion(false);
 			}
 		}
 
-    public void compoundTableChanged(CompoundTableEvent e) {
-        // avoid the default behaviour;
-        }
+	public void compoundTableChanged(CompoundTableEvent e) {
+		// avoid the default behaviour;
+		}
 
 	public void hitlistChanged(CompoundTableHitlistEvent e) {
 		CompoundTableHitlistHandler hitlistHandler = mTableModel.getHitlistHandler();
-        int hitlistCount = hitlistHandler.getHitlistCount();
-        boolean anySelected = CompoundTableHitlistHandler.HITLISTNAME_ANY.equals(mComboBox.getSelectedItem());
-        boolean changedListSelected = (mComboBox.getSelectedIndex()-1 == e.getHitlistIndex());
-        boolean update = false;
+		int hitlistCount = hitlistHandler.getHitlistCount();
+		boolean anySelected = CompoundTableHitlistHandler.HITLISTNAME_ANY.equals(mComboBox.getSelectedItem());
+		boolean changedListSelected = (mComboBox.getSelectedIndex()-1 == e.getHitlistIndex());
+		boolean update = false;
 		if (e.getType() == CompoundTableHitlistEvent.cAdd) {
-            update = anySelected;
+			update = anySelected;
 			mComboBox.insertItemAt(hitlistHandler.getHitlistName(hitlistCount-1), hitlistCount);
 			}
 		else if (e.getType() == CompoundTableHitlistEvent.cDelete) {
-            update = (anySelected || changedListSelected);
-            if (changedListSelected)
-                mComboBox.setSelectedIndex(0);
-            mComboBox.removeItemAt(e.getHitlistIndex()+1);
+			update = (anySelected || changedListSelected);
+			if (changedListSelected)
+				mComboBox.setSelectedIndex(0);
+			mComboBox.removeItemAt(e.getHitlistIndex()+1);
 			}
 		else if (e.getType() == CompoundTableHitlistEvent.cChange) {
-            update = (anySelected || changedListSelected);
+			update = (anySelected || changedListSelected);
 			}
 
-        if (update) {
-        	mIsUserChange = false;
-            updateExclusion();
-        	mIsUserChange = true;
-        	}
+		if (update) {
+			mIsUserChange = false;
+			updateExclusionLater();
+			mIsUserChange = true;
+			}
+		}
+
+	@Override
+	public int getFilterType() {
+		return FILTER_TYPE_ROWLIST;
 		}
 	}

@@ -37,8 +37,8 @@ public abstract class DETaskAbstractSaveNativeFile extends DETaskAbstractSaveFil
 	private boolean mVisibleOnly;
 	private JCheckBox mCheckBoxEmbedDetails;
 
-	public DETaskAbstractSaveNativeFile(DEFrame parent, String dialogTitle, boolean visibleOnly, boolean isInteractive) {
-		super(parent, dialogTitle, isInteractive);
+	public DETaskAbstractSaveNativeFile(DEFrame parent, String dialogTitle, boolean visibleOnly) {
+		super(parent, dialogTitle);
 		mVisibleOnly = visibleOnly;
 		}
 

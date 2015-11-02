@@ -240,7 +240,7 @@ public class VisualizationColor implements CompoundTableListener,CompoundTableHi
 
 	public void compoundTableChanged(CompoundTableEvent e) {
 		if (e.getType() == CompoundTableEvent.cChangeColumnData) {
-			int column = e.getSpecifier();
+			int column = e.getColumn();
 			if (mColorColumn == column) {
 				if (mColorListMode == cColorListModeCategories) {
 					if (!mTableModel.isColumnTypeCategory(mColorColumn)
@@ -538,6 +538,7 @@ public class VisualizationColor implements CompoundTableListener,CompoundTableHi
 
 		if (!CompoundTableHitlistHandler.isHitlistColumn(column)
 		 && mode == cColorListModeCategories
+		 && mTableModel.isColumnTypeCategory(column)
 		 && mTableModel.getCategoryCount(column) > colorList.length)
 			colorList = extendCategoryColorList(column, colorList);
 
@@ -551,6 +552,7 @@ public class VisualizationColor implements CompoundTableListener,CompoundTableHi
 		setColorList(colorList);
 
 		if (mode == cColorListModeCategories
+		 && mTableModel.isColumnTypeCategory(column)
 		 && !CompoundTableHitlistHandler.isHitlistColumn(column))
 			createCategoryColorMap(colorList);
 

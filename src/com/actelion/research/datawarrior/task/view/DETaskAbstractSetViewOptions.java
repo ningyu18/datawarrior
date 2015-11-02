@@ -175,8 +175,8 @@ public abstract class DETaskAbstractSetViewOptions extends DEAbstractViewTask im
 		setDialogToConfiguration(configuration);
 		enableItems();
 		mIgnoreEvents = false;
-		if (hasInteractiveView() && isConfigurationValid(configuration, true))
-			mLastGoodConfiguration = configuration;
+//		if (hasInteractiveView() /* && isConfigurationValid(configuration, true)  must be valid, because in case of interactive view it was taken from view itself, besides we don't want warning messages */)
+//			mLastGoodConfiguration = configuration;
 		}
 
 	public abstract void setDialogToConfiguration(Properties configuration);
@@ -242,15 +242,7 @@ public abstract class DETaskAbstractSetViewOptions extends DEAbstractViewTask im
 	 */
 	@Override
 	public void actionPerformed(ActionEvent e) {
-		update(false);
-		}
-
-	/**
-	 * If you override this method, then make sure you call this super method at the end.
-	 */
-	@Override
-	public void itemStateChanged(ItemEvent e) {
-		if (!(e.getSource() instanceof JComboBox) || e.getStateChange() == ItemEvent.SELECTED)
+		if (!mIgnoreEvents)
 			update(false);
 		}
 
@@ -258,9 +250,26 @@ public abstract class DETaskAbstractSetViewOptions extends DEAbstractViewTask im
 	 * If you override this method, then make sure you call this super method at the end.
 	 */
 	@Override
+	public void itemStateChanged(ItemEvent e) {
+		if (!mIgnoreEvents
+		 && (!(e.getSource() instanceof JComboBox) || e.getStateChange() == ItemEvent.SELECTED))
+			SwingUtilities.invokeLater(new Runnable() {	// wait for the combo popup to close before showing any message caused by isViewConfigurationValid()
+				@Override
+				public void run() {
+					update(false);
+				}
+			});
+		}
+
+	/**
+	 * If you override this method, then make sure you call this super method at the end.
+	 */
+	@Override
 	public void stateChanged(ChangeEvent e) {
-		boolean isAdjusting = (e.getSource() instanceof JSlider) && ((JSlider)e.getSource()).getValueIsAdjusting();
-		update(isAdjusting);
+		if (!mIgnoreEvents) {
+			boolean isAdjusting = (e.getSource() instanceof JSlider) && ((JSlider)e.getSource()).getValueIsAdjusting();
+			update(isAdjusting);
+			}
 		}
 
 	/**
@@ -271,27 +280,25 @@ public abstract class DETaskAbstractSetViewOptions extends DEAbstractViewTask im
 	 * This method is called automatically by actionPerformed(),itemStateChanged() and stateChanged()
 	 */
 	private void update(boolean isAdjusting) {
-		if (!mIgnoreEvents) {
-			enableItems();
-	
-			if (hasInteractiveView()) {
-				Properties configuration = getDialogConfiguration();
-				if (isConfigurationValid(configuration, true)) {
-					mLastGoodConfiguration = configuration;
-					applyConfiguration(getInteractiveView(), configuration, isAdjusting);
-					}
+		enableItems();
+
+		if (hasInteractiveView()) {
+			Properties configuration = getDialogConfiguration();
+			if (isConfigurationValid(configuration, true)) {
+				mLastGoodConfiguration = configuration;
+				applyConfiguration(getInteractiveView(), configuration, isAdjusting);
+				}
 /*
  * TODO: One could consider instead of going back to the last valid configuration
  * (which is not necessarily available, if we edit a task of a macro)
  * catching the message by overriding showErrorMessage() and displaying it in
  * an additional JPanel below the dialog content.		
  */
-				else if (mLastGoodConfiguration != null) {
-					mIgnoreEvents = true;
-					setDialogToConfiguration(mLastGoodConfiguration);
-					enableItems();
-					mIgnoreEvents = false;
-					}
+			else if (mLastGoodConfiguration != null) {
+				mIgnoreEvents = true;
+				setDialogToConfiguration(mLastGoodConfiguration);
+				enableItems();
+				mIgnoreEvents = false;
 				}
 			}
 		}

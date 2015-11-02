@@ -1,32 +1,31 @@
 /*
-* @(#)NativeClipboardAccessor.java	1.2 17.10.2003
-*
-* Copyright 2000-2003 Actelion Ltd. All Rights Reserved.
-*
-* This software is the proprietary information of Actelion Ltd.
-* Use is subject to license terms.
-*
+ * Project: DD_jfx
+ * @(#)NativeClipboardHandler.java
+ *
+ * Copyright (c) 1997- 2015
+ * Actelion Pharmaceuticals Ltd.
+ * Gewerbestrasse 16
+ * CH-4123 Allschwil, Switzerland
+ *
+ * All Rights Reserved.
+ *
+ * This software is the proprietary information of Actelion Pharmaceuticals, Ltd.
+ * Use is subject to license terms.
+ *
+ * Author: Christian Rufener
  */
 
 package com.actelion.research.gui.clipboard;
 
-import com.actelion.research.util.Platform;
 
-
-/**
- *
- * <p>Title: Actelion Library</p>
- * Copyright 1997-2011 Actelion Ltd., Inc. All Rights Reserved.
- *
- * This software is the proprietary information of Actelion Pharmaceuticals, Ltd.
- * Use is subject to license terms.
- * @author Thomas Sander, Christian Rufener
- * @version 1.3
- * 
- * 10/7/2009 CXR Added MacOS basic support
- */
 public class NativeClipboardHandler
 {
+
+    private static boolean isWin = (System.getProperty("os.name").toLowerCase().indexOf("win") >= 0);
+    private static boolean isMac = (System.getProperty("os.name").toLowerCase().indexOf("mac") >= 0);
+    private static boolean isLinux = (System.getProperty("os.name").toLowerCase().indexOf("nux") >= 0);
+    private static boolean isUnix = (System.getProperty("os.name").toLowerCase().indexOf("nix") >= 0);
+
 
 
     public static final String NC_SKETCH	= "MDLSK";
@@ -42,11 +41,34 @@ public class NativeClipboardHandler
     public static final String NC_CHEMDRAWINTERCHANGE = "ChemDraw Interchange Format";
 
 
+
+    static boolean isWindows()
+    {
+        return isWin;
+    }
+
+    static boolean isMacintosh()
+    {
+        return isMac;
+    }
+
+    static boolean isLinux()
+    {
+        return isLinux;
+    }
+
+    static boolean isUnix()
+    {
+        return isUnix;
+    }
+
+
+
     public static boolean copyMoleculeToClipboard(String filename,byte[] sketch, byte[] serializedObject)
     {
-        if (Platform.isWindows()) {
+        if (isWindows()) {
             return NativeClipboardAccessor.copyMoleculeToClipboard(filename,sketch,serializedObject);
-        } else if (Platform.isLinux() || Platform.isMacintosh()) {
+        } else if (isLinux() || isMacintosh()) {
             return LinuxNativeClipboardAccessor.copyMoleculeToClipboard(filename,sketch,serializedObject);
         } else
             return false;
@@ -54,9 +76,9 @@ public class NativeClipboardHandler
 
     public static boolean copyReactionToClipboard(String filename,byte[] sketch, byte[] serializedObject)
     {
-        if (Platform.isWindows()) {
+        if (isWindows()) {
             return NativeClipboardAccessor.copyReactionToClipboard(filename,sketch,serializedObject);
-        } else if (Platform.isLinux() || Platform.isMacintosh()) {
+        } else if (isLinux() || isMacintosh()) {
             return LinuxNativeClipboardAccessor.copyReactionToClipboard(filename,sketch,serializedObject);
         } else
             return false;
@@ -67,9 +89,9 @@ public class NativeClipboardHandler
         /* Formats are "MDLSK","MDLCT","MDL_MOL","CF_METAFILEPICT","CF_DIB" "ACT_MOLECULE" */
     public static byte[] getClipboardData(String format)
     {
-        if (Platform.isWindows()) {
+        if (isWindows()) {
             return NativeClipboardAccessor.getClipboardData(format);
-        } else if (Platform.isLinux() || Platform.isMacintosh()) {
+        } else if (isLinux() || isMacintosh()) {
             return LinuxNativeClipboardAccessor.getClipboardData(format);
         } else
             return null;
@@ -77,9 +99,9 @@ public class NativeClipboardHandler
 
     public static boolean setClipBoardData(String format, byte[] buffer)
     {
-        if (Platform.isWindows()) {
+        if (isWindows()) {
             return NativeClipboardAccessor.setClipBoardData(format,buffer);
-        } else if (Platform.isLinux() || Platform.isMacintosh()) {
+        } else if (isLinux() || isMacintosh()) {
             return LinuxNativeClipboardAccessor.setClipBoardData(format,buffer);
         } else
             return false;

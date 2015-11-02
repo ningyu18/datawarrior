@@ -27,6 +27,8 @@ import java.util.Set;
 import com.actelion.research.chem.Coordinates;
 import com.actelion.research.chem.FFMolecule;
 import com.actelion.research.chem.Molecule;
+import com.actelion.research.chem.SmilesParser;
+import com.actelion.research.chem.StereoMolecule;
 import com.actelion.research.chem.conf.VDWRadii;
 
 
@@ -36,15 +38,24 @@ import com.actelion.research.chem.conf.VDWRadii;
 public class SurfaceCalculator {
 
 	public static double STEP = .8;
-	private static final double PROBE = 1.4;
 	private static final double offset = 4;
 	
+	/**
+	 * Returns the ligand SAS from the given complex (mol+protein) in dots
+	 * @param mol
+	 * @return
+	 */
 	public static int getLigandSAS(FFMolecule mol) {
 		int[] complexedState = calculateSurface(mol, true);
 		int vol = complexedState[complexedState.length-1];				
 		return vol;
 	}
 
+	/**
+	 * Returns the ligand hydrophobic SAS from the given complex (mol+protein) in dots
+	 * @param mol
+	 * @return
+	 */
 	public static int getLigandHydrophobicSAS(FFMolecule mol) {
 		int[] complexedState = calculateSurface(mol, true);		
 		int total = 0;
@@ -56,7 +67,12 @@ public class SurfaceCalculator {
 		return total;
 	}
 	
-	public static double getLigandBuried(FFMolecule mol) {
+	/**
+	 * Returns how much of the ligand is buried within the protein (in dots)
+	 * @param mol
+	 * @return
+	 */
+	public static int getLigandBuried(FFMolecule mol) {
 		int[] complexedState = calculateSurface(mol, true);		
 		int[] solvatedState = calculateSurface(mol, false);		
 		int total = 0;
@@ -69,7 +85,7 @@ public class SurfaceCalculator {
 	}
 
 	/**
-	 * Return the estimated ligand surface 
+	 * Return the estimated ligand surface (in dots)
 	 * @param mol
 	 * @return
 	 */
@@ -78,7 +94,12 @@ public class SurfaceCalculator {
 		return solvatedState[solvatedState.length-1];
 	}
 	
-	public static double getLigandPolarSurface(FFMolecule mol) {
+	/**
+	 * Return the estimated ligand polar surface (in dots)
+	 * @param mol
+	 * @return
+	 */
+	public static int getLigandPolarSurface(FFMolecule mol) {
 		int[] solvatedState = calculateSurface(mol, false);
 		int total = 0;
 		for (int i = 0; i < solvatedState.length-1; i++) {
@@ -91,12 +112,29 @@ public class SurfaceCalculator {
 	
 
 	/**
-	 * Calculates the Occupancy matrix
-	 * 
-	 */	
+	 * calculateOccupancy with a step of 1A 
+	 * @param mol
+	 * @param complexedState
+	 * @param R
+	 * @return
+	 */
 	public static int[][][] calculateOccupancy(FFMolecule mol, boolean complexedState, double R) {
 		return calculateOccupancy(mol, complexedState, R, 1);
 	}
+	
+	/**
+	 * Calculates the Occupancy matrix, by filling a 3D matrix with the indexes of the closest atom, such as:
+	 * <pre>
+	 * occ[x][y][z] = index where dist(atom[index], {x*step+xBounds, y*step+yBounds, z*step+zBounds})<VDW(atom[index])+R
+	 *                (if several atoms are possible, we choose the one with the smallest distance;
+	 *                 if no atoms are possible, occ[x][y][z] = -1) 
+	 * </pre>
+	 * @param mol
+	 * @param complexedState - use false to consider only the ligand, use true to consider all 
+	 * @param R - radius in A added to the VDW atom distance (use 1.4 for solvent 
+	 * @param step
+	 * @return
+	 */
 	public static int[][][] calculateOccupancy(FFMolecule mol, boolean complexedState, double R, double step) {
 		int[][][] occupancy; 
 		MoleculeGrid grid = new MoleculeGrid(mol, 1.8);
@@ -125,7 +163,6 @@ public class SurfaceCalculator {
 						if(!complexedState && !mol.isAtomFlag(a, FFMolecule.LIGAND)) continue;
 						if(mol.getAtomicNo(a)>=VDWRadii.VDW_RADIUS.length) continue; //How can this happen?
 						double radius = VDWRadii.VDW_RADIUS[mol.getAtomicNo(a)];
-						radius+= R>0? R: PROBE;
 						double dist = dot.distance(mol.getCoordinates(a));
 						if(radius<dist) continue;						
 						if(radius-dist<min) {
@@ -134,8 +171,6 @@ public class SurfaceCalculator {
 						}
 						
 					}
-					//if(occupancy[x][y][z]>=0 && mol.isAtomFlag(occupancy[x][y][z], FFMolecule.LIGAND)) volume++;
-					
 				}						
 			}						
 		}
@@ -153,7 +188,7 @@ public class SurfaceCalculator {
 	 * 	or in a solvated state
 	 * @return
 	 */
-	public static int[] calculateSurface(FFMolecule mol, boolean complexedState) {
+	private static int[] calculateSurface(FFMolecule mol, boolean complexedState) {
 		//int N = mol.getNMovables();		
 		int[][][] occupancy = calculateOccupancy(mol, complexedState, 1.4); 
 
@@ -269,7 +304,7 @@ public class SurfaceCalculator {
 	}
 	
 	/**
-	 * Estimates the cavitation effect (i.e. the empty space that cannot be occupied by water)
+	 * Estimates the hydrophobic effect in A^2 (i.e. the empty space that cannot be occupied by water)
 	 * We suppose that water occupies a sphere of 1.4A of radius
 	 * @param mol
 	 * @return
@@ -317,12 +352,42 @@ public class SurfaceCalculator {
 	}
 
 	/**
-	 * Estimates the cavitation effect (i.e. the empty space that cannot be occupied by water)
-	 * We suppose that water occupies a sphere of 1.4A of radius
+	 * Estimates the SAS in A^2 (i.e. the empty space that cannot be occupied by water)
+	 * use a sphere of 1.4A of radius.
 	 * @param mol
+	 */
+	public static double calculateSAS(FFMolecule mol) {
+		return calculateSAS(mol, 1.4, 1.0, null);
+	}
+	
+	public static double calculateSAS(FFMolecule mol, List<Coordinates> outputProbes) {
+		return calculateSAS(mol, 1.4, 1.0, outputProbes);
+	}
+
+
+	/**
+	 * Estimates the SAS in A^2 (i.e. the empty space that cannot be occupied by water)
+	 * We suppose that water occupies a sphere of 1.4A of radius.
+	 * 
+	 * @param mol
+	 * @param R radius in A to be added to VDW (1.4 for water)
+	 * @param STEP size of the grid, use small values for higher precisions, and higher values for memory and speed.
+	 * @param outputProbes null or list of coordinates, which is populated by the function to mark the points next to the SAS (
 	 * @return
 	 */
-	public static double calculateSAS(FFMolecule mol, List<Coordinates> probes) {
+	public static double calculateSAS(FFMolecule mol, double R, double STEP) {
+		return calculateSAS(mol, R, STEP, null);
+	}
+			
+	/**
+	 * Estimates the SAS in A^2 (i.e. the empty space that cannot be occupied by water)
+	 * We suppose that water occupies a sphere of 1.4A of radius.
+	 * 
+	 * @param mol
+	 * @param outputProbes - null or list of coordinates, which is populated by the function to mark the points next to the SAS (
+	 * @return
+	 */
+	public static double calculateSAS(FFMolecule mol, double R, double STEP, List<Coordinates> outputProbes) {
 
 		int Nlig = mol.getNMovables();
 		if(Nlig<=0) return 0;		
@@ -333,7 +398,7 @@ public class SurfaceCalculator {
 		double sy = bounds[0].y - offset;
 		double sz = bounds[0].z - offset;
 		final double vol = STEP*STEP;
-		int[][][] occupancy = calculateOccupancy(mol, true, 1.4, STEP); 
+		int[][][] occupancy = calculateOccupancy(mol, true, R, STEP); 
 		
 		double total = 0;
 		for (int x = 1; x < occupancy.length-1; x++) {
@@ -349,8 +414,8 @@ public class SurfaceCalculator {
 							(occupancy[x][y][z-1]>=0 && occupancy[x][y][z-1]<Nlig ) ||
 							(occupancy[x][y][z+1]>=0 && occupancy[x][y][z+1]<Nlig )) {
 						
-						if(probes!=null) probes.add(new Coordinates(x*STEP+sx, y*STEP+sy, z*STEP+sz));
 						total+=vol;
+						if(outputProbes!=null) outputProbes.add(new Coordinates(x*STEP+sx, y*STEP+sy, z*STEP+sz));
 					}
 					
 				}
@@ -417,6 +482,30 @@ public class SurfaceCalculator {
 	
 	private final static boolean free(int[][][] occ, int x, int y, int z) {
 		return x>=0 && y>=0 && z>=0 && x<occ.length && y<occ[x].length  && z<occ[x][y].length && occ[x][y][z]<0;
+	}
+	
+	public static void main(String[] args) throws Exception {
+		String smiles = "C1CCCC1C(=O)O";
+
+		StereoMolecule mol = new StereoMolecule();
+		new SmilesParser().parse(mol, smiles);
+		FFMolecule m = new FFMolecule(mol);
+		AdvancedTools.optimize(m);
+		System.out.println(smiles);
+		System.out.println("SAS="+calculateSAS(m));
+		System.out.println("SAS="+calculateSAS(m, 1.4, 1));
+		System.out.println();
+		System.out.println("SAS(Step=1.1)="+calculateSAS(m, 1.4, 1.1));
+		System.out.println("SAS(Step=.9)="+calculateSAS(m, 1.4, .9));
+		System.out.println("SAS(Step=.8)="+calculateSAS(m, 1.4, .8));
+		System.out.println("SAS(Step=.7)="+calculateSAS(m, 1.4, .7));
+		System.out.println("SAS(Step=.6)="+calculateSAS(m, 1.4, .6));
+		System.out.println("SAS(Step=.5)="+calculateSAS(m, 1.4, .5));
+		System.out.println("SAS(Step=.4)="+calculateSAS(m, 1.4, .4));
+		System.out.println("SAS(Step=.3)="+calculateSAS(m, 1.4, .3));
+		System.out.println("SAS(Step=.2)="+calculateSAS(m, 1.4, .2));
+		System.out.println("SAS(Step=.1)="+calculateSAS(m, 1.4, .1));
+		
 	}
 	
 }

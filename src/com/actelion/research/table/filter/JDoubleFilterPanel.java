@@ -56,7 +56,7 @@ public class JDoubleFilterPanel extends JFilterPanel
 	 * @param tableModel
 	 */
 	public JDoubleFilterPanel(CompoundTableModel tableModel) {
-		this(tableModel, 0, 0);
+		this(tableModel, 0, -1);
 		}
 
 	public JDoubleFilterPanel(CompoundTableModel tableModel, int column, int exclusionFlag) {
@@ -116,13 +116,18 @@ public class JDoubleFilterPanel extends JFilterPanel
 		}
 
 	@Override
-	public void pruningBarChanged(PruningBarEvent e) {
-		updateExclusion(e.isAdjusting());
+	public void enableItems(boolean b) {
+		if (isActive()) {
+			mPruningBar.setEnabled(b);
+//			mPruningBar.setUseRedColor(!mTableModel.isColumnDataComplete(mColumnIndex) && !isInverse());
+			}
+		mLabelLow.setEnabled(b);
+		mLabelHigh.setEnabled(b);
 		}
 
 	@Override
-	public boolean isFilterEnabled() {
-		return true;
+	public void pruningBarChanged(PruningBarEvent e) {
+		updateExclusion(e.isAdjusting(), mIsUserChange);
 		}
 
 	@Override
@@ -133,7 +138,7 @@ public class JDoubleFilterPanel extends JFilterPanel
 
 		if (e.getType() == CompoundTableEvent.cAddRows
 		 || e.getType() == CompoundTableEvent.cDeleteRows
-		 || (e.getType() == CompoundTableEvent.cChangeColumnData && e.getSpecifier() == mColumnIndex)) {
+		 || (e.getType() == CompoundTableEvent.cChangeColumnData && e.getColumn() == mColumnIndex)) {
 			if (!mTableModel.isColumnTypeDouble(mColumnIndex)
 			 || mTableModel.getMinimumValue(mColumnIndex) == mTableModel.getMaximumValue(mColumnIndex)) {
 				removePanel();
@@ -174,7 +179,7 @@ public class JDoubleFilterPanel extends JFilterPanel
 				setLabelTextFromPruningBars();
 				}
 
-			updateExclusion(false);
+			updateExclusionLater();
 			mPruningBar.setUseRedColor(!mTableModel.isColumnDataComplete(mColumnIndex) && !isInverse());
 			}
 
@@ -299,18 +304,29 @@ public class JDoubleFilterPanel extends JFilterPanel
 			}
 		}
 	
-	private void updateExclusion(boolean isAdjusting) {
-		setLabelTextFromPruningBars();
-		float low  = (float)mPruningBar.getLowValue();
-		float high = (float)mPruningBar.getHighValue();
+	@Override
+	public void updateExclusion(boolean isUserChange) {
+		updateExclusion(false, isUserChange);
+		}
 
-		boolean isUserChange = mIsUserChange;
-		// setDoubleExclusion causes CompoundTableEvents that interfer with the userchange flag
-		// (this is a hack. One might alterntively increment and decrement a userChangeInteger instead of setting a flag to count nested events)
+	private void updateExclusion(boolean isAdjusting, boolean isUserChange) {
+		if (isEnabled()) {
+			setLabelTextFromPruningBars();
+			float low  = (float)mPruningBar.getLowValue();
+			float high = (float)mPruningBar.getHighValue();
+	
+			boolean oldUserChange = mIsUserChange;
+			// setDoubleExclusion causes CompoundTableEvents that interfere with the userChange flag
+			// (this is a hack. One might alternatively increment and decrement a userChangeInteger instead of setting a flag to count nested events)
+	
+			mTableModel.setDoubleExclusion(mColumnIndex, mExclusionFlag, low, high, isInverse(), isAdjusting);
 
-		mTableModel.setDoubleExclusion(mColumnIndex, mExclusionFlag, low, high, isInverse(), isAdjusting);
-		mIsUserChange = isUserChange;
-		fireFilterChanged(FilterEvent.FILTER_UPDATED, isAdjusting);
+			if (mIsUserChange != oldUserChange)
+				System.out.println("ERROR: need to repaiir user change flag in JDoubleFilterPanel!");
+
+			if (isUserChange)
+				fireFilterChanged(FilterEvent.FILTER_UPDATED, isAdjusting);
+			}
 		}
 
 	@Override
@@ -323,8 +339,15 @@ public class JDoubleFilterPanel extends JFilterPanel
 	public String getInnerSettings() {
 		if (isActive()) {
 			if (mPruningBar.getLowValue() > mPruningBar.getMinimumValue()
-			 || mPruningBar.getHighValue() < mPruningBar.getMaximumValue())
-				return Float.toString(mPruningBar.getLowValue())+'\t'+Float.toString(mPruningBar.getHighValue());
+			 || mPruningBar.getHighValue() < mPruningBar.getMaximumValue()) {
+				float low = mPruningBar.getLowValue();
+				float high = mPruningBar.getHighValue();
+				if (mTableModel.isLogarithmicViewMode(getColumnIndex())) {
+					low = (float)Math.pow(10, low);
+					high = (float)Math.pow(10, high);
+					}
+				return Float.toString(low)+'\t'+Float.toString(high);
+				}
 			}
 		else {
 			String low = mLabelLow.getText();
@@ -346,8 +369,46 @@ public class JDoubleFilterPanel extends JFilterPanel
 			int index = settings.indexOf('\t');
 			if (index != -1) {
 				if (isActive()) {
-					mPruningBar.setLowValue(Float.parseFloat(settings.substring(0, index)));
-					mPruningBar.setHighValue(Float.parseFloat(settings.substring(index+1)));
+					try {
+						float low = Float.parseFloat(settings.substring(0, index));
+						float high = Float.parseFloat(settings.substring(index+1));
+						if (mTableModel.isLogarithmicViewMode(getColumnIndex())) {
+							if (low > 0
+							 && high > 0) {
+								// min and max are the logarithmic values
+								float min = mTableModel.getMinimumValue(getColumnIndex());
+								float max = mTableModel.getMaximumValue(getColumnIndex());
+								float logLow = (float)Math.log10(low);
+								float logHigh = (float)Math.log10(high);
+								if ((logLow >= min && logLow <= max)
+								 || (logHigh >= min && logHigh <= max)) {
+									mPruningBar.setLowValue(logLow);
+									mPruningBar.setHighValue(logHigh);
+									}
+
+								// Before 15-Jul-2015 we have stored the logarithmic values.
+								// Therefore, we need to do some plausibility checking, whether
+								// low and high are already logarithmic.
+								else if (high < 10) {
+									mPruningBar.setLowValue(low);
+									mPruningBar.setHighValue(high);
+									}
+								}
+
+							// Before 15-Jul-2015 we have stored the logarithmic values.
+							// Logarithmic columns can only contain positive values. If
+							// low or high is negative, we must have logarithmic values.
+							else {
+								mPruningBar.setLowValue(low);
+								mPruningBar.setHighValue(high);
+								}
+							}
+						else {	// not log mode
+							mPruningBar.setLowValue(low);
+							mPruningBar.setHighValue(high);
+							}
+						}
+					catch (NumberFormatException nfe) {}
 					}
 				else {
 					mLabelLow.setText(settings.substring(0, index));
@@ -359,9 +420,11 @@ public class JDoubleFilterPanel extends JFilterPanel
 
 	@Override
 	public void innerReset() {
-		if (!mTableModel.isColumnDataComplete(mColumnIndex) && isActive())
-			removePanel();
-
 		mPruningBar.reset();
+		}
+
+	@Override
+	public int getFilterType() {
+		return FILTER_TYPE_DOUBLE;
 		}
 	}

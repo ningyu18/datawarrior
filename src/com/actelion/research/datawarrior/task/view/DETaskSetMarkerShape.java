@@ -122,7 +122,9 @@ public class DETaskSetMarkerShape extends DETaskAbstractSetViewOptions {
 					return false;
 					}
 				int maxShapeCount = ((VisualizationPanel)view).getVisualization().getAvailableShapeCount();
-				if (!getTableModel().isColumnTypeCategory(column) || !(getTableModel().getCategoryCount(column) <= maxShapeCount)) {
+				if (!CompoundTableHitlistHandler.isHitlistColumn(column)
+				 && (!getTableModel().isColumnTypeCategory(column)
+				  || !(getTableModel().getCategoryCount(column) <= maxShapeCount))) {
 					showErrorMessage("Column '"+columnName+"' does not contain categories or contains to many categories.");
 					return false;
 					}

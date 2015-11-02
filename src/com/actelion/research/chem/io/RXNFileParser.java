@@ -18,7 +18,11 @@
 
 package com.actelion.research.chem.io;
 
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.InputStreamReader;
+import java.io.StringReader;
 
 import com.actelion.research.chem.MolfileParser;
 import com.actelion.research.chem.StereoMolecule;
@@ -54,7 +58,7 @@ public class RXNFileParser
 	public Reaction getReaction(File file) throws Exception
 	{
 		Reaction theReaction = new Reaction();
-		BufferedReader theReader = new BufferedReader(new FileReader(file));
+		BufferedReader theReader = new BufferedReader(new InputStreamReader(new FileInputStream(file), "UTF-8"));
 		parse(theReaction, theReader);
 
 		return theReaction;
@@ -71,7 +75,7 @@ public class RXNFileParser
 	public boolean parse(Reaction theReaction, File file)
 		throws Exception
 	{
-		BufferedReader theReader = new BufferedReader(new FileReader(file));
+		BufferedReader theReader = new BufferedReader(new InputStreamReader(new FileInputStream(file), "UTF-8"));
 
 		return parse(theReaction, theReader);
 	}
@@ -148,7 +152,7 @@ public class RXNFileParser
         return ok;
     }
 
-	// This is the old approach, RXN specs were missing so we invented one
+	/* This is the old approach, RXN specs were missing so we invented one
     private boolean parseOld(Reaction theReaction, BufferedReader theReader)
 		throws Exception
 	{
@@ -221,7 +225,7 @@ public class RXNFileParser
 		return true;
 
 		//return theReaction;
-	}
+	}	*/
 
     /**
      * @param theReaction

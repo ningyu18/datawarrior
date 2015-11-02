@@ -27,8 +27,8 @@ public class DETaskSaveVisibleRowsAs extends DETaskAbstractSaveNativeFile {
 
 	private static Properties sRecentConfiguration;
 
-	public DETaskSaveVisibleRowsAs(DEFrame parent, boolean isInteractive) {
-		super(parent, "Save Visible Rows Only", true, isInteractive);
+	public DETaskSaveVisibleRowsAs(DEFrame parent) {
+		super(parent, "Save Visible Rows Only", true);
 		}
 
 	@Override

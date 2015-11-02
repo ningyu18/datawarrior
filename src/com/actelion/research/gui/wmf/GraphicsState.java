@@ -1,11 +1,18 @@
 /*
- * @(#)GraphicsState.java	1.00 10/10/2003
+ * Project: DD_jfx
+ * @(#)GraphicsState.java
  *
- * Copyright 2000-2003 Actelion Ltd. All Rights Reserved.
- * 
- * This software is the proprietary information of Actelion Ltd.  
+ * Copyright (c) 1997- 2015
+ * Actelion Pharmaceuticals Ltd.
+ * Gewerbestrasse 16
+ * CH-4123 Allschwil, Switzerland
+ *
+ * All Rights Reserved.
+ *
+ * This software is the proprietary information of Actelion Pharmaceuticals, Ltd.
  * Use is subject to license terms.
- * 
+ *
+ * Author: Christian Rufener
  */
 
 package com.actelion.research.gui.wmf;
@@ -13,15 +20,6 @@ package com.actelion.research.gui.wmf;
 import java.awt.Point;
 import java.awt.Rectangle;
 
-/**
- * 
- * <p>Title: Actelion Library</p>
- * <p>Description: Actelion Java Library </p>
- * <p>Copyright: Copyright (c) 2003</p>
- * <p>Company: Actelion Ltd</p>
- * @author Christian Rufener
- * @version 1.0
- */
 class GraphicsState
 {
 

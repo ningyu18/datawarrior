@@ -1,3 +1,20 @@
+/*
+ * Project: DD_core
+ * @(#)IntArray.java
+ *
+ * Copyright (c) 1997- 2015
+ * Actelion Pharmaceuticals Ltd.
+ * Gewerbestrasse 16
+ * CH-4123 Allschwil, Switzerland
+ *
+ * All Rights Reserved.
+ *
+ * This software is the proprietary information of Actelion Pharmaceuticals, Ltd.
+ * Use is subject to license terms.
+ *
+ * Author: MvK
+ */
+
 package com.actelion.research.util.datamodel;
 
 import java.io.IOException;
@@ -10,16 +27,6 @@ import java.util.StringTokenizer;
 
 import com.actelion.research.util.BurtleHasher;
 
-/**
- * 
- * IntArray
- * <p>Copyright: Actelion Ltd., Inc. All Rights Reserved
- * This software is the proprietary information of Actelion Pharmaceuticals, Ltd.
- * Use is subject to license terms.</p>
- * @author Modest von Korff
- * @version 1.0
- * 7 Apr 2010 MvK: Start implementation
- */
 public class IntArray {
 	
 	private static final int START_CAPACITY = 32;
@@ -418,5 +425,14 @@ public class IntArray {
     	return ia;
     }
     
-	
+	public static List<Integer> toList(int [] a) {
+		List<Integer> li = new ArrayList<Integer>(a.length);
+
+		for (int i = 0; i < a.length; i++) {
+			li.add(a[i]);
+		}
+		
+		return li;
+	}
+
 }

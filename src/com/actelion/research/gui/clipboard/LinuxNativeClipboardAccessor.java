@@ -1,11 +1,18 @@
 /*
- * @(#)NativeClipboardAccessor.java	1.2 17.10.2003
+ * Project: DD_jfx
+ * @(#)LinuxNativeClipboardAccessor.java
  *
- * Copyright 2000-2003 Actelion Ltd. All Rights Reserved.
+ * Copyright (c) 1997- 2015
+ * Actelion Pharmaceuticals Ltd.
+ * Gewerbestrasse 16
+ * CH-4123 Allschwil, Switzerland
  *
- * This software is the proprietary information of Actelion Ltd.
+ * All Rights Reserved.
+ *
+ * This software is the proprietary information of Actelion Pharmaceuticals, Ltd.
  * Use is subject to license terms.
  *
+ * Author: Christian Rufener
  */
 
 package com.actelion.research.gui.clipboard;
@@ -13,15 +20,6 @@ package com.actelion.research.gui.clipboard;
 import java.awt.*;
 import java.awt.datatransfer.*;
 
-/**
- *
- * <p>Title: Actelion Library</p>
- * <p>Description: Actelion Java Library</p>
- * <p>Copyright: Copyright (c) 2002-2003</p>
- * <p>Company: Actelion Ltd</p>
- * @author Thomas Sander, Christian Rufener
- * @version 1.2
- */
 public class LinuxNativeClipboardAccessor implements ClipboardOwner
 {
 	static public DataFlavor MOLFLAVOUR = new DataFlavor(com.actelion.research.chem.StereoMolecule.class,"Actelion Molecule");

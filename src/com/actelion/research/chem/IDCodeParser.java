@@ -51,19 +51,56 @@ public class IDCodeParser {
 		mEnsure2DCoordinates = ensure2DCoordinates;
 		}
 
+	/**
+	 * Creates and returns a molecule from the idcode with its atom and bond arrays being
+	 * just as large as needed to hold the molecule. Use this to conserve memory if no
+	 * atoms or bonds are added to the molecule afterwards. This version of the method
+	 * allows to pass idcode and atom coordinates in one String object.
+	 * @param idcode null or idcode, which may contain coordinates separated by a space character
+	 * @return
+	 */
 	public StereoMolecule getCompactMolecule(String idcode) {
-		return (idcode == null || idcode.length() == 0) ? null : getCompactMolecule(idcode.getBytes(), null);
+		if (idcode == null || idcode.length() == 0)
+			return null;
+		int index = idcode.indexOf(' ');
+		if (index > 0 && index < idcode.length()-1)
+			return getCompactMolecule(idcode.substring(0, index).getBytes(), idcode.substring(index+1).getBytes());
+		else
+			return getCompactMolecule(idcode.getBytes(), null);
 		}
 
+	/**
+	 * Creates and returns a molecule from the idcode with its atom and bond arrays being
+	 * just as large as needed to hold the molecule. Use this to conserve memory if no
+	 * atoms or bonds are added to the molecule afterwards.
+	 * @param idcode may be null
+	 * @return
+	 */
 	public StereoMolecule getCompactMolecule(byte[] idcode) {
 		return getCompactMolecule(idcode, null);
 		}
 
+	/**
+	 * Creates and returns a molecule from the idcode with its atom and bond arrays being
+	 * just as large as needed to hold the molecule. Use this to conserve memory if no
+	 * atoms or bonds are added to the molecule afterwards.
+	 * @param idcode may be null
+	 * @param coordinates may be null
+	 * @return
+	 */
 	public StereoMolecule getCompactMolecule(String idcode, String coordinates) {
 		return (idcode == null) ? null : getCompactMolecule(idcode.getBytes(),
 							(coordinates == null) ? null : coordinates.getBytes());
 		}
 
+	/**
+	 * Creates and returns a molecule from the idcode with its atom and bond arrays being
+	 * just as large as needed to hold the molecule. Use this to conserve memory if no
+	 * atoms or bonds are added to the molecule afterwards.
+	 * @param idcode may be null
+	 * @param coordinates may be null
+	 * @return
+	 */
 	public StereoMolecule getCompactMolecule(byte[] idcode, byte[] coordinates) {
 		if (idcode == null)
 			return null;
@@ -83,20 +120,56 @@ public class IDCodeParser {
 		return mol;
 		}
 
+	/**
+	 * Parses the idcode and populates the given molecule to represent the passed idcode.
+	 * This version of the method allows to pass idcode and atom coordinates in one String object.
+	 * @param mol molecule object to be filled with the idcode content
+	 * @param idcode null or idcode, which may contain coordinates separated by a space character
+	 * @return
+	 */
 	public void parse(StereoMolecule mol, String idcode) {
-		parse(mol, (idcode == null) ? null : idcode.getBytes(), null);
+		if (idcode == null || idcode.length() == 0) {
+			parse(mol, (byte[])null, (byte[])null);
+			return;
+			}
+
+		int index = idcode.indexOf(' ');
+		if (index > 0 && index < idcode.length()-1)
+			parse(mol, idcode.substring(0, index).getBytes(), idcode.substring(index+1).getBytes());
+		else
+			parse(mol, idcode.getBytes(), null);
 		}
 
+	/**
+	 * Parses the idcode and populates the given molecule to represent the passed idcode.
+	 * @param mol molecule object to be filled with the idcode content
+	 * @param idcode may be null
+	 * @return
+	 */
 	public void parse(StereoMolecule mol, byte[] idcode) {
 		parse(mol, idcode, null);
 		}
 
+	/**
+	 * Parses the idcode and populates the given molecule to represent the passed idcode.
+	 * @param mol molecule object to be filled with the idcode content
+	 * @param idcode may be null
+	 * @param coordinates may be null
+	 * @return
+	 */
 	public void parse(StereoMolecule mol, String idcode, String coordinates) {
 		byte[] idcodeBytes = (idcode == null) ? null : idcode.getBytes();
 		byte[] coordinateBytes = (coordinates == null) ? null : coordinates.getBytes();
 		parse(mol, idcodeBytes, coordinateBytes);
 		}
 
+	/**
+	 * Parses the idcode and populates the given molecule to represent the passed idcode.
+	 * @param mol molecule object to be filled with the idcode content
+	 * @param idcode may be null
+	 * @param coordinates may be null
+	 * @return
+	 */
 	public void parse(StereoMolecule mol, byte[] idcode, byte[] coordinates) {
 		int version = Canonizer.cIDCodeVersion2;
 		mMol = mol;
@@ -526,14 +599,21 @@ public class IDCodeParser {
 				}
 			}
 
+		new AromaticityResolver(mMol, isAromaticBond).locateDelocalizedDoubleBonds();
+
+		if (aromaticSPBond != null)
+			for (int bond:aromaticSPBond)
+				mMol.setBondType(bond, mMol.getBondType(bond) == Molecule.cBondTypeDouble ?
+						Molecule.cBondTypeTriple : Molecule.cBondTypeDouble);
+
 		if (coordinates != null) {
-			if (coordinates[0] == '!') {	// new coordinate format
+			if (coordinates[0] == '!' || coordinates[0] == '#') {	// new coordinate format
 				decodeBitsStart(coordinates, 1);
 				coordsAre3D = (decodeBits(1) == 1);
 				coordsAreAbsolute = (decodeBits(1) == 1);
 				int resolutionBits = 2 * decodeBits(4);
 				int binCount = (1 << resolutionBits);
-	
+
 				float factor = 0.0f;
 				int from = 0;
 				int bond = 0;
@@ -551,7 +631,31 @@ public class IDCodeParser {
 					if (coordsAre3D)
 						mMol.setAtomZ(atom, mMol.getAtomZ(from) + factor * (decodeBits(resolutionBits) - binCount/2));
 					}
-	
+
+				if (coordinates[0] == '#') {	// we have 3D-coordinates that include implicit hydrogen coordinates
+					int hydrogenCount = 0;
+
+					// we need to cache hCount, because otherwise getImplicitHydrogens() would create helper arrays with every call
+					int[] hCount = new int[allAtoms];
+					for (int atom=0; atom<allAtoms; atom++)
+						hydrogenCount += (hCount[atom] = mMol.getImplicitHydrogens(atom));
+
+					for (int atom=0; atom<allAtoms; atom++) {
+						for (int i=0; i<hCount[atom]; i++) {
+							int hydrogen = mMol.addAtom(1);
+							mMol.addBond(atom, hydrogen, Molecule.cBondTypeSingle);
+
+							mMol.setAtomX(hydrogen, mMol.getAtomX(atom) + (decodeBits(resolutionBits) - binCount/2));
+							mMol.setAtomY(hydrogen, mMol.getAtomY(atom) + (decodeBits(resolutionBits) - binCount/2));
+							if (coordsAre3D)
+								mMol.setAtomZ(hydrogen, mMol.getAtomZ(atom) + (decodeBits(resolutionBits) - binCount/2));
+							}
+						}
+
+					allAtoms += hydrogenCount;
+					allBonds += hydrogenCount;
+					}
+
 				if (coordsAreAbsolute) {
 					targetAVBL = decodeAVBL(decodeBits(resolutionBits), binCount);
 					xOffset = decodeShift(decodeBits(resolutionBits), binCount);
@@ -601,13 +705,6 @@ public class IDCodeParser {
 					}
 				}
 			}
-
-		new AromaticityResolver(mMol, isAromaticBond).locateDelocalizedDoubleBonds();
-
-		if (aromaticSPBond != null)
-			for (int bond:aromaticSPBond)
-				mMol.setBondType(bond, mMol.getBondType(bond) == Molecule.cBondTypeDouble ?
-						Molecule.cBondTypeTriple : Molecule.cBondTypeDouble);
 
 		boolean coords2DAvailable = (coordinates != null && !coordsAre3D);
 
