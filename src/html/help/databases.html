@@ -1,0 +1,88 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN">
+<html>
+<head>
+  <title>External Databases</title>
+  <base href="../">
+  <link type="text/css" href="styles.css" rel="stylesheet">
+</head>
+
+<body>
+
+<hr align="left" size="2" width="550">
+<h2><a name="UsingMacros"></a>Accessing External Databases</h2>
+<hr align="left" size="2" width="550">
+
+<p><span class="keyword">DataWarrior</span>, as its name already implies, lives from data.
+Since the amount of structured data being freely available over the internet is increasing daily,
+<span class="keyword">DataWarrior</span> has functionality built in to access some of the most
+obvious data sources directly. Our intention is to make more data sources available with
+future software updates.
+
+</p>
+<br>
+
+<h3><a name="Wikipedia"></a>Wikipedia</h3>
+<p>
+<span class="keyword">Wikipedia</span> is undoubtedly one of the most important freely available
+sources of knowledge on the internet. Many thousand of its articles are about chemical substances.
+<span class="keyword">DataWarrior</span> allows to retrieve an up-to-date list of all
+<span class="keyword">Wikipedia</span> compound structures with their names and formulas into
+a local <span class="keyword">DataWarrior</span> file. For that choose <span class="menu">Retrieve Wikipedia Molecules</span>
+from the <span class="menu">Database</span> menu. This offers an easy way to search
+or otherwise process the chemical content of <span class="keyword">Wikipedia</span> offline.
+Within the local file every compound has a link back into the corresponding
+<span class="keyword">Wikipedia</span> web page. A right mouse click within
+<span class="keyword">DataWarrior</span> opens a popup menu that allows to open the compound's
+<span class="keyword">Wikipedia</span> article in the web browser.
+</p>
+<br>
+
+<h3><a name="Chembl"></a>The ChEMBL Activity Database</h3>
+<p>
+The ChEMBL database is one of the most widely used compound activity databases available.
+<span class="keyword">DataWarrior</span> permits to query the database by specifying search criteria
+like biological targets, pubmed IDs, or chemical structures. Structure searches may be based on
+chemical similarities, contained substructures, structure equivalence or tautomers.
+</p>
+<p align="center"><img src="help/img/database/chemblQuery.jpeg"></p>
+<p><center><i>ChEMBL Database Query Dialog</i></center></p>
+<p>
+In the following the ChEMBL database query dialog is explained in more detail:<br>
+<b>Target Contains:</b> This field allows to quickly filter the target list by target name, gene accession number,
+organism or other available target related information. One may specify multiple search phrases as
+for instance "renin rat".<br>
+<b>Hierarchical Protein Family Filter:</b> In the ChEMBL database many target proteins are assigned to
+a small protein family. Multiple small related protein families are grouped on a higher level into a less
+specific larger family. Related larger families are again grouped into an even larger one and so forth.
+This forms a hierarchical tree of related proteins. This filter allows to filter targets by first
+selecting a coarse protein family and then successively selecting subfamilies of the previously selected
+protein family.<br>
+<b>Select Target(s):</b> This text area contains a list of targets that are available in the ChEMBL
+database and not filtered out by any filter criteria. If one or multiple targets of this list are
+selected, then the search will only retrieve activity values on these targets.<br>
+<b>Target Detail:</b> If one target is selected in the target list above, then this text area shows
+some detail about the target, e.g. the name, UniProt accession number, type, organism and its protein
+family classification.<br>
+<b>Structure search options:</b> For running a structure search as part of the ChEMBL database search
+one can either specify (draw, paste or drag&drop) a structure in the <b>Structure</b> field of the dialog
+or you may select one or more structure in a DataWarrior window before opening the ChEMBL search dialog.
+The type of structure search can be selected from a dedicated menu among sub-structure, exact match,
+non-stereo specific match, tautomer match and structure similarity, which would activate a slider to
+define the similarity limit. If some structures were pre-selected and the option <b>any selected structure</b>
+is chosen, then a database compound is considered a hit, if its structure matches any of the
+selected structures.<br>
+<b>Pubmed-ID(s) or DOI(s):</b>Here one can specify one of multiple source papers separated by comma,
+semicolon or space. For most papers the ChEMBL database contains Pubmed-IDs, while the DOI is often
+missing. Thus, searching for Pubmed-IDs is much more likely to yield useful results than searching
+for DOIs.<br>
+<b>Group results with same compound, target, and result type:</b>If this option is selected then all results
+from the same target and same chemical structure and merged into one result row. Within these rows
+individual result values appear in separated lines within one table cell.<br>
+For running a query one needs to specify at least one of the three kinds of search criteria, targets,
+(a) compound structure(s), or paper references. If your intention is to download the entire database,
+you should do that from the ChEMBL web site.
+</p>
+<br>
+
+</body>
+</html>
