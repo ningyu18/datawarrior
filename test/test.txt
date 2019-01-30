@@ -2,3 +2,5 @@ This is a test file.
 
 Now I just added a second line.
 Making a change on line 4
+
+Takeda proceeds to add line 6
