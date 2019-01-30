@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<classpath>
+	<classpathentry excluding="com/actelion/research/datawarrior/task/DETaskCalculateColumn.java" kind="src" path="src"/>
+	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
+	<classpathentry kind="lib" path="lib/batik-all.jar"/>
+	<classpathentry kind="lib" path="lib/commons-math-2.2.jar"/>
+	<classpathentry kind="lib" path="lib/janino.jar"/>
+	<classpathentry kind="lib" path="lib/javaxVecmath.jar"/>
+	<classpathentry kind="lib" path="lib/jep.jar"/>
+	<classpathentry kind="lib" path="lib/jumbo.jar"/>
+	<classpathentry kind="lib" path="lib/opsin.jar"/>
+	<classpathentry kind="lib" path="lib/substance.jar"/>
+	<classpathentry kind="lib" path="lib/WMF2Viewer.jar"/>
+	<classpathentry kind="lib" path="lib/xml-apis-ext.jar"/>
+	<classpathentry kind="var" path="JLIB/jchem/jchem-17.17.0.jar"/>
+	<classpathentry kind="lib" path="lib/controlsfx-8.40.14.jar"/>
+	<classpathentry kind="lib" path="lib/substancelaf.jar"/>
+	<classpathentry kind="output" path="bin"/>
+</classpath>
