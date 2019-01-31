@@ -4,17 +4,3 @@ Now I just added a second line.
 Making a change on line 4
 NYU18 line 5
 Takeda proceeds to add line 6
-
-<<<<<<< HEAD
-=======
-Now I just added a second line.
-Making a change on line 4
-
-Takeda proceeds to add line 6
-
->>>>>>> 62bcc23b6eef63536eacea8bee18f4efac439c45
-Cobian Backup is a file-backup program that can be used to make automatic 
-backups for your directories and files. Cobian Backup can be run as a service 
-or as a regular application. It can backup to some other location in the same 
-computer, to the network and even to an FTP server. The program supports 
-compression and encryption.
