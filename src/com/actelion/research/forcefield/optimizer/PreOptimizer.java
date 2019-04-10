@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -28,16 +28,25 @@ import java.util.Random;
 import com.actelion.research.chem.Coordinates;
 import com.actelion.research.chem.FFMolecule;
 import com.actelion.research.chem.calculator.GeometryCalculator;
+import com.actelion.research.chem.calculator.IntQueue;
 import com.actelion.research.chem.calculator.StructureCalculator;
 import com.actelion.research.forcefield.AbstractTerm;
-import com.actelion.research.forcefield.FFParameters;
+import com.actelion.research.forcefield.FFConfig;
+import com.actelion.research.forcefield.FFConfig.Mode;
 import com.actelion.research.forcefield.ForceField;
 import com.actelion.research.forcefield.TermList;
 import com.actelion.research.forcefield.mm2.AngleTerm;
 import com.actelion.research.forcefield.mm2.MM2Config;
-import com.actelion.research.forcefield.mm2.MM2TermList;
+import com.actelion.research.forcefield.mm2.MM2Parameters;
+import com.actelion.research.forcefield.mm2.OutOfPlaneAngleTerm;
+import com.actelion.research.forcefield.mm2.StretchBendTerm;
+import com.actelion.research.forcefield.mm2.TorsionTerm;
+import com.actelion.research.forcefield.mmff.AngleBend;
+import com.actelion.research.forcefield.mmff.MMFFConfig;
+import com.actelion.research.forcefield.mmff.OutOfPlane;
+import com.actelion.research.forcefield.mmff.StretchBend;
+import com.actelion.research.forcefield.mmff.TorsionAngle;
 import com.actelion.research.util.ArrayUtils;
-import com.actelion.research.util.datamodel.IntQueue;
 
 /**
  * Preoptimize a molecule to give reasonable starting coordinates
@@ -46,7 +55,7 @@ public class PreOptimizer {
 	
 	
 	private final static Random random = new Random();	
-	private final static double PRECISION = Math.PI / 16;
+	private final static double PRECISION = Math.PI / 64;
 	
 	/** The molecule to be optimized */
 	private final FFMolecule mol;
@@ -61,14 +70,9 @@ public class PreOptimizer {
 	private boolean[] seen = null;
 	
 	
-	public PreOptimizer(FFMolecule mol) {
-		forceField = new ForceField(mol, new MM2Config.PreoptimizeConfig());
+	public PreOptimizer(FFMolecule mol, FFConfig config) {		
+		forceField = new ForceField(mol, config);
 		this.mol = mol;
-	}		
-	
-	public PreOptimizer(ForceField forcefield) {
-		this.forceField = forcefield;
-		this.mol = forcefield.getMolecule();
 	}		
 	
 	
@@ -77,17 +81,15 @@ public class PreOptimizer {
 	 * @param mol
 	 */
 	public static void preOptimize(FFMolecule mol) {
-		preOptimize(mol, new Coordinates());
-	} 
-	
-	
-	public static void preOptimize(FFMolecule mol, Coordinates firstCoordinate) {		
-		PreOptimizer optimizer = new PreOptimizer(mol);
-		optimizer.setFirstCoordinate(firstCoordinate);		
+		PreOptimizer optimizer = new PreOptimizer(mol, new MMFFConfig());
+		optimizer.setFirstCoordinate(new Coordinates());		
 		optimizer.doit();
 	}
 
-	public static void preOptimizeHydrogens(FFMolecule mol) {		
+	public static void preOptimizeHydrogens(FFMolecule mol) {
+		preOptimizeHydrogens(mol, new MM2Config());
+	}
+	public static void preOptimizeHydrogens(FFMolecule mol, FFConfig config) {		
 		for(int i=0; i<mol.getAllAtoms(); i++) {
 			if(mol.getAtomicNo(i)<=1  && mol.getConnAtoms(i)>0) {
 				mol.setAtomFlag(i, FFMolecule.PREOPTIMIZED, false);
@@ -98,10 +100,11 @@ public class PreOptimizer {
 		}
 		mol.reorderAtoms();
 		
-		MM2Config config = new MM2Config.PreoptimizeConfig();
-		config.setMaxDistance(0);
-		PreOptimizer optimizer = new PreOptimizer(new ForceField(mol, config));
+		
+		//Optimize hydrogens (marked as preoptimized=false) 
+		PreOptimizer optimizer = new PreOptimizer(mol, config instanceof MMFFConfig?  new MMFFConfig(Mode.PREOPTIMIZATION): new MM2Config(Mode.PREOPTIMIZATION));		
 		optimizer.doit();
+		
 		//Reset
 		for(int i=0; i<mol.getAllAtoms(); i++) {
 			if(mol.getAtomicNo(i)<=1 && mol.getConnAtoms(i)>0) {
@@ -111,22 +114,19 @@ public class PreOptimizer {
 		mol.reorderAtoms();
 	}
 	
-	public static void preOptimize(ForceField forcefield) {
-		PreOptimizer optimizer = new PreOptimizer(forcefield);			
-		optimizer.doit();		
-	}
-	
 	/**
 	 * Does The Preoptimization
 	 */
 	private void doit() {
 		final TermList terms = forceField.getTerms();		
-		final FFParameters parameters = forceField.getParameters();
+		final MM2Parameters parameters = MM2Parameters.getInstance();
 		
 		if(seen==null) seen = new boolean[mol.getAllAtoms()];
 		else if(seen.length<mol.getAllAtoms()) seen = (boolean[]) ArrayUtils.resize(seen, mol.getAllAtoms());
 		
-		for(int i=0; i<mol.getAllAtoms(); i++) if(mol.isAtomFlag(i, FFMolecule.PREOPTIMIZED)) seen[i] = true;
+		for(int i=0; i<mol.getAllAtoms(); i++) {
+			if(mol.isAtomFlag(i, FFMolecule.PREOPTIMIZED)) seen[i] = true;
+		}
 		
 		
 		//
@@ -156,7 +156,8 @@ public class PreOptimizer {
 			if(seen[a1] && seen[a2]) continue;
 			int size = allRings.get(i).length;
 			double eq = terms.getBondDistance(a1, a2);
-			double angle = parameters.getAngleParameters(mol.getAtomMM2Class(a1), mol.getAtomMM2Class(a2), mol.getAtomMM2Class(a3), 0, 0).eq/180*Math.PI;
+			assert mol.getMM2AtomType(a1)>0;
+			double angle = parameters.getAngleParameters(mol.getMM2AtomType(a1), mol.getMM2AtomType(a2), mol.getMM2AtomType(a3), 0, 0).eq/180*Math.PI;
 			double adjustedAngle = Math.max(0f, -(angle - Math.PI + 2*Math.PI/size));			
 			double adjustedEq = Math.sqrt(eq*eq/2*(2-Math.sin(adjustedAngle)));			
 			ringRadius[i] = adjustedEq / Math.sqrt(2*(1-Math.cos(2*Math.PI/size)));
@@ -207,7 +208,7 @@ public class PreOptimizer {
 				if(a2==0 && firstCoordinate!=null && a1<0) {
 					best = firstCoordinate;
 					
-				} else if(a1<0) { //a2 is not connected, place it randomly
+				} else if(a1<0) { //a2 is not connected, place it randomly in the boundaries of the molecule
 					Coordinates bounds[] = GeometryCalculator.getBounds(mol);
 					for(int i=0; i<10; i++) {
 						double x, y, z;
@@ -233,12 +234,16 @@ public class PreOptimizer {
 						if(t instanceof AngleTerm && ((AngleTerm)t).getAtoms()[1]==a1) {
 							angle = ((AngleTerm)t).getPreferredAngle()/180*Math.PI;
 							int[] atoms = t.getAtoms();
-							if(atoms[0]==a2) a0 = atoms[2];
-							if(atoms[2]==a2) a0 = atoms[0];
-							if(seen[a0]) break; else a0 = -1;
+							if(atoms[0]==a2 && seen[atoms[2]]) {a0 = atoms[2]; break;}
+							if(atoms[2]==a2 && seen[atoms[0]]) {a0 = atoms[0]; break;}
+						} else if(t instanceof AngleBend && ((AngleBend)t).getAtoms()[1]==a1) {
+							angle = ((AngleBend)t).getPreferredAngle()/180*Math.PI;
+							int[] atoms = t.getAtoms();
+							if(atoms[0]==a2 && seen[atoms[2]]) {a0 = atoms[2]; break;}
+							if(atoms[2]==a2 && seen[atoms[0]]) {a0 = atoms[0]; break;}
 						}
 					}
-					if( a0<0 || mol.getCoordinates(a0).distSquareTo(mol.getCoordinates(a1))<1) { // a1---a2 
+					if( a0<0 /*|| mol.getCoordinates(a0).distSquareTo(mol.getCoordinates(a1))<.5 */) { // place a2 at distance dist of a1 
 						for(double theta = 0; theta<2*Math.PI; theta += PRECISION) {
 							for(double phi = 0; phi<Math.PI; phi += PRECISION) {
 								Coordinates c = new Coordinates(dist*Math.cos(theta),dist*Math.sin(theta)*Math.cos(phi),dist*Math.sin(theta)*Math.sin(phi));
@@ -248,31 +253,28 @@ public class PreOptimizer {
 								if(best == null || energy<bestEnergy) {best = c; bestEnergy = energy;}
 							}
 						}
-					} else { //a0---a1---a2				
+					} else {  // place a2 at distance dist of a1, while maintaining angle a0-a1-a2				
 						Coordinates ca0 = mol.getCoordinates(a0);
 						Coordinates ca1 = mol.getCoordinates(a1);
 						Coordinates u = ca1.subC(ca0);
 						Coordinates n = new Coordinates(-u.y,u.x,0);
 						if(u.cross(n).distSq()<0.1) n = new Coordinates(0,-u.z,u.y);
-						n = u.cross(n).unit().scaleC(dist*Math.sin(angle)); // perpendicular to u 
-						Coordinates proj = ca1.addC(ca1.subC(ca0).unit().scaleC(-dist*Math.cos(angle)));
-						for(double theta = -a2*0.01; theta<2*Math.PI; theta += PRECISION) {
-							Coordinates c = n.rotate(ca0.subC(ca1).unit(), theta).addC(proj);
-							mol.setCoordinates(a2, c);
-							double energy = selectedTerms.getFGValue(null);													
-							//if(energy<bestEnergy && protein!=null && !protein.isInCavity(c)) energy+=20; 
+						n = u.cross(n).unitC().scaleC(dist*Math.sin(angle)); // perpendicular to u 
+						Coordinates proj = ca1.addC(ca1.subC(ca0).unitC().scaleC(-dist*Math.cos(angle)));
+						for(double theta = 0; theta<2*Math.PI; theta += PRECISION) {
+							Coordinates c = n.rotate(ca0.subC(ca1).unitC(), theta).addC(proj);
+							mol.setCoordinates(a2, c);							
+							double energy = selectedTerms.getFGValue(null);							
 							if(best == null || energy<bestEnergy) {best = c; bestEnergy = energy;}
 						}
-					}
+					}					
 				}				
 				//Now that we have empirically found a position for a2, update it 
 				mol.setCoordinates(a2, best);
-//				System.out.println("set " + a2 + " to "+best + " to " + mol.getConnAtom(a2, 0)+":"+mol.getCoordinates(mol.getConnAtom(a2, 0))+" d="+mol.getCoordinates(mol.getConnAtom(a2, 0)).distance(best));
 
 				//We need to perform the next iterations on the a2 neighbours
 				for(int i=0; i<mol.getAllConnAtoms(a2); i++) {					
 					int a = mol.getConnAtom(a2, i);
-					//if(s.indexOf(a)<0) 
 					s.push(a);
 				}
 
@@ -382,8 +384,8 @@ public class PreOptimizer {
 							double hh = radius * Math.cos(Math.PI * diff / atoms.length);
 							Coordinates u = new Coordinates(mol.getCoordinates(aY).y-mol.getCoordinates(aX).y, mol.getCoordinates(aX).x-mol.getCoordinates(aY).x, 0 );
 							Coordinates cMed = cX.addC(cY).scaleC(0.5); 
-							Coordinates cZ = u.unit().scaleC(hh);
-							Coordinates normal = cY.subC(cX).unit();
+							Coordinates cZ = u.unitC().scaleC(hh);
+							Coordinates normal = cY.subC(cX).unitC();
 							for(double theta = 0; theta<2*Math.PI; theta += PRECISION) {
 								Coordinates c = cZ.rotate(normal, theta).addC(cMed);
 								double energy = evaluateRingCenterPosition(c, alreadySeen, radius, seen, ringCenters);
@@ -413,7 +415,7 @@ public class PreOptimizer {
 						}
 						if(normal.distSq()<1E-10) normal = u.cross(new Coordinates(1, 1, 1));
 						if(normal.distSq()<1E-10) normal = u.cross(new Coordinates(1, -1, -1));
-						normal = normal.unit();														
+						normal = normal.unitC();														
 
 
 						//2 B 4 Insert the atoms
@@ -487,25 +489,21 @@ public class PreOptimizer {
 	
 	
 	private static TermList extractTerms(TermList terms, int a, boolean [] seen) {
-		TermList l = new MM2TermList(terms);
+		TermList l = TermList.create(terms.getConfig(), terms.getMolecule());
 		loop: for(int k=0; k<terms.size(); k++) {
 			AbstractTerm t = terms.get(k);
-
 			int[] atoms = t.getAtoms();
-			if(atoms==null) {
-				l.add(t);
-			} else {
-				boolean ok = false;
-				for(int i=0; i<atoms.length; i++) {
-					if(!seen[atoms[i]]) continue loop;
-					else if(atoms[i]==a) ok = true;
-				}						
-				if(ok) {
-					l.add(t);
-				}
+			boolean ok = false;
+			for(int i=0; i<atoms.length; i++) {
+				if(atoms[i]==a) ok = true;
+				else if(!seen[atoms[i]]) continue loop;
+			}						
+			if(ok) {
+				l.add(t.clone());					
 			}
 		}
 		return l;
+		
 	}
 	
 	public void setFirstCoordinate(Coordinates coordinates) {

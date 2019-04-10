@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,6 +18,9 @@
 
 package com.actelion.research.datawarrior.task;
 
+import com.actelion.research.chem.io.CompoundTableConstants;
+import com.actelion.research.io.BOMSkipper;
+
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
@@ -27,17 +30,19 @@ import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.Properties;
 
-public class DEMacro {
+public class DEMacro implements CompoundTableConstants {
 	private static final String MACRO_START = "<macro name=\"";
 	private static final String MACRO_END = "</macro";
 	private static final String TASK_START = "<task name=\"";
 	private static final String TASK_END = "</task";
+	private static final String AUTOSTART = " auto-start=\"true\"";
 	private String			mName;
 	private ArrayList<Task> mTaskList;
 	private ArrayList<DEMacroListener> mListenerList;
 	private ArrayList<Loop> mLoopList;
 	private DEMacro			mParentMacro;
 	private int				mParentIndex;
+	private boolean			mIsAutoStarting;
 
 	public static String extractMacroName(String headerLine) {
 		if (!headerLine.startsWith(MACRO_START))
@@ -48,6 +53,10 @@ public class DEMacro {
 			return null;
 
 		return headerLine.substring(MACRO_START.length(), index);
+		}
+
+	public static boolean isAutoStarting(String headerLine) {
+		return headerLine.startsWith(MACRO_START) && headerLine.indexOf(AUTOSTART) != -1;
 		}
 
 	/**
@@ -90,10 +99,12 @@ public class DEMacro {
 		mTaskList = new ArrayList<Task>();
 		mListenerList = new ArrayList<DEMacroListener>();
 		BufferedReader reader = new BufferedReader(new InputStreamReader(new FileInputStream(file), "UTF-8"));
+		BOMSkipper.skip(reader);
 		String headerLine = reader.readLine();
 		mName = extractMacroName(headerLine);
 		if (mName != null) {
 			mName = getUniqueName(mName, macroList);
+			mIsAutoStarting = isAutoStarting(headerLine);
 			readMacro(reader);
 			}
 		reader.close();
@@ -223,14 +234,17 @@ public class DEMacro {
 		}
 
 	public void writeMacro(BufferedWriter writer) throws IOException {
-		writer.write(MACRO_START+mName+"\">");
+		writer.write(MACRO_START+mName+"\"");
+		if (mIsAutoStarting)
+			writer.write(AUTOSTART);
+		writer.write(">");
 		writer.newLine();
 		for (Task task:mTaskList) {
 			writer.write(TASK_START+task.getCode()+"\">");
 			writer.newLine();
 			if (task.configuration != null) {
 				for (String key:task.configuration.stringPropertyNames()) {
-					writer.write(key+"="+task.configuration.getProperty(key));
+					writer.write(key+"="+encode(task.configuration.getProperty(key)));
 					writer.newLine();
 					}
 				}
@@ -239,6 +253,22 @@ public class DEMacro {
 			}
 		writer.write(MACRO_END+">");
 		writer.newLine();
+		}
+
+	private String decode(String s) {
+		return s.replace(NEWLINE_STRING, "\n");
+		}
+
+	private String encode(String s) {
+		return s.replaceAll(NEWLINE_REGEX, NEWLINE_STRING);
+		}
+
+	public boolean isAutoStarting() {
+		return mIsAutoStarting;
+		}
+
+	public void setAutoStarting(boolean b) {
+		mIsAutoStarting = b;
 		}
 
 	public void readMacro(BufferedReader reader) throws IOException {
@@ -252,7 +282,7 @@ public class DEMacro {
 			while (theLine != null && !theLine.startsWith(TASK_END)) {
 				int index = theLine.indexOf("=");
 				if (index != -1)
-					configuration.setProperty(theLine.substring(0, index), theLine.substring(index+1));
+					configuration.setProperty(theLine.substring(0, index), decode(theLine.substring(index+1)));
 				theLine = reader.readLine();
 				}
 
@@ -293,10 +323,10 @@ public class DEMacro {
 	 * If currentTask refers to the last task of an active loop, then the index
 	 * of the first task of that loop is returned and the loop counter decremented.
 	 * @param currentTask
-	 * @return the index of the loop's first task or -1, if not at the end of a look
+	 * @return the index of the loop's first task or -1, if not at the end of a loop
 	 */
 	public int getLoopStart(int currentTask) {
-		if (mLoopList != null) {
+		if (mLoopList != null && mLoopList.size() != 0) {
 			int loop = mLoopList.size()-1;
 			Loop currentLoop = mLoopList.get(loop);
 			if (currentTask == currentLoop.lastTask) {

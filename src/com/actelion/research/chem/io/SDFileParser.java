@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,20 +18,16 @@
 
 package com.actelion.research.chem.io;
 
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.Reader;
-import java.util.TreeSet;
-
 import com.actelion.research.chem.MolfileParser;
 import com.actelion.research.chem.StereoMolecule;
+import com.actelion.research.chem.UniqueStringList;
+import com.actelion.research.io.BOMSkipper;
+
+import java.io.*;
 
 public class SDFileParser extends CompoundFileParser {
     private static final int DEFAULT_RECORDS_TO_INSPECT = 10240;
-    private static final String[] cIDFieldNames = { "Actelion No", "ID", "IDNUMBER", "COMPOUND_ID", "NAME", "COMPND" };
+    private static final String[] cIDFieldNames = { "Idorsia No", "Actelion No", "ID", "IDNUMBER", "COMPOUND_ID", "NAME", "COMPND" };
 	public static final String cNewLineString = "\n";
 
 	private StringBuilder		mMolfileBuffer,mDataBuffer;
@@ -51,6 +47,7 @@ public class SDFileParser extends CompoundFileParser {
 		
 		try {
 			mReader = new BufferedReader(new InputStreamReader(new FileInputStream(fileName), "UTF-8"));
+			BOMSkipper.skip(mReader);
 		} catch (IOException e) {}
 		
 		
@@ -68,6 +65,7 @@ public class SDFileParser extends CompoundFileParser {
 		mFieldName = fieldName;
 		try {
     		mReader = new BufferedReader(new InputStreamReader(new FileInputStream(file), "UTF-8"));
+			BOMSkipper.skip(mReader);
 		} catch (IOException e) {}
 		
 		init();
@@ -95,7 +93,8 @@ public class SDFileParser extends CompoundFileParser {
 	
 	private void extractAllFieldNames(int recordsToInspect) {
 	    int records = 0;
-		TreeSet<String> fieldNameList = new TreeSet<String>();
+//		TreeSet<String> fieldNameList = new TreeSet<String>(); Changed to keep the original order of field names. TLS 6Jan16
+		UniqueStringList fieldNameList = new UniqueStringList();
 
 		while (records < recordsToInspect) {
 			String line;
@@ -120,7 +119,7 @@ public class SDFileParser extends CompoundFileParser {
 			if (line.startsWith(">")) {
 				String fieldName = extractFieldName(line);
 				if (fieldName != null)
-					fieldNameList.add(fieldName);
+					fieldNameList.addString(fieldName);
 				}
 			}
 
@@ -129,7 +128,7 @@ public class SDFileParser extends CompoundFileParser {
 		    }
 		catch (IOException e) {}
 
-		mFieldName = fieldNameList.toArray(new String[0]);
+		mFieldName = fieldNameList.toArray();
 		}
 
 

@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,141 +18,58 @@
 
 package com.actelion.research.datawarrior;
 
-import java.awt.Component;
-import java.awt.Event;
-import java.awt.Toolkit;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
-import java.awt.event.ItemEvent;
-import java.awt.event.ItemListener;
-import java.awt.print.PageFormat;
-import java.awt.print.Paper;
-import java.awt.print.Printable;
-import java.awt.print.PrinterException;
-import java.awt.print.PrinterJob;
-import java.io.File;
-import java.io.FileFilter;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.prefs.Preferences;
-
-import javax.swing.JCheckBoxMenuItem;
-import javax.swing.JMenu;
-import javax.swing.JMenuBar;
-import javax.swing.JMenuItem;
-import javax.swing.JOptionPane;
-import javax.swing.KeyStroke;
-
 import com.actelion.research.chem.descriptor.DescriptorConstants;
 import com.actelion.research.chem.descriptor.DescriptorHelper;
 import com.actelion.research.chem.io.CompoundTableConstants;
-import com.actelion.research.datawarrior.action.DECorrelationDialog;
-import com.actelion.research.datawarrior.action.DEFileLoader;
-import com.actelion.research.datawarrior.action.DEGenericTautomerCreator;
-import com.actelion.research.datawarrior.action.DEHelpFrame;
-import com.actelion.research.datawarrior.action.DEInteractiveSARDialog;
-import com.actelion.research.datawarrior.action.DEMarkushDialog;
-import com.actelion.research.datawarrior.action.DENativeMDLReactionReader;
-import com.actelion.research.datawarrior.action.DEReactionDialog;
-import com.actelion.research.datawarrior.task.DEMacro;
-import com.actelion.research.datawarrior.task.DEMacroRecorder;
-import com.actelion.research.datawarrior.task.DETaskCopy;
-import com.actelion.research.datawarrior.task.DETaskInvertSelection;
-import com.actelion.research.datawarrior.task.DETaskPaste;
-import com.actelion.research.datawarrior.task.DETaskRunMacro;
-import com.actelion.research.datawarrior.task.DETaskSelectAll;
-import com.actelion.research.datawarrior.task.DETaskSelectDiverse;
-import com.actelion.research.datawarrior.task.chem.DECoreBasedSAR;
-import com.actelion.research.datawarrior.task.chem.DETaskAdd2DCoordinates;
-import com.actelion.research.datawarrior.task.chem.DETaskAdd3DCoordinates;
-import com.actelion.research.datawarrior.task.chem.DETaskAddFormula;
-import com.actelion.research.datawarrior.task.chem.DETaskAddLargestFragment;
-import com.actelion.research.datawarrior.task.chem.DETaskAddSmiles;
-import com.actelion.research.datawarrior.task.chem.DETaskAddStructureFromName;
-import com.actelion.research.datawarrior.task.chem.DETaskAnalyseActivityCliffs;
-import com.actelion.research.datawarrior.task.chem.DETaskAnalyseScaffolds;
-import com.actelion.research.datawarrior.task.chem.DETaskAutomaticSAR;
-import com.actelion.research.datawarrior.task.chem.DETaskCalculateChemicalProperties;
-import com.actelion.research.datawarrior.task.chem.DETaskCalculateDescriptor;
-import com.actelion.research.datawarrior.task.chem.DETaskClassifyReactions;
-import com.actelion.research.datawarrior.task.chem.DETaskClusterCompounds;
-import com.actelion.research.datawarrior.task.chem.DETaskFindSimilarCompoundsInFile;
-import com.actelion.research.datawarrior.task.chem.DETestCompareDescriptorSimilarityDistribution;
-import com.actelion.research.datawarrior.task.chem.DETestExtractPairwiseCompoundSimilarities;
-import com.actelion.research.datawarrior.task.chem.DETestExtractPairwiseStuff;
-import com.actelion.research.datawarrior.task.data.DETaskAddEmptyColumns;
-import com.actelion.research.datawarrior.task.data.DETaskAddEmptyRows;
-import com.actelion.research.datawarrior.task.data.DETaskAddRecordNumbers;
-import com.actelion.research.datawarrior.task.data.DETaskArrangeGraphData;
-import com.actelion.research.datawarrior.task.data.DETaskCalculateColumn;
-import com.actelion.research.datawarrior.task.data.DETaskCalculateSOM;
-import com.actelion.research.datawarrior.task.data.DETaskCreateBins;
-import com.actelion.research.datawarrior.task.data.DETaskDeleteColumns;
-import com.actelion.research.datawarrior.task.data.DETaskDeleteInvisibleRows;
-import com.actelion.research.datawarrior.task.data.DETaskDeleteRedundantRows;
-import com.actelion.research.datawarrior.task.data.DETaskDeleteSelectedRows;
-import com.actelion.research.datawarrior.task.data.DETaskMergeColumns;
-import com.actelion.research.datawarrior.task.data.DETaskPCA;
-import com.actelion.research.datawarrior.task.data.DETaskSearchAndReplace;
-import com.actelion.research.datawarrior.task.data.DETaskSetLogarithmicMode;
-import com.actelion.research.datawarrior.task.data.DETaskSetValueRange;
-import com.actelion.research.datawarrior.task.db.DETaskChemblQuery;
-import com.actelion.research.datawarrior.task.db.DETaskFindSimilarActiveCompounds;
-import com.actelion.research.datawarrior.task.db.DETaskRetrieveWikipediaCompounds;
-import com.actelion.research.datawarrior.task.elib.DETaskCreateEvolutionaryLibrary;
-import com.actelion.research.datawarrior.task.file.DETaskAbstractOpenFile;
-import com.actelion.research.datawarrior.task.file.DETaskAnalyseSOMFile;
-import com.actelion.research.datawarrior.task.file.DETaskApplySOMFile;
-import com.actelion.research.datawarrior.task.file.DETaskApplyTemplateFromFile;
-import com.actelion.research.datawarrior.task.file.DETaskCloseWindow;
-import com.actelion.research.datawarrior.task.file.DETaskExportMacro;
-import com.actelion.research.datawarrior.task.file.DETaskImportMacro;
-import com.actelion.research.datawarrior.task.file.DETaskMergeFile;
-import com.actelion.research.datawarrior.task.file.DETaskNewFile;
-import com.actelion.research.datawarrior.task.file.DETaskNewFileFromList;
-import com.actelion.research.datawarrior.task.file.DETaskNewFileFromPivoting;
-import com.actelion.research.datawarrior.task.file.DETaskNewFileFromReversePivoting;
-import com.actelion.research.datawarrior.task.file.DETaskNewFileFromSelection;
-import com.actelion.research.datawarrior.task.file.DETaskOpenFile;
-import com.actelion.research.datawarrior.task.file.DETaskRunMacroFromFile;
-import com.actelion.research.datawarrior.task.file.DETaskSaveFile;
-import com.actelion.research.datawarrior.task.file.DETaskSaveFileAs;
-import com.actelion.research.datawarrior.task.file.DETaskSaveSDFileAs;
-import com.actelion.research.datawarrior.task.file.DETaskSaveTemplateFileAs;
-import com.actelion.research.datawarrior.task.file.DETaskSaveTextFileAs;
-import com.actelion.research.datawarrior.task.file.DETaskSaveVisibleRowsAs;
+import com.actelion.research.datawarrior.action.*;
+import com.actelion.research.datawarrior.help.DEHelpFrame;
+import com.actelion.research.datawarrior.task.*;
+import com.actelion.research.datawarrior.task.chem.*;
+import com.actelion.research.datawarrior.task.chem.clib.DETaskCreateCombinatorialLibrary;
+import com.actelion.research.datawarrior.task.chem.elib.DETaskCreateEvolutionaryLibrary;
+import com.actelion.research.datawarrior.task.data.*;
+import com.actelion.research.datawarrior.task.data.fuzzy.DETaskCalculateFuzzyScore;
+import com.actelion.research.datawarrior.task.db.*;
+import com.actelion.research.datawarrior.task.file.*;
 import com.actelion.research.datawarrior.task.filter.DETaskAddNewFilter;
 import com.actelion.research.datawarrior.task.filter.DETaskDisableAllFilters;
 import com.actelion.research.datawarrior.task.filter.DETaskEnableAllFilters;
 import com.actelion.research.datawarrior.task.filter.DETaskResetAllFilters;
-import com.actelion.research.datawarrior.task.list.DETaskAddSelectionToList;
-import com.actelion.research.datawarrior.task.list.DETaskCombineTwoRowLists;
-import com.actelion.research.datawarrior.task.list.DETaskDeleteAllRowLists;
-import com.actelion.research.datawarrior.task.list.DETaskDeleteRowList;
-import com.actelion.research.datawarrior.task.list.DETaskDeselectRowsFromList;
-import com.actelion.research.datawarrior.task.list.DETaskExportHitlist;
-import com.actelion.research.datawarrior.task.list.DETaskImportHitlist;
-import com.actelion.research.datawarrior.task.list.DETaskNewColumnWithListNames;
-import com.actelion.research.datawarrior.task.list.DETaskNewRowList;
-import com.actelion.research.datawarrior.task.list.DETaskRemoveSelectionFromList;
-import com.actelion.research.datawarrior.task.list.DETaskSelectRowsFromList;
+import com.actelion.research.datawarrior.task.list.*;
+import com.actelion.research.datawarrior.task.macro.DETaskExitProgram;
+import com.actelion.research.datawarrior.task.macro.DETaskRunMacro;
 import com.actelion.research.gui.FileHelper;
-import com.actelion.research.table.CompoundTableEvent;
-import com.actelion.research.table.CompoundTableHitlistEvent;
-import com.actelion.research.table.CompoundTableHitlistHandler;
-import com.actelion.research.table.CompoundTableHitlistListener;
-import com.actelion.research.table.CompoundTableListener;
-import com.actelion.research.table.CompoundTableModel;
+import com.actelion.research.gui.JScrollableMenu;
+import com.actelion.research.table.model.*;
 import com.actelion.research.table.view.JCompoundTableForm;
 import com.actelion.research.util.Platform;
+import org.openmolecules.datawarrior.plugin.IPluginTask;
+
+import javax.swing.*;
+import java.awt.*;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.awt.event.ItemEvent;
+import java.awt.event.ItemListener;
+import java.awt.print.*;
+import java.io.File;
+import java.io.FileFilter;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.prefs.Preferences;
 
 public class StandardMenuBar extends JMenuBar implements ActionListener,
-			CompoundTableListener,CompoundTableHitlistListener,ItemListener {
+		CompoundTableListener,CompoundTableListListener,ItemListener {
 	static final long serialVersionUID = 0x20060728;
 
 	public static final boolean SUPPRESS_CHEMISTRY = false;
 
 	public static final String USER_MACRO_DIR = "$HOME/datawarrior/macro";
+
+	public static final String PREFERENCES_KEY_RECENT_FILE = "recentFile";
+	public static final int MAX_RECENT_FILE_COUNT = 16;
 
 	private static final String OPEN_FILE = "open_";
 	private static final String NEW_FROM_LIST = "newFromList_";
@@ -162,6 +79,7 @@ public class StandardMenuBar extends JMenuBar implements ActionListener,
 	private static final String LIST_SELECT = "select_";
 	private static final String LIST_DESELECT = "deselect_";
 	private static final String LIST_DELETE = "delete_";
+	private static final String LOOK_AND_FEEL = "laf_";
 	private static final String EXPORT_MACRO = "export_";
 	private static final String RUN_GLOBAL_MACRO = "runGlobal_";
 	private static final String RUN_INTERNAL_MACRO = "runInternal_";
@@ -172,34 +90,37 @@ public class StandardMenuBar extends JMenuBar implements ActionListener,
 	private DEFrame				mParentFrame;
 	private DEParentPane		mParentPane;
 	private DEMainPane			mMainPane;
-	private CompoundTableModel	mTableModel;
-	private PageFormat			mPageFormat;
+	private CompoundTableModel mTableModel;
+	private PageFormat mPageFormat;
 
-	private JMenu jMenuFileOpenSpecial,jMenuFileSaveSpecial,jMenuDataRemoveRows,jMenuDataSelfOrganizingMap,jMenuDataSetRange,
-				  jMenuDataViewLogarithmic,jMenuChemAddDescriptor,jMenuListCreate,jMenuMacroExport,jMenuMacroRun;
+	private JMenu jMenuFileOpenSpecial,jMenuFileOpenRecent,jMenuFileSaveSpecial,jMenuEditPasteSpecial,jMenuDataRemoveRows,
+				  jMenuDataSelfOrganizingMap,jMenuDataSetRange,jMenuDataViewLogarithmic,jMenuChemAddDescriptor,
+				  jMenuListCreate,jMenuMacroExport,jMenuMacroRun,jMenuHelpLaF;
 
 	private JMenuItem jMenuFileNew,jMenuFileNewFromSelection,jMenuFileNewFromPivoting,jMenuFileNewFromReversePivoting,
 					  jMenuFileOpen,jMenuFileOpenMacro,jMenuFileOpenTemplate,jMenuFileOpenMDLReactions,jMenuFileMerge,
 					  jMenuFileAppend,jMenuFileClose,jMenuFileCloseAll,jMenuFileSave,jMenuFileSaveAs,jMenuFileSaveText,
 					  jMenuFileSaveSDF,jMenuFileSaveTemplate,jMenuFileSaveVisibleAs,jMenuFilePageFormat,
-					  jMenuFilePreview,jMenuFilePrint,jMenuFileExit,jMenuEditCut,jMenuEditCopy,jMenuEditPaste,jMenuEditDelete,
+					  jMenuFilePreview,jMenuFilePrint,jMenuFileExit,jMenuEditCut,jMenuEditCopy,jMenuEditPaste,
+					  jMenuEditPasteWithHeader,jMenuEditPasteWithoutHeader,jMenuEditDelete,
 					  jMenuEditSelectAll,jMenuEditInvertSelection,jMenuEditSearchAndReplace,jMenuEditDisableFilters,
 					  jMenuEditEnableFilters,jMenuEditResetFilters,
 					  jMenuEditNewFilter,jMenuDataRemoveColumns,jMenuDataRemoveSelected,jMenuDataRemoveInvisible,
-					  jMenuDataRemoveRedundant,jMenuDataRemoveUnique,jMenuDataMergeColumns,jMenuDataMergeRedundant,
+			jMenuDataRemoveDuplicate,jMenuDataRemoveUnique,jMenuDataMergeColumns, jMenuDataMergeDuplicate,
 					  jMenuDataAddEmptyColumns,jMenuDataAddEmptyRows,jMenuDataAddRowNumbers,jMenuDataAddCalculatedValues,
-					  jMenuDataAddBinnedColumn,jMenuDataAddPrincipalComponents,jMenuDataSOMCreate,jMenuDataSOMApply,
-					  jMenuDataSOMAnalyse,jMenuDataArrangeGraph,jMenuDataCorrelationMatrix,jMenuChemCCLibrary,
-					  jMenuChemEALibrary,jMenuChemEnumerateMarkush,jMenuChemAddProperties,jMenuChemAddFormula,jMenuChemAddSmiles,
-					  jMenuChemCreate2DCoords,jMenuChemCreate3DCoords,jMenuChemAddLargestFragment,jMenuChemAddStructureFromName,
-					  jMenuChemAutomaticSARTable,jMenuChemCoreBasedSARTable,jMenuChemInteractiveSARTable,
+					  jMenuDataAddBinnedColumn,jMenuDataAddFuzzyScore,jMenuDataAddPrincipalComponents,jMenuDataSOMCreate,
+					  jMenuDataSOMApply,jMenuDataSOMAnalyse, jMenuDataGiniScore,jMenuDataArrangeGraph,jMenuDataCorrelationMatrix,
+					  jMenuChemCCLibrary,jMenuChemEALibrary,jMenuChemEnumerateMarkush,jMenuChemAddProperties,jMenuChemAddFormula,
+					  jMenuChemAddSmiles,jMenuChemCreate2DCoords,jMenuChemCreate3DCoords,jMenuChemAddLargestFragment,
+					  jMenuChemAddStructureFromName,jMenuChemAutomaticSARTable,jMenuChemCoreBasedSARTable,jMenuChemInteractiveSARTable,
 					  jMenuChemAnalyzeScaffolds,jMenuChemAnalyzeCliffs,jMenuChemMatchFile,jMenuChemSelectDiverse,
 					  jMenuChemCluster,jMenuChemExtractPKATree,jMenuChemUndocumented,jMenuChemPredictPKa,
 					  jMenuChemCreateGenericTautomers,jMenuChemCompareDescriptorSimilarityDistribution,
-					  jMenuChemExtractPairwiseCompoundSimilarities,jMenuChemExtractPairwiseStuff,jMenuChemClassifyReactions,
-					  jMenuDBWikipedia,jMenuDBReadChEMBL,jMenuDBFindChEMBLActives,
+					  jMenuChemExtractPairwiseCompoundSimilarities,jMenuChemExtractPairwiseStuff,jMenuChemCountAtomTypes,
+					  jMenuChemRunSurfacePLS,jMenuChemClassifyReactions,jMenuDBWikipedia,jMenuDBReadChEMBL,jMenuDBFindChEMBLActives,
+					  jMenuDBSearchCOD,jMenuDBRetrieveDataFromURL,
 					  jMenuListCreateSelected,jMenuListCreateVisible,jMenuListCreateHidden,jMenuListCreateClipboard,
-					  jMenuListCreateMerge,jMenuListDeleteAll,jMenuListNewColumn,jMenuListImport,
+					  jMenuListCreateMerge,jMenuListDeleteAll,jMenuListNewColumn,jMenuListListsFromColumn,jMenuListImport,
 					  jMenuListExport,jMenuMacroImport,jMenuMacroStartRecording,jMenuMacroContinueRecording,
 					  jMenuMacroStopRecording,jMenuHelpHelp,jMenuHelpAbout,jMenuHelpCheckForUpdate;
 
@@ -213,7 +134,7 @@ public class StandardMenuBar extends JMenuBar implements ActionListener,
 		mMainPane = parentFrame.getMainFrame().getMainPane();
 		mTableModel = (CompoundTableModel)mParentPane.getTableModel();
 		mTableModel.addCompoundTableListener(this);
-		mTableModel.getHitlistHandler().addCompoundTableHitlistListener(this);
+		mTableModel.getListHandler().addCompoundTableListListener(this);
 		buildMenu();
 		}
 
@@ -240,6 +161,7 @@ public class StandardMenuBar extends JMenuBar implements ActionListener,
 		jMenuFileNewFromPivoting = new JMenuItem();
 		jMenuFileNewFromReversePivoting = new JMenuItem();
 		jMenuFileOpen = new JMenuItem();
+		jMenuFileOpenRecent = new JMenu();
 		jMenuFileOpenSpecial = new JMenu();
 		jMenuFileOpenMacro = new JMenuItem();
 		jMenuFileOpenTemplate = new JMenuItem();
@@ -274,6 +196,7 @@ public class StandardMenuBar extends JMenuBar implements ActionListener,
 		jMenuFileOpen.setText("Open...");
 		jMenuFileOpen.setAccelerator(KeyStroke.getKeyStroke('O', MENU_MASK));
 		jMenuFileOpen.addActionListener(this);
+		jMenuFileOpenRecent.setText("Open Recent");
 		jMenuFileOpenSpecial.setText("Open Special");
 		jMenuFileOpenMacro.setText("Run Macro...");
 		jMenuFileOpenMacro.addActionListener(this);
@@ -327,11 +250,14 @@ public class StandardMenuBar extends JMenuBar implements ActionListener,
 		jMenuFile.add(jMenuFileNewFromReversePivoting);
 		jMenuFile.addSeparator();
 		jMenuFile.add(jMenuFileOpen);
+		jMenuFile.add(jMenuFileOpenRecent);
+		updateRecentFileMenu();
 		jMenuFileOpenSpecial.add(jMenuFileOpenTemplate);
 		jMenuFileOpenSpecial.add(jMenuFileOpenMacro);
 		addActelionOpenFileMenuOptions(jMenuFileOpenSpecial);
 		jMenuFileOpenSpecial.add(jMenuFileOpenMDLReactions);
 		jMenuFile.add(jMenuFileOpenSpecial);
+		jMenuFile.addSeparator();
 		addResourceFileMenus(jMenuFile);
 		jMenuFile.addSeparator();
 		jMenuFile.add(jMenuFileMerge);
@@ -367,6 +293,9 @@ public class StandardMenuBar extends JMenuBar implements ActionListener,
 		jMenuEditCut = new JMenuItem();
 		jMenuEditCopy = new JMenuItem();
 		jMenuEditPaste = new JMenuItem();
+		jMenuEditPasteSpecial = new JMenu();
+		jMenuEditPasteWithHeader = new JMenuItem();
+		jMenuEditPasteWithoutHeader = new JMenuItem();
 		jMenuEditDelete = new JMenuItem();
 		jMenuEditSelectAll = new JMenuItem();
 		jMenuEditInvertSelection = new JMenuItem();
@@ -385,6 +314,11 @@ public class StandardMenuBar extends JMenuBar implements ActionListener,
 		jMenuEditPaste.setText("Paste");
 		jMenuEditPaste.setAccelerator(KeyStroke.getKeyStroke('V', MENU_MASK));
 		jMenuEditPaste.addActionListener(this);
+		jMenuEditPasteSpecial.setText("Paste Special");
+		jMenuEditPasteWithHeader.setText("Paste With Header Row");
+		jMenuEditPasteWithHeader.addActionListener(this);
+		jMenuEditPasteWithoutHeader.setText("Paste Without Header Row");
+		jMenuEditPasteWithoutHeader.addActionListener(this);
 		jMenuEditDelete.setText("Delete");
 		jMenuEditDelete.setEnabled(false);
 		jMenuEditSelectAll.setText("Select All");
@@ -392,8 +326,9 @@ public class StandardMenuBar extends JMenuBar implements ActionListener,
 		jMenuEditSelectAll.addActionListener(this);
 		jMenuEditInvertSelection.setText("Invert Selection");
 		jMenuEditInvertSelection.addActionListener(this);
-		jMenuEditSearchAndReplace.setText("Search And Replace...");
+		jMenuEditSearchAndReplace.setText("Find And Replace...");
 		jMenuEditSearchAndReplace.addActionListener(this);
+		jMenuEditSearchAndReplace.setAccelerator(KeyStroke.getKeyStroke('H', MENU_MASK));
 		jMenuEditNewFilter.setText("New Filter...");
 		jMenuEditNewFilter.addActionListener(this);
 		jMenuEditDisableFilters.setText("Disable All Filters");
@@ -408,6 +343,9 @@ public class StandardMenuBar extends JMenuBar implements ActionListener,
 		jMenuEdit.add(jMenuEditCut);
 		jMenuEdit.add(jMenuEditCopy);
 		jMenuEdit.add(jMenuEditPaste);
+		jMenuEditPasteSpecial.add(jMenuEditPasteWithHeader);
+		jMenuEditPasteSpecial.add(jMenuEditPasteWithoutHeader);
+		jMenuEdit.add(jMenuEditPasteSpecial);
 		jMenuEdit.add(jMenuEditDelete);
  		jMenuEdit.addSeparator();
 		jMenuEdit.add(jMenuEditSelectAll);
@@ -427,23 +365,25 @@ public class StandardMenuBar extends JMenuBar implements ActionListener,
 		jMenuDataRemoveRows = new JMenu();
 		jMenuDataRemoveSelected = new JMenuItem();
 		jMenuDataRemoveInvisible = new JMenuItem();
-		jMenuDataRemoveRedundant = new JMenuItem();
+		jMenuDataRemoveDuplicate = new JMenuItem();
 		jMenuDataRemoveUnique = new JMenuItem();
 		jMenuDataMergeColumns = new JMenuItem();
-		jMenuDataMergeRedundant = new JMenuItem();
+		jMenuDataMergeDuplicate = new JMenuItem();
 		jMenuDataAddEmptyColumns = new JMenuItem();
 		jMenuDataAddEmptyRows = new JMenuItem();
 		jMenuDataAddRowNumbers = new JMenuItem();
-		jMenuDataAddCalculatedValues = new JMenuItem();
 		jMenuDataAddBinnedColumn = new JMenuItem();
+		jMenuDataAddFuzzyScore = new JMenuItem();
+		jMenuDataAddCalculatedValues = new JMenuItem();
 		jMenuDataAddPrincipalComponents = new JMenuItem();
 		jMenuDataSelfOrganizingMap = new JMenu();
 		jMenuDataSOMCreate = new JMenuItem();
 		jMenuDataSOMApply = new JMenuItem();
 		jMenuDataSOMAnalyse = new JMenuItem();
+		jMenuDataGiniScore = new JMenuItem();
 		jMenuDataArrangeGraph = new JMenuItem();
-		jMenuDataSetRange = new JMenu();
-		jMenuDataViewLogarithmic = new JMenu();
+		jMenuDataSetRange = new JScrollableMenu();
+		jMenuDataViewLogarithmic = new JScrollableMenu();
 		jMenuDataCorrelationMatrix = new JMenuItem();
 
 		jMenuDataRemoveColumns.setText("Delete Columns...");
@@ -453,25 +393,29 @@ public class StandardMenuBar extends JMenuBar implements ActionListener,
 		jMenuDataRemoveSelected.addActionListener(this);
 		jMenuDataRemoveInvisible.setText("Invisible Rows");
 		jMenuDataRemoveInvisible.addActionListener(this);
-		jMenuDataRemoveRedundant.setText("Redundant Rows...");
-		jMenuDataRemoveRedundant.addActionListener(this);
+		jMenuDataRemoveDuplicate.setText("Duplicate Rows...");
+		jMenuDataRemoveDuplicate.addActionListener(this);
 		jMenuDataRemoveUnique.setText("Unique Rows...");
 		jMenuDataRemoveUnique.addActionListener(this);
 		jMenuDataMergeColumns.setText("Merge Colums...");
 		jMenuDataMergeColumns.addActionListener(this);
-		jMenuDataMergeRedundant.setText("Merge Rows...");
-		jMenuDataMergeRedundant.addActionListener(this);
+		jMenuDataMergeDuplicate.setText("Merge Rows...");
+		jMenuDataMergeDuplicate.addActionListener(this);
 		jMenuDataAddEmptyColumns.setText("Add Empty Columns...");
 		jMenuDataAddEmptyColumns.addActionListener(this);
 		jMenuDataAddEmptyRows.setText("Add Empty Rows...");
 		jMenuDataAddEmptyRows.addActionListener(this);
 		jMenuDataAddRowNumbers.setText("Add Row Numbers...");
 		jMenuDataAddRowNumbers.addActionListener(this);
+		jMenuDataAddBinnedColumn.setText("Add Bins From Numbers...");
+		jMenuDataAddBinnedColumn.addActionListener(this);
+		jMenuDataAddFuzzyScore.setText("Calculate Fuzzy Score...");
+		jMenuDataAddFuzzyScore.addActionListener(this);
+		jMenuDataGiniScore.setText("Calculate Selectivity Score...");
+		jMenuDataGiniScore.addActionListener(this);
 		jMenuDataAddCalculatedValues.setText("Add Calculated Values...");
 		jMenuDataAddCalculatedValues.addActionListener(this);
-		jMenuDataAddBinnedColumn.setText("Add Binned Column...");
-		jMenuDataAddBinnedColumn.addActionListener(this);
-		jMenuDataAddPrincipalComponents.setText("Add Principal Components...");
+		jMenuDataAddPrincipalComponents.setText("Calculate Principal Components...");
 		jMenuDataAddPrincipalComponents.addActionListener(this);
 		jMenuDataSelfOrganizingMap.setText("Self Organizing Map");
 		jMenuDataSOMCreate.setText("Create...");
@@ -480,7 +424,7 @@ public class StandardMenuBar extends JMenuBar implements ActionListener,
 		jMenuDataSOMApply.addActionListener(this);
 		jMenuDataSOMAnalyse.setText("Analyse...");
 		jMenuDataSOMAnalyse.addActionListener(this);
-		jMenuDataArrangeGraph.setText("Arrange Graph Data...");
+		jMenuDataArrangeGraph.setText("Arrange Graph Nodes...");
 		jMenuDataArrangeGraph.addActionListener(this);
 		jMenuDataViewLogarithmic.setText("Treat Logarithmically");
 		jMenuDataSetRange.setText("Set Value Range");
@@ -493,18 +437,20 @@ public class StandardMenuBar extends JMenuBar implements ActionListener,
 		jMenuData.add(jMenuDataRemoveRows);
 		jMenuDataRemoveRows.add(jMenuDataRemoveSelected);
 		jMenuDataRemoveRows.add(jMenuDataRemoveInvisible);
-		jMenuDataRemoveRows.add(jMenuDataRemoveRedundant);
+		jMenuDataRemoveRows.add(jMenuDataRemoveDuplicate);
 		jMenuDataRemoveRows.add(jMenuDataRemoveUnique);
  		jMenuData.addSeparator();
  		jMenuData.add(jMenuDataMergeColumns);
-		jMenuData.add(jMenuDataMergeRedundant);
+		jMenuData.add(jMenuDataMergeDuplicate);
 		jMenuData.addSeparator();
 		jMenuData.add(jMenuDataAddEmptyColumns);
 		jMenuData.add(jMenuDataAddEmptyRows);
-		jMenuData.addSeparator();
 		jMenuData.add(jMenuDataAddRowNumbers);
-		jMenuData.add(jMenuDataAddCalculatedValues);
 		jMenuData.add(jMenuDataAddBinnedColumn);
+		jMenuData.add(jMenuDataAddCalculatedValues);
+		jMenuData.addSeparator();
+		jMenuData.add(jMenuDataGiniScore);
+		jMenuData.add(jMenuDataAddFuzzyScore);
 		jMenuData.add(jMenuDataAddPrincipalComponents);
 		jMenuData.add(jMenuDataSelfOrganizingMap);
 		jMenuDataSelfOrganizingMap.add(jMenuDataSOMCreate);
@@ -549,6 +495,8 @@ public class StandardMenuBar extends JMenuBar implements ActionListener,
 		jMenuChemCompareDescriptorSimilarityDistribution = new JMenuItem();
 		jMenuChemExtractPairwiseCompoundSimilarities = new JMenuItem();
 		jMenuChemExtractPairwiseStuff = new JMenuItem();
+		jMenuChemCountAtomTypes = new JMenuItem();
+		jMenuChemRunSurfacePLS = new JMenuItem();
 		jMenuChemClassifyReactions = new JMenuItem();
 
 		jMenuChemCCLibrary.setText("Create Combinatorial Library...");
@@ -602,6 +550,10 @@ public class StandardMenuBar extends JMenuBar implements ActionListener,
 		jMenuChemExtractPairwiseCompoundSimilarities.addActionListener(this);
 		jMenuChemExtractPairwiseStuff.setText("Extract Pairwise Similarities And Distances");
 		jMenuChemExtractPairwiseStuff.addActionListener(this);
+		jMenuChemCountAtomTypes.setText("Count Surface Atom Types");
+		jMenuChemCountAtomTypes.addActionListener(this);
+		jMenuChemRunSurfacePLS.setText("Run Surface Parameter PLS");
+		jMenuChemRunSurfacePLS.addActionListener(this);
 		jMenuChemClassifyReactions.setText("Classify Reactions");
 		jMenuChemClassifyReactions.addActionListener(this);
 
@@ -613,7 +565,7 @@ public class StandardMenuBar extends JMenuBar implements ActionListener,
  		jMenuChem.addSeparator();
 		jMenuChem.add(jMenuChemAddProperties);
 		jMenuChem.add(jMenuChemAddDescriptor);
-		for (int i=0; i<DescriptorConstants.DESCRIPTOR_LIST.length; i++) {
+		for (int i = 0; i< DescriptorConstants.DESCRIPTOR_LIST.length; i++) {
 			JMenuItem item = new JMenuItem();
 			item.setText(DescriptorConstants.DESCRIPTOR_LIST[i].shortName);
 			item.addActionListener(this);
@@ -630,7 +582,7 @@ public class StandardMenuBar extends JMenuBar implements ActionListener,
 		jMenuChem.addSeparator();
 		jMenuChem.add(jMenuChemAutomaticSARTable);
 		jMenuChem.add(jMenuChemCoreBasedSARTable);
-		if (mApplication.isActelion() || System.getProperty("development") != null)
+		if (mApplication.isIdorsia() || System.getProperty("development") != null)
 			jMenuChem.add(jMenuChemInteractiveSARTable);
 		jMenuChem.add(jMenuChemAnalyzeScaffolds);
 		jMenuChem.addSeparator();
@@ -646,6 +598,9 @@ public class StandardMenuBar extends JMenuBar implements ActionListener,
 			jMenuChem.add(jMenuChemCompareDescriptorSimilarityDistribution);
 			jMenuChem.add(jMenuChemExtractPairwiseCompoundSimilarities);
 			jMenuChem.add(jMenuChemExtractPairwiseStuff);
+			jMenuChem.addSeparator();
+			jMenuChem.add(jMenuChemCountAtomTypes);
+			jMenuChem.add(jMenuChemRunSurfacePLS);
 			jMenuChem.addSeparator();
 			jMenuChem.add(jMenuChemClassifyReactions);
 //		jMenuChem.add(jMenuChemPredictPKa);
@@ -678,6 +633,22 @@ public class StandardMenuBar extends JMenuBar implements ActionListener,
 		jMenuDBFindChEMBLActives.addActionListener(this);
 		jMenuDB.add(jMenuDBFindChEMBLActives);
 
+		jMenuDB.addSeparator();
+
+		jMenuDBSearchCOD = new JMenuItem();
+		jMenuDBSearchCOD.setText("Search Crystallography Open Database...");
+		jMenuDBSearchCOD.addActionListener(this);
+		jMenuDB.add(jMenuDBSearchCOD);
+
+		jMenuDB.addSeparator();
+
+		jMenuDBRetrieveDataFromURL = new JMenuItem();
+		jMenuDBRetrieveDataFromURL.setText("Retrieve Data From Custom URL...");
+		jMenuDBRetrieveDataFromURL.addActionListener(this);
+		jMenuDB.add(jMenuDBRetrieveDataFromURL);
+
+		addPluginItems(jMenuDB);
+
 		return jMenuDB;
 		}
 
@@ -695,6 +666,7 @@ public class StandardMenuBar extends JMenuBar implements ActionListener,
 		jMenuListDelete = new DEScrollableMenu();
 		jMenuListDeleteAll = new JMenuItem();
 		jMenuListNewColumn = new JMenuItem();
+		jMenuListListsFromColumn = new JMenuItem();
 		jMenuListImport = new JMenuItem();
 		jMenuListExport = new JMenuItem();
 
@@ -718,6 +690,8 @@ public class StandardMenuBar extends JMenuBar implements ActionListener,
 		jMenuListDeleteAll.addActionListener(this);
 		jMenuListNewColumn.setText("Add Column From Row Lists...");
 		jMenuListNewColumn.addActionListener(this);
+		jMenuListListsFromColumn.setText("Create Row Lists From Category Column...");
+		jMenuListListsFromColumn.addActionListener(this);
 		jMenuListExport.setText("Export Row List...");
 		jMenuListExport.addActionListener(this);
 		jMenuListImport.setText("Import Row List...");
@@ -743,6 +717,7 @@ public class StandardMenuBar extends JMenuBar implements ActionListener,
 		jMenuList.add(jMenuListDeleteAll);
 		jMenuList.addSeparator();
 		jMenuList.add(jMenuListNewColumn);
+		jMenuList.add(jMenuListListsFromColumn);
 		jMenuList.addSeparator();
 		jMenuList.add(jMenuListImport);
 		jMenuList.add(jMenuListExport);
@@ -784,26 +759,40 @@ public class StandardMenuBar extends JMenuBar implements ActionListener,
 		}
 
 	protected JMenu buildHelpMenu() {
+		jMenuHelpLaF = new JMenu();
+		jMenuHelpLaF.setText("Look & Feel");
+		for (int i=0; i<mApplication.getAvailableLAFNames().length; i++) {
+			JCheckBoxMenuItem item = new JCheckBoxMenuItem();
+			item.setActionCommand(LOOK_AND_FEEL+mApplication.getAvailableLAFClassNames()[i]);
+			item.setText(mApplication.getAvailableLAFNames()[i]);
+			item.setSelected(mApplication.getAvailableLAFClassNames()[i].equals(
+					UIManager.getLookAndFeel().getClass().getCanonicalName()));
+			item.addActionListener(this);
+			jMenuHelpLaF.add(item);
+			}
+
 		jMenuHelpHelp = new JMenuItem();
 		jMenuHelpAbout = new JMenuItem();
 		jMenuHelpAutomaticUpdateCheck = new JCheckBoxMenuItem();
 		jMenuHelpCheckForUpdate = new JMenuItem();
-
-		jMenuHelpHelp.setText("Help...");
-		jMenuHelpHelp.addActionListener(this);
 		if (!mApplication.isMacintosh()) {
 			jMenuHelpAbout.setText("About...");
 			jMenuHelpAbout.addActionListener(this);
 			}
+		jMenuHelpHelp.setText("Help...");
+		jMenuHelpHelp.addActionListener(this);
+
 		JMenu jMenuHelp = new JMenu();
+		if (!mApplication.isMacintosh()) {
+			jMenuHelp.add(jMenuHelpAbout);
+			jMenuHelp.addSeparator();
+			}
 		jMenuHelp.setText("Help");
 		jMenuHelp.add(jMenuHelpHelp);
-		if (!mApplication.isMacintosh()) {
-			jMenuHelp.addSeparator();
-			jMenuHelp.add(jMenuHelpAbout);
-			}
+		jMenuHelp.addSeparator();
+		jMenuHelp.add(jMenuHelpLaF);
 
-		if (!mApplication.isActelion()) {
+		if (!mApplication.isIdorsia()) {
 			Preferences prefs = Preferences.userRoot().node(DataWarrior.PREFERENCES_ROOT);
 			boolean check = prefs.getBoolean(DataWarrior.PREFERENCES_KEY_AUTO_UPDATE_CHECK, true);
 
@@ -903,7 +892,7 @@ public class StandardMenuBar extends JMenuBar implements ActionListener,
 				 || (mTableModel.isColumnTypeDouble(column)
 				  && !mTableModel.isColumnTypeDate(column)
 				  && mTableModel.getMinimumValue(column) > 0)) {
-					JCheckBoxMenuItem item = new JCheckBoxMenuItem(mTableModel.getColumnTitle(column),
+					JCheckBoxMenuItem item = new StayOpenCheckBoxMenuItem(mTableModel.getColumnTitle(column),
 																   mTableModel.isLogarithmicViewMode(column));
 					item.addItemListener(this);
 					jMenuDataViewLogarithmic.add(item);
@@ -912,7 +901,7 @@ public class StandardMenuBar extends JMenuBar implements ActionListener,
 				 && !mTableModel.isColumnTypeDate(column)) {
 					addMenuItem(jMenuDataSetRange, mTableModel.getColumnTitle(column)+"...", SET_RANGE+mTableModel.getColumnTitle(column));
 					}
-				}
+				} jMenuDataViewLogarithmic.updateUI();
 			}
 		if (e.getType() == CompoundTableEvent.cNewTable
 		 || (e.getType() == CompoundTableEvent.cChangeExtensionData
@@ -934,22 +923,22 @@ public class StandardMenuBar extends JMenuBar implements ActionListener,
 			}
 		}
 
-	public void hitlistChanged(CompoundTableHitlistEvent e) {
+	public void listChanged(CompoundTableListEvent e) {
 		jMenuFileNewFromList.removeAll();
 		jMenuListSelectFrom.removeAll();
 		jMenuListDeselectFrom.removeAll();
 		jMenuListAddSelectedTo.removeAll();
 		jMenuListRemoveSelectedFrom.removeAll();
 		jMenuListDelete.removeAll();
-		CompoundTableHitlistHandler hitlistHandler = mTableModel.getHitlistHandler();
+		CompoundTableListHandler hitlistHandler = mTableModel.getListHandler();
 
-		for (int hitlist=0; hitlist<hitlistHandler.getHitlistCount(); hitlist++) {
-			addMenuItem(jMenuFileNewFromList, hitlistHandler.getHitlistName(hitlist), NEW_FROM_LIST+hitlist);
-			addMenuItem(jMenuListAddSelectedTo, hitlistHandler.getHitlistName(hitlist), LIST_ADD+hitlist);
-			addMenuItem(jMenuListRemoveSelectedFrom, hitlistHandler.getHitlistName(hitlist), LIST_REMOVE+hitlist);
-			addMenuItem(jMenuListSelectFrom, hitlistHandler.getHitlistName(hitlist), LIST_SELECT+hitlist);
-			addMenuItem(jMenuListDeselectFrom, hitlistHandler.getHitlistName(hitlist), LIST_DESELECT+hitlist);
-			addMenuItem(jMenuListDelete, hitlistHandler.getHitlistName(hitlist), LIST_DELETE+hitlist);
+		for (int hitlist = 0; hitlist<hitlistHandler.getListCount(); hitlist++) {
+			addMenuItem(jMenuFileNewFromList, hitlistHandler.getListName(hitlist), NEW_FROM_LIST+hitlist);
+			addMenuItem(jMenuListAddSelectedTo, hitlistHandler.getListName(hitlist), LIST_ADD+hitlist);
+			addMenuItem(jMenuListRemoveSelectedFrom, hitlistHandler.getListName(hitlist), LIST_REMOVE+hitlist);
+			addMenuItem(jMenuListSelectFrom, hitlistHandler.getListName(hitlist), LIST_SELECT+hitlist);
+			addMenuItem(jMenuListDeselectFrom, hitlistHandler.getListName(hitlist), LIST_DESELECT+hitlist);
+			addMenuItem(jMenuListDelete, hitlistHandler.getListName(hitlist), LIST_DELETE+hitlist);
 			}
 		}
 
@@ -978,7 +967,7 @@ public class StandardMenuBar extends JMenuBar implements ActionListener,
 			else if (source == jMenuFilePrint)
 				menuFilePrint();
 			else if (source == jMenuFileExit)
-				mApplication.closeApplication();
+				new DETaskExitProgram(mParentFrame, mApplication).defineAndRun();
 			else if (source == jMenuHelpAbout)
 				new DEAboutDialog(mParentFrame);
 			else if (source == jMenuHelpHelp)
@@ -1004,7 +993,7 @@ public class StandardMenuBar extends JMenuBar implements ActionListener,
 			else if (source == jMenuFileOpenMDLReactions)
 				new DENativeMDLReactionReader(mParentFrame, mApplication).read();
 			else if (source == jMenuFileMerge)
-				new DETaskMergeFile(mParentFrame).defineAndRun();
+				new DETaskMergeFile(mParentFrame, true).defineAndRun();
 			else if (source == jMenuFileAppend) {
 				if (mParentFrame.getTableModel().getTotalRowCount() == 0)
 					JOptionPane.showMessageDialog(mParentFrame, "You cannot append a file to an empty table. Use 'Open File...' instead.");
@@ -1017,7 +1006,7 @@ public class StandardMenuBar extends JMenuBar implements ActionListener,
 			else if (source == jMenuFileClose)
 				new DETaskCloseWindow(mParentFrame, mApplication, mParentFrame).defineAndRun();
 			else if (source == jMenuFileCloseAll)
-				mApplication.closeAllFrames();
+				mApplication.closeAllFramesSafely(true);
 			else if (source == jMenuFileSave) {
 				if (mTableModel.getFile() == null)
 					new DETaskSaveFileAs(mParentFrame).defineAndRun();
@@ -1037,13 +1026,17 @@ public class StandardMenuBar extends JMenuBar implements ActionListener,
 			else if (source == jMenuEditCopy)
 				new DETaskCopy(mParentFrame).defineAndRun();
 			else if (source == jMenuEditPaste)
-				new DETaskPaste(mParentFrame, mApplication).defineAndRun();
+				new DETaskPaste(mParentFrame, mApplication, DETaskPaste.HEADER_ANALYZE).defineAndRun();
+			else if (source == jMenuEditPasteWithHeader)
+				new DETaskPaste(mParentFrame, mApplication, DETaskPaste.HEADER_WITH).defineAndRun();
+			else if (source == jMenuEditPasteWithoutHeader)
+				new DETaskPaste(mParentFrame, mApplication, DETaskPaste.HEADER_WITHOUT).defineAndRun();
 			else if (source == jMenuEditSelectAll)
 				new DETaskSelectAll(mParentFrame).defineAndRun();
 			else if (source == jMenuEditInvertSelection)
 				new DETaskInvertSelection(mParentFrame).defineAndRun();
 			else if (source == jMenuEditSearchAndReplace)
-				new DETaskSearchAndReplace(mParentFrame).defineAndRun();
+				new DETaskFindAndReplace(mParentFrame).defineAndRun();
 			else if (source == jMenuEditNewFilter)
 				new DETaskAddNewFilter(mParentFrame, mParentPane.getPruningPanel()).defineAndRun();
 			else if (source == jMenuEditDisableFilters)
@@ -1058,49 +1051,53 @@ public class StandardMenuBar extends JMenuBar implements ActionListener,
 					new DETaskResetAllFilters(mParentFrame).defineAndRun();
 				}
 			else if (source == jMenuDataRemoveColumns)
-				new DETaskDeleteColumns(mParentFrame, mTableModel, true).defineAndRun();
+				new DETaskDeleteColumns(mParentFrame, mTableModel, null).defineAndRun();
 			else if (source == jMenuDataRemoveSelected)
 				new DETaskDeleteSelectedRows(mParentFrame).defineAndRun();
 			else if (source == jMenuDataRemoveInvisible)
 				new DETaskDeleteInvisibleRows(mParentFrame).defineAndRun();
-			else if (source == jMenuDataRemoveRedundant)
-				new DETaskDeleteRedundantRows(mParentFrame, DETaskDeleteRedundantRows.MODE_REMOVE_REDUNDANT, true).defineAndRun();
+			else if (source == jMenuDataRemoveDuplicate)
+				new DETaskDeleteDuplicateRows(mParentFrame, DETaskDeleteDuplicateRows.MODE_REMOVE_DUPLICATE).defineAndRun();
 			else if (source == jMenuDataRemoveUnique)
-				new DETaskDeleteRedundantRows(mParentFrame, DETaskDeleteRedundantRows.MODE_REMOVE_UNIQUE, true).defineAndRun();
+				new DETaskDeleteDuplicateRows(mParentFrame, DETaskDeleteDuplicateRows.MODE_REMOVE_UNIQUE).defineAndRun();
 			else if (source == jMenuDataMergeColumns)
-				new DETaskMergeColumns(mParentFrame, true).defineAndRun();
-			else if (source == jMenuDataMergeRedundant)
-				new DETaskDeleteRedundantRows(mParentFrame, DETaskDeleteRedundantRows.MODE_MERGE_REDUNDANT, true).defineAndRun();
+				new DETaskMergeColumns(mParentFrame).defineAndRun();
+			else if (source == jMenuDataMergeDuplicate)
+				new DETaskDeleteDuplicateRows(mParentFrame, DETaskDeleteDuplicateRows.MODE_MERGE_DUPLICATE).defineAndRun();
 			else if (source == jMenuDataAddRowNumbers)
-				new DETaskAddRecordNumbers(mParentFrame, true).defineAndRun();
+				new DETaskAddRecordNumbers(mParentFrame).defineAndRun();
 			else if (source == jMenuDataAddEmptyColumns)
 				new DETaskAddEmptyColumns(mApplication).defineAndRun();
 			else if (source == jMenuDataAddEmptyRows)
 				new DETaskAddEmptyRows(mParentFrame).defineAndRun();
-			else if (source == jMenuDataAddCalculatedValues)
-				new DETaskCalculateColumn(mParentFrame).defineAndRun();
 			else if (source == jMenuDataAddBinnedColumn)
-				new DETaskCreateBins(mParentFrame, true).defineAndRun();
+				new DETaskAddBinsFromNumbers(mParentFrame).defineAndRun();
+			else if (source == jMenuDataAddFuzzyScore)
+				new DETaskCalculateFuzzyScore(mParentFrame).defineAndRun();
+			else if (source == jMenuDataAddCalculatedValues)
+				new DETaskAddCalculatedValues(mParentFrame).defineAndRun();
 			else if (source == jMenuDataAddPrincipalComponents)
 				new DETaskPCA(mParentFrame, true).defineAndRun();
 			else if (source == jMenuDataSOMCreate)
 				new DETaskCalculateSOM(mParentFrame, true).defineAndRun();
 			else if (source == jMenuDataSOMApply)
-				new DETaskApplySOMFile(mParentFrame).defineAndRun();
+				new DETaskApplySOMFile(mApplication).defineAndRun();
 			else if (source == jMenuDataSOMAnalyse)
 				new DETaskAnalyseSOMFile(mApplication).defineAndRun();
+			else if (source == jMenuDataGiniScore)
+				new DETaskCalculateSelectivityScore(mParentFrame, mTableModel).defineAndRun();
 			else if (source == jMenuDataArrangeGraph)
-				new DETaskArrangeGraphData(mParentFrame).defineAndRun();
+				new DETaskArrangeGraphNodes(mParentFrame).defineAndRun();
 			else if (source == jMenuDataCorrelationMatrix)
 				new DECorrelationDialog(mParentFrame, mTableModel);
 			else if (source == jMenuChemCCLibrary)
-				new DEReactionDialog(mParentFrame, mApplication);
+				new DETaskCreateCombinatorialLibrary(mParentFrame, mApplication).defineAndRun();
 			else if (source == jMenuChemEALibrary)
 				new DETaskCreateEvolutionaryLibrary(mParentFrame, mApplication).defineAndRun();
 			else if (source == jMenuChemEnumerateMarkush)
 				new DEMarkushDialog(mParentFrame, mApplication);
 			else if (source == jMenuChemAddProperties)
-				new DETaskCalculateChemicalProperties(mParentFrame, true).defineAndRun();
+				new DETaskCalculateChemicalProperties(mParentFrame).defineAndRun();
 			else if (source == jMenuChemAddFormula)
 				new DETaskAddFormula(mParentFrame).defineAndRun();
 			else if (source == jMenuChemAddSmiles)
@@ -1124,15 +1121,15 @@ JOptionPane.showMessageDialog(mParentFrame, "This functionality is not final yet
 					new DEInteractiveSARDialog(mParentFrame, mTableModel, idcodeColumn);
 				}
 			else if (source == jMenuChemAnalyzeScaffolds)
-				new DETaskAnalyseScaffolds(mParentFrame, true).defineAndRun();
+				new DETaskAnalyseScaffolds(mParentFrame).defineAndRun();
 			else if (source == jMenuChemAnalyzeCliffs)
-				new DETaskAnalyseActivityCliffs(mParentFrame, mApplication, true).defineAndRun();
+				new DETaskAnalyseActivityCliffs(mParentFrame, mApplication).defineAndRun();
 			else if (source == jMenuChemMatchFile)
-				new DETaskFindSimilarCompoundsInFile(mParentFrame, true).defineAndRun();
+				new DETaskFindSimilarCompoundsInFile(mParentFrame).defineAndRun();
 			else if (source == jMenuChemSelectDiverse)
-				new DETaskSelectDiverse(mParentFrame, true).defineAndRun();
+				new DETaskSelectDiverse(mParentFrame).defineAndRun();
 			else if (source == jMenuChemCluster)
-				new DETaskClusterCompounds(mParentFrame, true).defineAndRun();
+				new DETaskClusterCompounds(mParentFrame).defineAndRun();
 /*		  else if (source == jMenuChemExtractPKATree)
 				new PKATreeExtractor(mParentFrame, new PKADataWarriorAdapter(mTableModel)).extract();	*/
 			else if (source == jMenuChemCompareDescriptorSimilarityDistribution)
@@ -1141,8 +1138,12 @@ JOptionPane.showMessageDialog(mParentFrame, "This functionality is not final yet
 				new DETestExtractPairwiseCompoundSimilarities(mParentFrame, mApplication).defineAndRun();
 			else if (source == jMenuChemExtractPairwiseStuff)
 				new DETestExtractPairwiseStuff(mParentFrame, mApplication).defineAndRun();
+			else if (source == jMenuChemCountAtomTypes)
+				new DETestCountAtomTypes(mParentFrame).defineAndRun();
+			else if (source == jMenuChemRunSurfacePLS)
+				new DETestRunSurfacePLS(mParentFrame).defineAndRun();
 			else if (source == jMenuChemClassifyReactions)
-				new DETaskClassifyReactions(mParentFrame, true).defineAndRun();
+				new DETaskClassifyReactions(mParentFrame).defineAndRun();
 
 //			  int idcodeColumn = getStructureColumn(true);
 //			  if (idcodeColumn != -1)
@@ -1159,11 +1160,15 @@ JOptionPane.showMessageDialog(mParentFrame, "This functionality is not final yet
 					new DEGenericTautomerCreator(mParentFrame, mTableModel).create(idcodeColumn);
 				}
 			else if (source == jMenuDBWikipedia)
-				new DETaskRetrieveWikipediaCompounds(mParentFrame, mApplication, true).defineAndRun();
+				new DETaskRetrieveWikipediaCompounds(mParentFrame, mApplication).defineAndRun();
 			else if (source == jMenuDBReadChEMBL)
 				new DETaskChemblQuery(mParentFrame, mApplication).defineAndRun();
 			else if (source == jMenuDBFindChEMBLActives)
 				new DETaskFindSimilarActiveCompounds(mParentFrame).defineAndRun();
+			else if (source == jMenuDBSearchCOD)
+				new DETaskCODQuery(mParentFrame, mApplication).defineAndRun();
+			else if (source == jMenuDBRetrieveDataFromURL)
+				new DETaskRetrieveDataFromURL(mParentFrame, mApplication).defineAndRun();
 			else if (source == jMenuListCreateSelected) {
 				if (checkAndAllowEmptyList(DETaskNewRowList.MODE_SELECTED))
 					new DETaskNewRowList(mParentFrame, DETaskNewRowList.MODE_SELECTED).defineAndRun();
@@ -1179,7 +1184,7 @@ JOptionPane.showMessageDialog(mParentFrame, "This functionality is not final yet
 			else if (source == jMenuListCreateClipboard)
 				new DETaskNewRowList(mParentFrame, DETaskNewRowList.MODE_CLIPBOARD).defineAndRun();
 			else if (source == jMenuListCreateMerge)
-				new DETaskCombineTwoRowLists(mParentFrame, true).defineAndRun();
+				new DETaskCombineTwoRowLists(mParentFrame).defineAndRun();
 			else if (actionCommand.startsWith(LIST_ADD))
 				new DETaskAddSelectionToList(mParentFrame, Integer.parseInt(actionCommand.substring(LIST_ADD.length()))).defineAndRun();
 			else if (actionCommand.startsWith(LIST_REMOVE))
@@ -1191,7 +1196,7 @@ JOptionPane.showMessageDialog(mParentFrame, "This functionality is not final yet
 			else if (actionCommand.startsWith(LIST_DELETE))
 				new DETaskDeleteRowList(mParentFrame, Integer.parseInt(actionCommand.substring(LIST_DELETE.length()))).defineAndRun();
 			else if (source == jMenuListDeleteAll) {
-				String[] names = mTableModel.getHitlistHandler().getHitlistNames();
+				String[] names = mTableModel.getListHandler().getListNames();
 				if (names == null) {
 					JOptionPane.showMessageDialog(mParentFrame, "There are no row lists to be removed.");
 					}
@@ -1206,12 +1211,14 @@ JOptionPane.showMessageDialog(mParentFrame, "This functionality is not final yet
 				}
 			else if (source == jMenuListNewColumn)
 				new DETaskNewColumnWithListNames(mParentFrame).defineAndRun();
+			else if (source == jMenuListListsFromColumn)
+				new DETaskCreateListsFromCategories(mParentFrame).defineAndRun();
 			else if (source == jMenuListImport)
-				new DETaskImportHitlist(mParentFrame).defineAndRun();
+				new DETaskImportHitlist(mApplication).defineAndRun();
 			else if (source == jMenuListExport)
 				new DETaskExportHitlist(mParentFrame, true).defineAndRun();
 			else if (source == jMenuMacroImport) {
-				new DETaskImportMacro(mParentFrame).defineAndRun();
+				new DETaskImportMacro(mApplication).defineAndRun();
 				}
 			else if (e.getActionCommand().startsWith(EXPORT_MACRO)) {
 				String macroName = e.getActionCommand().substring(EXPORT_MACRO.length());
@@ -1223,40 +1230,25 @@ JOptionPane.showMessageDialog(mParentFrame, "This functionality is not final yet
 			else if (e.getActionCommand().startsWith(RUN_INTERNAL_MACRO)) {
 				new DETaskRunMacro(mParentFrame, e.getActionCommand().substring(RUN_INTERNAL_MACRO.length())).defineAndRun();
 				}
-			else if (source == jMenuMacroStartRecording) {
-/*				if (DEMacroRecorder.getInstance().isRecording()) {
-					JOptionPane.showMessageDialog(mParentFrame, "You are already recording a macro in another window.");
-					}
-				else {*/
-					boolean frameIsEmpty = mParentFrame.getTableModel().isEmpty()
-										&& mParentFrame.getMainFrame().getMainPane().getDockableCount() == 0;
-					DEMacro macro = DEMacroEditor.addNewMacro(mParentFrame, null);
-					if (macro != null) {
-						if (frameIsEmpty)
-							mMainPane.addApplicationView(DEMainPane.VIEW_TYPE_MACRO_EDITOR, "Macro Editor", "root");
-	
-						DEMacroRecorder.getInstance().startRecording(macro, mParentFrame);
-						enableMacroItems();
-						}
-//					}
-				}
+			else if (source == jMenuMacroStartRecording)
+				new DEDialogRecordMacro(mParentFrame);
 			else if (source == jMenuMacroContinueRecording) {
-/*				if (DEMacroRecorder.getInstance().isRecording()) {
-					JOptionPane.showMessageDialog(mParentFrame, "You are already recording a macro in another window.");
-					}
-				else {*/
-					DEMacroRecorder.getInstance().continueRecording();
-					enableMacroItems();
-//					}
+				DEMacroRecorder.getInstance().continueRecording();
+				enableMacroItems();
 				}
 			else if (source == jMenuMacroStopRecording) {
-/*				if (!DEMacroRecorder.getInstance().isRecording()) {
-					JOptionPane.showMessageDialog(mParentFrame, "You are not recording any macro in this window.");
+				DEMacroRecorder.getInstance().stopRecording();
+				enableMacroItems();
+				}
+			else if (actionCommand.startsWith(LOOK_AND_FEEL)) {
+				for (int i=0; i<jMenuHelpLaF.getItemCount(); i++) {
+					JCheckBoxMenuItem item = (JCheckBoxMenuItem)jMenuHelpLaF.getItem(i);
+					if (item != source)
+						item.setSelected(false);
 					}
-				else {*/
-					DEMacroRecorder.getInstance().stopRecording();
-					enableMacroItems();
-//					}
+				String lafName = actionCommand.substring(LOOK_AND_FEEL.length());
+				mApplication.updateLookAndFeel(lafName);
+				DEHelpFrame.updateLookAndFeel();
 				}
 			else if (source == jMenuHelpAutomaticUpdateCheck) {
 				Preferences prefs = Preferences.userRoot().node(DataWarrior.PREFERENCES_ROOT);
@@ -1309,8 +1301,9 @@ JOptionPane.showMessageDialog(mParentFrame, "This functionality is not final yet
 	public void itemStateChanged(ItemEvent e) {
 		if (e.getSource() instanceof JCheckBoxMenuItem) {
 			JCheckBoxMenuItem menuItem = (JCheckBoxMenuItem)e.getSource();
-			int column = mTableModel.findColumn(menuItem.getText());
-			new DETaskSetLogarithmicMode(mParentFrame, column, menuItem.isSelected()).defineAndRun();
+			int[] columnList = new int[1];
+			columnList[0] = mTableModel.findColumn(menuItem.getText());
+			new DETaskSetLogarithmicMode(mParentFrame, mTableModel, columnList, menuItem.isSelected()).defineAndRun();
 			}
 		}
 
@@ -1382,17 +1375,38 @@ JOptionPane.showMessageDialog(mParentFrame, "This functionality is not final yet
 		return reactionColumn;
 		}
 
+	public void updateRecentFileMenu() {
+		jMenuFileOpenRecent.removeAll();
+		try {
+			Preferences prefs = Preferences.userRoot().node(DataWarrior.PREFERENCES_ROOT);
+
+			for (int i=1; i<=MAX_RECENT_FILE_COUNT; i++) {
+				String path = prefs.get(PREFERENCES_KEY_RECENT_FILE + i, "");
+				if (path == null || path.length() == 0)
+					break;
+
+				File file = new File(path);
+				if (file.exists())
+					addMenuItem(jMenuFileOpenRecent, file.getName(), OPEN_FILE+path);
+				}
+			}
+		catch (Exception e) {}
+		}
+
 	private void addResourceFileMenus(JMenu parentMenu) {
 		// alternative to get location of datawarrior.jar:
 		//   getClass().getProtectionDomain().getCodeSource().getLocation();
 
-		for (String resDir:DETaskAbstractOpenFile.RESOURCE_DIR) {
-			File directory = DETaskAbstractOpenFile.resolveResourcePath(resDir);
+		for (String resDir:DataWarrior.RESOURCE_DIR) {
+			File directory = DataWarrior.resolveResourcePath(resDir);
 			if (directory != null)
-				addResourceFileMenu(parentMenu, "Open "+resDir+" File", DETaskAbstractOpenFile.makePathVariable(resDir), directory);
+				addResourceFileMenu(parentMenu, "Open "+resDir+" File", DataWarrior.makePathVariable(resDir), directory);
 			}
 
 		String dirlist = System.getProperty("datapath");
+		if (dirlist != null)
+			parentMenu.addSeparator();
+
 		while (dirlist != null) {
 			int index = dirlist.indexOf(File.pathSeparatorChar);
 			String dirname = (index == -1) ? dirlist : dirlist.substring(0, index);
@@ -1419,8 +1433,13 @@ JOptionPane.showMessageDialog(mParentFrame, "This functionality is not final yet
 			};
 		File[] file = directory.listFiles(filter);
 		if (file != null && file.length != 0) {
-			JMenu menu = new JMenu(itemString);
-			Arrays.sort(file);
+			JMenu menu = new JScrollableMenu(itemString);
+			Arrays.sort(file, new Comparator<File>() {
+				@Override
+				public int compare(File o1, File o2) {
+					return o1.getName().compareToIgnoreCase(o2.getName());
+				}
+			});
 			for (int i=0; i<file.length; i++) {
 				addMenuItem(menu, file[i].getName(), OPEN_FILE+dirPath+File.separator+file[i].getName());
 				}
@@ -1428,10 +1447,43 @@ JOptionPane.showMessageDialog(mParentFrame, "This functionality is not final yet
 			}
 		}
 
+	private void addPluginItems(JMenu parentMenu) {
+		ArrayList<IPluginTask> pluginList = mApplication.getPluginRegistry().getPluginTasks();
+		if (pluginList == null || pluginList.size() == 0)
+			return;
+
+		parentMenu.addSeparator();
+
+		for (final IPluginTask pluginTask:pluginList) {
+			JMenuItem item = new JMenuItem(pluginTask.getTaskName()+"...");
+			item.addActionListener(new ActionListener() {
+							@Override
+							public void actionPerformed(ActionEvent e) {
+					new DETaskPluginTask(mParentFrame, pluginTask).defineAndRun();
+/*					final Properties configuration = pluginTask.showDialog(mParentFrame);
+					if (configuration != null) {
+						final JProgressDialog progressDialog = new JProgressDialog(mParentFrame);
+						final PluginHelper pluginHelper = new PluginHelper(mApplication, progressDialog);
+						new Thread() {
+										@Override public void run() {
+								progressDialog.startProgress("Starting Task Action...", 0, 0);
+								pluginTask.run(configuration, pluginHelper);
+								progressDialog.close(pluginHelper.getNewFrame());
+								}
+										}.start();
+						progressDialog.setVisible(true);
+						}
+*/					}
+
+							});
+			parentMenu.add(item);
+			}
+		}
+
 	private void addMacroFileItems(JMenu parentMenu) {
-		File directory = DETaskAbstractOpenFile.resolveResourcePath(DETaskAbstractOpenFile.MACRO_DIR);
+		File directory = DataWarrior.resolveResourcePath(DataWarrior.MACRO_DIR);
 		if (directory != null)
-			addMacroFileItems(parentMenu, DETaskAbstractOpenFile.makePathVariable(DETaskAbstractOpenFile.MACRO_DIR), directory);
+			addMacroFileItems(parentMenu, DataWarrior.makePathVariable(DataWarrior.MACRO_DIR), directory);
 
 		directory = new File(System.getProperty("user.home")+File.separator+"datawarrior"+File.separator+"macro");
 		if (directory != null)
@@ -1480,7 +1532,11 @@ JOptionPane.showMessageDialog(mParentFrame, "This functionality is not final yet
 				parentMenu.addSeparator();
 			Arrays.sort(file);
 			for (int i=0; i<file.length; i++) {
-				addMenuItem(parentMenu, file[i].getName(), RUN_GLOBAL_MACRO+dirPath+File.separator+file[i].getName());
+				try {
+					String macroName = new DEMacro(file[i], null).getName();
+					addMenuItem(parentMenu, macroName, RUN_GLOBAL_MACRO + dirPath + File.separator + file[i].getName());
+					}
+				catch (IOException ioe) {}
 				}
 			}
 		}

@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,26 +18,31 @@
 
 package com.actelion.research.table;
 
+import com.actelion.research.chem.io.CompoundTableConstants;
+import com.actelion.research.table.model.CompoundRecord;
+import com.actelion.research.table.model.CompoundTableModel;
+import com.actelion.research.util.BinaryDecoder;
+import com.actelion.research.util.BinaryEncoder;
+
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.IOException;
 import java.util.Set;
 import java.util.TreeMap;
 
-import com.actelion.research.chem.io.CompoundTableConstants;
-import com.actelion.research.util.BinaryDecoder;
-import com.actelion.research.util.BinaryEncoder;
-
 public class RuntimeProperties extends TreeMap<String,Object> implements CompoundTableConstants {
     private static final long serialVersionUID = 0x20061101;
 
+    public static final String cColumnAlias = "columnAlias";
+    public static final String cColumnAliasCount = "columnAliasCount";
+
     private static final String cLogarithmicViewMode = "logarithmicView";
+	private static final String cColumnDataType = "explicitColumnType";
+	private static final String cColumnDataTypeCount = "explicitColumnTypeCount";
     private static final String cSignificantDigits = "significantDigits";
     private static final String cSignificantDigitColumnCount = "significantDigitColumnCount";
     private static final String cModifierValuesExcluded = "modifierValuesExcluded";
     private static final String cCurrentRecord = "currentRecord";
-    private static final String cColumnAlias = "columnAlias";
-    private static final String cColumnAliasCount = "columnAliasCount";
     private static final String cColumnDescription = "columnDescription";
     private static final String cColumnDescriptionCount = "columnDescriptionCount";
     private static final String cBinaryObject = "isBinaryEncoded";
@@ -46,7 +51,7 @@ public class RuntimeProperties extends TreeMap<String,Object> implements Compoun
     private static final String cSummaryCountHidden = "summaryCountHidden";
     private static final String cStdDeviationShown = "stdDeviationShown";
 
-	protected CompoundTableModel	mTableModel;
+	protected CompoundTableModel mTableModel;
 	protected BufferedWriter		mWriter;
 
 	public RuntimeProperties(CompoundTableModel tableModel) {
@@ -58,7 +63,7 @@ public class RuntimeProperties extends TreeMap<String,Object> implements Compoun
 		clear();
 		while (true) {
 			String theLine = theReader.readLine();
-			if (theLine.equals(cPropertiesEnd))
+			if (theLine == null || theLine.equals(cPropertiesEnd))
 				break;
 
 			int index1 = theLine.indexOf('<');
@@ -125,8 +130,8 @@ public class RuntimeProperties extends TreeMap<String,Object> implements Compoun
 	    for (int column=list.next(); column != -1; column=list.next())
 	        mTableModel.setColumnModifierExclusion(column, true);
 
-	    for (int summaryMode=1; summaryMode<cSummaryModeOption.length; summaryMode++) {
-    	    list = new RuntimePropertyColumnList(cSummaryModeOption[summaryMode]);
+	    for (int summaryMode = 1; summaryMode< cSummaryModeCode.length; summaryMode++) {
+    	    list = new RuntimePropertyColumnList(cSummaryModeCode[summaryMode]);
     	    for (int column=list.next(); column != -1; column=list.next())
                 mTableModel.setColumnSummaryMode(column, summaryMode);
 	        }
@@ -139,8 +144,8 @@ public class RuntimeProperties extends TreeMap<String,Object> implements Compoun
 	    for (int column=list.next(); column != -1; column=list.next())
             mTableModel.setColumnStdDeviationShown(column, true);
 
-	    for (int hiliteMode=1; hiliteMode<cHiliteModeOption.length; hiliteMode++) {
-    	    list = new RuntimePropertyColumnList(cHiliteModeOption[hiliteMode]);
+	    for (int hiliteMode = 1; hiliteMode< cHiliteModeCode.length; hiliteMode++) {
+    	    list = new RuntimePropertyColumnList(cHiliteModeCode[hiliteMode]);
     	    for (int column=list.next(); column != -1; column=list.next())
                 mTableModel.setStructureHiliteMode(column, hiliteMode);
 	        }
@@ -183,6 +188,25 @@ public class RuntimeProperties extends TreeMap<String,Object> implements Compoun
 							int column = mTableModel.findColumn(columnDescription.substring(0, index));
 							if (column != -1)
 								mTableModel.setColumnDescription(columnDescription.substring(index+1).replace("<NL>", "\n"), column);
+							}
+						}
+					}
+				} catch (NumberFormatException e) {}
+			}
+		columnCount = getProperty(cColumnDataTypeCount);
+		if (columnCount != null) {
+			try {
+				int count = Integer.parseInt(columnCount);
+				for (int i=0; i<count; i++) {
+					String explicitType = getProperty(cColumnDataType+"_"+i);
+					if (explicitType != null) {
+						int index = explicitType.indexOf('\t');
+						if (index != -1) {
+							int column = mTableModel.findColumn(explicitType.substring(0, index));
+							if (column != -1) {
+								int type = findCode(explicitType.substring(index+1), cDataTypeCode, cDataTypeAutomatic);
+								mTableModel.setExplicitDataType(column, type);
+								}
 							}
 						}
 					}
@@ -285,7 +309,7 @@ public class RuntimeProperties extends TreeMap<String,Object> implements Compoun
         if (columnList.length() != 0)
             setProperty(cModifierValuesExcluded, columnList);
 
-        for (int summaryMode=1; summaryMode<cSummaryModeOption.length; summaryMode++) {
+        for (int summaryMode = 1; summaryMode< cSummaryModeCode.length; summaryMode++) {
             columnList = "";
             for (int column=0; column<mTableModel.getTotalColumnCount(); column++) {
                 if (mTableModel.getColumnSummaryMode(column) == summaryMode) {
@@ -295,7 +319,7 @@ public class RuntimeProperties extends TreeMap<String,Object> implements Compoun
                     }
                 }
             if (columnList.length() != 0)
-                setProperty(cSummaryModeOption[summaryMode], columnList);
+                setProperty(cSummaryModeCode[summaryMode], columnList);
 
             columnList = "";
             for (int column=0; column<mTableModel.getTotalColumnCount(); column++) {
@@ -320,7 +344,7 @@ public class RuntimeProperties extends TreeMap<String,Object> implements Compoun
                 setProperty(cStdDeviationShown, columnList);
     		}
 
-        for (int hiliteMode=1; hiliteMode<cHiliteModeOption.length; hiliteMode++) {
+        for (int hiliteMode = 1; hiliteMode< cHiliteModeCode.length; hiliteMode++) {
             columnList = "";
             for (int column=0; column<mTableModel.getTotalColumnCount(); column++) {
                 if (mTableModel.getStructureHiliteMode(column) == hiliteMode) {
@@ -330,7 +354,7 @@ public class RuntimeProperties extends TreeMap<String,Object> implements Compoun
                     }
                 }
             if (columnList.length() != 0)
-                setProperty(cHiliteModeOption[hiliteMode], columnList);
+                setProperty(cHiliteModeCode[hiliteMode], columnList);
             }
 
 		CompoundRecord currentRecord = mTableModel.getActiveRow();
@@ -367,6 +391,18 @@ public class RuntimeProperties extends TreeMap<String,Object> implements Compoun
 					setProperty(cColumnDescription+"_"+columnDescriptionCount++,
 							mTableModel.getColumnTitleNoAlias(column)+"\t"+mTableModel.getColumnDescription(column).replace("\n", "<NL>"));
 			}
+		int columnTypeCount = 0;
+		for (int column=0; column<mTableModel.getTotalColumnCount(); column++)
+			if (mTableModel.getExplicitDataType(column) != cDataTypeAutomatic)
+				columnTypeCount++;
+		if (columnTypeCount != 0) {
+			setProperty(cColumnDataTypeCount, ""+columnTypeCount);
+			columnTypeCount = 0;
+			for (int column=0; column<mTableModel.getTotalColumnCount(); column++)
+				if (mTableModel.getExplicitDataType(column) != cDataTypeAutomatic)
+					setProperty(cColumnDataType+"_"+columnTypeCount++,
+							mTableModel.getColumnTitleNoAlias(column)+"\t"+cDataTypeCode[mTableModel.getExplicitDataType(column)]);
+		}
         int significantDigitColumnCount = 0;
         for (int column=0; column<mTableModel.getTotalColumnCount(); column++)
             if (mTableModel.getColumnSignificantDigits(column) != 0)
@@ -397,6 +433,14 @@ public class RuntimeProperties extends TreeMap<String,Object> implements Compoun
 					}
 				}
 			}
+		}
+
+	private int findCode(String code, String[] option, int defaultCode) {
+		for (int i=0; i<option.length; i++)
+			if (code.equals(option[i]))
+				return i;
+
+		return defaultCode;
 		}
 
 	class RuntimePropertyColumnList {

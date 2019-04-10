@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -33,13 +33,13 @@ import com.actelion.research.chem.descriptor.DescriptorHandlerPFP512;
 import com.actelion.research.chem.descriptor.DescriptorHandlerSkeletonSpheres;
 import com.actelion.research.datawarrior.DEFrame;
 import com.actelion.research.datawarrior.DataWarrior;
-import com.actelion.research.datawarrior.task.DETaskWithEmptyConfiguration;
-import com.actelion.research.table.CompoundRecord;
-import com.actelion.research.table.CompoundTableEvent;
-import com.actelion.research.table.CompoundTableModel;
+import com.actelion.research.datawarrior.task.AbstractTaskWithoutConfiguration;
+import com.actelion.research.table.model.CompoundRecord;
+import com.actelion.research.table.model.CompoundTableEvent;
+import com.actelion.research.table.model.CompoundTableModel;
 
 
-public class DETestExtractPairwiseCompoundSimilarities extends DETaskWithEmptyConfiguration {
+public class DETestExtractPairwiseCompoundSimilarities extends AbstractTaskWithoutConfiguration {
     public static final String TASK_NAME = "Extract Pairwise Compound Similarities";
 
 	private DataWarrior			mApplication;

@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -23,9 +23,9 @@ import java.util.Properties;
 import javax.swing.JTable;
 
 import com.actelion.research.datawarrior.DEFrame;
-import com.actelion.research.table.CompoundTableModel;
+import com.actelion.research.table.model.CompoundTableModel;
 
-public class DETaskSelectAll extends DETaskWithEmptyConfiguration {
+public class DETaskSelectAll extends AbstractTaskWithoutConfiguration {
     public static final String TASK_NAME = "Select All";
 
     JTable				mTable;

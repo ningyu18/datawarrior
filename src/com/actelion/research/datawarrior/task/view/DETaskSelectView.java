@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,18 +18,16 @@
 
 package com.actelion.research.datawarrior.task.view;
 
-import java.awt.Frame;
-import java.util.Properties;
-
-import javax.swing.JComponent;
-
 import com.actelion.research.datawarrior.DEMainPane;
+import com.actelion.research.datawarrior.task.AbstractViewTask;
 import com.actelion.research.table.view.CompoundTableView;
 
-public class DETaskSelectView extends DEAbstractViewTask {
-	public static final String TASK_NAME = "Select View";
+import javax.swing.*;
+import java.awt.*;
+import java.util.Properties;
 
-	private static Properties sRecentConfiguration;
+public class DETaskSelectView extends AbstractViewTask {
+	public static final String TASK_NAME = "Select View";
 
 	public DETaskSelectView(Frame parent, DEMainPane mainPane, CompoundTableView view) {
 		super(parent, mainPane, view);
@@ -40,7 +38,10 @@ public class DETaskSelectView extends DEAbstractViewTask {
 		return true;
 		}
 
-	@Override
+    @Override
+    public boolean allowsSelectedView() { return false; }
+
+    @Override
 	public JComponent createInnerDialogContent() {
 		return null;
 		}
@@ -59,15 +60,5 @@ public class DETaskSelectView extends DEAbstractViewTask {
 	public void runTask(Properties configuration) {
 		String viewName = getConfiguredViewName(configuration);
 		getMainPane().selectDockable(getMainPane().getDockable(viewName));
-		}
-
-	@Override
-	public Properties getRecentConfiguration() {
-		return sRecentConfiguration;
-		}
-
-	@Override
-	public void setRecentConfiguration(Properties configuration) {
-		sRecentConfiguration = configuration;
 		}
 	}

@@ -172,7 +172,7 @@ public class FFMolSummarizerInteractTable implements IMoleculeSummarizer {
 		
 	}
 	/**
-	 * 
+	 * All matching atoms get identical coordinates. These coordinates are the calculated center.
 	 * @param ffMol
 	 * @param idcodeCenter
 	 * @param liAtomicNosExcluded
@@ -216,12 +216,13 @@ public class FFMolSummarizerInteractTable implements IMoleculeSummarizer {
 		for (Iterator<int []> iter = vecMatchList.iterator(); iter.hasNext();) {
 			int [] arrAtomList = iter.next();
 			
-			Coordinates coord = FFMoleculeFunctions.getCenterGravity(ffMol, arrAtomList);
+			// Calculate center coordinates.
+			Coordinates coordCenter = FFMoleculeFunctions.getCenterGravity(ffMol, arrAtomList);
 			
 			for (int at = 0; at < arrAtomList.length; at++) {
 				
 				// If the atom is in a ring it will not be considered
-				if(ffMol.getRingSize(arrAtomList[at])>-1)
+				if(ffMol.getAtomRingSize(arrAtomList[at])>-1)
 					continue;
 				
 				// If the atom was already considered it will not be considered again.
@@ -232,7 +233,7 @@ public class FFMolSummarizerInteractTable implements IMoleculeSummarizer {
 				int iInteractionType = ffMol.getAtomInteractionClass(arrAtomList[at]);
 
 				// MM2 interaction type
-				int iMM2Type = ffMol.getAtomMM2Class(arrAtomList[at]);
+				int iMM2Type = ffMol.getMM2AtomType(arrAtomList[at]);
 
 				int iAtomicNo = ffMol.getAtomicNo(arrAtomList[at]);
 				
@@ -244,15 +245,18 @@ public class FFMolSummarizerInteractTable implements IMoleculeSummarizer {
 					
 					int index = ffMol.addAtom(iAtomicNo);
 					ffMol.setAtomInteractionClass(index, iInteractionType);
-					ffMol.setAtomMM2Class(index, iMM2Type);
+					ffMol.setMM2AtomType(index, iMM2Type);
 					String sOrigIndex = Integer.toString(indexOriginalAtom);
 					ffMol.setAtomChainId(index, sOrigIndex);
-					ffMol.setCoordinates(index, coord);
+					
+					// Set the center coordinates
+					ffMol.setCoordinates(index, coordCenter);
 					ffMol.setAtomFlag(index, FFMoleculeFunctions.FLAG_CENTER_ATOM, true);
 					ffMol.setPPP(index, arrAtomList);
 					
 					IndexCoordinates indexCoordinates = new IndexCoordinates(index, indexOriginalAtom, ffMol.getCoordinates(indexOriginalAtom));
 					
+					// 17.09.2016 obviously not needed.
 					ffMol.setAuxiliaryInfo(TAG_ORIGINAL_COORD, indexCoordinates);
 					
 				}
@@ -386,7 +390,7 @@ public class FFMolSummarizerInteractTable implements IMoleculeSummarizer {
 	}
 	
 	/**
-	 * In contrary to <code>summarize(FFMolecule mol, boolean bremoveflagged)</code> hetero atoms in rings are treated
+	 * In contrary to <code>extract(FFMolecule mol, boolean bremoveflagged)</code> hetero atoms in rings are treated
 	 * separately from the ring and not added to the ring center. 
 	 * Only aliphatic ring atoms are summarized into a ring center. 
 	 * @param mol
@@ -474,7 +478,7 @@ public class FFMolSummarizerInteractTable implements IMoleculeSummarizer {
 	private static void addFlaggedAtomAndUnflagOrig(FFMolecule mol, int at){
 		int indexNew = mol.addAtom(mol.getAtomicNo(at));
 		mol.setAtomInteractionClass(indexNew, mol.getAtomInteractionClass(at));
-		mol.setAtomMM2Class(indexNew, mol.getAtomMM2Class(at));
+		mol.setMM2AtomType(indexNew, mol.getMM2AtomType(at));
 		
 		String sOrigIndex = Integer.toString(at);
 		mol.setAtomChainId(indexNew, sOrigIndex);
@@ -503,7 +507,7 @@ public class FFMolSummarizerInteractTable implements IMoleculeSummarizer {
 			
 			boolean bIsAromaticRing = true;
 			for (int i = 0; i < arrIndices.length; i++) {
-				if (!mol.isAromatic(arrIndices[i])) {
+				if (!mol.isAromaticAtom(arrIndices[i])) {
 					bIsAromaticRing = false;
 					break;
 				}
@@ -552,12 +556,12 @@ public class FFMolSummarizerInteractTable implements IMoleculeSummarizer {
 			// These atoms will be deleted
 			liIndices2Del.add(new Integer(arrIndices[i]));
 			int iAtomicNo = mol.getAtomicNo(arrIndices[i]);
-			int mm2Type = mol.getAtomMM2Class(arrIndices[i]);
+			int mm2Type = mol.getMM2AtomType(arrIndices[i]);
 			int interactionType = mol.getAtomInteractionClass(arrIndices[i]);
 			// int index = mol.getAllAtoms();
 			int index = mol.addAtom(iAtomicNo);
 			mol.setAtomInteractionClass(index, interactionType);
-			mol.setAtomMM2Class(index, mm2Type);
+			mol.setMM2AtomType(index, mm2Type);
 
 			mol.setCoordinates(index, coord);
 			mol.setAtomFlag(index, FFMoleculeFunctions.FLAG_CENTER_ATOM, true);
@@ -604,7 +608,7 @@ public class FFMolSummarizerInteractTable implements IMoleculeSummarizer {
 				// Check ring for aromaticity first
 				boolean bAromaticRing = true;
 				for (int j = 0; j < arrIndices.length; j++) {
-					if (!mol.isAromatic(arrIndices[j])) {
+					if (!mol.isAromaticAtom(arrIndices[j])) {
 						bAromaticRing = false;
 						break;
 					}

@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -21,7 +21,7 @@ package com.actelion.research.chem.reaction;
 import java.util.ArrayList;
 
 import com.actelion.research.chem.Canonizer;
-import com.actelion.research.chem.CoordinateInventor;
+import com.actelion.research.chem.coords.CoordinateInventor;
 import com.actelion.research.chem.Molecule;
 import com.actelion.research.chem.SSSearcher;
 import com.actelion.research.chem.SortedStringList;
@@ -68,7 +68,7 @@ public class Reactor {
                         StereoMolecule product = reaction.getProduct(k);
 						for (int l=0; l<product.getAtoms(); l++) {
 							if (product.getAtomMapNo(l) == mapNo) {
-								int dif = reactant.getFreeValence(j) - product.getFreeValence(l);
+								int dif = reactant.getFreeValence(j) + reactant.getExcludeGroupValence(j) - product.getFreeValence(l);
 								mMinFreeValence[i][j] = (dif > 0) ? dif : 0;
 								}
 							}
@@ -203,11 +203,13 @@ public class Reactor {
 			for (int j=matchList[i].size()-1; j>=0; j--) {
 				int[] matchingAtom = matchList[i].get(j);
 				for (int k=0; k<matchingAtom.length; k++) {
-					if (mMinFreeValence[i][k] > 0
-					 && mMinFreeValence[i][k] > mReactant[i].getFreeValence(matchingAtom[k])) {
-					 	matchList[i].remove(j);
-					 	break;
-					 	}
+					if (matchingAtom[k] != -1) {
+						if (mMinFreeValence[i][k] > 0
+						 && mMinFreeValence[i][k] > mReactant[i].getFreeValence(matchingAtom[k])) {
+							matchList[i].remove(j);
+							break;
+							}
+						}
 					}
 				}
 			if (matchList[i].size() == 0)
@@ -258,14 +260,16 @@ public class Reactor {
 			// eliminate atoms from reactant which are unmapped in generic reaction
 			// (including attached bonds)
 			for (int j=0; j<genericReactant.getAtoms(); j++) {
-				if (genericReactant.getAtomMapNo(j) == 0) {
-					int excludedAtom = matchingAtom[j];
-					excludeAtom[excludedAtom] = true;
-					for (int k=0; k<mReactant[i].getConnAtoms(excludedAtom); k++)
-						excludeBond[mReactant[i].getConnBond(excludedAtom, k)] = true;
-					}
-				else {
-					mapNo[matchingAtom[j]] = genericReactant.getAtomMapNo(j);
+				if (matchingAtom[j] != -1) {
+					if (genericReactant.getAtomMapNo(j) == 0) {
+						int excludedAtom = matchingAtom[j];
+						excludeAtom[excludedAtom] = true;
+						for (int k = 0; k < mReactant[i].getConnAtoms(excludedAtom); k++)
+							excludeBond[mReactant[i].getConnBond(excludedAtom, k)] = true;
+						}
+					else {
+						mapNo[matchingAtom[j]] = genericReactant.getAtomMapNo(j);
+						}
 					}
 				}
 
@@ -277,13 +281,15 @@ public class Reactor {
 				 && genericReactant.getAtomMapNo(bondAtom2) != 0) {
 					int atom1 = matchingAtom[bondAtom1];
 					int atom2 = matchingAtom[bondAtom2];
-					for (int k=0; k<mReactant[i].getBonds(); k++) {
-						if ((mReactant[i].getBondAtom(0, k) == atom1
-						  && mReactant[i].getBondAtom(1, k) == atom2)
-						 || (mReactant[i].getBondAtom(0, k) == atom2
-						  && mReactant[i].getBondAtom(1, k) == atom1)) {
-							excludeBond[k] = true;
-							break;
+					if (atom1 != -1 && atom2 != -1) {
+						for (int k=0; k<mReactant[i].getBonds(); k++) {
+							if ((mReactant[i].getBondAtom(0, k) == atom1
+							  && mReactant[i].getBondAtom(1, k) == atom2)
+							 || (mReactant[i].getBondAtom(0, k) == atom2
+							  && mReactant[i].getBondAtom(1, k) == atom1)) {
+								excludeBond[k] = true;
+								break;
+								}
 							}
 						}
 					}
@@ -389,6 +395,8 @@ public class Reactor {
 		for (int atom=0; atom<product.getAllAtoms(); atom++)
 			product.setAtomSelection(atom, !includeAtom[atom]);
 		product.deleteSelectedAtoms();
+
+		product.setParitiesValid(0);
 
 		int mode = CoordinateInventor.MODE_REMOVE_HYDROGEN
 				 | (mRetainCoordinates ? CoordinateInventor.MODE_PREFER_MARKED_ATOM_COORDS : 0);

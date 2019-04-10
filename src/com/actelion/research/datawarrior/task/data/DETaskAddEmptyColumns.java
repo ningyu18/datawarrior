@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -25,8 +25,6 @@ import com.actelion.research.datawarrior.DataWarrior;
 
 public class DETaskAddEmptyColumns extends DETaskAbstractNewColumns implements ActionListener {
 	public static final String TASK_NAME = "Add Empty Columns";
-
-    private static Properties sRecentConfiguration;
 
     public DETaskAddEmptyColumns(DataWarrior application) {
 		super(application, false);
@@ -55,15 +53,5 @@ public class DETaskAddEmptyColumns extends DETaskAbstractNewColumns implements A
 	@Override
 	public void runTask(Properties configuration) {
 		super.addNewColumns(configuration);
-		}
-
-	@Override
-	public Properties getRecentConfiguration() {
-		return sRecentConfiguration;
-		}
-
-	@Override
-	public void setRecentConfiguration(Properties configuration) {
-		sRecentConfiguration = configuration;
 		}
 	}

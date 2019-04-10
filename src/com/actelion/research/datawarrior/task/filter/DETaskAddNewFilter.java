@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,6 +18,8 @@
 
 package com.actelion.research.datawarrior.task.filter;
 
+import com.actelion.research.chem.io.CompoundTableConstants;
+import com.actelion.research.table.filter.*;
 import info.clearthought.layout.TableLayout;
 
 import java.awt.Color;
@@ -28,6 +30,7 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.Properties;
 
 import javax.swing.DefaultListCellRenderer;
@@ -43,22 +46,14 @@ import com.actelion.research.chem.descriptor.DescriptorConstants;
 import com.actelion.research.datawarrior.DEFrame;
 import com.actelion.research.datawarrior.DEPruningPanel;
 import com.actelion.research.datawarrior.task.ConfigurableTask;
-import com.actelion.research.table.CompoundTableModel;
+import com.actelion.research.table.model.CompoundTableModel;
 import com.actelion.research.table.RuntimePropertyEvent;
-import com.actelion.research.table.filter.JCategoryBrowser;
-import com.actelion.research.table.filter.JCategoryFilterPanel;
-import com.actelion.research.table.filter.JDoubleFilterPanel;
-import com.actelion.research.table.filter.JFilterPanel;
-import com.actelion.research.table.filter.JHitlistFilterPanel;
-import com.actelion.research.table.filter.JMultiStructureFilterPanel;
-import com.actelion.research.table.filter.JReactionFilterPanel;
-import com.actelion.research.table.filter.JSingleStructureFilterPanel;
-import com.actelion.research.table.filter.JStringFilterPanel;
+import com.actelion.research.table.filter.JRangeFilterPanel;
 
 /**
  * Title:
  * Description:
- * Copyright:    Copyright (c) 2013
+ * Copyright:    Copyright (c) 2013-2017
  * Company:
  * @author
  * @version 1.0
@@ -67,7 +62,7 @@ import com.actelion.research.table.filter.JStringFilterPanel;
 public class DETaskAddNewFilter extends ConfigurableTask implements ActionListener {
 	public static final String TASK_NAME = "Create Filter";
 
-	// Order matches the FILTER_JFilterPanel.FILTER_TYPE_??? types defined in JFilterPanel
+	// Order matches the JFilterPanel.FILTER_TYPE_??? types defined in JFilterPanel
 	protected static final String[] FILTER_NAME = {
     	"[Text]",
     	"[Slider]",
@@ -80,7 +75,7 @@ public class DETaskAddNewFilter extends ConfigurableTask implements ActionListen
     	"[Category Browser]"
     	};
 
-	// Order matches the FILTER_JFilterPanel.FILTER_TYPE_??? types defined in JFilterPanel
+	// Order matches the JFilterPanel.FILTER_TYPE_??? types defined in JFilterPanel
     protected static final String[] FILTER_CODE = {
     	"text",
     	"slider",
@@ -93,7 +88,7 @@ public class DETaskAddNewFilter extends ConfigurableTask implements ActionListen
     	"browser"
     	};
 
-	// Order matches the FILTER_JFilterPanel.FILTER_TYPE_??? types defined in JFilterPanel
+	// Order matches the JFilterPanel.FILTER_TYPE_??? types defined in JFilterPanel
     protected static final boolean[] FILTER_NEEDS_COLUMN = {
     	true,
     	true,
@@ -109,8 +104,6 @@ public class DETaskAddNewFilter extends ConfigurableTask implements ActionListen
     private static final String PROPERTY_SHOW_DUPLICATES = "showDuplicates";
     private static final String PROPERTY_FILTER_COUNT = "filterCount";
     private static final String PROPERTY_FILTER = "filter";
-    
-    private static Properties sRecentConfiguration;
 
 	private CompoundTableModel  mTableModel;
 	private DEPruningPanel      mPruningPanel;
@@ -156,7 +149,9 @@ public class DETaskAddNewFilter extends ConfigurableTask implements ActionListen
 
 		Properties configuration = new Properties();
 	    configuration.setProperty(PROPERTY_FILTER_COUNT, "1");
-		String columnName = FILTER_NEEDS_COLUMN[mFilterType] ? mTableModel.getColumnTitleNoAlias(mColumn) : null;
+		String columnName = !FILTER_NEEDS_COLUMN[mFilterType] ? null
+						  : mColumn == JFilterPanel.PSEUDO_COLUMN_ALL_COLUMNS ? JFilterPanel.ALL_COLUMN_CODE
+						  : mTableModel.getColumnTitleNoAlias(mColumn);
 		configuration.setProperty(PROPERTY_FILTER+"0", (columnName == null) ? FILTER_CODE[mFilterType] : FILTER_CODE[mFilterType]+":"+columnName);
 		return configuration;
 		}
@@ -171,7 +166,14 @@ public class DETaskAddNewFilter extends ConfigurableTask implements ActionListen
                 }
             }
 
-        for (int i=0; i<mTableModel.getTotalColumnCount(); i++) {
+		for (int column=0; column<mTableModel.getTotalColumnCount(); column++) {
+			if (mTableModel.getColumnSpecialType(column) == null) {
+				addItem(itemList, JFilterPanel.PSEUDO_COLUMN_ALL_COLUMNS, JFilterPanel.FILTER_TYPE_TEXT, allowDuplicates);
+				break;
+				}
+			}
+
+		for (int i=0; i<mTableModel.getTotalColumnCount(); i++) {
             String specialType = mTableModel.getColumnSpecialType(i);
             if (specialType != null) {
                 if (specialType.equals(CompoundTableModel.cColumnTypeIDCode)) {
@@ -179,26 +181,30 @@ public class DETaskAddNewFilter extends ConfigurableTask implements ActionListen
                     addItem(itemList, i, JFilterPanel.FILTER_TYPE_SSS_LIST, allowDuplicates);
                     addItem(itemList, i, JFilterPanel.FILTER_TYPE_SIM_LIST, allowDuplicates);
                 	}
-                if (specialType.equals(CompoundTableModel.cColumnTypeRXNCode))
-                    addItem(itemList, i, JFilterPanel.FILTER_TYPE_REACTION, allowDuplicates);
+                if (specialType.equals(CompoundTableModel.cColumnTypeRXNCode)) {
+					addItem(itemList, i, JFilterPanel.FILTER_TYPE_STRUCTURE, allowDuplicates);
+					addItem(itemList, i, JFilterPanel.FILTER_TYPE_SSS_LIST, allowDuplicates);
+					addItem(itemList, i, JFilterPanel.FILTER_TYPE_SIM_LIST, allowDuplicates);
+					addItem(itemList, i, JFilterPanel.FILTER_TYPE_REACTION, allowDuplicates);
+					}
                 }
             else {
-   				addItem(itemList, i, JFilterPanel.FILTER_TYPE_STRING, allowDuplicates);
+   				addItem(itemList, i, JFilterPanel.FILTER_TYPE_TEXT, allowDuplicates);
     
     		    if (mTableModel.isColumnTypeDouble(i)
                  && mTableModel.hasNumericalVariance(i))
     				addItem(itemList, i, JFilterPanel.FILTER_TYPE_DOUBLE, allowDuplicates);
-    
-    		    if (mTableModel.isColumnTypeCategory(i)
-    		     && mTableModel.getCategoryCount(i) < JCategoryFilterPanel.cMaxCheckboxCount)
-    				addItem(itemList, i, JFilterPanel.FILTER_TYPE_CATEGORY, allowDuplicates);
-    
+
     		    if (mTableModel.isColumnTypeRangeCategory(i))
     				addItem(itemList, i, JFilterPanel.FILTER_TYPE_DOUBLE, allowDuplicates);
                 }
+
+			if (mTableModel.isColumnTypeCategory(i)
+			 && mTableModel.getCategoryCount(i) < JCategoryFilterPanel.cMaxCheckboxCount)
+				addItem(itemList, i, JFilterPanel.FILTER_TYPE_CATEGORY, allowDuplicates);
 			}
 
-		if (mTableModel.getHitlistHandler().getHitlistCount() > 0)
+		if (mTableModel.getListHandler().getListCount() > 0)
 			addItem(itemList, -1, JFilterPanel.FILTER_TYPE_ROWLIST, allowDuplicates);
 
 		Collections.sort(itemList, String.CASE_INSENSITIVE_ORDER);
@@ -237,12 +243,12 @@ public class DETaskAddNewFilter extends ConfigurableTask implements ActionListen
                             if (filter instanceof JReactionFilterPanel)
                                 return;
                             break;
-                        case JFilterPanel.FILTER_TYPE_STRING:
-							if (filter instanceof JStringFilterPanel)
+                        case JFilterPanel.FILTER_TYPE_TEXT:
+							if (filter instanceof JTextFilterPanel)
 								return;
 							break;
 						case JFilterPanel.FILTER_TYPE_DOUBLE:
-							if (filter instanceof JDoubleFilterPanel)
+							if (filter instanceof JRangeFilterPanel)
 								return;
 							break;
 						case JFilterPanel.FILTER_TYPE_CATEGORY:
@@ -268,6 +274,16 @@ public class DETaskAddNewFilter extends ConfigurableTask implements ActionListen
             return mTableModel.isColumnDataComplete(column) ? text : text+" ";
 			}
 
+		if (column == JFilterPanel.PSEUDO_COLUMN_ALL_COLUMNS)
+			columnName = JFilterPanel.ALL_COLUMN_TEXT;
+
+		if (column >= 0
+		 && CompoundTableConstants.cColumnTypeRXNCode.equals(mTableModel.getColumnSpecialType(column))
+		 && (type == JFilterPanel.FILTER_TYPE_STRUCTURE
+		  || type == JFilterPanel.FILTER_TYPE_SSS_LIST
+		  || type == JFilterPanel.FILTER_TYPE_SIM_LIST))
+			columnName = JStructureFilterPanel.RXN_PRODUCT_TEXT.concat(columnName);
+
 		return columnName+" "+FILTER_NAME[type];
 		}
 
@@ -278,9 +294,9 @@ public class DETaskAddNewFilter extends ConfigurableTask implements ActionListen
                 return;
 
         if (CompoundTableModel.cColumnTypeIDCode.equals(mTableModel.getColumnSpecialType(column)))
-            mTableModel.createDescriptorColumn(column, DescriptorConstants.DESCRIPTOR_FFP512.shortName);
+            mTableModel.addDescriptorColumn(column, DescriptorConstants.DESCRIPTOR_FFP512.shortName);
         else if (CompoundTableModel.cColumnTypeRXNCode.equals(mTableModel.getColumnSpecialType(column)))
-            mTableModel.createDescriptorColumn(column, DescriptorConstants.DESCRIPTOR_ReactionIndex.shortName);
+            mTableModel.addDescriptorColumn(column, DescriptorConstants.DESCRIPTOR_FFP512.shortName);
         }
 
 	@Override
@@ -345,18 +361,27 @@ public class DETaskAddNewFilter extends ConfigurableTask implements ActionListen
         	if (mCheckBox.isSelected())
         	    configuration.setProperty(PROPERTY_SHOW_DUPLICATES, "true");
 
-        	Object[] selectedFilters = mFilterList.getSelectedValues();
+        	List<String> selectedFilters = mFilterList.getSelectedValuesList();
 	
-		    configuration.setProperty(PROPERTY_FILTER_COUNT, ""+selectedFilters.length);
+		    configuration.setProperty(PROPERTY_FILTER_COUNT, ""+selectedFilters.size());
 	
-			for (int filter=0; filter<selectedFilters.length; filter++) {
-				String selected = ((String)selectedFilters[filter]).trim();	// get rid of color indication
+			for (int filter=0; filter<selectedFilters.size(); filter++) {
+				String selected = selectedFilters.get(filter).trim();	// get rid of color indication
 	
 				int type = getFilterTypeFromName(selected);
 	
 				String columnName = null;
-				if (FILTER_NEEDS_COLUMN[type])
-					columnName = mTableModel.getColumnTitleNoAlias(selected.substring(0, selected.length()-FILTER_NAME[type].length()-1));
+				if (FILTER_NEEDS_COLUMN[type]) {
+					columnName = selected.substring(0, selected.length() - FILTER_NAME[type].length() - 1);
+					if (JFilterPanel.ALL_COLUMN_TEXT.equals(columnName))
+						columnName = JFilterPanel.ALL_COLUMN_CODE;
+					else if (columnName.startsWith(JStructureFilterPanel.RXN_PRODUCT_TEXT)
+						&& mTableModel.findColumn(columnName.substring(JStructureFilterPanel.RXN_PRODUCT_TEXT.length())) != -1
+						&& CompoundTableConstants.cColumnTypeRXNCode.equals(mTableModel.getColumnSpecialType(mTableModel.findColumn(columnName.substring(JStructureFilterPanel.RXN_PRODUCT_TEXT.length())))))
+						columnName = mTableModel.getColumnTitleNoAlias(columnName.substring(JStructureFilterPanel.RXN_PRODUCT_TEXT.length()));
+					else
+						columnName = mTableModel.getColumnTitleNoAlias(columnName);
+					}
 
 				configuration.setProperty(PROPERTY_FILTER+filter, (columnName == null) ? FILTER_CODE[type] : FILTER_CODE[type]+":"+columnName);
 				}
@@ -375,6 +400,7 @@ public class DETaskAddNewFilter extends ConfigurableTask implements ActionListen
 		for (int i=0; i<FILTER_NAME.length; i++)
 			if (filterName.endsWith(FILTER_NAME[i]))
 				return i;
+
 		return -1;
 		}
 
@@ -430,6 +456,7 @@ public class DETaskAddNewFilter extends ConfigurableTask implements ActionListen
 	 * -2: column needed, no name given<br>
 	 * -3: column not needed, but name given<br>
 	 * -4: column not needed and no name given<br>
+	 * -5: JFilterPanel.PSEUDO_COLUMN_ALL_COLUMNS<br>
 	 * @param type
 	 * @param def
 	 * @return valid column or negative result code
@@ -438,7 +465,9 @@ public class DETaskAddNewFilter extends ConfigurableTask implements ActionListen
 		if (FILTER_NEEDS_COLUMN[type]) {
 			if (def.length() < FILTER_CODE[type].length()+2)
 				return -2;
-			return mTableModel.findColumn(def.substring(FILTER_CODE[type].length()+1));
+			String columnName = def.substring(FILTER_CODE[type].length()+1);
+			return JFilterPanel.ALL_COLUMN_CODE.equals(columnName) ?
+					JFilterPanel.PSEUDO_COLUMN_ALL_COLUMNS : mTableModel.findColumn(columnName);
 			}
 		return (def.length() < FILTER_CODE[type].length()+2) ? -4 : -3;
 		}
@@ -472,6 +501,10 @@ public class DETaskAddNewFilter extends ConfigurableTask implements ActionListen
 				return false;
 				}
 			int column = getFilterColumn(type, def);
+			if (column == JFilterPanel.PSEUDO_COLUMN_ALL_COLUMNS && type != JFilterPanel.FILTER_TYPE_TEXT) {
+				showErrorMessage("Option '<All Columns>' is only supported by text filters.");
+				return false;
+				}
 			if (column == -2) {
 				showErrorMessage("Column name missing. "+FILTER_NAME[type]+" filters must be defined as '"+FILTER_CODE[type]+":<column name>'.");
 				return false;
@@ -500,11 +533,11 @@ public class DETaskAddNewFilter extends ConfigurableTask implements ActionListen
 			int type = getFilterTypeFromCode(filterDef);
 			if (type != -1) {
 				int column = getFilterColumn(type, filterDef);
-				if (!FILTER_NEEDS_COLUMN[type] || column >= 0) {
+				if (!FILTER_NEEDS_COLUMN[type] || column >= 0 || column == JFilterPanel.PSEUDO_COLUMN_ALL_COLUMNS) {
 					try {
 						switch (type) {
-						case JFilterPanel.FILTER_TYPE_STRING:
-							mPruningPanel.addStringFilter(mTableModel, column);
+						case JFilterPanel.FILTER_TYPE_TEXT:
+							mPruningPanel.addTextFilter(mTableModel, column);
 							break;
 						case JFilterPanel.FILTER_TYPE_DOUBLE:
 							mPruningPanel.addDoubleFilter(mTableModel, column);
@@ -554,15 +587,5 @@ public class DETaskAddNewFilter extends ConfigurableTask implements ActionListen
 	@Override
 	public DEFrame getNewFrontFrame() {
 		return null;
-		}
-
-	@Override
-	public Properties getRecentConfiguration() {
-		return sRecentConfiguration;
-		}
-
-	@Override
-	public void setRecentConfiguration(Properties configuration) {
-		sRecentConfiguration = configuration;
 		}
 	}

@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -27,6 +27,7 @@ import java.io.StringReader;
 import com.actelion.research.chem.MolfileParser;
 import com.actelion.research.chem.StereoMolecule;
 import com.actelion.research.chem.reaction.Reaction;
+import com.actelion.research.io.BOMSkipper;
 
 
 public class RXNFileParser
@@ -59,6 +60,7 @@ public class RXNFileParser
 	{
 		Reaction theReaction = new Reaction();
 		BufferedReader theReader = new BufferedReader(new InputStreamReader(new FileInputStream(file), "UTF-8"));
+        BOMSkipper.skip(theReader);
 		parse(theReaction, theReader);
 
 		return theReaction;
@@ -76,6 +78,7 @@ public class RXNFileParser
 		throws Exception
 	{
 		BufferedReader theReader = new BufferedReader(new InputStreamReader(new FileInputStream(file), "UTF-8"));
+        BOMSkipper.skip(theReader);
 
 		return parse(theReaction, theReader);
 	}

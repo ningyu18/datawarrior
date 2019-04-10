@@ -1,8 +1,27 @@
+/*
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
+ *
+ * This file is part of DataWarrior.
+ *
+ * DataWarrior is free software: you can redistribute it and/or modify it under the terms of the
+ * GNU General Public License as published by the Free Software Foundation, either version 3 of
+ * the License, or (at your option) any later version.
+ *
+ * DataWarrior is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+ * without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ * See the GNU General Public License for more details.
+ * You should have received a copy of the GNU General Public License along with DataWarrior.
+ * If not, see http://www.gnu.org/licenses/.
+ *
+ * @author Thomas Sander
+ */
+
 package com.actelion.research.chem.conf;
 
 import com.actelion.research.chem.Molecule;
 import com.actelion.research.chem.StereoMolecule;
 import com.actelion.research.util.Angle;
+import com.actelion.research.util.DoubleFormat;
 
 public class TorsionDescriptor {
 	private static final float TORSION_EQUIVALENCE_TOLERANCE = (float)Math.PI / 12f;
@@ -69,9 +88,9 @@ public class TorsionDescriptor {
 		for (int i=0; i<rotatableBond.length; i++) {
 			atom[1] = mol.getBondAtom(0, rotatableBond[i]);
 			atom[2] = mol.getBondAtom(1, rotatableBond[i]);
-			atom[0] = mol.getConnAtom(atom[1], 0);
-			atom[3] = mol.getConnAtom(atom[2], 0);
-			mTorsion[i] = (float)TorsionDB.calculateTorsion(mol, atom);
+			atom[0] = mol.getConnAtom(atom[1], mol.getConnAtom(atom[1], 0) == atom[2] ? 1 : 0);
+			atom[3] = mol.getConnAtom(atom[2], mol.getConnAtom(atom[2], 0) == atom[1] ? 1 : 0);
+			mTorsion[i] = (float)mol.calculateTorsion(atom);
 			}
 		}
 
@@ -98,7 +117,7 @@ public class TorsionDescriptor {
 						}
 					}
 				}
-			mTorsion[i] = (float)TorsionDB.calculateTorsion(conformer, atom);
+			mTorsion[i] = (float)conformer.calculateTorsion(atom);
 			}
 		}
 
@@ -119,32 +138,16 @@ public class TorsionDescriptor {
 		}
 
 	/**
-	 * Calculates the weight for all rotatable bonds from the position in the molecule.
-	 * Central bonds have weights close to 1.0, while almost terminal bonds have weights
-	 * close to 0.0. Ring bonds get a weight of 0.33 independent of their location.
+	 * The relevance of a rotatable bond and its torsion angle for creating substantially different conformers
+	 * depends on how close the bond is to the center of the molecule. Bond relevance values range from
+	 * 1.0/atomCount (e.g. bond to methyl group) to 1.0 (bond dividing molecule into two equally large parts).
+	 * Ring bonds are assigned a relevance value of 0.33 independent of their location.
 	 * @param mol
 	 * @param rotatableBond
 	 * @return
 	 */
 	public static float[] getRotatableBondWeights(StereoMolecule mol, int[] rotatableBond) {
-		float[] bondWeight = new float[rotatableBond.length];
-		for (int i=0; i<bondWeight.length; i++) {
-			if (mol.isRingBond(rotatableBond[i])) {
-				bondWeight[i] = 0.33f;
-				}
-			else {
-				int atom1 = mol.getBondAtom(0, rotatableBond[i]);
-				int atom2 = mol.getBondAtom(1, rotatableBond[i]);
-				if (mol.getConnAtoms(atom1) == 1 || mol.getConnAtoms(atom2) == 1) {
-					bondWeight[i] = (float)Math.sqrt(2f / mol.getAtoms());
-					}
-				else {
-					int atomCount = mol.getSubstituentSize(atom1, atom2) - 1;
-					bondWeight[i] = (float)Math.sqrt(2.0 * Math.min(atomCount, mol.getAtoms() - atomCount) / mol.getAtoms());
-					}
-				}
-			}
-		return bondWeight;
+		return TorsionRelevanceHelper.getRelevance(mol, rotatableBond);
 		}
 
 	/**
@@ -168,5 +171,15 @@ public class TorsionDescriptor {
 			weightSum += bondWeight[i];
 			}
 		return meanAngleDiff / ((float)Math.PI * weightSum);
+		}
+
+	@Override
+	public String toString() {
+		StringBuilder sb = new StringBuilder();
+		for (int i=0; i<mTorsion.length; i++) {
+			sb.append(i == 0? "Torsions: " : ", ");
+			sb.append(DoubleFormat.toString(mTorsion[i], 3));
+			}
+		return sb.toString();
 		}
 	}

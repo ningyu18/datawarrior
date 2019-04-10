@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -96,6 +96,9 @@ public class DoubleFormat {
 
 	private static String toString(long value, int exponent, int significantDigits, boolean skipTrailingZeros) {
 		int noOfCiphers = 1;
+
+		if (value == 0)
+			return (skipTrailingZeros || significantDigits==1) ? "0" : "0."+zeros(significantDigits-1);
 
 		if (value != 0) {
 			while (value % 10 == 0) {

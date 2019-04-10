@@ -1,19 +1,15 @@
 package com.actelion.research.calc;
 
 
-import java.awt.Point;
-import java.io.BufferedWriter;
-import java.io.File;
-import java.io.FileWriter;
-import java.io.IOException;
-import java.text.DecimalFormat;
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Random;
-import java.util.Vector;
-
+import com.actelion.research.util.Formatter;
+import com.actelion.research.util.datamodel.DoubleArray;
 import com.actelion.research.util.datamodel.ScorePoint;
+
+import java.awt.*;
+import java.io.*;
+import java.text.DecimalFormat;
+import java.util.*;
+import java.util.List;
 
 /**
  * <p>Title: MatrixFunctions</p>
@@ -30,7 +26,70 @@ import com.actelion.research.util.datamodel.ScorePoint;
 
 public class MatrixFunctions {
 
-    
+
+    /**
+     *
+     * @param maQuadratic
+     * @return upper triangle from a quadratic matrix as an array.
+     */
+    public static double [] upperTriangle(Matrix maQuadratic){
+
+        int r = maQuadratic.rows();
+        int n = ((r * r)-r) / 2;
+
+        double [] arr= new double[n];
+
+        int cc=0;
+
+        for (int i = 0; i < r; i++) {
+
+            for (int j = i+1; j < r; j++) {
+                arr[cc++]=maQuadratic.get(i,j);
+            }
+        }
+
+        return arr;
+    }
+
+
+    public static Matrix appendRows(Matrix ma0, Matrix ma1) {
+
+        Matrix ma = new Matrix(ma0.rows() + ma1.rows(), ma0.cols());
+
+        for (int i = 0; i < ma0.rows(); i++) {
+            for (int j = 0; j < ma0.cols(); j++) {
+                ma.set(i,j, ma0.get(i,j));
+            }
+        }
+
+        int offsetRows = ma0.rows();
+
+        for (int i = 0; i < ma1.rows(); i++) {
+            for (int j = 0; j < ma1.cols(); j++) {
+                ma.set(i+offsetRows,j, ma1.get(i,j));
+            }
+        }
+
+        return ma;
+    }
+
+	/**
+	 * List is already used as a contructor for Matrix. So we have to place this method here.
+	 * @param li
+	 * @return
+	 */
+	public static Matrix create(List<double []> li){
+
+		double [][] a = new double[li.size()][];
+
+		for (int i = 0; i < li.size(); i++) {
+			a[i]=li.get(i);
+		}
+
+		return new Matrix(a);
+
+	}
+
     public static int countFieldsBiggerThan(Matrix ma, int row, double thresh) {
     	int cc = 0;
     	for (int i = 0; i < ma.getColDim(); i++) {
@@ -118,6 +177,38 @@ public class MatrixFunctions {
         dist = dAtB / (dAtA + dBtB - dAtB);
         return 1-dist;
     }
+
+    public static double getSumSquaredDiff(Matrix ma1, int row1, Matrix ma2, int row2) {
+
+        double sum = 0;
+
+        for (int i = 0; i < ma1.cols(); i++) {
+            double diff = ma1.get(row1, i) - ma2.get(row2, i);
+            sum += diff*diff;
+        }
+
+        return sum;
+    }
+
+    public static double getTotalSumSquaredDiffRowWise(Matrix ma1, Matrix ma2) {
+
+        int rows = ma1.rows();
+
+        double sum = 0;
+        for (int i = 0; i < rows; i++) {
+            double dist = getSumSquaredDiff(ma1, i, ma2, i);
+
+            sum += dist;
+
+            System.out.println(Formatter.format1(dist));
+        }
+
+        return sum;
+    }
+
+
+
+
     /**
      * Only fields are considered which are not nut 0 in both or in one of the
      * rows we from where the distance is calculated.
@@ -770,6 +861,52 @@ public class MatrixFunctions {
         }
         iRow++;
       }
+    }
+
+    public static Matrix read(File fiMatrix) throws FileNotFoundException {
+
+        List<DoubleArray> li = new ArrayList<DoubleArray>();
+
+        Scanner scannerLine = new Scanner (fiMatrix);
+
+        int rows = 0;
+        int cols = 0;
+        while(scannerLine.hasNextLine()) {
+            ++rows;
+            Scanner scannerValue = new Scanner(scannerLine.nextLine());
+
+            DoubleArray arr = null;
+
+            if(cols==0) {
+                arr = new DoubleArray();
+                while(scannerValue.hasNextDouble()) {
+                    double d = scannerValue.nextDouble();
+                    arr.add(d);
+                    cols++;
+                }
+            } else {
+                arr = new DoubleArray(cols);
+                while(scannerValue.hasNextDouble()) {
+                    double d = scannerValue.nextDouble();
+                    arr.add(d);
+                }
+            }
+
+            li.add(arr);
+        }
+
+        scannerLine.close();
+
+        double[][] a = new double[rows][cols];
+
+        for (int i = 0; i < li.size(); i++) {
+            DoubleArray arr = li.get(i);
+            for (int j = 0; j < cols; j++) {
+                a[i][j] = arr.get(j);
+            }
+        }
+
+        return new Matrix(a);
     }
 
     public static void writeHistogram(String sFile, Matrix hist, boolean bApppend, int digits, int totalWidth) throws IOException{

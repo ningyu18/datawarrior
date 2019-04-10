@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,11 +18,12 @@
 
 package com.actelion.research.datawarrior.task.list;
 
-import java.awt.*;
-import java.io.*;
-import javax.swing.*;
+import com.actelion.research.gui.hidpi.HiDPIHelper;
 
-public class HitlistOptionRenderer extends JPanel implements ListCellRenderer {
+import javax.swing.*;
+import java.awt.*;
+
+public class HitlistOptionRenderer extends JPanel implements /*ImageObserver,*/ListCellRenderer {
 	private static final long serialVersionUID = 0x20130227;
 
 	public static final String[] OPERATION_TEXT = { "logical AND",
@@ -31,12 +32,11 @@ public class HitlistOptionRenderer extends JPanel implements ListCellRenderer {
 													"logical NOT"};
 	public static final String[] OPERATION_CODE = { "and", "or", "xor", "not" };
 
-	private static final Color cSelectionColor = UIManager.getColor("TextArea.selectionBackground");
 	private static final int cItemWidth = 120;
-	private static final int cItemHeight = 19;
-	private static final int cImageWidth = 28;
-	private static final int cImageHeight = 17;
-	private static final String IMAGE_PATH = "/images/booleanOperations.gif";
+	private static final int cItemHeight = 18;
+	private static final int cImageWidth = 24;
+	private static final int cImageHeight = 16;
+	private static final String IMAGE_NAME = "booleanOperations.png";
 
 	private static Image	sImage;
 
@@ -45,19 +45,7 @@ public class HitlistOptionRenderer extends JPanel implements ListCellRenderer {
 	private boolean			mIsSelected,mIsActiveItem;
 
 	public HitlistOptionRenderer() {
-		if (sImage == null) {
-			Toolkit tk = Toolkit.getDefaultToolkit();
-			try {
-				BufferedInputStream in=new BufferedInputStream(getClass().getResourceAsStream(IMAGE_PATH));
-				byte[] imageData= new byte[2000]; // make it as big as necessary
-				in.read(imageData);
-				sImage = tk.createImage(imageData);
-				}
-			catch (Exception e) {
-				System.out.println("Error loading image: "+e);
-				}
-			}
-
+		sImage = HiDPIHelper.createImage(IMAGE_NAME);
 		setPreferredSize(new Dimension(cItemWidth, cItemHeight));
 		}
 
@@ -65,15 +53,18 @@ public class HitlistOptionRenderer extends JPanel implements ListCellRenderer {
 		if (mParameterIndex != -1) {
 			Dimension theSize = getSize();
 			if (mIsSelected) {
-				g.setColor(cSelectionColor);
+				g.setColor(UIManager.getColor("TextArea.selectionBackground"));
 				g.fillRect(0, 0, theSize.width, theSize.height);
 				}
-			g.setColor(Color.black);
+			g.setColor(UIManager.getColor("Label.foreground"));
 			g.drawString((String)mParameterValue, cImageWidth+8, cItemHeight-4);
 
 			int verticalBorder = (cItemHeight - cImageHeight) / 2;
 			g.setClip(4, verticalBorder, cImageWidth, cImageHeight);
-			g.drawImage(sImage, 4 - mParameterIndex * cImageWidth, verticalBorder, null);
+			if (HiDPIHelper.getRetinaScaleFactor() == 2)
+				g.drawImage(sImage, 4 - mParameterIndex * cImageWidth, verticalBorder, 4*cImageWidth, cImageHeight, null);
+			else
+				g.drawImage(sImage, 4 - mParameterIndex * cImageWidth, verticalBorder, null);
 			}
 		}
 

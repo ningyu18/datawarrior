@@ -16,9 +16,11 @@ package org.openmolecules.chem.conf.gen;
 
 public class TorsionSet implements Comparable<TorsionSet> {
 	private long[] mEncodedBits;
-	private float mLikelyhood;
+	private double mLikelyhood;
 	private int[] mTorsionIndex,mConformerIndex;
-	private float mCollisionIntensitySum;
+	private double mCollisionIntensitySum;
+	private double[][] mCollisionIntensityMatrix;
+	private boolean mIsUsed;
 
 	/**
 	 * Creates a new conformer description from torsion and conformer indexes.
@@ -28,7 +30,7 @@ public class TorsionSet implements Comparable<TorsionSet> {
 	 * @param longIndex index on long array for shifted torsion and conformer indexes
 	 * @param likelyhood all individual index likelyhoods multiplied
 	 */
-	public TorsionSet(int[] torsionIndex, int[] conformerIndex, int[] bitShift, int[] longIndex, float likelyhood) {
+	public TorsionSet(int[] torsionIndex, int[] conformerIndex, int[] bitShift, int[] longIndex, double likelyhood) {
 		mTorsionIndex = torsionIndex;
 		mConformerIndex = conformerIndex;
 		mLikelyhood = likelyhood;
@@ -52,16 +54,29 @@ public class TorsionSet implements Comparable<TorsionSet> {
 		return mConformerIndex;
 		}
 
-	public float getLikelyhood() {
+	public double getLikelyhood() {
 		return mLikelyhood;
 		}
 
-	public float getCollisionIntensitySum() {
+	public double getCollisionIntensitySum() {
 		return mCollisionIntensitySum;
 		}
 
-	public void setCollisionIntensitySum(float sum) {
+	public double[][] getCollisionIntensityMatrix() {
+		return mCollisionIntensityMatrix;
+	}
+
+	public void setCollisionIntensity(double sum, double[][] matrix) {
 		mCollisionIntensitySum = sum;
+		mCollisionIntensityMatrix = matrix;
+		}
+
+	public boolean isUsed() {
+		return mIsUsed;
+		}
+
+	public void setUsed() {
+		mIsUsed = true;
 		}
 
 	/**
@@ -72,16 +87,17 @@ public class TorsionSet implements Comparable<TorsionSet> {
 	 * @param data
 	 * @return
 	 */
-	public boolean matches(long[] mask, long[] data) {
+	private boolean matches(long[] mask, long[] data) {
 		for (int i=0; i<mask.length; i++)
 			if ((mEncodedBits[i] & mask[i]) != (data[i] & mask[i]))
 				return false;
 
+//		System.out.println("Eliminated mask:"+Long.toHexString(mask[0])+" rule:"+Long.toHexString(data[0])+" tSet:"+Long.toHexString(mEncodedBits[0]));
 		return true;
 		}
 
-	public boolean matches(TorsionSetEliminationRule er) {
-		return matches(er.getMask(), er.getData());
+	public boolean matches(TorsionSetEliminationRule er, double tolerance) {
+		return (mCollisionIntensitySum > tolerance) && matches(er.getMask(), er.getData());
 		}
 
 	/**
@@ -99,5 +115,24 @@ public class TorsionSet implements Comparable<TorsionSet> {
 	@Override
 	public boolean equals(Object ts) {
 		return compareTo((TorsionSet)ts) == 0;
+		}
+
+	@Override
+	public String toString() {
+		StringBuilder sb = new StringBuilder();
+		for (int i:mTorsionIndex) {
+			sb.append(i);
+			sb.append(',');
+			}
+		if (mTorsionIndex.length != 0)
+			sb.setLength(sb.length()-1);
+		sb.append(';');
+		for (int i:mConformerIndex) {
+			sb.append(i);
+			sb.append(',');
+			}
+		if (mConformerIndex.length != 0)
+			sb.setLength(sb.length()-1);
+		return sb.toString();
 		}
 	}

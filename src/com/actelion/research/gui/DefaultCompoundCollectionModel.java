@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -131,11 +131,10 @@ public abstract class DefaultCompoundCollectionModel<T> implements CompoundColle
         }
 
     /**
-     * This version of the DefaultCompoundCollectionModel collects
-     * molecules as StereoMolecules.
+     * This version of the DefaultCompoundCollectionModel collects molecules as StereoMolecules.
      * It is the preferred model when the number of handled molecules
-     * is limited and when specific atom coordinates, atom
-     * selection or atom colors must not get lost.
+     * is limited and when specific molecule features beyond idcode, atom coordinates, and molecule
+	 * name must not get lost.
      */
     public static class Molecule extends DefaultCompoundCollectionModel<StereoMolecule> {
         public StereoMolecule getMolecule(int index) {
@@ -156,8 +155,7 @@ public abstract class DefaultCompoundCollectionModel<T> implements CompoundColle
      * molecules as IDCodes. The molecule access functions result
      * in appropriate conversion.
      * It is the preferred model when the number of handled molecules
-     * is potentially high and when specific atom coordinates, atom
-     * selection or atom colors are not used.
+     * is potentially high and when atom selection or atom colors need to be retained.
      */
     public static class IDCode extends DefaultCompoundCollectionModel<String> {
         public StereoMolecule getMolecule(int index) {
@@ -177,7 +175,38 @@ public abstract class DefaultCompoundCollectionModel<T> implements CompoundColle
 
     /**
      * This version of the DefaultCompoundCollectionModel collects
-     * IDCodes and StereoMolecules without conversion in their native type.
+     * molecules as String[2] with idcodes & idcoords (index 0) and molecule name (index 1).
+	 * The molecule access functions result in appropriate conversion.
+     * It is the preferred model when the number of handled molecules
+     * is potentially high and when the molecule name/ID needs to be retained.
+     */
+    public static class IDCodeWithName extends DefaultCompoundCollectionModel<String[]> {
+        public StereoMolecule getMolecule(int index) {
+			StereoMolecule mol = new IDCodeParser().getCompactMolecule(getCompound(index)[0]);
+			mol.setName(getCompound(index)[1]);
+            return mol;
+        }
+
+        public void setMolecule(int index, StereoMolecule mol) {
+			String[] idcodeWithName = new String[2];
+            Canonizer c = new Canonizer(mol);
+			idcodeWithName[0] = c.getIDCode().concat(" ").concat(c.getEncodedCoordinates());
+			idcodeWithName[1] = mol.getName();
+            setCompound(index, idcodeWithName);
+        }
+
+        public void addMolecule(int index, StereoMolecule mol) {
+			String[] idcodeWithName = new String[2];
+            Canonizer c = new Canonizer(mol);
+			idcodeWithName[0] = c.getIDCode().concat(" ").concat(c.getEncodedCoordinates());
+			idcodeWithName[1] = mol.getName();
+            addCompound(index, idcodeWithName);
+        }
+    }
+
+    /**
+     * This version of the DefaultCompoundCollectionModel collects
+     * IDCodes and StereoMolecules without conversion into their native type.
      * It is the preferred model if the molecule source type is not predictable.
      */
     public static class Native extends DefaultCompoundCollectionModel<Object> {

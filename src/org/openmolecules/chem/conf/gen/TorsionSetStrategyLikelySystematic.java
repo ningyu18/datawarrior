@@ -44,7 +44,7 @@ public class TorsionSetStrategyLikelySystematic extends TorsionSetStrategy {
 	 * @return
 	 */
 	@Override
-	public TorsionSet getNextTorsionSet(TorsionSet previousTorsionSet) {
+	public TorsionSet createTorsionSet(TorsionSet previousTorsionSet) {
 		if (mAvailableTorsionSet == null)
 			return null;
 
@@ -61,11 +61,11 @@ public class TorsionSetStrategyLikelySystematic extends TorsionSetStrategy {
 	private void createNextAvailableSet() {
 		int bestIndex = -1;
 		boolean isConformerIndex = false;
-		float minLoss = Float.MAX_VALUE;
+		double minLoss = Double.MAX_VALUE;
 		for (int i=0; i<mCurrentMaxTorsionIndex.length; i++) {
 			if (mCurrentMaxTorsionIndex[i] < mRotatableBond[i].getTorsionCount()-1) {
-				float loss = mRotatableBond[i].getTorsionLikelyhood(mCurrentMaxTorsionIndex[i])
-						   / mRotatableBond[i].getTorsionLikelyhood(mCurrentMaxTorsionIndex[i]+1);
+				double loss = mRotatableBond[i].getTorsionLikelyhood(mCurrentMaxTorsionIndex[i])
+							/ mRotatableBond[i].getTorsionLikelyhood(mCurrentMaxTorsionIndex[i]+1);
 				if (minLoss > loss) {
 					minLoss = loss;
 					bestIndex = i;
@@ -74,8 +74,8 @@ public class TorsionSetStrategyLikelySystematic extends TorsionSetStrategy {
 			}
 		for (int i=0; i<mCurrentMaxConformerIndex.length; i++) {
 			if (mCurrentMaxConformerIndex[i] < mRigidFragment[i].getConformerCount()-1) {
-				float loss = mRigidFragment[i].getConformerLikelyhood(mCurrentMaxConformerIndex[i])
-						   / mRigidFragment[i].getConformerLikelyhood(mCurrentMaxConformerIndex[i]+1);
+				double loss = mRigidFragment[i].getConformerLikelyhood(mCurrentMaxConformerIndex[i])
+						    / mRigidFragment[i].getConformerLikelyhood(mCurrentMaxConformerIndex[i]+1);
 				if (minLoss > loss) {
 					minLoss = loss;
 					bestIndex = i;

@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -49,8 +49,6 @@ public class DETaskSetMultiValueMarker extends DETaskAbstractSetViewOptions impl
 
 	private static final String PROPERTY_COLUMNS = "columnList";
 	private static final String PROPERTY_MODE = "mode";
-
-    private static Properties sRecentConfiguration;
 
     private JComboBox			mComboBox;
     private JList				mList;
@@ -129,8 +127,8 @@ public class DETaskSetMultiValueMarker extends DETaskAbstractSetViewOptions impl
 
 	@Override
 	public void addViewConfiguration(Properties configuration) {
-		int mode = ((JVisualization2D)getVisualization()).getMultiValueMarkerMode();
-		int[] column = ((JVisualization2D)getVisualization()).getMultiValueMarkerColumns();
+		int mode = ((JVisualization2D) getInteractiveVisualization()).getMultiValueMarkerMode();
+		int[] column = ((JVisualization2D) getInteractiveVisualization()).getMultiValueMarkerColumns();
 		if (column != null) {
 			StringBuilder sb = new StringBuilder();
 	    	for (int i=0; i<column.length; i++) {
@@ -300,15 +298,5 @@ public class DETaskSetMultiValueMarker extends DETaskAbstractSetViewOptions impl
 			int[] column = getQualifyingAndSelectedColumns(columnString.split("\\t"));
 			visualization.setMultiValueMarkerColumns(column, mode);
 			}
-		}
-	
-	@Override
-	public Properties getRecentConfigurationLocal() {
-		return sRecentConfiguration;
-		}
-	
-	@Override
-	public void setRecentConfiguration(Properties configuration) {
-		sRecentConfiguration = configuration;
 		}
 	}

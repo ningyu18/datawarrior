@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -20,6 +20,7 @@ package com.actelion.research.forcefield.transformation;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
@@ -28,10 +29,10 @@ import javax.vecmath.Matrix3d;
 
 import com.actelion.research.chem.Coordinates;
 import com.actelion.research.chem.FFMolecule;
+import com.actelion.research.chem.calculator.IntQueue;
 import com.actelion.research.chem.calculator.StructureCalculator;
 import com.actelion.research.chem.calculator.TorsionCalculator;
 import com.actelion.research.util.MathUtils;
-import com.actelion.research.util.datamodel.IntQueue;
 
 /**
  * Transform used to go from a cartesian referential (3 * nAtoms degrees of freedom) to a torsion referential (nRotBonds degrees of freedom)
@@ -60,17 +61,17 @@ public class TorsionTransform extends AbstractTransform {
 	private final boolean considerHydrogens;
 	private final int centerAtom;
 	 
+//	private FFConfig ffConfig;
 	
-	
-	public TorsionTransform(FFMolecule mol, boolean considerHydrogens) {
-		this(mol, 0, null, considerHydrogens);
+	public TorsionTransform(FFMolecule mol, /*FFConfig ffConfig,*/ boolean considerHydrogens) {
+		this(mol, /*ffConfig,*/ 0, null, considerHydrogens);
 	}
 	
-	public TorsionTransform(FFMolecule mol, int groupSeed, int[] a2g, boolean considerHydrogens) {
-		this(mol, groupSeed, a2g, -1, considerHydrogens, true);
+	public TorsionTransform(FFMolecule mol, /*FFConfig ffConfig,*/ int groupSeed, int[] a2g, boolean considerHydrogens) {
+		this(mol, /*ffConfig,*/ groupSeed, a2g, -1, considerHydrogens, true);
 		
 	}
-	public TorsionTransform(FFMolecule mol, int groupSeed, int[] a2g, int atmCenter, boolean considerHydrogens, boolean rotateSmallestGroup) {
+	public TorsionTransform(FFMolecule mol, /*FFConfig ffConfig,*/ int groupSeed, int[] a2g, int atmCenter, boolean considerHydrogens, boolean rotateSmallestGroup) {
 		this.mol = mol;
 		this.considerHydrogens = considerHydrogens;
 		if(mol.getAllAtoms()==0) throw new IllegalArgumentException("No molecule");
@@ -124,11 +125,6 @@ public class TorsionTransform extends AbstractTransform {
 				}				
 				setOrientedBonds.add(bondAtoms2[i]*1000+bondAtoms1[i]);
 			}
-			/*if(!rotateSmallestGroup) {
-				int a = bondAtoms1[i];
-				bondAtoms1[i] = bondAtoms2[i];
-				bondAtoms2[i] = a;
-			}*/
 			
 			setBonds.add(rotatables[i]);
 		}
@@ -136,13 +132,13 @@ public class TorsionTransform extends AbstractTransform {
 		//4. Create independant groups of rotation
 		for (int i = 0; i < mol.getAllConnAtoms(centerAtom); i++) {
 			int a = mol.getConnAtom(centerAtom, i);
-			boolean[] seen = new boolean[mol.getNMovables()];
-			seen[centerAtom] = true;
+			Set<Integer> seen = new HashSet<Integer>();
+			seen.add(centerAtom);
 			StructureCalculator.dfs(mol, a, seen);
 			
 			List<Integer> group = new ArrayList<Integer>();
-			for (int j = 0; j < seen.length; j++) {
-				if(j!=centerAtom && seen[j]) { 
+			for (int j: seen) {
+				if(j!=centerAtom) { 
 					for (int k = 0; k < bondAtoms1.length; k++) {
 						if((j==bondAtoms1[k] || j==bondAtoms2[k]) && !group.contains(k)) {group.add(k); break;}							
 					}
@@ -391,7 +387,6 @@ System.exit(1);
 	 * Derivate according to one parameter
 	 * @see com.actelion.research.forcefield.transformation.AbstractTransform#getDTransformation(int, int)
 	 */
-	@SuppressWarnings("null")
 	@Override
 	public Coordinates[] getDTransformation(int var, Coordinates X[]) {
 		

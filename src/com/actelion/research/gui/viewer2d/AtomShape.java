@@ -26,7 +26,6 @@ public class AtomShape extends Shape implements IPickable {
 	protected Color color;
 	protected Color renderColor;
 	protected float radius;
-	protected int outlineD;
 	protected int atm;
 	protected int value;
 	private int style;
@@ -46,10 +45,11 @@ public class AtomShape extends Shape implements IPickable {
 		
 		this.isolated = mol.getAllConnAtoms(atm)==0;
 		this.mol = mol;
-		realCoordinates = GeometryCalculator.getCoordinates(mol, atm);
+		realCoordinates = mol.getCoordinates(atm);
 		this.radius = (mol.getAtomicNo(atm)<VDWRadii.VDW_RADIUS.length?VDWRadii.VDW_RADIUS[mol.getAtomicNo(atm)]:2f) * ATOM_SIZES[style] / 100;		
 	}
 			
+	@Override
 	public void paint(Canvas3D canvas3D, Graphics3D g3d) {
 		if(canvas3D==null || canvas3D.visualizer3D==null || !isolated && (radius<0 || screenCoordinates==null)) return;
 		this.diameter = canvas3D.visualizer3D.projectedDistance(2*radius, screenCoordinates.z);
@@ -79,24 +79,15 @@ public class AtomShape extends Shape implements IPickable {
 	/**
 	 * @see com.actelion.research.gui.viewer2d.IPickable#setSelection(boolean)
 	 */
+	@Override
 	public void setSelection(int v) {
 		selection = v;		
 	}
-
 		
-	/**
-	 * @see com.actelion.research.gui.viewer2d.IPickable#contains(int, int)
-	 
-	public boolean contains(int x, int y) {
-		if(screenCoordinates==null) return false;
-		int cx = screenCoordinates.x;
-		int cy = screenCoordinates.y;
-		return (cx-x)*(cx-x)+(cy-y)*(cy-y)<(diameter/2+3)*(diameter/2+3);
-	}
-*/
 	/**
 	 * @see com.actelion.research.gui.viewer2d.IPickable#getValue()
 	 */
+	@Override
 	public int getValue() {
 		return value;
 	}
@@ -146,15 +137,17 @@ public class AtomShape extends Shape implements IPickable {
 	/**
 	 * @see com.actelion.research.gui.viewer2d.IPickable#isPickable()
 	 */
+    @Override
 	public boolean isPickable() {
 		return value>=0;
 	}
 	
-
+    @Override
 	public int getSelection() {
 		return selection;
 	}
     
+    @Override
 	public boolean equals(Object obj) {
 		return obj instanceof AtomShape && ((AtomShape)obj).getValue()==getValue();
 	}

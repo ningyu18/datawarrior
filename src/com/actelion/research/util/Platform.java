@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -45,7 +45,8 @@ public class Platform
 
     private static final String[][] MACINTOSH_APPLICATION_NAME = { { "orbit" , "Orbit Image Analysis" },
     															   { "datawarrior", "DataWarrior" },
-    															   { "actelion3d", "Actelion3D" } };
+    															   { "actelion3d", "Actelion3D" },
+                                                                   { "spirit", "Spirit Database" } };
 
     public static boolean isWindows()
     {
@@ -67,6 +68,7 @@ public class Platform
         return isUnix;
     }
 
+	public static boolean is64BitJRE() { return System.getProperty("os.arch").indexOf("64")!=-1; }
 
     /**
      * Start an executable with parameters. In non-windows environment this is searching the PATH
@@ -92,7 +94,24 @@ public class Platform
         Runtime.getRuntime().exec(arguments.toArray(new String[0]));
     }
 
-    /**
+	/**
+	 * Start an executable with parameters. In non-windows environment this is searching the PATH
+	 * In the windows environment @Actelion this first checks the standard locations where applications
+	 * are installed usually \\actelch02\pgm. This is achieved by consulting the ApplicationDatabase.db file
+	 * located under \\actelch02\pgm\ActelionResearch. The file format is a standard Java properties file
+	 * where the key contains the name of the application and the value the respective absolute path of the executable
+	 * e.g.
+	 * datawarrior=//actelch02/pgm/Datawarrior/DataWarrior.exe
+	 * @param programAndArgs
+	 * @throws IOException
+	 */
+	public static void execute(String[] programAndArgs) throws IOException
+	{
+		programAndArgs[0] = findExecutable(programAndArgs[0]);
+		Runtime.getRuntime().exec(programAndArgs);
+	}
+
+	/**
      * Given a filename, open this file with the default application
      * @param doc File name to open
      * @throws IOException if the file is unavailable
@@ -135,8 +154,14 @@ public class Platform
         if (isMacintosh()) {
         	for (String[] appKeyAndName:MACINTOSH_APPLICATION_NAME) {
         		if (appKeyAndName[0].equals(name)) {
-        			String path = "/Applications/"+appKeyAndName[1]+".app/Contents/MacOS/JavaApplicationStub";
-        			return new File(path).exists() ? path : null;
+        		    // we assume that the name of the launcher is equal to parameter name
+                    String path = "/Applications/"+appKeyAndName[1]+".app/Contents/MacOS/"+name;
+                    if (new File(path).exists())
+                        return path;
+
+                    // if the JRE7+ way doesn's work, check if we still have a JRE6 based app
+        			path = "/Applications/"+appKeyAndName[1]+".app/Contents/MacOS/JavaApplicationStub";
+        			return new File(path).exists() ? path : res;
         		}
         	}
         }
@@ -147,10 +172,11 @@ public class Platform
         	path = "/opt/"+name+"/"+name;
         	if (new File(path).exists())
         		return path;
-        	return null;
+        	return res;
         }
         return res;
     }
+
 
 /*
     public static void main(String args[]) throws Exception
@@ -168,5 +194,5 @@ public class Platform
         	
         }
     }
-*/
+     */
 }

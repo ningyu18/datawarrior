@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,21 +18,16 @@
 
 package com.actelion.research.datawarrior;
 
-import java.awt.BorderLayout;
-import java.awt.Dimension;
-import java.awt.Frame;
-import java.util.ArrayList;
-
-import javax.swing.JComponent;
-import javax.swing.JPopupMenu;
-import javax.swing.JSplitPane;
-
 import com.actelion.research.gui.dock.ShadowBorder;
-import com.actelion.research.table.CompoundRecord;
+import com.actelion.research.table.model.CompoundRecord;
 import com.actelion.research.table.DetailPopupProvider;
 import com.actelion.research.table.RuntimePropertyEvent;
 import com.actelion.research.table.RuntimePropertyListener;
 import com.actelion.research.table.view.CompoundTableView;
+
+import javax.swing.*;
+import java.awt.*;
+import java.util.ArrayList;
 
 public class DEParentPane extends JComponent implements DetailPopupProvider  {
     private static final long serialVersionUID = 0x20060904;
@@ -57,26 +52,30 @@ public class DEParentPane extends JComponent implements DetailPopupProvider  {
 	    DEStatusPanel statusPanel = new DEStatusPanel(mTableModel, mTabbedMainViews);
 		add(statusPanel, BorderLayout.SOUTH);
 
-		mMainSplitPane = new JSplitPane();
 		mTabbedDetailViews = detailPane;
 		mTabbedDetailViews.setBorder(new ShadowBorder(1,1,3,6));
 		mTabbedMainViews = new DEMainPane(mParentFrame, mTableModel, mTabbedDetailViews, statusPanel, this);
-		mRightSplitPane = new JSplitPane();
-		mPruningPanel = new DEPruningPanel(mParentFrame, this, mTableModel);
-		mPruningPanel.setBorder(new ShadowBorder(7,1,1,6));
 
+		mPruningPanel = new DEPruningPanel(mParentFrame, this, mTableModel);
+		mPruningPanel.setBorder(new ShadowBorder(4,1,3,6));
+
+		mMainSplitPane = new JSplitPane();
 	    mMainSplitPane.setBorder(null);
 		mMainSplitPane.setOneTouchExpandable(true);
 	    mMainSplitPane.setContinuousLayout(true);
 	    mMainSplitPane.setResizeWeight(0.75);
-		mMainSplitPane.setDividerSize(10);
+//		mMainSplitPane.setDividerSize((int)(HiDPIHelper.getUIScaleFactor()*10f));
+
+		mRightSplitPane = new JSplitPane();
+		mRightSplitPane.setBorder(null);
 	    mRightSplitPane.setOrientation(JSplitPane.VERTICAL_SPLIT);
 	    mRightSplitPane.setMinimumSize(new Dimension(100, 200));
 	    mRightSplitPane.setPreferredSize(new Dimension(100, 200));
 		mRightSplitPane.setOneTouchExpandable(true);
 	    mRightSplitPane.setContinuousLayout(true);
 	    mRightSplitPane.setResizeWeight(0.7);
-		mRightSplitPane.setDividerSize(10);
+//		mRightSplitPane.setDividerSize((int)(HiDPIHelper.getUIScaleFactor()*10f));
+
 	    add(mMainSplitPane, BorderLayout.CENTER);
 	    mMainSplitPane.add(mTabbedMainViews, JSplitPane.LEFT);
 	    mMainSplitPane.add(mRightSplitPane, JSplitPane.RIGHT);
@@ -84,6 +83,33 @@ public class DEParentPane extends JComponent implements DetailPopupProvider  {
 	    mRightSplitPane.add(mTabbedDetailViews, JSplitPane.BOTTOM);
 
 		mRPListener = new ArrayList<RuntimePropertyListener>();
+		}
+
+	@Override
+	public void updateUI() {
+		super.updateUI();
+		SwingUtilities.invokeLater(new Runnable() { @Override public void run() {
+            mRightSplitPane.setBorder(null);
+			if (mTabbedMainViews.getComponentCount() != 0)
+	            recursivelyRemoveSplitPaneBorders(mTabbedMainViews.getComponent(0));
+			} } );
+		}
+
+	/**
+	 * The apple aqua look&feel uses a border that draws an ugly line around any split pane
+	 */
+	private void recursivelyRemoveSplitPaneBorders(Component c) {
+		if (c != null && c instanceof JTabbedPane) {
+			((JTabbedPane)c).setBorder(null);
+			}
+		if (c != null && c instanceof JSplitPane) {
+			JSplitPane sp = (JSplitPane)c;
+			sp.setBorder(null);
+			if (sp.getLeftComponent() instanceof JSplitPane)
+				recursivelyRemoveSplitPaneBorders(sp.getLeftComponent());
+			if (sp.getRightComponent() instanceof JSplitPane)
+				recursivelyRemoveSplitPaneBorders(sp.getRightComponent());
+			}
 		}
 
 	public void addRuntimePropertyListener(RuntimePropertyListener l) {

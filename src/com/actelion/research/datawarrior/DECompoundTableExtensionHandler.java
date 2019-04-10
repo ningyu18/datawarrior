@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -25,7 +25,7 @@ import java.util.ArrayList;
 
 import com.actelion.research.chem.io.CompoundTableConstants;
 import com.actelion.research.datawarrior.task.DEMacro;
-import com.actelion.research.table.CompoundTableExtensionHandler;
+import com.actelion.research.table.model.CompoundTableExtensionHandler;
 
 public class DECompoundTableExtensionHandler implements CompoundTableConstants,CompoundTableExtensionHandler {
 	public static final int ID_FILE_EXPLANATION = 0;
@@ -127,8 +127,10 @@ public class DECompoundTableExtensionHandler implements CompoundTableConstants,C
 
 				String name = DEMacro.extractMacroName(theLine);
 				if (name != null) {
+					boolean autoStarts = DEMacro.isAutoStarting(theLine);
 					DEMacro macro = new DEMacro(name, reader);
 //					if (!macro.isEmpty()) {	// keep also empty macros TLS 31-Mar-14
+						macro.setAutoStarting(autoStarts);
 						if (macroList == null)
 							macroList = new ArrayList<DEMacro>();
 						macroList.add(macro);

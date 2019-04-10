@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,22 +18,26 @@
 
 package com.actelion.research.gui;
 
+import com.actelion.research.chem.ExtendedMolecule;
+import com.actelion.research.chem.Molecule;
 import info.clearthought.layout.TableLayout;
 
-import java.awt.*;
-import java.awt.event.*;
-import java.util.Arrays;
 import javax.swing.*;
-
-import com.actelion.research.chem.*;
+import java.awt.*;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.awt.event.ItemEvent;
+import java.awt.event.ItemListener;
+import java.util.Arrays;
 
 public class JAtomQueryFeatureDialog extends JDialog
 					 implements ActionListener,ItemListener {
     static final long serialVersionUID = 0x20060720;
 
+	private Frame               mParentFrame;
     private ExtendedMolecule	mMol;
 	private int					mAtom;
-	private JCheckBox			mCBAny,mCBBlocked,mCBSubstituted,mCBMatchStereo;
+	private JCheckBox			mCBAny,mCBBlocked,mCBSubstituted,mCBMatchStereo,mCBExcludeGroup;
 	private JComboBox			mChoiceArom,mChoiceRingState,mChoiceRingSize,mChoiceCharge,
 	                            mChoiceNeighbours,mChoiceHydrogen,mChoicePi;
 	private JTextField			mTFAtomList;
@@ -41,6 +45,7 @@ public class JAtomQueryFeatureDialog extends JDialog
 
 	protected JAtomQueryFeatureDialog(Frame parent, ExtendedMolecule mol, int atom) {
 		super(parent, (mol.isSelectedAtom(atom)) ? "Multiple Atom Properties" : "Atom Properties", true);
+		mParentFrame = parent;
 		mMol = mol;
 		mAtom = atom;
 		boolean opaque = false;
@@ -60,6 +65,7 @@ public class JAtomQueryFeatureDialog extends JDialog
                              4, TableLayout.PREFERRED,
                             12, TableLayout.PREFERRED,
                              0, TableLayout.PREFERRED,
+							 4, TableLayout.PREFERRED,
                              4, TableLayout.PREFERRED} };
         p1.setLayout(new TableLayout(size));
 		
@@ -131,6 +137,7 @@ public class JAtomQueryFeatureDialog extends JDialog
         mChoiceHydrogen.addItem("exactly 2 hydrogens");
 		mChoiceHydrogen.addItem("at least 1 hydrogen");
 		mChoiceHydrogen.addItem("at least 2 hydrogens");
+		mChoiceHydrogen.addItem("at least 3 hydrogens");
         mChoiceHydrogen.addItem("less than 2 hydrogens");
         mChoiceHydrogen.addItem("less than 3 hydrogens");
 		p1.add(mChoiceHydrogen, "1,15,3,15");
@@ -158,7 +165,11 @@ public class JAtomQueryFeatureDialog extends JDialog
 		mCBMatchStereo.setOpaque(opaque);
 		p1.add(mCBMatchStereo, "1,23,3,23");
 
-        JPanel buttonpanel = new JPanel();
+		mCBExcludeGroup = new JCheckBox("is part of exclude group");
+		mCBExcludeGroup.setOpaque(opaque);
+		p1.add(mCBExcludeGroup, "1,25,3,25");
+
+		JPanel buttonpanel = new JPanel();
         buttonpanel.setBorder(BorderFactory.createEmptyBorder(12, 8, 8, 8));
         buttonpanel.setLayout(new BorderLayout());
         JPanel ibp = new JPanel();
@@ -225,7 +236,7 @@ public class JAtomQueryFeatureDialog extends JDialog
 		else
 			mLabelAtomList.setText("allowed atoms:");
 
-		mTFAtomList.setText(mMol.getAtomListString(mAtom));
+		mTFAtomList.setText(mMol.getAtomList(mAtom) == null ? "" : mMol.getAtomListString(mAtom));
 
 		if ((queryFeatures & Molecule.cAtomQFAromatic) != 0)
 			mChoiceArom.setSelectedIndex(1);
@@ -312,11 +323,14 @@ public class JAtomQueryFeatureDialog extends JDialog
 			case Molecule.cAtomQFNot0Hydrogen | Molecule.cAtomQFNot1Hydrogen:
 				mChoiceHydrogen.setSelectedIndex(5);
 				break;
+			case Molecule.cAtomQFNot0Hydrogen | Molecule.cAtomQFNot1Hydrogen | Molecule.cAtomQFNot2Hydrogen:
+				mChoiceHydrogen.setSelectedIndex(6);
+				break;
             case Molecule.cAtomQFNot2Hydrogen | Molecule.cAtomQFNot3Hydrogen:
-                mChoiceHydrogen.setSelectedIndex(6);
+                mChoiceHydrogen.setSelectedIndex(7);
                 break;
             case Molecule.cAtomQFNot3Hydrogen:
-                mChoiceHydrogen.setSelectedIndex(7);
+                mChoiceHydrogen.setSelectedIndex(8);
                 break;
 			}
 
@@ -344,6 +358,9 @@ public class JAtomQueryFeatureDialog extends JDialog
 
 		if ((queryFeatures & Molecule.cAtomQFMatchStereo) != 0)
 			mCBMatchStereo.setSelected(true);
+
+		if ((queryFeatures & Molecule.cAtomQFExcludeGroup) != 0)
+			mCBExcludeGroup.setSelected(true);
 		}
 
 
@@ -499,11 +516,16 @@ public class JAtomQueryFeatureDialog extends JDialog
 			queryFeatures |= (Molecule.cAtomQFNot0Hydrogen
 							| Molecule.cAtomQFNot1Hydrogen);
 			break;
-        case 6: // less than 2 hydrogens
+		case 6:	// at least 3 hydrogens
+			queryFeatures |= (Molecule.cAtomQFNot0Hydrogen
+							| Molecule.cAtomQFNot1Hydrogen
+							| Molecule.cAtomQFNot2Hydrogen);
+			break;
+        case 7: // less than 2 hydrogens
             queryFeatures |= (Molecule.cAtomQFNot2Hydrogen
                             | Molecule.cAtomQFNot3Hydrogen);
             break;
-        case 7: // less than 3 hydrogens
+        case 8: // less than 3 hydrogens
             queryFeatures |= (Molecule.cAtomQFNot3Hydrogen);
             break;
 			}
@@ -526,14 +548,21 @@ public class JAtomQueryFeatureDialog extends JDialog
             break;
             }
 
-		if (mCBBlocked.isSelected() && mMol.getFreeValence(atom) > 0)
+		if (mCBBlocked.isSelected()
+		 && (mMol.getFreeValence(atom) > 0
+		  || (mMol.getAtomCharge(atom)==0 && (mMol.getAtomicNo(atom)==5 || mMol.isNitrogenFamily(atom) || mMol.isChalcogene(atom)))))
 			queryFeatures |= Molecule.cAtomQFNoMoreNeighbours;
 
-		if (mCBSubstituted.isSelected() && mMol.getFreeValence(atom) > 0)
+		if (mCBSubstituted.isSelected()
+		 && (mMol.getFreeValence(atom) > 0
+		  || (mMol.getAtomCharge(atom)==0 && (mMol.getAtomicNo(atom)==5 || mMol.isNitrogenFamily(atom) || mMol.isChalcogene(atom)))))
 			queryFeatures |= Molecule.cAtomQFMoreNeighbours;
 
 		if (mCBMatchStereo.isSelected())
 			queryFeatures |= Molecule.cAtomQFMatchStereo;
+
+		if (mCBExcludeGroup.isSelected())
+			queryFeatures |= Molecule.cAtomQFExcludeGroup;
 
 		mMol.setAtomQueryFeature(atom, 0xFFFFFFFF, false);
 		mMol.setAtomQueryFeature(atom, queryFeatures, true);
@@ -562,7 +591,10 @@ public class JAtomQueryFeatureDialog extends JDialog
 
 			int atomicNo = Molecule.getAtomicNoFromLabel(label);
 			if (atomicNo != 0) {
-                if (list == null) {
+				if (atomicNo == 1) {
+					JOptionPane.showMessageDialog(mParentFrame, "'H' cannot be part of an atom list and is removed.");
+					}
+                else if (list == null) {
                     list = new int[1];
                     list[0] = atomicNo;
                     }

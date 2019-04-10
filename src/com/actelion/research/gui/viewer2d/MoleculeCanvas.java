@@ -62,11 +62,15 @@ public class MoleculeCanvas extends Canvas3D implements ElementStyles {
 		setMolecule(molecule);
 		
 		addComponentListener(new ComponentListener() {
+			@Override
 			public void componentHidden(ComponentEvent e) {}
+			@Override
 			public void componentMoved(ComponentEvent e) {}
+			@Override
 			public void componentResized(ComponentEvent e) {
 				if(firstRendering && getSize().getWidth()>0) {resetView(); repaint(); firstRendering = false;}
 			}
+			@Override
 			public void componentShown(ComponentEvent e) {}
 		});
 		
@@ -219,7 +223,7 @@ public class MoleculeCanvas extends Canvas3D implements ElementStyles {
 	}
 	
 	
-
+	@Override
 	protected void calculateScreenCoordinates() {
 		if(slab<=0 || !(mol instanceof FFMolecule)) {
 			super.calculateScreenCoordinates();
@@ -378,7 +382,8 @@ public class MoleculeCanvas extends Canvas3D implements ElementStyles {
 		return skeleton;
 	}
 		
-	private class SkeletonProcessor extends PaintProcessor {
+	private class SkeletonProcessor extends PaintProcessor {		
+		@Override
 		public void preProcess() {
 			if(skeleton!=null && isMode(MoleculeCanvas.MODE_SKELETON)) createShapes(skeleton, false);
 		}		

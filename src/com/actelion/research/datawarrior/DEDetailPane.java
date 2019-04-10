@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,45 +18,25 @@
 
 package com.actelion.research.datawarrior;
 
-import java.awt.Color;
-import java.awt.Component;
-import java.awt.Dimension;
-import java.awt.Frame;
-import java.awt.Toolkit;
-import java.awt.dnd.DnDConstants;
-import java.awt.event.KeyEvent;
-import java.io.File;
-import java.util.ArrayList;
-
-import javax.swing.BorderFactory;
-import javax.swing.JComponent;
-import javax.swing.JScrollPane;
-import javax.swing.JTable;
-import javax.swing.KeyStroke;
-
 import com.actelion.research.chem.IDCodeParser;
 import com.actelion.research.chem.StereoMolecule;
-import com.actelion.research.gui.FileHelper;
-import com.actelion.research.gui.JImagePanel;
-import com.actelion.research.gui.JMultiPanelView;
-import com.actelion.research.gui.JStructureView;
+import com.actelion.research.gui.*;
 import com.actelion.research.gui.clipboard.ClipboardHandler;
 import com.actelion.research.gui.form.JHTMLDetailView;
 import com.actelion.research.gui.form.JImageDetailView;
 import com.actelion.research.gui.form.JResultDetailView;
 import com.actelion.research.gui.form.JSVGDetailView;
 import com.actelion.research.gui.viewer2d.MoleculeViewer;
-import com.actelion.research.table.CompoundRecord;
-import com.actelion.research.table.CompoundTableChemistryCellRenderer;
-import com.actelion.research.table.CompoundTableColorHandler;
-import com.actelion.research.table.CompoundTableDetailSpecification;
-import com.actelion.research.table.CompoundTableEvent;
-import com.actelion.research.table.CompoundTableListener;
-import com.actelion.research.table.CompoundTableModel;
-import com.actelion.research.table.DetailTableModel;
-import com.actelion.research.table.HighlightListener;
-import com.actelion.research.table.JDetailTable;
+import com.actelion.research.table.*;
+import com.actelion.research.table.model.*;
 import com.actelion.research.table.view.VisualizationColor;
+
+import javax.swing.*;
+import java.awt.*;
+import java.awt.dnd.DnDConstants;
+import java.awt.event.KeyEvent;
+import java.io.File;
+import java.util.ArrayList;
 
 public class DEDetailPane extends JMultiPanelView implements HighlightListener,CompoundTableListener,CompoundTableColorHandler.ColorListener {
 	private static final long serialVersionUID = 0x20060904;
@@ -67,8 +47,8 @@ public class DEDetailPane extends JMultiPanelView implements HighlightListener,C
 	private static final String IMAGE = "Image";
 	protected static final String RESULT_DETAIL = "Detail";
 
-	private CompoundTableModel	mTableModel;
-	private CompoundRecord		mCurrentRecord;
+	private CompoundTableModel mTableModel;
+	private CompoundRecord mCurrentRecord;
 	private DetailTableModel	mDetailModel;
 	private JDetailTable		mDetailTable;
 	private ArrayList<DetailViewInfo> mDetailViewList;
@@ -84,6 +64,8 @@ public class DEDetailPane extends JMultiPanelView implements HighlightListener,C
 
 		mDetailModel = new DetailTableModel(mTableModel);
   		mDetailTable = new JDetailTable(mDetailModel);
+		Font tableFont = UIManager.getFont("Table.font");
+  		mDetailTable.setFont(tableFont.deriveFont(Font.PLAIN, tableFont.getSize() * 11 / 12));
 		mDetailTable.putClientProperty("Quaqua.Table.style", "striped");
 
 		// to eliminate the disabled default action of the JTable when typing menu-V
@@ -118,6 +100,21 @@ public class DEDetailPane extends JMultiPanelView implements HighlightListener,C
 			mDetailViewList.clear();
 
 			addColumnDetailViews(0);
+			}
+		else if (e.getType() == CompoundTableEvent.cChangeColumnName) {
+			for (DetailViewInfo viewInfo:mDetailViewList) {
+				if (e.getColumn() == viewInfo.column) {
+					String title = createDetailTitle(viewInfo);
+					if (title != null) {
+						for (int i=0; i<getViewCount(); i++) {
+							if (getView(i) == viewInfo.view) {
+								setTitle(i, title);
+								break;
+								}
+							}
+						}
+					}
+				}
 			}
 		else if (e.getType() == CompoundTableEvent.cChangeColumnData) {
 			for (DetailViewInfo viewInfo:mDetailViewList)
@@ -197,7 +194,7 @@ public class DEDetailPane extends JMultiPanelView implements HighlightListener,C
 			if (CompoundTableModel.cColumnTypeIDCode.equals(specialType)) {
 				int coordinateColumn = mTableModel.getChildColumn(column, CompoundTableModel.cColumnType2DCoordinates);
 				JStructureView view = new JStructureView(DnDConstants.ACTION_COPY_OR_MOVE, DnDConstants.ACTION_NONE);
-				view.setBackground(Color.white);
+//				view.setBackground(Color.white);
 				view.setClipboardHandler(new ClipboardHandler());
 				addColumnDetailView(view, column, coordinateColumn, STRUCTURE, mTableModel.getColumnTitle(column));
 				continue;
@@ -207,7 +204,8 @@ public class DEDetailPane extends JMultiPanelView implements HighlightListener,C
 				Component parent = DEDetailPane.this;
 				while (!(parent instanceof Frame))
 					parent = parent.getParent();
-				view.addActionProvider(new RayTraceActionProvider((Frame)parent));
+				view.addActionProvider(new MolViewerActionCopy((Frame)parent));
+				view.addActionProvider(new MolViewerActionRaytrace((Frame)parent));
 				addColumnDetailView(view, mTableModel.getParentColumn(column), column, STRUCTURE_3D,
 									mTableModel.getColumnTitle(column));
 				continue;
@@ -230,10 +228,26 @@ public class DEDetailPane extends JMultiPanelView implements HighlightListener,C
 				JResultDetailView view = createResultDetailView(column, detail, mimetype);
 
 				if (view != null) {
-					addColumnDetailView(view, column, detail, RESULT_DETAIL, mTableModel.getColumnDetailName(column, detail));
+					addColumnDetailView(view, column, detail, RESULT_DETAIL, mTableModel.getColumnDetailName(column, detail)
+							+" ("+mTableModel.getColumnTitle(column)+")");
 					}
 				}
 			}
+		}
+
+	private String createDetailTitle(DetailViewInfo info) {
+		if (info.type.equals(STRUCTURE))
+			return mTableModel.getColumnTitle(info.column);
+		if (info.type.equals(STRUCTURE_3D))
+			return mTableModel.getColumnTitle(info.detail);
+		if (info.type.equals(IMAGE)) {
+			String columnName = mTableModel.getColumnTitleNoAlias(info.column);
+			return (columnName.equalsIgnoreCase("imagefilename")
+				 || columnName.equals("#Image#")) ? IMAGE : mTableModel.getColumnTitle(info.column);
+			}
+		if (info.type.equals(RESULT_DETAIL))
+			return mTableModel.getColumnDetailName(info.column, info.detail)+" ("+mTableModel.getColumnTitle(info.column)+")";
+		return null;
 		}
 
 	protected JResultDetailView createResultDetailView(int column, int detail, String mimetype) {

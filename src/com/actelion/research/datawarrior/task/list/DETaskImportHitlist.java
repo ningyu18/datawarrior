@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,6 +18,9 @@
 
 package com.actelion.research.datawarrior.task.list;
 
+import com.actelion.research.datawarrior.DataWarrior;
+import com.actelion.research.io.BOMSkipper;
+import com.actelion.research.table.model.CompoundTableListHandler;
 import info.clearthought.layout.TableLayout;
 
 import java.awt.event.ActionListener;
@@ -39,45 +42,39 @@ import javax.swing.JTextField;
 import com.actelion.research.datawarrior.DEFrame;
 import com.actelion.research.datawarrior.task.file.DETaskAbstractOpenFile;
 import com.actelion.research.gui.FileHelper;
-import com.actelion.research.table.CompoundTableHitlistHandler;
 import com.actelion.research.table.CompoundTableLoader;
-import com.actelion.research.table.CompoundTableModel;
+import com.actelion.research.table.model.CompoundTableModel;
 
 public class DETaskImportHitlist extends DETaskAbstractOpenFile implements ActionListener {
 	private static final String PROPERTY_LISTNAME = "listName";
 	private static final String PROPERTY_KEYCOLUMN = "keyColumn";
 
+	private static final String ITEM_COLUMN_FROM_FILE = "<use column from list file>";
+
 	public static final String TASK_NAME = "Import Row List";
 
-    private static Properties sRecentConfiguration;
-
     private CompoundTableModel mTableModel;
-    private String mKeyColumnName,mListName;
+    private String mListName;
+    private int	mKeyColumn;
     private String[] mPossibleKeyColumn;
     private TreeSet<String> mKeySet;
     private JTextField mFieldHitlistName;
     private JComboBox mComboBox;
-    private Properties mCurrentDialogConfiguration;
 
-	public DETaskImportHitlist(DEFrame parent) {
-		super(parent, "Open Row List File", FileHelper.cFileTypeTextTabDelimited);
-        mTableModel = parent.getTableModel();
+	public DETaskImportHitlist(DataWarrior application) {
+		super(application, "Open Row List File", FileHelper.cFileTypeTextTabDelimited);
+        mTableModel = application.getActiveFrame().getTableModel();
 		}
 
 	@Override
-	public Properties getRecentConfiguration() {
-    	return sRecentConfiguration;
-    	}
-
-	@Override
-	public void setRecentConfiguration(Properties configuration) {
-    	sRecentConfiguration = configuration;
-    	}
+	public Properties getPredefinedConfiguration() {
+		return null;
+		}
 
 	@Override
     public JPanel createInnerDialogContent() {
 		double[][] size = { {TableLayout.PREFERRED, 4, TableLayout.PREFERRED},
-							{TableLayout.PREFERRED, 8, TableLayout.PREFERRED, 8} };
+							{TableLayout.PREFERRED, 16, TableLayout.PREFERRED, 4, TableLayout.PREFERRED, 8} };
 
 		JPanel content = new JPanel();
 		content.setLayout(new TableLayout(size));
@@ -90,6 +87,7 @@ public class DETaskImportHitlist extends DETaskAbstractOpenFile implements Actio
 		mFieldHitlistName = new JTextField("imported list");
 		content.add(new JLabel("Name of new row list:"), "0,2");
 		content.add(mFieldHitlistName, "2,2");
+		content.add(new JLabel("(Keep empty to use name from list file)", JLabel.CENTER), "0,4,2,4");
 
 		return content;
     	}
@@ -100,11 +98,29 @@ public class DETaskImportHitlist extends DETaskAbstractOpenFile implements Actio
 			return false;
 
 		if (isLive) {
-			String fileName = configuration.getProperty(PROPERTY_FILENAME);
-			String error = analyzeHitlist(new File(fileName));
-			if (error != null) {
-				showErrorMessage(error);
+			String fileName = configuration.getProperty(PROPERTY_FILENAME, "");
+			if (fileName.length() == 0) {
+				showErrorMessage("No file specified.");
 				return false;
+				}
+			if (!ASK_FOR_FILE.equals(fileName)) {
+				String error = analyzeHitlist(new File(fileName));
+				if (error != null) {
+					showErrorMessage(error);
+					return false;
+					}
+				}
+			String keyColumnName = configuration.getProperty(PROPERTY_KEYCOLUMN, "");
+			if (keyColumnName.length() != 0) {
+				int keyColumn = mTableModel.findColumn(keyColumnName);
+				if (keyColumn == -1) {
+					showErrorMessage("Key column '"+keyColumnName+"' not found.");
+					return false;
+					}
+				if (isInteractive() && !isPossibleKeyColumn(keyColumn)) {
+					showErrorMessage("Key column '"+keyColumn+"' does not contains any of the list keys.");
+					return false;
+					}
 				}
 			}
     	return true;
@@ -114,29 +130,30 @@ public class DETaskImportHitlist extends DETaskAbstractOpenFile implements Actio
     public void setDialogConfigurationToDefault() {
 		super.setDialogConfigurationToDefault();
 
-		mCurrentDialogConfiguration = null;
-		fileChanged(null);
+		/* other items are set through fileChanged()
+		mComboBox.setSelectedItem(ITEM_COLUMN_FROM_FILE);
+		mFieldHitlistName.setText("");
+		*/
 		}
 
 	@Override
     public void setDialogConfiguration(Properties configuration) {
-		mCurrentDialogConfiguration = configuration;
+		super.setDialogConfiguration(configuration);
 
-		String fileName = configuration.getProperty(PROPERTY_FILENAME);
-		File file = (fileName == null) ? null : new File(fileName);
+		mComboBox.setSelectedItem(ITEM_COLUMN_FROM_FILE);	// default
+		String keyColumnName = configuration.getProperty(PROPERTY_KEYCOLUMN, "");
+		if (keyColumnName.length() != 0)
+			mComboBox.setSelectedItem(keyColumnName);
 
-		if (file == null || (isInteractive() && !file.exists()))
-			file = askForFile(fileName);
-
-		fileChanged(file);
+		mFieldHitlistName.setText(configuration.getProperty(PROPERTY_LISTNAME, ""));
 		}
 
     public Properties getDialogConfiguration() {
     	Properties configuration = super.getDialogConfiguration();
 
-    	String keyColumn = (String)mComboBox.getSelectedItem();
-    	if (keyColumn != null)
-    		configuration.setProperty(PROPERTY_KEYCOLUMN, keyColumn);
+    	String keyColumnName = (String)mComboBox.getSelectedItem();
+    	if (keyColumnName != null && !keyColumnName.equals(ITEM_COLUMN_FROM_FILE))
+    		configuration.setProperty(PROPERTY_KEYCOLUMN, keyColumnName);
 
     	String listName = mFieldHitlistName.getText();
     	if (listName != null)
@@ -158,12 +175,13 @@ public class DETaskImportHitlist extends DETaskAbstractOpenFile implements Actio
 			error = analyzeHitlist(file);
 			if (error == null) {
 				mComboBox.removeAllItems();
+				mComboBox.addItem(ITEM_COLUMN_FROM_FILE);
 				for (String item:mPossibleKeyColumn)
 					mComboBox.addItem(item);
 
-				int keyColumn = mTableModel.findColumn(mKeyColumnName);
-				if (keyColumn != -1)
-					mComboBox.setSelectedItem(mTableModel.getColumnTitle(keyColumn));
+				mComboBox.setSelectedItem(ITEM_COLUMN_FROM_FILE);	// default
+				if (mKeyColumn != -1)
+					mComboBox.setSelectedItem(mTableModel.getColumnTitle(mKeyColumn));
 
 				mFieldHitlistName.setText(mListName);
 				}
@@ -179,15 +197,8 @@ public class DETaskImportHitlist extends DETaskAbstractOpenFile implements Actio
 			for (String item:createDefaultColumns())
 				mComboBox.addItem(item);
 
-			if (mCurrentDialogConfiguration != null) {
-				String keyColumn = mCurrentDialogConfiguration.getProperty(PROPERTY_KEYCOLUMN);
-				if (keyColumn != null)
-					mComboBox.setSelectedItem(keyColumn);
-		
-				String listName = mCurrentDialogConfiguration.getProperty(PROPERTY_LISTNAME);
-				if (listName != null)
-					mFieldHitlistName.setText(listName);
-				}
+			mComboBox.setSelectedItem(ITEM_COLUMN_FROM_FILE);
+			mFieldHitlistName.setText("");
 			}
 		}
 
@@ -197,6 +208,7 @@ public class DETaskImportHitlist extends DETaskAbstractOpenFile implements Actio
 	 */
 	private String[] createDefaultColumns() {
 		ArrayList<String> columnList = new ArrayList<String>();
+		columnList.add(ITEM_COLUMN_FROM_FILE);
 		for (int column=0; column<mTableModel.getTotalColumnCount(); column++)
 			if (mTableModel.isColumnDisplayable(column))
 				columnList.add(mTableModel.getColumnTitle(column));
@@ -211,29 +223,31 @@ public class DETaskImportHitlist extends DETaskAbstractOpenFile implements Actio
 	 */
 	private String analyzeHitlist(File file) {
 		mListName = null;
-		mKeyColumnName = null;
+		String keyColumnName = null;
 		BufferedReader theReader = null;
 		try {
             theReader = new BufferedReader(new InputStreamReader(new FileInputStream(file), "UTF-8"));
+			BOMSkipper.skip(theReader);
 
             String hitlistNameLine = theReader.readLine();
             mListName = (hitlistNameLine != null
                       && hitlistNameLine.startsWith("<hitlistName=")) ?
                         CompoundTableLoader.extractValue(hitlistNameLine) : null;
             String keyColumnLine = theReader.readLine();
-            mKeyColumnName = (keyColumnLine != null
+            keyColumnName = (keyColumnLine != null
                        && keyColumnLine.startsWith("<keyColumn=")) ?
                         CompoundTableLoader.extractValue(keyColumnLine) : null;
 			}
 		catch (IOException ioe) {}
 
-		boolean isHitlistFile = (mListName != null && mKeyColumnName != null);
+		boolean isHitlistFile = (mListName != null && keyColumnName != null);
 
 		try {
 			if (theReader != null)
 				theReader.close();
 
 			theReader = new BufferedReader(new InputStreamReader(new FileInputStream(file), "UTF-8"));
+			BOMSkipper.skip(theReader);
 
             mKeySet = readKeys(theReader);
             theReader.close();
@@ -249,7 +263,7 @@ public class DETaskImportHitlist extends DETaskAbstractOpenFile implements Actio
             	mListName = "imported list";
                 }
 
-        	String maxMatchColumn = null;
+        	int maxMatchColumn = -1;
         	int maxMatchCount = 0;
             ArrayList<String> columnList = new ArrayList<String>();
             for (int column=0; column<mTableModel.getTotalColumnCount(); column++) {
@@ -268,16 +282,15 @@ public class DETaskImportHitlist extends DETaskAbstractOpenFile implements Actio
                         columnList.add(mTableModel.getColumnTitle(column));
                     	if (maxMatchCount < matchCount) {
                     		maxMatchCount = matchCount;
-                    		maxMatchColumn = mTableModel.getColumnTitle(column);
+                    		maxMatchColumn = column;
                     		}
                 		}
                 	}
                 }
-            if (maxMatchCount == 0)
-                return "None of the keys in file '"+file.getName()+"' is present in any data column.";
 
-            if (mKeyColumnName == null || !columnList.contains(mKeyColumnName))
-            	mKeyColumnName = maxMatchColumn;
+            mKeyColumn = mTableModel.findColumn(keyColumnName);
+            if (keyColumnName == null || mKeyColumn == -1 && !columnList.contains(mTableModel.getColumnTitle(mKeyColumn)))
+            	mKeyColumn = maxMatchColumn;
 
             mPossibleKeyColumn = columnList.toArray(new String[0]);
             Arrays.sort(mPossibleKeyColumn);
@@ -288,6 +301,19 @@ public class DETaskImportHitlist extends DETaskAbstractOpenFile implements Actio
             }
 		}
 
+	/**
+	 * @param column
+	 * @return true if the column contains any of the keys of the most recently analyzed list file
+	 */
+	private boolean isPossibleKeyColumn(int column) {
+		String columnName = mTableModel.getColumnTitle(column);
+		for (String key:mPossibleKeyColumn)
+			if (key.equals(columnName))
+				return true;
+
+		return false;
+		}
+
 	@Override
 	public boolean isConfigurable() {
 		if (!super.isConfigurable())
@@ -296,6 +322,10 @@ public class DETaskImportHitlist extends DETaskAbstractOpenFile implements Actio
 		if (mTableModel.getTotalRowCount() == 0) {
 			showErrorMessage("Cannot import row list if there are no rows.");
 			return false;
+			}
+		if (mTableModel.getUnusedRowFlagCount() == 0) {
+			showErrorMessage("Cannot import any row list, because the\n"
+					+"maximum number of filters/lists is reached.");
 			}
 
 		return true;
@@ -308,27 +338,25 @@ public class DETaskImportHitlist extends DETaskAbstractOpenFile implements Actio
 
 	@Override
 	public DEFrame openFile(File file, Properties configuration) {
-		startProgress("Creating row list", 0, 0);
-
-		String keyColumnName = configuration.getProperty(PROPERTY_KEYCOLUMN);
-		boolean found = false;
-		for (String key:mPossibleKeyColumn) {
-			if (key.equals(keyColumnName)) {
-				found = true;
-				break;
+		// If we have a valid file name, then the file was already analyzed. Otherwise we have to analyze now.
+		if (ASK_FOR_FILE.equals(configuration.getProperty(PROPERTY_FILENAME))) {
+			String error = analyzeHitlist(file);
+			if (error != null) {
+				showErrorMessage(error);
+				return null;
 				}
 			}
-		if (found)
-			mKeyColumnName = keyColumnName;	// otherwise take the default created by analyzeHitlist()
-		
+
+		startProgress("Creating row list", 0, 0);
+
+		String keyColumnName = configuration.getProperty(PROPERTY_KEYCOLUMN, "");
+		int keyColumn = (keyColumnName.length() == 0) ? mKeyColumn : mTableModel.findColumn(keyColumnName);
+
 		String listName = configuration.getProperty(PROPERTY_LISTNAME);
 		if (listName != null)
 			mListName = listName;	// otherwise take the default created by analyzeHitlist()
 
-		int keyColumn = mTableModel.findColumn(mKeyColumnName);
-        if (mTableModel.getHitlistHandler().createHitlist(mListName, -1, CompoundTableHitlistHandler.FROM_KEY_SET, keyColumn, mKeySet) == null)
-			showErrorMessage("Row list '"+mListName+"' could not be created, because\n"
-							+"the maximum number of filters/lists is reached.");
+        mTableModel.getListHandler().createList(mListName, -1, CompoundTableListHandler.FROM_KEY_SET, keyColumn, mKeySet);
 
         return null;
 		}

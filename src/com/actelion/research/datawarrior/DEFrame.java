@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,33 +18,25 @@
 
 package com.actelion.research.datawarrior;
 
-import java.awt.AWTEvent;
-import java.awt.Dimension;
-import java.awt.Frame;
-import java.awt.Toolkit;
+import com.actelion.research.chem.io.CompoundFileHelper;
+import com.actelion.research.datawarrior.task.DEMacroRecorder;
+import com.actelion.research.datawarrior.task.file.CustomLabelPositionWriter;
+import com.actelion.research.datawarrior.task.file.DETaskCloseWindow;
+import com.actelion.research.datawarrior.task.file.DETaskSaveFile;
+import com.actelion.research.datawarrior.task.file.DETaskSaveFileAs;
+import com.actelion.research.gui.FileHelper;
+import com.actelion.research.gui.hidpi.HiDPIHelper;
+import com.actelion.research.table.*;
+import com.actelion.research.table.model.*;
+import com.actelion.research.table.view.CompoundTableView;
+
+import javax.swing.*;
+import java.awt.*;
 import java.awt.event.WindowEvent;
 import java.io.File;
 import java.util.Properties;
 
-import javax.swing.JFrame;
-import javax.swing.JOptionPane;
-
-import com.actelion.research.chem.io.CompoundFileHelper;
-import com.actelion.research.datawarrior.task.DEMacroRecorder;
-import com.actelion.research.datawarrior.task.file.DETaskCloseWindow;
-import com.actelion.research.datawarrior.task.file.DETaskSaveFile;
-import com.actelion.research.datawarrior.task.file.DETaskSaveFileAs;
-import com.actelion.research.table.CompoundTableEvent;
-import com.actelion.research.table.CompoundTableHitlistEvent;
-import com.actelion.research.table.CompoundTableHitlistHandler;
-import com.actelion.research.table.CompoundTableHitlistListener;
-import com.actelion.research.table.CompoundTableListener;
-import com.actelion.research.table.CompoundTableSaver;
-import com.actelion.research.table.RuntimePropertyEvent;
-import com.actelion.research.table.RuntimePropertyListener;
-import com.actelion.research.table.view.CompoundTableView;
-
-public class DEFrame extends JFrame implements ApplicationViewFactory,CompoundTableListener,CompoundTableHitlistListener,RuntimePropertyListener {
+public class DEFrame extends JFrame implements ApplicationViewFactory,CompoundTableListener,CompoundTableListListener,RuntimePropertyListener {
 	private static final long serialVersionUID = 0x20070227;
 	private static final String DEFAULT_TITLE = "OSIRIS DataWarrior";
 
@@ -63,9 +55,9 @@ public class DEFrame extends JFrame implements ApplicationViewFactory,CompoundTa
 			setIconImage(Toolkit.getDefaultToolkit().createImage(getClass().getResource("/images/datawarrior.png")));
 
 			DECompoundTableModel tableModel = new DECompoundTableModel();
-			tableModel.setHitlistHandler(new CompoundTableHitlistHandler(tableModel));
+			tableModel.setHitlistHandler(new CompoundTableListHandler(tableModel));
 			tableModel.addCompoundTableListener(this);
-			tableModel.getHitlistHandler().addCompoundTableHitlistListener(this);
+			tableModel.getListHandler().addCompoundTableListListener(this);
 			tableModel.setDetailHandler(datawarrior.createDetailHandler(this, tableModel));
 
 			mParentPane = new DEParentPane(this, tableModel,
@@ -76,8 +68,9 @@ public class DEFrame extends JFrame implements ApplicationViewFactory,CompoundTa
 			if (lockForImmediateUsage)
 				mParentPane.getTableModel().lock();
 
-			setSize(new Dimension(960, 720));
-			setPreferredSize(new Dimension(960, 720));
+			Dimension size = new Dimension(HiDPIHelper.scale(1024), HiDPIHelper.scale(768));
+			setSize(size);
+			setPreferredSize(size);
 			setTitle(title == null ? DEFAULT_TITLE : title);
 			setContentPane(mParentPane);
 
@@ -101,7 +94,7 @@ public class DEFrame extends JFrame implements ApplicationViewFactory,CompoundTa
 		return mDataExplorer;
 		}
 
-	protected StandardMenuBar getDEMenuBar() {
+	public StandardMenuBar getDEMenuBar() {
 		return mMenuBar;
 		}
 
@@ -133,7 +126,7 @@ public class DEFrame extends JFrame implements ApplicationViewFactory,CompoundTa
 			setDirty(true);
 		}
 
-	public void hitlistChanged(CompoundTableHitlistEvent e) {
+	public void listChanged(CompoundTableListEvent e) {
 		setDirty(true);
 		}
 
@@ -161,7 +154,34 @@ public class DEFrame extends JFrame implements ApplicationViewFactory,CompoundTa
 		return (fileName.length() == 0) ? "Untitled" : CompoundFileHelper.removePathAndExtension(fileName);
 		}
 
-/*	public void saveFile(final int fileType, final boolean useNewFile, final boolean visibleOnly) {
+	/**
+	 * Creates a new file with a suggested non-existing name in the home directory.
+	 * The name is derived from the window title or from "Untitled", depending on whether a window title exists.
+	 * @return
+	 */
+	private File suggestUniqueFile() {
+		String fileName = CompoundFileHelper.removePathAndExtension((getTitle().length() == 0) ? getTitle() : "Untitled");
+		String filePath = System.getProperty("user.home").concat(File.pathSeparator).concat(fileName);
+		String extension = FileHelper.getExtension(FileHelper.cFileTypeDataWarrior);
+		File file = new File(filePath.concat(extension));
+		while (file.exists()) {
+			int index = filePath.lastIndexOf(' ');
+			if (index == -1)
+				filePath = filePath.concat(" 2");
+			else {
+				try {
+					int suffix = Integer.parseInt(filePath.substring(index+1));
+					filePath = filePath.substring(0, index+1).concat(Integer.toString(suffix+1));
+					}
+				catch (NumberFormatException nfe) {
+					filePath = filePath.concat(" 2");
+					}
+				}
+			}
+		return file;
+		}
+
+	/*	public void saveFile(final int fileType, final boolean useNewFile, final boolean visibleOnly) {
 		JTable table = mParentPane.getMainPane().getTable();
 		DERuntimeProperties rtp = (fileType == FileHelper.cFileTypeDataWarrior
 								|| fileType == FileHelper.cFileTypeDataWarriorTemplate) ? new DERuntimeProperties(mParentPane) : null;
@@ -198,13 +218,16 @@ public class DEFrame extends JFrame implements ApplicationViewFactory,CompoundTa
 	 */
 	public void saveNativeFile(final File file, final boolean visibleOnly, boolean embedDetails) {
 		DERuntimeProperties rtp = new DERuntimeProperties(mParentPane);
-		new CompoundTableSaver(this, mParentPane.getTableModel(), mParentPane.getMainPane().getTable()) {
+		CompoundTableSaver saver = new CompoundTableSaver(this, mParentPane.getTableModel(), mParentPane.getMainPane().getTable()) {
 			public void finalStatus(File file) {
 				if (file != null
 				 && !visibleOnly)
 					setDirty(false);
 				}
-			}.saveNative(rtp, file, visibleOnly, embedDetails);
+			};
+		DataDependentPropertyWriter clpw = new CustomLabelPositionWriter(getMainFrame().getMainPane());
+		saver.addDataDependentPropertyWriter(clpw);
+		saver.saveNative(rtp, file, visibleOnly, embedDetails);
 		}
 
 	/**
@@ -234,6 +257,19 @@ public class DEFrame extends JFrame implements ApplicationViewFactory,CompoundTa
 			}
 	
 		return (save == JOptionPane.NO_OPTION);
+		}
+
+	protected void saveSilentlyIfDirty() {
+		if (!mIsDirty || mParentPane.getTableModel().isEmpty())
+			return;
+
+		File file = mParentPane.getTableModel().getFile();
+		if (file == null) {
+			file = suggestUniqueFile();
+			mParentPane.getTableModel().setFile(file);
+			}
+
+		saveNativeFile(file, false, true);
 		}
 
 	/**
@@ -271,6 +307,7 @@ public class DEFrame extends JFrame implements ApplicationViewFactory,CompoundTa
 		return mParentPane.getTableModel();
 		}
 
+	@Override
 	protected void processWindowEvent(WindowEvent e) {
 		if (e.getID() == WindowEvent.WINDOW_CLOSING)
 			new DETaskCloseWindow(mDataExplorer.getActiveFrame(), mDataExplorer, this).defineAndRun();

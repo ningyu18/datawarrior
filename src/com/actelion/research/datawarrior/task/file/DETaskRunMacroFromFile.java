@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -26,36 +26,21 @@ import com.actelion.research.datawarrior.DEFrame;
 import com.actelion.research.datawarrior.DataWarrior;
 import com.actelion.research.datawarrior.task.DEMacro;
 import com.actelion.research.datawarrior.task.DEMacroRecorder;
-import com.actelion.research.datawarrior.task.GenericTaskRunMacro;
+import com.actelion.research.datawarrior.task.macro.GenericTaskRunMacro;
 import com.actelion.research.gui.FileHelper;
 
 public class DETaskRunMacroFromFile extends DETaskAbstractOpenFile implements GenericTaskRunMacro {
 	public static final String TASK_NAME = "Open And Run Macro";
-    private static Properties sRecentConfiguration;
-
-    private DataWarrior mApplication;
 
     public DETaskRunMacroFromFile(DataWarrior application) {
-		super(application.getActiveFrame(), "Open And Execute Macro",
+		super(application, "Open And Execute Macro",
 				FileHelper.cFileTypeDataWarriorMacro);
-		mApplication = application;
 		}
 
     public DETaskRunMacroFromFile(DataWarrior application, String filePath) {
-		super(application.getActiveFrame(), "Open And Execute Macro",
+		super(application, "Open And Execute Macro",
 				FileHelper.cFileTypeDataWarriorMacro, filePath);
-		mApplication = application;
 		}
-
-	@Override
-	public Properties getRecentConfiguration() {
-    	return sRecentConfiguration;
-    	}
-
-	@Override
-	public void setRecentConfiguration(Properties configuration) {
-    	sRecentConfiguration = configuration;
-    	}
 
 	@Override
 	public String getTaskName() {
@@ -69,7 +54,7 @@ public class DETaskRunMacroFromFile extends DETaskAbstractOpenFile implements Ge
 
 		String fileName = configuration.getProperty(PROPERTY_FILENAME);
 
-		File file = ASK_FOR_FILE.equals(fileName) ? askForFile(null) : new File(resolveVariables(fileName));
+		File file = ASK_FOR_FILE.equals(fileName) ? askForFile(null) : new File(resolvePathVariables(fileName));
 		if (file == null) {
 			showErrorMessage("No file was chosen.");
 			return null;
@@ -87,7 +72,7 @@ public class DETaskRunMacroFromFile extends DETaskAbstractOpenFile implements Ge
 	public DEFrame openFile(File file, Properties configuration) {
 		try {
 			DEMacro macro = new DEMacro(file, null);
-			DEMacroRecorder.getInstance().runMacro(macro, mApplication.getActiveFrame());
+			DEMacroRecorder.getInstance().runMacro(macro, getApplication().getActiveFrame());
 			}
 		catch (IOException ioe) {}
 		return null;

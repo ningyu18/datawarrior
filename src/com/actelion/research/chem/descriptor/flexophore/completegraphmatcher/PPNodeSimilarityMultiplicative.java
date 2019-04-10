@@ -14,32 +14,26 @@ import com.actelion.research.forcefield.interaction.ClassInteractionTable;
  * @version 1.0
  * Jan 7, 2013 MvK Start implementation
  */
-public class PPNodeSimilarityMultiplicative {
+public class PPNodeSimilarityMultiplicative implements IPPNodeSimilarity {
 	
-	private static final int SIZE_SIM_MATRIX = 10; 
+	private static final int SIZE_SIM_MATRIX = 20;
 	
 	private static PPNodeSimilarityMultiplicative INSTANCE = null;
 	
-	private static ClassInteractionTable CIT;
-	
-	private double threshAtomSimilarity;
-	
-	private boolean invalidAtomMappping;
-	
+	private ClassInteractionTable classInteractionTable;
+
 	private Matrix maSimilarity;
 	
 	/**
 	 * This constructor is used for parallel mode.
 	 */
-	public PPNodeSimilarityMultiplicative(){
-				
-		
+	public PPNodeSimilarityMultiplicative(int versionInteractionTable){
+
 		maSimilarity = new Matrix(SIZE_SIM_MATRIX, SIZE_SIM_MATRIX);
-		
-		threshAtomSimilarity = ObjectiveFlexophoreHardMatchUncovered.THRESH_NODE_SIMILARITY;
-		if(CIT==null) {
+
+		if(classInteractionTable ==null) {
 			synchronized(this) {
-				CIT = ClassInteractionTable.getInstance();
+				classInteractionTable = ClassInteractionTable.getInstance(versionInteractionTable);
 			}
 		}
 	}
@@ -48,10 +42,10 @@ public class PPNodeSimilarityMultiplicative {
 	 * Use this as constructor for serial mode.
 	 * @return
 	 */
-	public static PPNodeSimilarityMultiplicative getInstance(){
+	public static PPNodeSimilarityMultiplicative getInstance(int versionInteractionTable){
 		if(INSTANCE == null) {
 			synchronized(PPNodeSimilarityMultiplicative.class) {
-				INSTANCE = new PPNodeSimilarityMultiplicative();
+				INSTANCE = new PPNodeSimilarityMultiplicative(versionInteractionTable);
 			}
 		}
 		return INSTANCE;
@@ -73,8 +67,11 @@ public class PPNodeSimilarityMultiplicative {
 			int interactionIdQuery = query.getInteractionId(i);
 			
 			for (int j = 0; j < base.getInteractionTypeCount(); j++) {
+
 				int interactionIdBase = base.getInteractionId(j);
-				double similarity = 1.0 - CIT.getDistance(interactionIdQuery, interactionIdBase);
+
+				double similarity = 1.0 - classInteractionTable.getDistance(interactionIdQuery, interactionIdBase);
+
 				maSimilarity.set(i,j,similarity);
 			}
 		}
@@ -82,25 +79,18 @@ public class PPNodeSimilarityMultiplicative {
 		double sim = 1.0;
 		
 		if(base.getInteractionTypeCount() > query.getInteractionTypeCount()) {
-			for (int j = 0; j < base.getInteractionTypeCount(); j++) {
-				sim *= maSimilarity.getMax(j);
+			for (int i = 0; i < base.getInteractionTypeCount(); i++) {
+				sim *= maSimilarity.getMax(i);
 			}
 		} else {
 			for (int i = 0; i < query.getInteractionTypeCount(); i++) {
 				sim *= maSimilarity.getMaxRow(i);
 			}
 		}
-		
-		
-		if(sim<threshAtomSimilarity){
-			invalidAtomMappping = true;
-		}
+
 		
 		return sim;
 	}
 
-	public boolean isInvalidAtomMappping() {
-		return invalidAtomMappping;
-	}
 	
 }

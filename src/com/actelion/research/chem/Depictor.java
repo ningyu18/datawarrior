@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -53,50 +53,45 @@ public class Depictor extends AbstractDepictor {
 
 
 	protected void drawBlackLine(DepictorLine theLine) {
-		((Graphics)mG).drawLine(Math.round(theLine.x1),Math.round(theLine.y1),
-		                        Math.round(theLine.x2),Math.round(theLine.y2));
+		((Graphics)mG).drawLine((int)Math.round(theLine.x1),(int)Math.round(theLine.y1),
+								(int)Math.round(theLine.x2),(int)Math.round(theLine.y2));
 		}
 
 
     protected void drawDottedLine(DepictorLine theLine) {
         Stroke stroke = ((Graphics2D)mG).getStroke();
-        ((Graphics2D)mG).setStroke(new BasicStroke(
-        						mLineWidth,
-                                BasicStroke.CAP_ROUND,
-                                BasicStroke.JOIN_ROUND,
-                                mLineWidth,
-                                new float[] {3.0f*mLineWidth},
-                                0f));
+        ((Graphics2D)mG).setStroke(new BasicStroke(mLineWidth, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND,
+		                        mLineWidth, new float[] {3.0f*mLineWidth}, 0f));
         ((Graphics)mG).drawLine((int)theLine.x1,(int)theLine.y1,
                                 (int)theLine.x2,(int)theLine.y2);
         ((Graphics2D)mG).setStroke(stroke);
         }
 
 
-    public void drawString(String theString,float x,float y) {
-		float strWidth = getStringWidth(theString);
-		((Graphics)mG).drawString(theString,Math.round(x-strWidth/2),Math.round(y+1+mpTextSize/3));
+    public void drawString(String theString,double x, double y) {
+	    double strWidth = getStringWidth(theString);
+		((Graphics)mG).drawString(theString,(int)Math.round(x-strWidth/2),(int)Math.round(y+1+mpTextSize/3));
 		}
 
 
-	protected void drawPolygon(float[] x, float[] y, int count) {
+	protected void drawPolygon(double[] x, double[] y, int count) {
 		int[] px = new int[count];
 		int[] py = new int[count];
 		for (int i=0; i<count; i++) {
-			px[i] = Math.round(x[i]);
-			py[i] = Math.round(y[i]);
+			px[i] = (int)Math.round(x[i]);
+			py[i] = (int)Math.round(y[i]);
 			}
 		((Graphics)mG).drawPolygon(px, py, count);
 		((Graphics)mG).fillPolygon(px, py, count);
 		}
 
 
-	protected void fillCircle(float x, float y, float r) {
-	    ((Graphics)mG).fillOval(Math.round(x), Math.round(y), Math.round(r), Math.round(r));
+	protected void fillCircle(double x, double y, double r) {
+	    ((Graphics)mG).fillOval((int)Math.round(x), (int)Math.round(y), (int)Math.round(r), (int)Math.round(r));
 		}
 
 
-	protected float getStringWidth(String theString) {
+	protected double getStringWidth(String theString) {
 		return ((Graphics)mG).getFontMetrics().stringWidth(theString);
 		}
 
@@ -112,7 +107,8 @@ public class Depictor extends AbstractDepictor {
                         return;
                     }
                 }
-                Font newFont = new Font("Helvetica", 0, mpTextSize);
+				Font newFont = ((Graphics)mG).getFont().deriveFont(0, mpTextSize);
+//                Font newFont = new Font("Helvetica", 0, mpTextSize);
                 mFonts.add(newFont);
                 currentFont = newFont;
                 ((Graphics) mG).setFont(newFont);
@@ -125,12 +121,12 @@ public class Depictor extends AbstractDepictor {
 	    }
 
 
-	protected float getLineWidth() {
+	protected double getLineWidth() {
 		return mLineWidth;
 		}
 
 
-	protected void setLineWidth(float lineWidth) {
+	protected void setLineWidth(double lineWidth) {
 		if (lineWidth <= 1.5f)
 			lineWidth = 1.0f;
 		if (mLineWidth != lineWidth) {

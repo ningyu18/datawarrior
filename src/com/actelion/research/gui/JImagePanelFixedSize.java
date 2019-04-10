@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -44,12 +44,8 @@ public class JImagePanelFixedSize extends JPanel {
 		repaint();
 		}
 
-	public void paint(Graphics g) {
+	@Override public void paintComponent(Graphics g) {
 		g.drawImage(mImage,0,0,this);
-		}
-
-	public void update(Graphics g) {
-		paint(g);
 		}
 
 	private void readImage(String fileName) {

@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -58,8 +58,10 @@ import com.actelion.research.gui.JDrawPanel;
 import com.actelion.research.gui.JFileChooserOverwrite;
 import com.actelion.research.gui.JProgressDialog;
 import com.actelion.research.gui.clipboard.ClipboardHandler;
-import com.actelion.research.table.CompoundTableEvent;
-import com.actelion.research.table.CompoundTableModel;
+import com.actelion.research.gui.hidpi.HiDPIHelper;
+import com.actelion.research.io.BOMSkipper;
+import com.actelion.research.table.model.CompoundTableEvent;
+import com.actelion.research.table.model.CompoundTableModel;
 
 public class DEMarkushDialog extends JDialog implements ActionListener,KeyListener,Runnable {
     private static final long serialVersionUID = 0x20080515;
@@ -80,7 +82,7 @@ public class DEMarkushDialog extends JDialog implements ActionListener,KeyListen
 
 		StereoMolecule mol = new StereoMolecule();
 		mol.setFragment(true);
-		mDrawPanel = new JDrawPanel(owner, mol, JDrawArea.MODE_MARKUSH_STRUCTURE);
+		mDrawPanel = new JDrawPanel(mol, JDrawArea.MODE_MARKUSH_STRUCTURE);
 		mDrawPanel.getDrawArea().setClipboardHandler(new ClipboardHandler());
 		getContentPane().add(mDrawPanel, BorderLayout.CENTER);
 
@@ -107,7 +109,7 @@ public class DEMarkushDialog extends JDialog implements ActionListener,KeyListen
 		getContentPane().add(bp, BorderLayout.SOUTH);
 //		getRootPane().setDefaultButton(bok);
 
-		setSize(720, 434);
+		setSize(HiDPIHelper.scale(720), HiDPIHelper.scale(434));
 		setLocationRelativeTo(owner);
 		setVisible(true);
 		}
@@ -279,7 +281,7 @@ e.printStackTrace();
             writer.write("\t<rGroupCount>"+markush.getRGroupCount()+"</rGroupCount>");
             writer.newLine();
             for (int i=0; i<markush.getRGroupCount(); i++) {
-                ExtendedMolecule[] substituent = markush.getRGroup(i).getFragments();
+                StereoMolecule[] substituent = markush.getRGroup(i).getFragments();
                 writer.write("\t<rGroup>");
                 writer.newLine();
                 writer.write("\t\t<substituentCount>"+substituent.length+"</substituentCount>");
@@ -310,6 +312,7 @@ e.printStackTrace();
 	private MarkushStructure readFile(Frame parent, File file) {
 	    try {
 	        BufferedReader reader = new BufferedReader(new InputStreamReader(new FileInputStream(file), "UTF-8"));
+			BOMSkipper.skip(reader);
 	        if (!reader.readLine().startsWith("<?xml version=")) {
 	        	reader.close();
 	            throw new IOException("Invalid Markush file format.");

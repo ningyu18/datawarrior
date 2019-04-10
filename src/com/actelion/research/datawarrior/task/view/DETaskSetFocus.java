@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,6 +18,7 @@
 
 package com.actelion.research.datawarrior.task.view;
 
+import com.actelion.research.table.model.CompoundTableListHandler;
 import info.clearthought.layout.TableLayout;
 
 import java.awt.Frame;
@@ -29,7 +30,6 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 
 import com.actelion.research.datawarrior.DEMainPane;
-import com.actelion.research.table.CompoundTableHitlistHandler;
 import com.actelion.research.table.view.CompoundTableView;
 import com.actelion.research.table.view.FocusableView;
 
@@ -43,8 +43,6 @@ public class DETaskSetFocus extends DETaskAbstractSetViewOptions {
 	private static final String ITEM_SELECTED_ROWS = "<Selected Rows>";
 	private static final String CODE_SELECTED_ROWS = "<selected>";
 
-	private static Properties sRecentConfiguration;
-	
 	private JComboBox		mComboBox;
 	
 	public DETaskSetFocus(Frame owner, DEMainPane mainPane, FocusableView view) {
@@ -71,8 +69,8 @@ public class DETaskSetFocus extends DETaskAbstractSetViewOptions {
 		mComboBox = new JComboBox();
 		mComboBox.addItem(ITEM_ALL_ROWS);
 		mComboBox.addItem(ITEM_SELECTED_ROWS);
-		for (int i=0; i<getTableModel().getHitlistHandler().getHitlistCount(); i++)
-			mComboBox.addItem(getTableModel().getColumnTitleExtended(CompoundTableHitlistHandler.getColumnFromHitlist(i)));
+		for (int i = 0; i<getTableModel().getListHandler().getListCount(); i++)
+			mComboBox.addItem(getTableModel().getColumnTitleExtended(CompoundTableListHandler.getColumnFromList(i)));
 		mComboBox.setEditable(!hasInteractiveView());
 		mComboBox.addItemListener(this);
 		cp.add(new JLabel("Row focus on:"), "1,1");
@@ -116,13 +114,13 @@ public class DETaskSetFocus extends DETaskAbstractSetViewOptions {
 
 	@Override
 	public void addViewConfiguration(Properties configuration) {
-		int hitlist = ((FocusableView)getInteractiveView()).getFocusHitlist();
-		if (hitlist == FocusableView.cHitlistUnassigned)
+		int list = ((FocusableView)getInteractiveView()).getFocusList();
+		if (list == FocusableView.cFocusNone)
 			configuration.setProperty(PROPERTY_ROWS, CODE_ALL_ROWS);
-		else if (hitlist == FocusableView.cFocusOnSelection)
+		else if (list == FocusableView.cFocusOnSelection)
 			configuration.setProperty(PROPERTY_ROWS, CODE_SELECTED_ROWS);
 		else
-			configuration.setProperty(PROPERTY_ROWS, getTableModel().getColumnTitleNoAlias(CompoundTableHitlistHandler.getColumnFromHitlist(hitlist)));
+			configuration.setProperty(PROPERTY_ROWS, getTableModel().getColumnTitleNoAlias(CompoundTableListHandler.getColumnFromList(list)));
 		}
 
 	@Override
@@ -147,24 +145,14 @@ public class DETaskSetFocus extends DETaskAbstractSetViewOptions {
 		}
 
 	@Override
-	public Properties getRecentConfigurationLocal() {
-		return sRecentConfiguration;
-		}
-	
-	@Override
-	public void setRecentConfiguration(Properties configuration) {
-		sRecentConfiguration = configuration;
-		}
-
-	@Override
 	public void applyConfiguration(CompoundTableView view, Properties configuration, boolean isAdjusting) {
 		String pseudoColumnName = configuration.getProperty(PROPERTY_ROWS, CODE_ALL_ROWS);
 		if (pseudoColumnName.equals(CODE_ALL_ROWS))
-			((FocusableView)view).setFocusHitlist(FocusableView.cHitlistUnassigned);
+			((FocusableView)view).setFocusHitlist(FocusableView.cFocusNone);
 		else if (pseudoColumnName.equals(CODE_SELECTED_ROWS))
 			((FocusableView)view).setFocusHitlist(FocusableView.cFocusOnSelection);
 		else
 			((FocusableView)view).setFocusHitlist(
-					CompoundTableHitlistHandler.getHitlistFromColumn(getTableModel().findColumn(pseudoColumnName)));
+					CompoundTableListHandler.getListFromColumn(getTableModel().findColumn(pseudoColumnName)));
 		}
 	}

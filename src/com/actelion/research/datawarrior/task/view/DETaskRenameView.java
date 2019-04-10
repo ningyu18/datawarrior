@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,6 +18,7 @@
 
 package com.actelion.research.datawarrior.task.view;
 
+import com.actelion.research.datawarrior.task.AbstractViewTask;
 import info.clearthought.layout.TableLayout;
 
 import java.awt.Frame;
@@ -32,12 +33,10 @@ import com.actelion.research.datawarrior.DEFrame;
 import com.actelion.research.datawarrior.DEMainPane;
 import com.actelion.research.table.view.CompoundTableView;
 
-public class DETaskRenameView extends DEAbstractViewTask {
+public class DETaskRenameView extends AbstractViewTask {
 	public static final String TASK_NAME = "Rename View";
 
 	private static final String PROPERTY_NEW_NAME = "newName";
-
-    private static Properties sRecentConfiguration;
 
 	private DEMainPane	mMainPane;
 	private JTextField	mTextFieldNewName;
@@ -121,14 +120,4 @@ public class DETaskRenameView extends DEAbstractViewTask {
 	public DEFrame getNewFrontFrame() {
 		return null;
 		}
-
-	@Override
-	public Properties getRecentConfiguration() {
-    	return sRecentConfiguration;
-    	}
-
-	@Override
-	public void setRecentConfiguration(Properties configuration) {
-    	sRecentConfiguration = configuration;
-    	}
 	}

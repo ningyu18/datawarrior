@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -3046,7 +3046,7 @@ public class ReactionClassifier {
 	/**
 	 * Searchs for largest connected carbon fragment to carbon atm in molecule mol
 	 * and returns list of fragment atom numbers. fragAtms[0] = no of frag atoms.
-	 * @param mol
+	 * @param m
 	 * @param startAtm
 	 * @return
 	 */
@@ -3285,9 +3285,9 @@ for (i=2; i<=aroms; i++)
 	/**
 	 * returns number and types of noncarbon-nonhydrogen substituents at carbon A
 	 * that happen not to appear at carbon B (determines incoming or leaving groups)
-	 * @param mol
+	 * @param m
 	 * @param atm
-	 * @param proMol
+	 * @param proM
 	 * @param proAtm
 	 * @return
 	 */
@@ -3404,9 +3404,9 @@ for (i=2; i<=aroms; i++)
      * lowest atom number becomes 0, the next higher one 1 and so on. This list
      * (each entry 2 bit) serves as an index for lookup tables that define, if
      * the same parity value in educt and product means inversion or retention.
-	 * @param mol1
+	 * @param m1
 	 * @param atm1
-	 * @param mol2
+	 * @param m2
 	 * @param atm2
 	 * @return 0: no info available; 1: creation of stereochemistry; 2:inversion; 3: retention
 	 */

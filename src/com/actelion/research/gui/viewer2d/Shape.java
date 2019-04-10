@@ -5,6 +5,7 @@ import java.awt.Color;
 import javax.vecmath.Point3i;
 
 
+
 import com.actelion.research.chem.Coordinates;
 import com.actelion.research.gui.viewer2d.jmol.Graphics3D;
 
@@ -46,6 +47,7 @@ public abstract class Shape implements Comparable {
 	/**
 	 * Comparator used to compare Shape according to their screen depth
 	 */
+	@Override
 	public int compareTo(Object o) {
 		Shape s = (Shape) o;
 		if(getScreenCoordinates()==null) return 1;

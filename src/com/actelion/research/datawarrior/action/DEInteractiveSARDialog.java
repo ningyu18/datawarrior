@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,6 +18,9 @@
 
 package com.actelion.research.datawarrior.action;
 
+import com.actelion.research.chem.coords.CoordinateInventor;
+import com.actelion.research.table.model.CompoundRecord;
+import com.actelion.research.table.model.CompoundTableModel;
 import info.clearthought.layout.TableLayout;
 
 import java.awt.*;
@@ -28,7 +31,6 @@ import javax.swing.*;
 import com.actelion.research.chem.*;
 import com.actelion.research.chem.descriptor.DescriptorConstants;
 import com.actelion.research.gui.*;
-import com.actelion.research.table.*;
 
 
 public class DEInteractiveSARDialog extends JDialog
@@ -508,7 +510,7 @@ public class DEInteractiveSARDialog extends JDialog
         // ensure that we don't have multiple fragments
         bbMol.ensureHelperArrays(Molecule.cHelperNeighbours);
         int[] fragmentNo = new int[bbMol.getAtoms()];
-        int fragmentCount = bbMol.getFragmentNumbers(fragmentNo, false);
+        int fragmentCount = bbMol.getFragmentNumbers(fragmentNo, false, true);
         if (fragmentCount != 1) {
             showMessageDialog("Your selection covers disconnected areas.");
             return null;
@@ -834,12 +836,14 @@ class BBConnection {
         case Molecule.cBondTypeDouble:
         case Molecule.cBondTypeTriple:
         case Molecule.cBondTypeDelocalized:
+        case Molecule.cBondTypeMetalLigand:
             return 0;
         default:
             return (((allowedBondTypes & Molecule.cBondTypeSingle) == 0) ? 0 : Molecule.cBondQFSingle)
                  + (((allowedBondTypes & Molecule.cBondTypeDouble) == 0) ? 0 : Molecule.cBondQFDouble)
                  + (((allowedBondTypes & Molecule.cBondTypeTriple) == 0) ? 0 : Molecule.cBondQFTriple)
-                 + (((allowedBondTypes & Molecule.cBondTypeDelocalized) == 0) ? 0 : Molecule.cBondQFDelocalized);
+                 + (((allowedBondTypes & Molecule.cBondTypeDelocalized) == 0) ? 0 : Molecule.cBondQFDelocalized)
+                 + (((allowedBondTypes & Molecule.cBondTypeMetalLigand) == 0) ? 0 : Molecule.cBondTypeMetalLigand);
             }
         }
 
@@ -1086,7 +1090,7 @@ class MoleculeContext {
     /**
      * Tries to match currently defined building blocks on given molecule.
      * If building blocks are matched, then describe the match in this MoleculeContext.
-     * @param bbListOfLists
+     * @param abbl
      */
     public int[] matchBuildingBlocks(ArrayList<AbstractBuildingBlock> abbl) {
         init();
@@ -1212,7 +1216,6 @@ class MoleculeContext {
     /**
      * Colorizes atoms in the context's refMol that are part
      * of building blocks defined in the MoleculeContext.
-     * @param context
      */
     public void colorizeBuildingBlocks() {
         ExtendedMolecule mol = mSearcher.getMolecule();

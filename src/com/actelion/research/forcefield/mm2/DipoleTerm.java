@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -19,18 +19,17 @@ package com.actelion.research.forcefield.mm2;
 
 import java.text.DecimalFormat;
 
-import com.actelion.research.chem.*;
+import com.actelion.research.chem.Coordinates;
+import com.actelion.research.chem.FFMolecule;
 import com.actelion.research.forcefield.AbstractTerm;
-import com.actelion.research.forcefield.FFParameters;
 import com.actelion.research.util.MathUtils;
 
 /**
  * 
  */
 public class DipoleTerm extends AbstractTerm {
-	private final static FFParameters parameters = MM2Parameters.getInstance();
+	private final static MM2Parameters parameters = MM2Parameters.getInstance();
 
-	public static double DIELECTRIC = 10; //1 in vaccum, 78 in water. Here is a good compromise
 	
 	private static final double CUTOFF = 10.0;
 	private static final double TAPER_CUTOFF = CUTOFF * .9;
@@ -50,12 +49,12 @@ public class DipoleTerm extends AbstractTerm {
 
 	protected static DipoleTerm create(MM2TermList tl, int a1, int a2, int a3, int a4) {
 		
-		int n1 = tl.getMolecule().getAtomMM2Class(a1);
-		int n2 = tl.getMolecule().getAtomMM2Class(a2);
-		int n3 = tl.getMolecule().getAtomMM2Class(a3);
-		int n4 = tl.getMolecule().getAtomMM2Class(a4);
+		int n1 = tl.getMolecule().getMM2AtomType(a1);
+		int n2 = tl.getMolecule().getMM2AtomType(a2);
+		int n3 = tl.getMolecule().getMM2AtomType(a3);
+		int n4 = tl.getMolecule().getMM2AtomType(a4);
 			
-		double Fik = 14.39 / DIELECTRIC 
+		double Fik = 14.39 / tl.getConfig().getDielectric() 
 				* parameters.getDipoleParameters(n1, n2) 
 				* parameters.getDipoleParameters(n3, n4);
 		

@@ -11,7 +11,6 @@ import java.util.List;
 
 import com.actelion.research.chem.Coordinates;
 import com.actelion.research.chem.FFMolecule;
-import com.actelion.research.chem.calculator.GeometryCalculator;
 
 
 /**
@@ -24,6 +23,7 @@ public class ToolMeasureDistance extends ToolMeasure {
 		return null;
 	}
 	
+	@Override
 	public void callSub(IPickable shape, final Canvas3D canvas) {
 
 		if(canvas.getPickedShapes().size()>=2) {	
@@ -32,12 +32,13 @@ public class ToolMeasureDistance extends ToolMeasure {
 			final int a2 = canvas.getPickedShapes().get(1).getValue();
 			if(a1<0 || a2<0) return;
 			canvas.addPaintProcessor(new PaintProcessor() {
+				@Override
 				public void preProcess() {
 					List<Shape> shapes = new ArrayList<Shape>();
 					FFMolecule mol = ((MoleculeCanvas)canvas).getMolecule();
 					if(a1>=mol.getAllAtoms() || a2>=mol.getAllAtoms()) return;
-					Coordinates c1 = GeometryCalculator.getCoordinates(mol, a1);
-					Coordinates c2 = GeometryCalculator.getCoordinates(mol, a2);
+					Coordinates c1 = mol.getCoordinates(a1);
+					Coordinates c2 = mol.getCoordinates(a2);
 					shapes.add(new Line(c1, c2, Color.green, Line.DOTTED_STROKE));
 
 					Coordinates middle = new Coordinates((c1.x + c2.x)/2, (c1.y + c2.y)/2, (c1.z + c2.z)/2); 

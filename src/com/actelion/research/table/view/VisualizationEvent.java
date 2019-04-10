@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -19,13 +19,21 @@
 package com.actelion.research.table.view;
 
 public class VisualizationEvent {
-	private VisualizationPanel mSource;
+	public enum TYPE { AXIS, ROTATION };
 
-	public VisualizationEvent(VisualizationPanel vp) {
+	private VisualizationPanel mSource;
+	private TYPE mType;
+
+	public VisualizationEvent(VisualizationPanel vp, TYPE type) {
 		mSource = vp;
+		mType = type;
 		}
 
 	public VisualizationPanel getSource() {
 		return mSource;
+		}
+
+	public TYPE getType() {
+		return mType;
 		}
 	}

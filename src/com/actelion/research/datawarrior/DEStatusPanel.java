@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,34 +18,24 @@
 
 package com.actelion.research.datawarrior;
 
+import com.actelion.research.calc.ProgressListener;
+import com.actelion.research.gui.hidpi.HiDPIHelper;
+import com.actelion.research.table.model.CompoundListSelectionModel;
+import com.actelion.research.table.model.CompoundTableModel;
 import info.clearthought.layout.TableLayout;
 
-import java.awt.Color;
-import java.awt.Component;
-import java.awt.Dimension;
-import java.awt.Font;
-import java.awt.Frame;
-
-import javax.swing.JLabel;
-import javax.swing.JOptionPane;
-import javax.swing.JPanel;
-import javax.swing.JProgressBar;
-import javax.swing.SwingConstants;
-import javax.swing.SwingUtilities;
+import javax.swing.*;
 import javax.swing.event.ListSelectionEvent;
 import javax.swing.event.ListSelectionListener;
-
-import com.actelion.research.calc.ProgressListener;
-import com.actelion.research.table.CompoundListSelectionModel;
-import com.actelion.research.table.CompoundTableModel;
+import java.awt.*;
 
 /**
  * Title:		DEStatusPanel.java
- * Description:  Status panel with progress bar and message area for data explorer
+ * Description: Status panel with progress bar and message area for data explorer
  * Copyright:	Copyright (c) 2001
- * Company:	  Actelion Ltd.
- * @author	   Thomas Sander
- * @version 1.0
+ * Company:     Actelion Ltd.
+ * @author      Thomas Sander
+ * @version     1.0
  */
 
 public class DEStatusPanel extends JPanel
@@ -70,7 +60,8 @@ public class DEStatusPanel extends JPanel
 		mTableModel = tableModel;
 		mTableModel.addProgressListener(this);
 
-		Font font = new Font("Helvetica", Font.BOLD, 12);
+		Font labelFont = UIManager.getFont("Label.font");
+		Font font = labelFont.deriveFont(Font.BOLD, labelFont.getSize()*12/13);
 
 		JLabel LabelSelected = new JLabel("Selected:", SwingConstants.RIGHT);
 		JLabel LabelVisible = new JLabel("Visible:", SwingConstants.RIGHT);
@@ -87,14 +78,17 @@ public class DEStatusPanel extends JPanel
 		mVisibleLabel.setFont(font);
 		mRecordsLabel.setFont(font);
 
+		Dimension pbSize = new Dimension(HiDPIHelper.scale(80), HiDPIHelper.scale(10));
 		mProgressBar.setVisible(false);
-		mProgressBar.setPreferredSize(new Dimension(80,8));
-		mProgressBar.setMaximumSize(new Dimension(80,8));
-		mProgressBar.setMinimumSize(new Dimension(80,8));
-		mProgressBar.setSize(new Dimension(80,8));
+		mProgressBar.setPreferredSize(pbSize);
+		mProgressBar.setMaximumSize(pbSize);
+		mProgressBar.setMinimumSize(pbSize);
+		mProgressBar.setSize(pbSize);
 
-		double[][] size = { {8, TableLayout.PREFERRED, 4, TableLayout.FILL, 60, 60, 60, 60, 60, 60, TableLayout.FILL},
-							{4, 4, TableLayout.PREFERRED, 4, 2} };
+		int w = HiDPIHelper.scale(68);
+		int scaled4 = HiDPIHelper.scale(4);
+		double[][] size = { {2*scaled4, TableLayout.PREFERRED, scaled4, TableLayout.FILL, w, w, w, w, w, w, TableLayout.FILL},
+							{scaled4, TableLayout.FILL, TableLayout.PREFERRED, TableLayout.FILL, scaled4/2} };
 
 		setLayout(new TableLayout(size));
 		add(mProgressBar, "1,2");
@@ -151,6 +145,10 @@ public class DEStatusPanel extends JPanel
 		doActionThreadSafe(UPDATE_PROGRESS, null, value, 0);
 		}
 
+	public void updateProgress(int value, String message) {
+		doActionThreadSafe(UPDATE_PROGRESS, message, value, 0);
+		}
+
 	public void stopProgress() {
 		doActionThreadSafe(STOP_PROGRESS, null, 0, 0);
 		}
@@ -181,7 +179,7 @@ public class DEStatusPanel extends JPanel
 			Component c = this;
 			while (!(c instanceof Frame))
 				c = c.getParent();
-			JOptionPane.showMessageDialog((Frame)c, text);
+			JOptionPane.showMessageDialog(c, text);
 			break;
 		case START_PROGRESS:
 			mProgressBar.setVisible(true);
@@ -193,6 +191,8 @@ public class DEStatusPanel extends JPanel
 		case UPDATE_PROGRESS:
 			int value = (v1 >= 0) ? v1 : mProgressBar.getValue()-v1;
 			mProgressBar.setValue(value);
+			if (text != null)
+				mProgressLabel.setText(text);
 			break;
 		case STOP_PROGRESS:
 			mProgressLabel.setText("");

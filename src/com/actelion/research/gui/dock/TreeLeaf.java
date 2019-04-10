@@ -1,16 +1,12 @@
 package com.actelion.research.gui.dock;
 
-import java.awt.Point;
-import java.awt.Rectangle;
+import javax.swing.*;
+import javax.swing.event.ChangeEvent;
+import javax.swing.event.ChangeListener;
+import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.util.ArrayList;
-
-import javax.swing.JComponent;
-import javax.swing.JPopupMenu;
-import javax.swing.JTabbedPane;
-import javax.swing.event.ChangeEvent;
-import javax.swing.event.ChangeListener;
 
 public class TreeLeaf extends TreeElement implements ChangeListener {
 	private JDockingPanel   mDockingPanel;
@@ -20,7 +16,9 @@ public class TreeLeaf extends TreeElement implements ChangeListener {
 
 	/**
 	 * Constructor to create a leaf element with a visible component on the screen.
-	 * @param Dockable the first Dockable of this TreeLeaf
+	 * @param dockable the first Dockable of this TreeLeaf
+	 * @param dockingPanel
+	 * @param isDragging
 	 */
 	public TreeLeaf(Dockable dockable, JDockingPanel dockingPanel, boolean isDragging) {
 		mComponent = dockable;

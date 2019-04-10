@@ -71,7 +71,7 @@ import javax.vecmath.Point3f;
  * A discussion of molecular/solvent-accessible surfaces can be found at
  * http://www.netsci.org/Science/Compchem/feature14e.html
  * 
- * In March 2007, Bob refactored all Geodesic business that was here 
+ * In March 2007, Bob refactored all Geodesic simple that was here
  * into the static class g3d.Geodesic, made GeoSurface an extension of Dots,
  * and generally similified the code. 
  * 

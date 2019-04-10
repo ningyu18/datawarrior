@@ -1,11 +1,11 @@
 package org.openmolecules.render;
 
-import java.awt.image.BufferedImage;
-
 import org.sunflow.SunflowAPI;
 import org.sunflow.core.Display;
 import org.sunflow.image.Color;
 import org.sunflow.system.Timer;
+
+import java.awt.image.BufferedImage;
 
 public class BufferedImageDisplay implements Display {
     private BufferedImage image;
@@ -74,4 +74,9 @@ public class BufferedImageDisplay implements Display {
     public synchronized BufferedImage getImage() {
         return image;
     	}
+
+    @Override
+    public boolean imageCancelled() {
+        return false;   // return true to stop all rendering threads
+        }
 	}

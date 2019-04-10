@@ -17,9 +17,9 @@ package org.openmolecules.chem.conf.gen;
 public class TorsionSetEliminationRule {
 	private long[] mMask;
 	private long[] mData;
-	private float mCollisionIntensity;
+	private double mCollisionIntensity;
 
-	public TorsionSetEliminationRule(long[] mask, long[] data, float collisionIntensity) {
+	public TorsionSetEliminationRule(long[] mask, long[] data, double collisionIntensity) {
 		mMask = mask;
 		mData = data;
 		mCollisionIntensity = collisionIntensity;
@@ -33,7 +33,7 @@ public class TorsionSetEliminationRule {
 		return mData;
 		}
 
-	public float getCollisionIntensity() {
+	public double getCollisionIntensity() {
 		return mCollisionIntensity;
 		}
 

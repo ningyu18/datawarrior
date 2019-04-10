@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,6 +18,11 @@
 
 package com.actelion.research.chem;
 
+import com.actelion.research.chem.coords.CoordinateInventor;
+import com.actelion.research.chem.reaction.Reaction;
+import com.actelion.research.util.ArrayUtils;
+import com.actelion.research.util.ByteArray;
+
 import java.util.TreeMap;
 
 
@@ -27,6 +32,36 @@ public class SmilesParser {
 	private static final int MAX_AROMATIC_RING_SIZE = 15;
 	private StereoMolecule mMol;
 	private boolean[] mIsAromaticBond;
+	private int mAromaticAtoms,mAromaticBonds;
+
+	public Reaction parseReaction(byte[] smiles) throws Exception {
+		int index1 = ArrayUtils.indexOf(smiles, (byte)'>');
+		int index2 = (index1 == -1) ? -1 : ArrayUtils.indexOf(smiles, (byte)'>', index1+1);
+		if (index2 == -1)
+			throw new Exception("Missing one or both separators ('>').");
+		if (ArrayUtils.indexOf(smiles, (byte)'>', index2+1) != -1)
+			throw new Exception("Found more than 2 separators ('>').");
+
+		StereoMolecule reactants = new StereoMolecule();
+		parse(reactants, smiles, 0, index1);
+
+		StereoMolecule products = new StereoMolecule();
+		parse(products, smiles, index2+1, smiles.length);
+
+		StereoMolecule catalysts = null;
+		if (index2 - index1 > 1) {
+			catalysts = new StereoMolecule();
+			parse(catalysts, smiles, index1+1, index2);
+			}
+
+		Reaction rxn = new Reaction();
+		rxn.addReactant(reactants);
+		rxn.addProduct(products);
+		if (catalysts != null)
+			rxn.addCatalyst(catalysts);
+
+		return rxn;
+		}
 
 	/**
 	 * Parses the given smiles into the molecule, creates proper atom coordinates
@@ -44,7 +79,15 @@ public class SmilesParser {
 		parse(mol, smiles, true, true);
 		}
 
+	public void parse(StereoMolecule mol, byte[] smiles, int position, int endIndex) throws Exception {
+		parse(mol, smiles, position, endIndex, true, true);
+		}
+
 	public void parse(StereoMolecule mol, byte[] smiles, boolean createCoordinates, boolean readStereoFeatures) throws Exception {
+		parse(mol, smiles, 0, smiles.length, createCoordinates, readStereoFeatures);
+		}
+
+	public void parse(StereoMolecule mol, byte[] smiles, int position, int endIndex, boolean createCoordinates, boolean readStereoFeatures) throws Exception {
 		mMol = mol;
 		mMol.deleteMolecule();
 
@@ -55,23 +98,22 @@ public class SmilesParser {
 
 		int[] ringClosureAtom = new int[MAX_RE_CONNECTIONS];
 		int[] ringClosurePosition = new int[MAX_RE_CONNECTIONS];
+		int[] ringClosureBondType = new int[MAX_RE_CONNECTIONS];
 		for (int i=0; i<MAX_RE_CONNECTIONS; i++)
 			ringClosureAtom[i] = -1;
 
-		int position = 0;
 		int atomMass = 0;
 		int fromAtom = -1;
 		boolean squareBracketOpen = false;
 		boolean percentFound = false;
 		boolean smartsFeatureFound = false;
 		int bracketLevel = 0;
-		int smilesLength = smiles.length;
 		int bondType = Molecule.cBondTypeSingle;
 
 		while (smiles[position] <= 32)
 			position++;
 
-		while (position < smilesLength) {
+		while (position < endIndex) {
 			char theChar = (char)smiles[position++];
 
 			if (Character.isLetter(theChar) || theChar == '*') {
@@ -118,7 +160,7 @@ public class SmilesParser {
 				else {
 					switch (Character.toUpperCase(theChar)) {
 					case 'B':
-						if (position < smilesLength && smiles[position] == 'r') {
+						if (position < endIndex && smiles[position] == 'r') {
 							atomicNo = 35;
 							position++;
 							}
@@ -126,7 +168,7 @@ public class SmilesParser {
 							atomicNo = 5;
 						break;
 					case 'C':
-						if (position < smilesLength && smiles[position] == 'l') {
+						if (position < endIndex && smiles[position] == 'l') {
 							atomicNo = 17;
 							position++;
 							}
@@ -162,8 +204,14 @@ public class SmilesParser {
 					smartsFeatureFound = true;
 					mMol.setAtomQueryFeature(atom, Molecule.cAtomQFAny, true);
 					}
-				else {	// mark aromatic atoms
-					mMol.setAtomMarker(atom, Character.isLowerCase(theChar));
+
+				// mark aromatic atoms
+				if (Character.isLowerCase(theChar)) {
+					mMol.setAtomMarker(atom, true);
+					mAromaticAtoms++;
+					}
+				else {
+					mMol.setAtomMarker(atom, false);
 					}
 
 				// put explicitHydrogen into atomCustomLabel to keep atom-relation when hydrogens move to end of atom list in handleHydrogen()
@@ -219,7 +267,7 @@ public class SmilesParser {
 			if (Character.isDigit(theChar)) {
 				int number = theChar - '0';
 				if (squareBracketOpen) {
-					while (position < smilesLength
+					while (position < endIndex
 					 && Character.isDigit(smiles[position])) {
 						number = 10 * number + smiles[position] - '0';
 						position++;
@@ -227,8 +275,9 @@ public class SmilesParser {
 					atomMass = number;
 					}
 				else {
+					boolean hasBondType = (smiles[position-2] == '-' || smiles[position-2] == '=' || smiles[position-2] == '#' || smiles[position-2] == ':');
 					if (percentFound
-					 && position < smilesLength
+					 && position < endIndex
 					 && Character.isDigit(smiles[position])) {
 						number = 10 * number + smiles[position] - '0';
 						position++;
@@ -239,8 +288,12 @@ public class SmilesParser {
 					if (ringClosureAtom[number] == -1) {
 						ringClosureAtom[number] = baseAtom[bracketLevel];
 						ringClosurePosition[number] = position-1;
+						ringClosureBondType[number] = hasBondType ? bondType : -1;
 						}
 					else {
+						if (ringClosureAtom[number] == baseAtom[bracketLevel])
+							throw new Exception("SmilesParser: ring closure to same atom");
+
 						if (readStereoFeatures && parityMap != null) {
 							THParity parity = parityMap.get(ringClosureAtom[number]);
 							if (parity != null)
@@ -250,6 +303,8 @@ public class SmilesParser {
 								parity.addNeighbor(ringClosureAtom[number], position-1, false);
 							}
 
+						if (ringClosureBondType[number] != -1)
+							bondType = ringClosureBondType[number];
 						mMol.addBond(baseAtom[bracketLevel], ringClosureAtom[number], bondType);
 						ringClosureAtom[number] = -1;	// for number re-usage
 						}
@@ -358,8 +413,20 @@ public class SmilesParser {
 				continue;	// encode backslash temporarily in bondType
 				}
 
+			if (theChar <= ' ') {	// we stop reading at whitespace
+				position = endIndex;
+				continue;
+			}
+
 			throw new Exception("SmilesParser: unexpected character found: '"+theChar+"'");
 			}
+
+		// Check for unsatisfied open bonds
+		if (bondType != Molecule.cBondTypeSingle)
+			throw new Exception("SmilesParser: dangling open bond");
+		for (int i=0; i<MAX_RE_CONNECTIONS; i++)
+			if (ringClosureAtom[i] != -1)
+				throw new Exception("SmilesParser: dangling ring closure");
 
 		int[] handleHydrogenAtomMap = mMol.getHandleHydrogenMap();
 
@@ -373,7 +440,8 @@ public class SmilesParser {
 					if (mMol.getAtomicNo(atom) < Molecule.cAtomValence.length
 					 && Molecule.cAtomValence[mMol.getAtomicNo(atom)] != null) {
 						boolean compatibleValenceFound = false;
-						int usedValence = mMol.getOccupiedValence(atom) - mMol.getElectronValenceCorrection(atom);
+						int usedValence = mMol.getOccupiedValence(atom);
+						usedValence -= mMol.getElectronValenceCorrection(atom, usedValence);
 						for (byte valence:Molecule.cAtomValence[mMol.getAtomicNo(atom)]) {
 							if (usedValence <= valence) {
 								compatibleValenceFound = true;
@@ -385,9 +453,15 @@ public class SmilesParser {
 						if (!compatibleValenceFound)
 							mMol.setAtomAbnormalValence(atom, usedValence+explicitHydrogen);
 						}
+					else {
+						for (int i=0; i<explicitHydrogen; i++)
+							mol.addBond(atom, mol.addAtom(1), 1);
+						}
 					}
 				}
 			}
+
+		mMol.ensureHelperArrays(Molecule.cHelperNeighbours);
 
 		correctValenceExceededNitrogen();	// convert pyridine oxides and nitro into polar structures with valid nitrogen valences
 
@@ -425,12 +499,14 @@ public class SmilesParser {
 	private void locateAromaticDoubleBonds() throws Exception {
 		mMol.ensureHelperArrays(Molecule.cHelperNeighbours);
 		mIsAromaticBond = new boolean[mMol.getBonds()];
+		mAromaticBonds = 0;
 
 		// all explicitly defined aromatic bonds are taken
 		for (int bond=0; bond<mMol.getBonds(); bond++) {
 			if (mMol.getBondType(bond) == Molecule.cBondTypeDelocalized) {
 				mMol.setBondType(bond, Molecule.cBondTypeSingle);
 				mIsAromaticBond[bond] = true;
+				mAromaticBonds++;
 				}
 			}
 
@@ -448,8 +524,12 @@ public class SmilesParser {
 				}
 			if (isAromaticRing[ring]) {
 				int[] ringBond = ringSet.getRingBonds(ring);
-				for (int i=0; i<ringBond.length; i++)
-					mIsAromaticBond[ringBond[i]] = true;
+				for (int i=0; i<ringBond.length; i++) {
+					if (!mIsAromaticBond[ringBond[i]]) {
+						mIsAromaticBond[ringBond[i]] = true;
+						mAromaticBonds++;
+						}
+					}
 				}
 			}
 
@@ -467,6 +547,16 @@ public class SmilesParser {
 
 		mMol.ensureHelperArrays(Molecule.cHelperRings);	// to accomodate for the structure changes
 
+		// Since Smiles don't have aromaticity information about bonds, we assume that all
+		// bonds of a ring are aromatic if all of its atoms are aromatic. This is not always true
+		// (e.g. in fbc@@@LdbbbbbRJvcEBMIpTqrAD@@@@@@@@), which may lead to wrong resolution of
+		// conjugated double bonds leaving unpaired single aromatic atoms.
+		// We cache the (untrustworthy) isAromaticBond array to later find paths between single
+		// aromatic atoms.
+		boolean[] isAromaticBond = new boolean[mMol.getBonds()];
+		for (int i=0; i<mMol.getBonds(); i++)
+			isAromaticBond[i] = mIsAromaticBond[i];
+
 			// Some Smiles contain 'aromatic' rings with atoms not being compatible
 			// with a PI-bond. These include: tertiary non-charged nitrogen, [nH],
 			// sulfur, non-charged oxygen, charged carbon, etc...
@@ -477,13 +567,22 @@ public class SmilesParser {
 				int[] ringAtom = ringSet.getRingAtoms(ring);
 				for (int i=0; i<ringAtom.length; i++) {
 					if (!qualifiesForPi(ringAtom[i])) {
-						mMol.setAtomMarker(ringAtom[i], false);// mark: atom aromaticity handled
-						for (int j=0; j<mMol.getConnAtoms(ringAtom[i]); j++)
-							mIsAromaticBond[mMol.getConnBond(ringAtom[i], j)] = false;
+						if (mMol.isMarkedAtom(ringAtom[i])) {
+							mMol.setAtomMarker(ringAtom[i], false);// mark: atom aromaticity handled
+							mAromaticAtoms--;
+							}
+						for (int j=0; j<mMol.getConnAtoms(ringAtom[i]); j++) {
+							int connBond = mMol.getConnBond(ringAtom[i], j);
+							if (mIsAromaticBond[connBond]) {
+								mIsAromaticBond[connBond] = false;
+								mAromaticBonds--;
+								}
+							}
 						}
 					}
 				}
 			}
+
 		promoteObviousBonds();
 
 		// promote fully delocalized 6-membered rings
@@ -533,14 +632,64 @@ public class SmilesParser {
 				} while (qualifyingBondFound);
 			}
 
-		for (int bond=0; bond<mMol.getBonds(); bond++)
-			if (mIsAromaticBond[bond])
-				throw new Exception("Assignment of aromatic double bonds failed");
-		for (int atom=0; atom<mMol.getAtoms(); atom++)
-			if (mMol.isMarkedAtom(atom))
-				throw new Exception("Assignment of aromatic double bonds failed");
+		while (mAromaticAtoms >= 2)
+			if (!connectConjugatedRadicalPairs(isAromaticBond))
+				break;
+
+		if (mAromaticAtoms != 0)
+			throw new Exception("Assignment of aromatic double bonds failed");
+		if (mAromaticBonds != 0)
+			throw new Exception("Assignment of aromatic double bonds failed");
 		}
 
+
+	private boolean connectConjugatedRadicalPairs(boolean[] isAromaticBond) {
+		for (int atom=0; atom<mMol.getAtoms(); atom++) {
+			if (mMol.isMarkedAtom(atom)) {
+				int[] graphLevel = new int[mMol.getAtoms()];
+				int graphAtom[] = new int[mMol.getAtoms()];
+				int graphParent[] = new int[mMol.getAtoms()];
+
+				graphAtom[0] = atom;
+				graphLevel[atom] = 1;
+				graphParent[atom] = -1;
+				int current = 0;
+				int highest = 0;
+				while (current <= highest) {
+					int bondOrder = ((graphLevel[graphAtom[current]] & 1) == 1) ? 1 : 2;
+					for (int i=0; i<mMol.getConnAtoms(graphAtom[current]); i++) {
+						int bond = mMol.getConnBond(graphAtom[current], i);
+						if (mMol.getBondOrder(bond) == bondOrder && isAromaticBond[bond]) {
+							int candidate = mMol.getConnAtom(graphAtom[current], i);
+							if (graphLevel[candidate] == 0) {
+								if (bondOrder == 1 && mMol.isMarkedAtom(candidate)) {
+									int parent = graphAtom[current];
+									while (parent != -1) {
+										mMol.setBondType(mMol.getBond(candidate,  parent), bondOrder == 1 ?
+												Molecule.cBondTypeDouble : Molecule.cBondTypeSingle);
+										bondOrder = 3 - bondOrder;
+										candidate = parent;
+										parent = graphParent[parent];
+										}
+
+									mMol.setAtomMarker(atom, false);
+									mMol.setAtomMarker(candidate, false);
+									mAromaticAtoms -= 2;
+									return true;
+									}
+
+								graphAtom[++highest] = candidate;
+								graphParent[candidate] = graphAtom[current];
+								graphLevel[candidate] = graphLevel[graphAtom[current]]+1;
+								}
+							}
+						}
+					current++;
+					}
+				}
+			}
+		return false;
+		}
 
 	private void addLargeAromaticRing(int bond) {
 		int[] graphLevel = new int[mMol.getAtoms()];
@@ -569,8 +718,12 @@ public class SmilesParser {
 					int candidateBond = mMol.getConnBond(parent, i);
 					if (candidate == atom1) {	// ring closure
 						graphBond[0] = candidateBond;
-						for (int j=0; j<=highest; j++)
-							mIsAromaticBond[graphBond[i]] = true;
+						for (int j=0; j<=highest; j++) {
+							if (!mIsAromaticBond[graphBond[i]]) {
+								mIsAromaticBond[graphBond[i]] = true;
+								mAromaticBonds++;
+								}
+							}
 						return;
 						}
 	
@@ -591,8 +744,14 @@ public class SmilesParser {
 
 
 	private boolean qualifiesForPi(int atom) {
-		if ((mMol.getAtomicNo(atom) == 16 && mMol.getAtomCharge(atom) <= 0)
-		 || (mMol.getAtomicNo(atom) == 6 && mMol.getAtomCharge(atom) != 0)
+		if (mMol.getAtomicNo(atom) == 16
+		 || mMol.getAtomicNo(atom) == 34
+		 || mMol.getAtomicNo(atom) == 52) {
+			if (mMol.getConnAtoms(atom) == 2 && mMol.getAtomCharge(atom) <= 0)
+				return false;
+			}
+
+		if ((mMol.getAtomicNo(atom) == 6 && mMol.getAtomCharge(atom) != 0)
 		 || !mMol.isMarkedAtom(atom))	// already marked as hetero-atom of another ring
 			return false;
 
@@ -620,9 +779,17 @@ public class SmilesParser {
 
 		for (int i=0; i<2; i++) {
 			int bondAtom = mMol.getBondAtom(i, bond);
-			mMol.setAtomMarker(bondAtom, false);
-			for (int j=0; j<mMol.getConnAtoms(bondAtom); j++)
-				mIsAromaticBond[mMol.getConnBond(bondAtom, j)] = false;
+			if (mMol.isMarkedAtom(bondAtom)) {
+				mMol.setAtomMarker(bondAtom, false);
+				mAromaticAtoms--;
+				}
+			for (int j=0; j<mMol.getConnAtoms(bondAtom); j++) {
+				int connBond = mMol.getConnBond(bondAtom, j);
+				if (mIsAromaticBond[connBond]) {
+					mIsAromaticBond[connBond] = false;
+					mAromaticBonds--;
+					}
+				}
 			}
 		}
 
@@ -707,8 +874,9 @@ public class SmilesParser {
 					for (int j=0; j<mMol.getConnAtoms(atom); j++) {
 						int connBond = mMol.getConnBond(atom, j);
 						if (connBond != bond) {
-							if (mMol.getBondType(connBond) == Molecule.cBondTypeUp
-							 || mMol.getBondType(connBond) == Molecule.cBondTypeDown) {
+							if (refAtom[i] == -1
+							 && (mMol.getBondType(connBond) == Molecule.cBondTypeUp
+							  || mMol.getBondType(connBond) == Molecule.cBondTypeDown)) {
 								refAtom[i] = mMol.getConnAtom(atom, j);
 								refBond[i] = connBond;
 								}
@@ -721,16 +889,25 @@ public class SmilesParser {
 						break;
 					}
 				if (refAtom[0] != -1 && refAtom[1] != -1) {
-					boolean isZ = mMol.getBondType(refBond[0]) != mMol.getBondType(refBond[1]);
-					boolean inversion = false;
-					for (int i=0; i<2; i++) {
+					boolean isZ = mMol.getBondType(refBond[0]) == mMol.getBondType(refBond[1]);
+
+					// We need to correct, because slash or backslash refer to the double bonded
+					// atom and not to the double bond itself as explained in opensmiles.org:
+					//     F/C=C/F and C(\F)=C/F are both E
+					// bondAtom[1] is always the parent in graph to bondAtom[0]. We use this to correct:
+					for (int i=0; i<2; i++)
+						if (refAtom[i] == mMol.getBondAtom(0, refBond[i]))
+							isZ = !isZ;
+
+					// E/Z configuration in the StereoMolecule refer to those neighbors with
+					// lower atom index. Thus, we adapt for this:
+					for (int i=0; i<2; i++)
 						if (otherAtom[i] != -1
 						 && otherAtom[i] < refAtom[i])
-							inversion = !inversion;
-						}
+							isZ = !isZ;
 
-					mMol.setBondParity(bond, isZ ^ inversion ? Molecule.cBondParityZor2
-															 : Molecule.cBondParityEor1, false);
+					mMol.setBondParity(bond, isZ ? Molecule.cBondParityZor2
+												 : Molecule.cBondParityEor1, false);
 					paritiesFound = true;
 					}
 				}

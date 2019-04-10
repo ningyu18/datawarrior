@@ -42,6 +42,7 @@ In addition to the plain data, <b>.dwar</b> files may contain the following kind
 <li>Keys and links for on-the-fly retrieval of cell related detail data from external sources</li>
 <li>Hidden columns with molecule data such as descriptors and atom coordinates</li>
 <li>Macros that allow to completely automate <span class="keyword">DataWarrior</span> (from version 4.0)</li>
+</p>
 <p>To open a native <span class="keyword">DataWarrior</span> file, choose <span class="menu">Open</span>
 from the <span class="menu">File</span> menu or just double-click an icon representing a <b>.dwar</b> file.</p>
 
@@ -145,8 +146,13 @@ defined directories.</p><br>
 <p>If you copy tabular data from any text editor or spreadsheet
 application, you may paste it directly into <span class="keyword">DataWarrior</span>. This will open
 the data as if it were loaded from a text file. By analyzing the data
-<span class="keyword">DataWarrior</span> will try to evaluate whether a header row is present
-and if it believes that there is none it will generate default column names.</p>
+<span class="keyword">DataWarrior</span> will try to evaluate, whether a header row is present.
+If it believes that there is none it will generate default column names.</p>
+
+<p>In most cases <span class="keyword">DataWarrior</span> will correctly predict, whether
+the clipboard content starts with a header row. If it fails because of insuffucient clues,
+then one may use one of the <span class="menu">Paste Special</span> options to hint that
+a row header is present or not.</p>
 
 <p>In the following example some data was selected within a spreadsheet application
 and then copied to the clipboard with Ctrl-C.</p>
@@ -164,17 +170,25 @@ the data now contains chemical structures, it also created a dedicated structure
 
 <h3><a name="ImportData"></a>Importing Data From Databases</h3>
 
-<p>Depending on your particular version <span class="keyword">DataWarrior</span> may be able to directly retrieve data from
-databases. At Actelion the following options exist:</p>
-
+<p>Depending on your particular version <span class="keyword">DataWarrior</span> is able to directly retrieve
+data from a variety of databases. These include:
+<li>Compounds & Activities from the <a href="help/databases.html#Chembl">ChEMBL database</a></li>
+<li>3D-Structures from the <a href="help/databases.html#COD">Crystallography Open Database</a> (COD)</li>
+<li>All chemicals structures from <a href="help/databases.html#Wikipedia">Wikipedia</a></li>
+<li>Data from any <a href="help/databases.html#CustomURL">Web-based data source</a> in TAB or comma delimited
+format, e.g. Google spreadsheets</li>
+</p>
+<p>At Actelion the following additional database options exist:
 <li>Chemical and biological data from the <span class="keyword">Osiris Database</span></li>
 <li>Compounds and data from Actelion's <span class="keyword">Chemical Inventory</span></li>
+<li>Compounds & products from the <span class="keyword">Commercial Chemicals Database</span></li>
+<li>Compounds from the <span class="keyword">Screening Compounds Database</span></li>
 <li>Protein Crystallization Data</li>
 <li>Micro Array Data</li>
 <li>Gene Expression Data</li>
-<li>Compounds from the <span class="keyword">Screening Compounds Database</span></li>
-
+</p>
 <br>
 <p align="center">Continue with <a href="help/views.html">Main Views</a>...</p>
+<br>
 </body>
 </html>

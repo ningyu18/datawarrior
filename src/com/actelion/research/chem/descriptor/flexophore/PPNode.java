@@ -76,8 +76,7 @@ public class PPNode implements Comparable<PPNode> {
 		int index = size * NUM_BYTES_INTERACTION_TYPE;
 		
 		if(index == arrInteractionType.length){
-			index = arrInteractionType.length;
-			
+
 			arrInteractionType = ArrayUtilsCalc.resize(arrInteractionType, arrInteractionType.length+BUFFER_SIZE);
 			
 		}

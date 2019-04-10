@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,10 +18,10 @@
 
 package com.actelion.research.gui;
 
+import com.actelion.research.gui.hidpi.HiDPIHelper;
 import info.clearthought.layout.TableLayout;
 
-import java.awt.Component;
-import java.awt.Frame;
+import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 
@@ -69,6 +69,10 @@ public class JProgressPanel extends JPanel implements ActionListener,ProgressCon
 			}
 		}
 
+	public void updateProgress(int value, String message) {
+		updateProgress(value);
+		}
+
 	public void stopProgress() {
 			// may be called safely from any thread
 		mAction |= sActionStop;
@@ -102,10 +106,12 @@ public class JProgressPanel extends JPanel implements ActionListener,ProgressCon
 		}
 
 	private void initialize(boolean showCancelButton) {
-        double[][] sizeWithCancel =    { {8, TableLayout.FILL, 4, TableLayout.PREFERRED, 8},
-                                         {TableLayout.FILL, 8, TableLayout.FILL} };
-        double[][] sizeWithoutCancel = { {8, TableLayout.FILL, 8},
-                                         {TableLayout.FILL, 8, TableLayout.FILL} };
+		final int scaled8 = HiDPIHelper.scale(8);
+		final int scaled10 = HiDPIHelper.scale(10);
+        double[][] sizeWithCancel =    { {scaled8, TableLayout.FILL, scaled8/2, TableLayout.PREFERRED, scaled8},
+                                         {TableLayout.FILL, scaled10, TableLayout.FILL} };
+        double[][] sizeWithoutCancel = { {scaled8, TableLayout.FILL, scaled8},
+                                         {TableLayout.FILL, scaled10, TableLayout.FILL} };
 		setLayout(new TableLayout(showCancelButton ? sizeWithCancel : sizeWithoutCancel));
 
 		mProgressBar = new JProgressBar();

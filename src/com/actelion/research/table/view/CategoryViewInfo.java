@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -21,10 +21,13 @@ package com.actelion.research.table.view;
 import java.awt.Color;
 
 public class CategoryViewInfo {
-    int[][] pointsInCategory;
+    int[][] pointsInCategory;   // in case of box plot this excludes outliers
     int[][][] pointsInColorCategory;
     Color[] color;
     float[][] barValue;
+    float[][] mean;
+    float[][] stdDev;	// standard deviation (sigma-1)
+    float[][] errorMargin;// (95 % confidence)
     float[][] innerDistance;   // distance of two adjacent sub-bar areas in bar
     float[][] pieX;
     float[][] pieY;
@@ -40,4 +43,4 @@ public class CategoryViewInfo {
         barValue = new float[hvCount][catCount];
         color = new Color[colorCount];
         }
-	}
+ 	}

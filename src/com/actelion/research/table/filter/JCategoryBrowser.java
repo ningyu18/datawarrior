@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,33 +18,22 @@
 
 package com.actelion.research.table.filter;
 
+import com.actelion.research.gui.hidpi.HiDPIHelper;
+import com.actelion.research.gui.hidpi.HiDPIIconButton;
+import com.actelion.research.table.model.CompoundRecord;
+import com.actelion.research.table.model.CompoundTableEvent;
+import com.actelion.research.table.model.CompoundTableListener;
+import com.actelion.research.table.model.CompoundTableModel;
 import info.clearthought.layout.TableLayout;
 
-import java.awt.BorderLayout;
-import java.awt.Color;
-import java.awt.Dimension;
-import java.awt.Frame;
+import javax.swing.*;
+import javax.swing.event.ChangeEvent;
+import javax.swing.event.ChangeListener;
+import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.MouseEvent;
 import java.util.ArrayList;
-
-import javax.swing.ImageIcon;
-import javax.swing.JButton;
-import javax.swing.JComboBox;
-import javax.swing.JLabel;
-import javax.swing.JOptionPane;
-import javax.swing.JPanel;
-import javax.swing.JSlider;
-import javax.swing.JTextField;
-import javax.swing.event.ChangeEvent;
-import javax.swing.event.ChangeListener;
-
-import com.actelion.research.table.CompoundRecord;
-import com.actelion.research.table.CompoundTableEvent;
-import com.actelion.research.table.CompoundTableListener;
-import com.actelion.research.table.CompoundTableModel;
-import com.actelion.research.util.Platform;
 
 public class JCategoryBrowser extends JFilterPanel
 				implements ActionListener,ChangeListener,CompoundTableListener,Runnable {
@@ -75,8 +64,6 @@ public class JCategoryBrowser extends JFilterPanel
 
 		mParentFrame = parent;
 
-		setText(DISABLED_TEXT, Color.black);
-
 		JPanel contentPanel = new JPanel();
 		double[][] size = { {4, TableLayout.PREFERRED, 4, TableLayout.FILL, TableLayout.PREFERRED, 4},
 							{TableLayout.PREFERRED, 8, TableLayout.PREFERRED, 4} };
@@ -88,7 +75,7 @@ public class JCategoryBrowser extends JFilterPanel
 			private static final long serialVersionUID = 0x20080611;
 			public Dimension getPreferredSize() {
 				Dimension size = super.getPreferredSize();
-				size.width = Math.min(72, size.width);
+				size.width = Math.min(HiDPIHelper.scale(72), size.width);
 				return size;
 				}
 			};
@@ -96,23 +83,18 @@ public class JCategoryBrowser extends JFilterPanel
 		contentPanel.add(mComboBox, "3,0,4,0");
 
 		if (isActive()) {
-			if (sIconLeft == null)
-				sIconLeft = new ImageIcon(this.getClass().getResource("/images/buttonLeft.png"));
-			if (sIconRight == null)
-				sIconRight = new ImageIcon(this.getClass().getResource("/images/buttonRight.png"));
-	
 			JPanel sliderPanel = new JPanel();
 			sliderPanel.setLayout(new BorderLayout());
 	
-			mButtonLeft = createButton(sIconLeft);
-			sliderPanel.add(mButtonLeft, BorderLayout.WEST);
+			mButtonLeft = createButton(180);
+			sliderPanel.add(wrapButton(mButtonLeft), BorderLayout.WEST);
 	
-			mButtonRight = createButton(sIconRight);
-			sliderPanel.add(mButtonRight, BorderLayout.EAST);
+			mButtonRight = createButton(0);
+			sliderPanel.add(wrapButton(mButtonRight), BorderLayout.EAST);
 	
 			mSlider = new JSlider(JSlider.HORIZONTAL, 0, 100, 0);
 			mSlider.setOpaque(false);
-			mSlider.setPreferredSize(new Dimension(100, mSlider.getPreferredSize().height));
+			mSlider.setPreferredSize(new Dimension(HiDPIHelper.scale(100), mSlider.getPreferredSize().height));
 			mSlider.addChangeListener(this);
 			mSlider.setEnabled(false);
 			sliderPanel.add(mSlider, BorderLayout.CENTER);
@@ -132,9 +114,10 @@ public class JCategoryBrowser extends JFilterPanel
 		}
 
 	@Override
-	public boolean canEnable() {
+	public boolean canEnable(boolean suppressErrorMessages) {
 		if (isActive() && mComboBox.getItemCount() == 0) {
-			JOptionPane.showMessageDialog(mParentFrame, "This category browser cannot be enabled, because\n" +
+			if (!suppressErrorMessages)
+				JOptionPane.showMessageDialog(mParentFrame, "This category browser cannot be enabled, because\n" +
 					"the dataset has no columns with category data.");
 			return false;
 			}
@@ -159,19 +142,23 @@ public class JCategoryBrowser extends JFilterPanel
 			}
 		}
 
-	private JButton createButton(ImageIcon icon) {
-		JButton b = new JButton(icon) {
-			private static final long serialVersionUID = 0x20080128;
+	private JPanel wrapButton(JButton button) {
+		JPanel bp = new JPanel();
+		double[][] size = { { TableLayout.PREFERRED }, {TableLayout.FILL, TableLayout.PREFERRED, TableLayout.FILL} };
+		bp.setLayout(new TableLayout(size));
+		bp.setOpaque(false);
+		bp.add(button, "0,1");
+		return bp;
+		}
+
+	private JButton createButton(int rotation) {
+		JButton b = new HiDPIIconButton("toNext.png", null, null, rotation, "bevel") {
 			public void processMouseEvent(MouseEvent e) {
 				super.processMouseEvent(e);
 				processButtonMouseEvent(e);
 				}
 			};
 		b.setEnabled(false);
-		if (Platform.isMacintosh()) {
-//			b.putClientProperty("Quaqua.Component.visualMargin", new Insets(1,1,1,1));
-			b.putClientProperty("Quaqua.Button.style", "bevel");
-			}
 		return b;
 		}
 
@@ -430,7 +417,7 @@ public class JCategoryBrowser extends JFilterPanel
 			mSelectedItem = null;
 
 			if (isActive())
-				mTableModel.clearCompoundFlag(mExclusionFlag);
+				mTableModel.clearRowFlag(mExclusionFlag);
 			}
 		else {
 			mSelectedItem = mTableModel.getCategoryList(mColumnIndex)[mSlider.getValue()];

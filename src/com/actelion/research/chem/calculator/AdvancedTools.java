@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,36 +18,34 @@
 package com.actelion.research.chem.calculator;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.Iterator;
+import java.util.HashSet;
 import java.util.List;
-import java.util.Random;
 import java.util.Set;
 import java.util.TreeSet;
 
 import javax.vecmath.Matrix4d;
 import javax.vecmath.Point3d;
 
-import com.actelion.research.chem.CoordinateInventor;
+
+import com.actelion.research.chem.coords.CoordinateInventor;
 import com.actelion.research.chem.Coordinates;
 import com.actelion.research.chem.FFMolecule;
+import com.actelion.research.chem.IDCodeParser;
 import com.actelion.research.chem.Molecule;
-import com.actelion.research.chem.StereoMolecule;
+
+import com.actelion.research.chem.*;
+
 import com.actelion.research.forcefield.AbstractTerm;
-import com.actelion.research.forcefield.FFConfig;
+import com.actelion.research.forcefield.FFConfig.Mode;
 import com.actelion.research.forcefield.FFUtils;
 import com.actelion.research.forcefield.ForceField;
 import com.actelion.research.forcefield.SuperposeTerm;
-import com.actelion.research.forcefield.mm2.MM2Config;
-import com.actelion.research.forcefield.mm2.MM2Parameters;
-import com.actelion.research.forcefield.optimizer.AlgoLBFGS;
 import com.actelion.research.forcefield.optimizer.EvaluableDockFlex;
 import com.actelion.research.forcefield.optimizer.EvaluableDockRigid;
 import com.actelion.research.forcefield.optimizer.EvaluableForceField;
-import com.actelion.research.forcefield.optimizer.PreOptimizer;
-import com.actelion.research.util.Formatter;
+import com.actelion.research.forcefield.optimizer.OptimizerLBFGS;
 
 /**
  * This class has a set of tools used to simplify the most common uses of the
@@ -55,232 +53,6 @@ import com.actelion.research.util.Formatter;
  * 
  */
 public class AdvancedTools {
-
-	/**
-	 * Estimates the cavity size in A^3
-	 * 
-	 * @param mol
-	 * @param c
-	 * @return
-	 */
-	public static double getCavitySize(FFMolecule mol, Coordinates c) {
-		Coordinates[] bounds = StructureCalculator.getBounds(mol);
-		MoleculeGrid grid = new MoleculeGrid(mol, 1.5);
-		double size = 0;
-		final double maxRadius = 7;
-		for (double x = Math.max(bounds[0].x, c.x - maxRadius); x < Math.min(
-				bounds[1].x, c.x + maxRadius); x++) {
-			for (double y = Math.max(bounds[0].y, c.y - maxRadius); y < Math
-					.min(bounds[1].y, c.y + maxRadius); y++) {
-				for (double z = Math.max(bounds[0].z, c.z - maxRadius); z < Math
-						.min(bounds[1].z, c.z + maxRadius); z++) {
-					int n = grid.getNeighbours(new Coordinates(x, y, z), 1.4)
-							.size();
-					if (n == 0)
-						size++;
-				}
-			}
-		}
-
-		return size;
-	}
-
-	public static int fillWaterProbes(FFMolecule mol) {
-		final double dist = 2.4;
-		MoleculeGrid grid = new MoleculeGrid(mol);
-		Coordinates[] bounds = StructureCalculator.getLigandBounds(mol);
-		if (bounds == null)
-			bounds = StructureCalculator.getBounds(mol);
-		else {
-			bounds[0].sub(new Coordinates(6, 6, 6));
-			bounds[1].add(new Coordinates(6, 6, 6));
-		}
-		int count = 0;
-		for (double x = bounds[0].x + dist / 2; x < bounds[1].x; x += dist) {
-			for (double y = bounds[0].y + dist / 2; y < bounds[1].y; y += dist) {
-				for (double z = bounds[0].z + dist / 2; z < bounds[1].z; z += dist) {
-					Coordinates c = new Coordinates(x, y, z);
-					Set<Integer> set = grid.getNeighbours(c, 2.8, true);
-					if (set.size() == 0) {
-						if (grid.hasNeighbours(c, 6)) {
-							int water = mol.addAtom(8);
-							mol.setCoordinates(water, c);
-							mol.setAtomFlag(water, FFMolecule.RIGID, true);
-							count++;
-						}
-					}
-				}
-			}
-		}
-		return count;
-
-	}
-
-	public static double getHBondContribution(FFMolecule mol) {
-		int[] donor = new int[mol.getAllAtoms()];
-		int[] acceptor = new int[mol.getAllAtoms()];
-		for (int i = 0; i < mol.getAllAtoms(); i++) {
-			if (mol.getAtomicNo(i) != 8 && mol.getAtomicNo(i) != 7
-					&& mol.getAtomicNo(i) != 16)
-				continue;
-
-			if (mol.getAtomicNo(i) == 8 && mol.getConnAtoms(i) < 2) {
-				donor[i] = mol.getAtomMM2Class(i) == 6 ? 2
-						: mol.getAtomMM2Class(i) == 7 ? 1 : 0;
-			} else if (mol.getAtomicNo(i) == 7 && mol.getConnAtoms(i) < 4) {
-				donor[i] = mol.getAtomMM2Class(i) == 8 ? 2
-						: mol.getAtomMM2Class(i) == 9 || mol.getAtomMM2Class(i) == 37
-								|| mol.getAtomMM2Class(i) == 40 ? 1 : 0;
-			} else if (mol.getAtomicNo(i) == 16 && mol.getConnAtoms(i) < 2) {
-				donor[i] = 1;
-			}
-			acceptor[i] = mol.getAtomicNo(i) == 8 ? 2
-					: mol.getAtomicNo(i) == 7 ? (mol.getAtomMM2Class(i) == 8 ? 1
-							: 0) : 0; // Approximative
-		}
-
-		double res = 0;
-		for (int i = 0; i < mol.getAllAtoms(); i++) {
-			if (!mol.isAtomFlag(i, FFMolecule.LIGAND))
-				continue;
-			for (int j = 0; j < mol.getAllAtoms(); j++) {
-				if (mol.isAtomFlag(j, FFMolecule.LIGAND))
-					continue;
-
-				double dr = Math.abs(mol.getCoordinates(i).distance(
-						mol.getCoordinates(j))
-						- (1.85 + .97));
-				if (dr > .65)
-					continue;
-
-				double gr = dr < .25 ? 1 : 1 - (dr - .25) / 4;
-				double hb = 0;
-
-				for (int k = 0; k < 2; k++) {
-					int tmp = i;
-					i = j;
-					j = tmp;
-
-					int f = donor[i] * acceptor[j];
-					if (f == 0)
-						continue;
-
-					double ga = 0;
-					for (int m = 0; m < mol.getAllConnAtoms(i); m++) {
-						int a = mol.getConnAtom(i, m);
-						if (mol.getAtomicNo(a) <= 1)
-							continue;
-
-						double da = Math.abs(mol.getCoordinates(j).subC(
-								mol.getCoordinates(i)).getAngle(
-								mol.getCoordinates(a).subC(
-										mol.getCoordinates(i)))
-								- 108 * Math.PI / 180);
-						ga = Math
-								.max(
-										ga,
-										da < 30 * Math.PI / 180 ? 1
-												: da < 80 * Math.PI / 180 ? 1 - (da - 30 * Math.PI / 180) / 50
-														: -(da - 80 * Math.PI / 180) / 30);
-					}
-					// hb = Math.max(hb, f*gr*ga);
-					hb = Math.max(hb, gr * ga);
-				}
-				res += hb;
-
-			}
-		}
-		return res;
-	}
-
-	/**
-	 * Creates different protein models by giving random torsions to the
-	 * protein's side chains. Results not promising
-	 * 
-	 * @param protein
-	 * @param center
-	 * @param radius
-	 * @param N
-	 * @return
-	 */
-	public static List<FFMolecule> createModels(FFMolecule protein,
-			Coordinates center, int radius, int N) {
-		List<FFMolecule> res = new ArrayList<FFMolecule>();
-		protein = StructureCalculator.crop(protein, center, radius + 8);
-		StructureCalculator.makeProteinFlexible(protein, center, radius, true);
-		protein.reorderAtoms();
-		int[] rot = StructureCalculator.getRotatableBonds(protein, false);
-		AlgoLBFGS algo = new AlgoLBFGS();
-		algo.setMinRMS(1);
-		algo.setMaxIterations(2000);
-		MM2Config config = new MM2Config();
-		config.setUseOrbitals(false);
-		config.setMaxDistance(7);
-		config.setUsePLInteractions(false);
-		ForceField f = new ForceField(protein, config);
-		double e = algo.optimize(new EvaluableForceField(f));
-		protein.setAuxiliaryInfo("e", e);
-		res.add(protein);
-		boolean[] seen = new boolean[protein.getAllAtoms()];
-		for (int i = 0; i < N - 1; i++) {
-			FFMolecule m = new FFMolecule(protein);
-			res.add(m);
-		}
-		// Rotate the side chains
-		for (int j = 0; j < rot.length; j++) {
-			int a1 = protein.getBondAtom(0, rot[j]);
-			int a2 = protein.getBondAtom(1, rot[j]);
-
-			Arrays.fill(seen, false);
-			seen[a2] = true;
-			int n = StructureCalculator.dfs(protein, a1, seen);
-			for (FFMolecule m : res) {
-				if (n < 12)
-					StructureCalculator.rotateBond(m, a2, a1, Math.random() * 2
-							* Math.PI);
-				else
-					StructureCalculator.rotateBond(m, a1, a2, Math.random() * 2
-							* Math.PI);
-			}
-		}
-
-		for (FFMolecule m : res) {
-			StructureCalculator.makeProteinFlexible(m, center, radius + 4,
-					false);
-
-			f = new ForceField(m, config);
-
-			e = algo.optimize(new EvaluableForceField(f));
-
-			StructureCalculator.makeProteinRigid(m);
-			m.setAuxiliaryInfo("e", e);
-		}
-
-		for (int j = 0; j < res.size(); j++) {
-			for (int k = j + 1; k < res.size(); k++) {
-				res.get(j).setAllAtomFlag(FFMolecule.LIGAND, true);
-				res.get(k).setAllAtomFlag(FFMolecule.LIGAND, true);
-				double rmsd = StructureCalculator.getLigandRMSD(res.get(j), res
-						.get(k));
-				System.out.println(j + "-" + k + " -> rmsd: " + rmsd);
-				res.get(j).setAllAtomFlag(FFMolecule.LIGAND, false);
-				res.get(k).setAllAtomFlag(FFMolecule.LIGAND, false);
-
-			}
-		}
-
-		// Select the best N
-		Collections.sort(res, new Comparator<FFMolecule>() {
-			@Override
-			public int compare(FFMolecule o1, FFMolecule o2) {
-				return ((Double) o1.getAuxiliaryInfo("e")).compareTo((Double) o2
-						.getAuxiliaryInfo("e"));
-			}
-		});
-		res = res.subList(0, N);
-
-		return res;
-	}
 
 	/**
 	 * Generates all isomers for the given molecule
@@ -292,6 +64,7 @@ public class AdvancedTools {
 		
 		return mols;
 	}
+	
 	/**
 	 * Converts the molecule to 3d and optimize it (including rings)
 	 * 
@@ -305,7 +78,7 @@ public class AdvancedTools {
 		if(em.getName()==null) em.setName("Molecule");
 		List<FFMolecule> mols = AdvancedTools.orientMoleculeForParity(em, generateAll, errors);
 		for (FFMolecule mol : mols) {
-			new AlgoLBFGS().optimize(new EvaluableForceField(new ForceField(mol)));
+			new OptimizerLBFGS().optimize(new EvaluableForceField(new ForceField(mol)));
 			optimizeRings(mol);
 			optimizeByVibrating(mol);
 		} 
@@ -383,106 +156,6 @@ public class AdvancedTools {
 
 		return treshold;
 	}
-
-	/**
-	 * Gets the Free Energy (<0)
-	 * 
-	 * @param mol
-	 * @return
-	 * 
-	 * public static double getBestConformationEnergy(FFMolecule mol) {
-	 * AlgoLBFGS algo = new AlgoLBFGS(); algo.setMinRMS(.1);
-	 * algo.setMaxIterations(1200); try { //Optimize locally the ligand outside
-	 * the cavity FFMolecule lig = (FFMolecule)
-	 * StructureCalculator.extractLigand(mol, new FFMolecule()); ForceField f =
-	 * new ForceField(lig, new FFConfig.MM2Config());
-	 * 
-	 * //Optimize globally the Ligand EvaluableTransformation eval = new
-	 * EvaluableConformation(f, true); GADock dock = new GADock(eval);
-	 * dock.setInitialPopulation(500); GAPosition best = dock.optimize();
-	 * 
-	 * return best.getScore();
-	 *  } catch (Throwable e) { e.printStackTrace(); return 0; }
-	 *  }
-	 */
-	public static void expandCavity(FFMolecule mol) {
-		FFMolecule lig = StructureCalculator.extractLigand(mol);
-		Coordinates center = StructureCalculator.getLigandCenter(lig);
-		if (center == null)
-			throw new IllegalArgumentException("No ligand in expandCavity");
-		StructureCalculator.replaceLigand(mol, null);
-		Random random = new Random();
-		MoleculeGrid grid = new MoleculeGrid(mol, .75);
-		loop: for (int j = 0; j < 200; j++) {
-			Coordinates coords = new Coordinates((random.nextDouble() - .5),
-					(random.nextDouble() - .5), (random.nextDouble() - .5))
-					.scaleC(20);
-			coords = coords.addC(center);
-			Set<Integer> neighbours = grid.getNeighbours(coords, 1.4);
-			for (Iterator<Integer> iter = neighbours.iterator(); iter.hasNext();) {
-				int at = iter.next().intValue();
-				if (mol.getCoordinates(at).distSquareTo(coords) < 1.4 * 1.4) {
-					continue loop;
-				}
-			}
-			int a1 = mol.addAtom(8);
-			// int a2 = mol.addAtom(8);
-			mol.setCoordinates(a1, coords);
-			// mol.setCoordinates(a2, coords);
-			mol.setAtomFlag(a1, FFMolecule.LIGAND | FFMolecule.PREOPTIMIZED,
-					true);
-			// mol.setAtomFlag(a2, FFMolecule.LIGAND | FFMolecule.PREOPTIMIZED,
-			// true);
-			// mol.addBond(a1, a2, 2);
-			grid = new MoleculeGrid(mol, .75);
-
-		}
-		AlgoLBFGS algo = new AlgoLBFGS();
-		algo.setMaxTime(80000);
-		algo.setMinRMS(.5);
-		mol.reorderAtoms();
-		MM2Config config = new MM2Config();
-		config.setMaxDistance(6);
-		config.setMaxPLDistance(6);
-
-		StructureCalculator.makeProteinFlexible(mol, null, 5, false);
-		algo.optimize(new EvaluableForceField(new ForceField(mol, config)));
-		StructureCalculator.makeProteinRigid(mol);
-
-		StructureCalculator.replaceLigand(mol, lig);
-	}
-
-	/**
-	 * 
-	 * @param mol
-	 * @return
-	 */
-	public static void optimizeHydrogens(FFMolecule mol) {
-		int N = mol.getNMovables();
-
-		// Set the non-H as rigid
-		for (int i = 0; i < N; i++) {
-			mol.setAtomFlag(i, FFMolecule.PREOPTIMIZED, mol.getAtomicNo(i) > 1);
-		}
-
-		// optimize the H
-		PreOptimizer.preOptimizeHydrogens(mol);
-	}
-
-	public static boolean fixHydrogens(FFMolecule mol) {
-		boolean changed1 = StructureCalculator.addHydrogens(mol);
-		MM2Parameters.getInstance().setAtomClassesForMolecule(mol);
-		boolean changed2 = MM2Parameters.getInstance().addLonePairs(mol, false);
-		return changed1 || changed2;
-	}
-
-	/**
-	 * Superpose the 2 ligands (fusion consists of 2 ligands) using the default suggested superposition 
-	 * @param fusion
-	 */
-	public static double superposeLigands(FFMolecule fusion) {
-		return superposeLigands(fusion, suggestLigandSuperposition(fusion), true, true, true);
-	}
 	
 	/**
 	 * Superpose 2 identical ligands
@@ -528,17 +201,12 @@ public class AdvancedTools {
 			int a1 = sel.get(2*j);
 			int a2 = sel.get(2*j+1);
 			
-//			System.out.println("Match " + a1 +"/"+mol1.getAllAtoms() +  " - " + a2 +  "/"+mol2.getAllAtoms());
-
-			
 			c1[j] = mol1.getCoordinates(a1);
 			c2[j] = new Coordinates(mol2.getCoordinates(a2));
 		}
 		Matrix4d M = new Matrix4d(); 
 		M.setIdentity();
 		double fit = SuperposeCalculator.superpose(c1, c2, M);
-		
-//		System.out.println("Got fit of " +fit);
 		
 		for (int i = 0; i < mol2.getAllAtoms(); i++) {
 			Coordinates c = mol2.getCoordinates(i);
@@ -554,18 +222,16 @@ public class AdvancedTools {
 	
 	/**
 	 * Superpose 2 flexibles molecules using the matching pattern provided. 
-	 * @see suggestLigandSuperposition
+	 * @see
 	 * @param fusion
 	 * @param match
 	 */
 	public static double superposeLigands(FFMolecule fusion, List<Integer> match, boolean finer, boolean flexible1, boolean flexible2) {
-		final AlgoLBFGS algo = new AlgoLBFGS();
+		final OptimizerLBFGS algo = new OptimizerLBFGS();
 		algo.setMaxIterations(1000);
 		algo.setMinRMS(.1);
 		fusion.reorderAtoms();
-		MM2Config c = new MM2Config.DockConfig();
-		c.setMaxDistance(100);
-		final ForceField f = new ForceField(fusion, c);
+		final ForceField f = new ForceField(fusion, Mode.DOCKING);
 
 		final int[] a2g = StructureCalculator.getAtomToGroups(fusion);
 
@@ -728,17 +394,6 @@ public class AdvancedTools {
 			}
 		});
 
-//		int cut = -1;
-//		Map<Integer, int[]> map = new TreeMap<Integer, int[]>();
-//		for (int i = 0; i < all.size(); i++) {
-//			if (all.get(i)[2] < 3) {
-//				cut = i;
-//				break;
-//			}
-//			map.put(all.get(i)[0], new int[] { all.get(i)[1], all.get(i)[2] });
-//		}
-//		if (cut > 3) all = all.subList(0, cut);
-
 		List<Integer> sel = new ArrayList<Integer>();
 
 		// Find the best alyphatic atom first
@@ -751,7 +406,7 @@ public class AdvancedTools {
 		int[][] dist = StructureCalculator.getNumberOfBondsBetweenAtoms(fusion, fusion.getAllBonds(), null);
 		loop: for (int i = 0; i < all.size() && sel.size() < 16; i++) {
 			if (sel.contains(all.get(i)[0]) || sel.contains(all.get(i)[1])) continue;
-			if (fusion.getAtomMM2Class(all.get(i)[0]) == 1 || fusion.getAtomMM2Class(all.get(i)[0]) == 2 || fusion.getAtomicNo(all.get(i)[0]) > 16) continue;
+			if (fusion.getMM2AtomType(all.get(i)[0]) == 1 || fusion.getMM2AtomType(all.get(i)[0]) == 2 || fusion.getAtomicNo(all.get(i)[0]) > 16) continue;
 			for (int j = 0; j < sel.size(); j += 2) {
 				int d1 = dist[sel.get(j)][all.get(i)[0]];
 				int d2 = dist[sel.get(j + 1)][all.get(i)[1]];
@@ -799,7 +454,7 @@ public class AdvancedTools {
 	/**
 	 * Converts the ExtendedMolecule by orienting the up/down bonds and
 	 * rescaling the molecule, no optimization done at this point 
-	 * @param mol
+	 * @param stereo
 	 * @return a list of isomers
 	 */
 	public static List<FFMolecule> orientMoleculeForParity(StereoMolecule stereo, boolean generateAll, List<String> errors) {
@@ -931,7 +586,7 @@ public class AdvancedTools {
 			for (int a1 = 0; a1 < m.getAllAtoms(); a1++) {
 				if(m.getAtomicNo(a1)==8 && m.getAllConnAtoms(a1)==1 && m.getConnBondOrder(a1,0)==2) { //O
 					int a2 = m.getConnAtom(a1, 0);
-					if(m.getAtomicNo(a2)==6 && m.getAllConnAtoms(a2)==3 && m.getRingSize(a2)<0) { //O=C
+					if(m.getAtomicNo(a2)==6 && m.getAllConnAtoms(a2)==3 && m.getAtomRingSize(a2)<0) { //O=C
 						for (int i = 0; i < 3; i++) {
 							int a3 = m.getConnAtom(a2, i); 
 							if(m.getAtomicNo(a3)==7) { //O=CN
@@ -959,21 +614,6 @@ public class AdvancedTools {
 							}
 						}
 					}
-//				} else if(m.getAtomicNo(a1)==6 && m.getAllConnAtoms(a1)==4) {
-//					//check each atom goes in a different direction
-//					Coordinates v1 = m.getCoordinates(m.getConnAtom(a1, 0)).subC(m.getCoordinates(a1));
-//					Coordinates v2 = new Coordinates();
-//					for (int i = 1; i < 4; i++) {
-//						v2.addC(m.getCoordinates(m.getConnAtom(a1, i)).subC(m.getCoordinates(a1)));
-//					}
-//					if(v2.distSq()<0.1) continue;
-//					v2 = v2.unit();
-//					
-//					if(v1.dot(v2)>0) { //same direction, inverse the direction of the last atom
-//						int a3 = m.getConnAtom(a1, 3);
-//						m.setCoordinates(a3, m.getCoordinates(a1).subC(v2.scaleC(1.3)));
-//					}
-					
 				}
 			}
 			
@@ -983,7 +623,8 @@ public class AdvancedTools {
 		//Center at barycenter
 		int count = 0;
 		for (FFMolecule m : res) {
-			Coordinates center = StructureCalculator.getLigandCenter(m);
+			Coordinates center = StructureCalculator.getCenter(m);
+			assert center!=null;
 			if(res.size()>1) {
 				m.setName((m.getName()==null?"":m.getName())+ "-iso"+(++count));
 			}
@@ -1088,7 +729,7 @@ public class AdvancedTools {
 				System.err.println("Plane could not be defined |n|="+n.dist());
 				continue;
 			}
-			n = n.unit();
+			n = n.unitC();
 	
 			//move a
 			int direction = (parity==1? 1: -1);
@@ -1108,19 +749,17 @@ public class AdvancedTools {
 					System.err.println("Plane could not be defined |n|="+n.dist());
 					continue;
 				}
-				n2 = n2.unit();
+				n2 = n2.unitC();
 
 				
-				Coordinates nc = m.getCoordinates(a).addC(n.unit().scaleC(1.4));
+				Coordinates nc = m.getCoordinates(a).addC(n.unitC().scaleC(1.4));
 				double theta = t.getAngle(nc.subC(m.getCoordinates(a)));
-				boolean[] seen = new boolean[m.getAllAtoms()];
-				seen[a] = true;
+				Set<Integer> seen = new HashSet<Integer>();
+				seen.add(a3);
 				StructureCalculator.dfs(m, a3, seen);
-				for (int i = 0; i < seen.length; i++) {
-					if(seen[i]) {
-						Coordinates nc2 = m.getCoordinates(i).subC(m.getCoordinates(a)).rotate(n2, theta).addC(m.getCoordinates(a));
-						m.setCoordinates(i, nc2);
-					}					
+				for (int i: seen) {
+					Coordinates nc2 = m.getCoordinates(i).subC(m.getCoordinates(a)).rotate(n2, theta).addC(m.getCoordinates(a));
+					m.setCoordinates(i, nc2);
 				}
 			}
 		}		
@@ -1129,18 +768,7 @@ public class AdvancedTools {
 		return errorCode;
 	}
 
-	public static void changeRingConformationByAtom(FFMolecule mol, int atomSeed, int confType) throws Exception {
-		List<Integer> rings = mol.getAtomToRings()[atomSeed];
-		if(rings.size()==0) throw new Exception("No rings");
-
-		int ringNo = -1;
-		for (int r : rings) {
-			if(mol.getAllRings().get(r).length==6) ringNo = r;
-		}
-		if(ringNo<0) throw new Exception("No 6-Rings");			
-		
-		changeRingConformation(mol, ringNo, confType, 1);
-	}
+	
 	/**
 	 * 
 	 * @param mol
@@ -1148,22 +776,22 @@ public class AdvancedTools {
 	 * @param confType (0==chair-0, 1==chair-1, 2=boat-0, 3=boat-1)
 	 * @throws Exception
 	 */
-	private static double changeRingConformation(FFMolecule mol, int ringNo, int confType, double minRmsd) {
+	public static double changeRingConformation(FFMolecule mol, int ringNo, int confType) {
 		if(confType<-1 || confType>3) throw new IllegalArgumentException("Invalid conformation type: " + confType);
-		AlgoLBFGS algo = new AlgoLBFGS();
-		algo.setMinRMS(minRmsd);
+		OptimizerLBFGS algo = new OptimizerLBFGS();
+		algo.setMinRMS(1);
 		
 		ForceField f = new ForceField(mol);
 		double resE = algo.optimize(new EvaluableForceField(f));
 		mol.setAuxiliaryInfo("SE", resE);
 
-		if(ringNo<0 || confType<0) return resE;
+		if(ringNo<0 || confType<0 || ringNo>=mol.getAllRings().size()) return resE;
 		
 		int[] ring = mol.getAllRings().get(ringNo);
 		for(int step=0; step<5; step++) {
 			
 			//Find Ring plane
-			double smallestD = 10;
+			double smallestD = Double.MAX_VALUE;
 			int startI = -1;
 			Coordinates norm = new Coordinates();
 			Coordinates cent = new Coordinates();
@@ -1182,12 +810,12 @@ public class AdvancedTools {
 				//
 				Coordinates center = Coordinates.createBarycenter(mol.getCoordinates(a1), mol.getCoordinates(a2), mol.getCoordinates(a4), mol.getCoordinates(a5));
 				Coordinates normal = mol.getCoordinates(a4).subC(mol.getCoordinates(a1)).cross(mol.getCoordinates(a5).subC(mol.getCoordinates(a2)));
-				if(normal.dist()==0) normal = new Coordinates(Math.random()-.5, Math.random()-.5, Math.random()-.5);//random
-				normal = normal.unit();
+				if(normal.dist()<1e-9) normal = new Coordinates(Math.random()-.5, Math.random()-.5, Math.random()-.5);//random
+				normal.unit();
 				
 				//Project a4 on the normal vector
 				double d = Math.abs(mol.getCoordinates(a4).subC(mol.getCoordinates(a1)).dot(normal));
-				if(d<smallestD) {
+				if(startI<0 || d<smallestD) {
 					startI = i;
 					smallestD = d;
 					norm = normal;
@@ -1215,7 +843,6 @@ public class AdvancedTools {
 			
 						
 			if(confType==conf) {
-//				System.out.println("returned conf after "+step+" steps");
 				return resE;
 			}
 			
@@ -1230,12 +857,11 @@ public class AdvancedTools {
 				if(step%2==1) startI+=3;
 				vibrate = true;
 			}
-//			System.out.println("   "+step+". go from "+conf+" to "+confType);
+
 			//Move a0 or a3 to the the other side of the ring (use the one with the smallest no of connected
 			//and rotate all connecting atoms
 			for (int moveAtomIndex = 0; moveAtomIndex < moveAtomNumber; moveAtomIndex++) {
 				if(moveAtomIndex>0) startI+=3;
-				
 				int a = ring[(startI+0)%ring.length];
 				int ap = ring[(startI+3)%ring.length];
 				Coordinates rotationCenter = Coordinates.createBarycenter(mol.getCoordinates(ring[(startI+1)%ring.length]), mol.getCoordinates(ring[(startI+5)%ring.length]));
@@ -1243,7 +869,7 @@ public class AdvancedTools {
 				Coordinates v = mol.getCoordinates(a).subC(rotationCenter);
 				Coordinates v2 = v.cross(norm);
 				if(v2.distSq()==0) v2 = new Coordinates(Math.random()-.5, Math.random()-.5, Math.random()-.5);
-				Coordinates rotateVector = v2.unit();
+				Coordinates rotateVector = v2.unitC();
 						
 				double angle;
 	
@@ -1256,36 +882,35 @@ public class AdvancedTools {
 				}
 	
 				//update all atoms to the other side of the rings
-				boolean[] seen = new boolean[mol.getAllAtoms()];
-				for (int at : ring) seen[at] = true;
-				seen[a] = false;			
+				Set<Integer> seen = new HashSet<Integer>();
+				for (int at : ring) seen.add(at);
+				seen.remove(a);			
 				StructureCalculator.dfs(mol, a, seen);
-				for (int at : ring) seen[at] = false;
-				seen[a] = true;	
-				for (int at=0; at<mol.getAllAtoms(); at++) {		
-					if(seen[at]) {
-						Coordinates c2 = mol.getCoordinates(at).subC(rotationCenter).rotate(rotateVector, angle).addC(rotationCenter);						
-						mol.setCoordinates(at, c2);
-					}
+				for (int at : ring) seen.remove(at);
+				seen.add(a);
+				
+				for (int at: seen) {		
+					Coordinates c2 = mol.getCoordinates(at).subC(rotationCenter).rotate(rotateVector, angle).addC(rotationCenter);						
+					mol.setCoordinates(at, c2);
 				}
 				if(vibrate) {
 					double scale = step*.05;
 					for(int a2: ring) {
 						v2 = new Coordinates(Math.random()-.5, Math.random()-.5, Math.random()-.5);
 						if(v2.distSq()==0) continue;
-						mol.setCoordinates(a2, mol.getCoordinates(a).addC(v2.unit().scaleC(scale)));
+						mol.setCoordinates(a2, mol.getCoordinates(a).addC(v2.unitC().scaleC(scale)));
 					}				
 				}
+				AdvancedTools.optimizeByVibrating(mol);
 				resE = algo.optimize(new EvaluableForceField(f));
 				mol.setAuxiliaryInfo("SE", resE);
 	
 			}
 		}
-//		System.err.println("Could not return conformation of type "+confType);
 		return resE;
 	}
 	
-	public static double changeAmineConformation(FFMolecule mol, int atomNo, double minRmsd) {
+	public static double changeAmineConformation(FFMolecule mol, int atomNo) {
 		if(mol.getAtomicNo(atomNo)!=7) throw new IllegalArgumentException("Not a N");
 		
 		int lp = StructureCalculator.connected(mol, atomNo, 0, 1);
@@ -1322,8 +947,8 @@ public class AdvancedTools {
 		
 		mol.setCoordinates(atomNo, cN);
 		mol.setCoordinates(lp, cLp);
-		AlgoLBFGS algo = new AlgoLBFGS();
-		algo.setMinRMS(minRmsd);
+		OptimizerLBFGS algo = new OptimizerLBFGS();
+		algo.setMinRMS(.5);
 		
 		double e = algo.optimize(new EvaluableForceField(new ForceField(mol)));
 		mol.setAuxiliaryInfo("SE", e);
@@ -1338,30 +963,30 @@ public class AdvancedTools {
 	 */
 	public static List<FFMolecule> generateRingsAmineConformers(FFMolecule mol) {
 		//Be sure to have an energy for the initial structure
-		double e = new AlgoLBFGS().optimize(new EvaluableForceField(new ForceField(mol)));
+		double e = new OptimizerLBFGS().optimize(new EvaluableForceField(new ForceField(mol)));
 		mol.setAuxiliaryInfo("SE", e);
 		
 		//Then generate rings, and for each rings generate the amines
 		List<FFMolecule> all = new ArrayList<FFMolecule>();
-		List<FFMolecule> rings = generateRings(mol, 0, .5);
+		List<FFMolecule> rings = generateRings(mol, 0);
 		for(FFMolecule m: rings) {
-			List<FFMolecule> amines = generateAmines(m, 0, .5);
+			List<FFMolecule> amines = generateAmines(m, 0);
 			all.addAll(amines);
 		}
-		
+
 		Collections.sort(all, FFUtils.SE_COMPARATOR);
 		return all;
 	}
 	
-	private static List<FFMolecule> generateAmines(FFMolecule mol, int startingAtom, double minRmsd) {
+	private static List<FFMolecule> generateAmines(FFMolecule mol, int startingAtom) {
 		List<FFMolecule> res = new ArrayList<FFMolecule>();
 		for (int i = startingAtom; res.size()<4 && i < mol.getNMovables(); i++) {
 			if(mol.getAtomicNo(i)==7 && StructureCalculator.connected(mol, i, 0, 1)>=0) {
 				
 				FFMolecule copy = new FFMolecule(mol);
-				double v = changeAmineConformation(copy, i, minRmsd);
+				double v = changeAmineConformation(copy, i);
 				if(v<99) {
-					res.addAll(generateAmines(copy, i+1, minRmsd));
+					res.addAll(generateAmines(copy, i+1));
 				}
 			}
 		}
@@ -1369,42 +994,58 @@ public class AdvancedTools {
 		return res;		
 	}
 	
-	private static List<FFMolecule> generateRings(FFMolecule mol, int startingRing, double minRmsd) {
+	private static List<FFMolecule> generateRings(FFMolecule mol, int startingRing) {
 		List<FFMolecule> res = new ArrayList<FFMolecule>();
 
 		
 		List<int[]> rings = mol.getAllRings();
-		for (int i = startingRing; res.size()<8 && i < rings.size(); i++) {
-			if(rings.get(i).length!=6) continue;
-			if(mol.isAtomFlag(rings.get(i)[0], FFMolecule.RIGID)) continue;
-			int doubleBonds = 0;
+		loop: for (int i = startingRing; res.size()<8 && i < rings.size(); i++) {
+			if(rings.get(i).length!=6) continue loop;
+			if(mol.isAtomFlag(rings.get(i)[0], FFMolecule.RIGID)) continue loop;
 			for (int j = 0; j < 6; j++) {
-				int a = StructureCalculator.connected(mol, rings.get(i)[j], -1, 2);
-				if(a>=0 && a!=rings.get(i)[(j+1)%6]) doubleBonds++;
+				if(StructureCalculator.connected(mol, rings.get(i)[j], -1, 2)>0) {
+					continue loop;
+				}
+				if(mol.getAtomToRings()[j].size()>=3) {
+					continue loop;
+				}
 			}
-			
-			if(doubleBonds>1) continue;
 			
 			for(int conf = 0; conf<=1; conf++) {
 				FFMolecule copy = new FFMolecule(mol);
-				changeRingConformation(copy, i, conf, minRmsd);
-				res.addAll(generateRings(copy, i+1, minRmsd));				
+				changeRingConformation(copy, i, conf);
+				res.addAll(generateRings(copy, i+1));				
 			}
 			return res; //stop there because the function before already returned all possibilities
 		}
-		res.add(mol);
+		if(res.size()==0) {
+			res.add(mol);
+		}
 		return res;		
 	}
 
 	
+	/**
+	 * Returns the ring conformation with the lowest energy
+	 * @param mol
+	 */
 	public static void optimizeRings(FFMolecule mol) {
+		//Local Optimization fist
+		new OptimizerLBFGS().optimize(new EvaluableForceField(new ForceField(mol)));
 		
-		new AlgoLBFGS().optimize(new EvaluableForceField(new ForceField(mol)));
-
-		double energy = new ForceField(mol).getTerms().getStructureEnergy();
-		
+		/*
+		//Reinvent coordinates if the molecule is strained
+		double energy = new ForceField(mol).getTerms().getStructureEnergy();		
 		if(energy>1000) {
-			System.err.println("The input molecule is strained (e="+Formatter.format2(energy)+"), reinvent coordinates");
+
+			StereoMolecule ster = mol.toStereoMolecule();
+
+			ster.ensureHelperArrays(Molecule.cHelperRings);
+
+			Canonizer can = new Canonizer(ster);
+
+			System.err.println("The input molecule " + can.getIDCode() + " is strained (e="+Formatter.format2(energy)+"), reinvent coordinates");
+
 			StructureCalculator.deleteHydrogens(mol);
 			final StereoMolecule m = mol.toStereoMolecule();
 			m.ensureHelperArrays(Molecule.cHelperParities);
@@ -1413,15 +1054,15 @@ public class AdvancedTools {
 			c.invent(m);
 			
 			FFMolecule r = AdvancedTools.convertMolecule2DTo3D(new StereoMolecule(m), false, null).get(0);
+						
 			mol.clear();
 			mol.fusion(r);
-		}
-		
-		
-		//OPtimize rings
+		}*/
+
+		//Optimize rings
 		List<FFMolecule> mols = generateRingsAmineConformers(mol);
 		FFMolecule copy = mols.get(0);
-		StructureCalculator.setLigandCoordinates(mol, copy.getCoordinates());		
+		StructureCalculator.setLigandCoordinates(mol, copy.getCoordinates());			
 	}
 	
 	public static double optimizeByVibrating(FFMolecule mol) {
@@ -1429,14 +1070,11 @@ public class AdvancedTools {
 	}
 	
 	public static double optimizeByVibrating(FFMolecule mol, boolean hydrogensOnly, int maxIter) {
-		FFConfig config = new MM2Config.MM2Basic();
-		AlgoLBFGS algo = new AlgoLBFGS();
+		OptimizerLBFGS algo = new OptimizerLBFGS();
 		algo.setMinRMS(0.1);
 		algo.setMaxIterations(maxIter);
 		
-
-		mol.reorderHydrogens();
-		if(!hydrogensOnly) algo.optimize(new EvaluableForceField(new ForceField(mol, config)));
+		if(!hydrogensOnly) algo.optimize(new EvaluableForceField(new ForceField(mol)));
 
 		FFMolecule copy = new FFMolecule(mol); 
 		
@@ -1445,7 +1083,7 @@ public class AdvancedTools {
 				if(copy.getAtomicNo(i)>1) copy.setAtomFlag(i, FFMolecule.RIGID, true);
 			}			
 		}
-		ForceField f = new ForceField(copy, config);		
+		ForceField f = new ForceField(copy, Mode.OPTIMIZATION);		
 		double bestE = algo.optimize(new EvaluableForceField(f));
 		
 		Coordinates[] best = new Coordinates[copy.getNMovables()];
@@ -1460,7 +1098,7 @@ public class AdvancedTools {
 				if(hydrogensOnly && copy.getAtomicNo(i)>1) continue;
 
 				//If this atom has energy, move it
-				if(step<2 && mol.isAromatic(i)) {
+				if(step<2 && mol.isAromaticAtom(i)) {
 					double scale = .4;
 					Coordinates v = new Coordinates((Math.random()-.5)*scale, (Math.random()-.5)*scale, (Math.random()-.5)*scale);
 					copy.setCoordinates(i, copy.getCoordinates(i).addC(v));
@@ -1480,7 +1118,7 @@ public class AdvancedTools {
 				
 			}
 			if(tensed) {
-				f = new ForceField(copy, config);
+				f = new ForceField(copy, Mode.OPTIMIZATION);
 				double e = algo.optimize(new EvaluableForceField(f));
 //				System.out.println("Vibrate tensed molecule e = "+e);
 				if(e<bestE/1.05) {
@@ -1502,73 +1140,30 @@ public class AdvancedTools {
 		return bestE;
 	}
 	
-	/**
-	 * Vibrate the molecule a little to avoid being stucked in a planar conformation
-	 * @param mol
-	 * @param maxIter
-	 * @return
-	 */
-	public static double optimizeByVibratingOld(FFMolecule mol, boolean hydrogensOnly, int maxIter) {
-		mol.reorderHydrogens();
-		
-		AlgoLBFGS algo = new AlgoLBFGS();
-		algo.setMinRMS(0.2);
-		algo.setMaxIterations(maxIter);
-		
-
-		FFConfig config = new MM2Config.MM2Basic();
-		if(!hydrogensOnly) algo.optimize(new EvaluableForceField(new ForceField(mol, config)));
-		FFMolecule copy = new FFMolecule(mol);
-		if(hydrogensOnly) {
-			for (int i = 0; i < copy.getNMovables(); i++) {
-				if(copy.getAtomicNo(i)>1) copy.setAtomFlag(i, FFMolecule.RIGID, true);
-			}			
-		}
-		double bestE = Double.MAX_VALUE;
-		Coordinates[] best = new Coordinates[copy.getAllAtoms()];
-		for (int step = 0; step < 7; step++) {
-			if(step>0) {
-				System.arraycopy(best, 0, copy.getCoordinates(), 0, best.length);
-
-				for(int i = 0; i<mol.getAllAtoms(); i++) {
-					if(((!hydrogensOnly && mol.getAtomicNo(i)>=7) || mol.getAtomicNo(i)<=1 ) && mol.getConnAtoms(i)==1) {
-						double scale = .3+step*.15 + (hydrogensOnly?1:0);
-						Coordinates v = new Coordinates((Math.random()-.5)*scale, (Math.random()-.5)*scale, (Math.random()-.5)*scale);
-						if(copy.getCoordinates(i)==null) copy.setCoordinates(i, new Coordinates());
-						copy.setCoordinates(i, copy.getCoordinates(i).addC(v));
-					}
-				}	
-				if(!hydrogensOnly) {
-					for(int i = 0; i<mol.getAllAtoms(); i++) {
-						if(mol.isAromatic(i)) {
-							double scale = .4;
-							Coordinates v = new Coordinates((Math.random()-.5)*scale, (Math.random()-.5)*scale, (Math.random()-.5)*scale);
-							copy.setCoordinates(i, copy.getCoordinates(i).addC(v));
-						}
-					}
-				}
-			}
-			
-			//optimize
-			ForceField f = new ForceField(copy, config);
-			double e = algo.optimize(new EvaluableForceField(f));
-			if(e<bestE/1.2) {
-				System.arraycopy(copy.getCoordinates(), 0, best, 0, best.length); 
-				bestE = e;
-			}
-		}
-		System.arraycopy(best, 0, mol.getCoordinates(), 0, best.length); 
-		return bestE;
-	}
-	
 	
 	public static double optimize(FFMolecule mol) {
 		return optimize(mol, 150);
 	}
 	public static double optimize(FFMolecule mol, int maxIter) {
-		AlgoLBFGS algo = new AlgoLBFGS();
+		OptimizerLBFGS algo = new OptimizerLBFGS();
 		algo.setMaxIterations(maxIter);
 		return algo.optimize(new EvaluableForceField(new ForceField(mol)));
 	}
-	
+
+	public static void main(String[] args) {
+		StereoMolecule mol = new StereoMolecule();
+		IDCodeParser parser = new IDCodeParser();
+		parser.parse(mol, "e`VTD@@Bf`JDin^vefUwUw^AMG@dhjlbiegojB@jjjjij`@i`HdfdLSd`Z`".getBytes());
+		StereoMolecule molStart = mol.getCompactCopy();
+
+		molStart.ensureHelperArrays(Molecule.cHelperRings);
+
+		// CompleteGraphFunctions.facultativeCoordinateInvention(molStart);
+
+		// We calculate the first 3D structure with J.Freyss force field. The 1. structure is for
+		// visualization and is smoother than with the self organising structure calculator from TS.
+		AdvancedTools.convertMolecule2DTo3D(molStart);
+
+		
+	}
 }

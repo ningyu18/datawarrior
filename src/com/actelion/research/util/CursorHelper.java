@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -99,7 +99,7 @@ public class CursorHelper {
 		return sCursor[cursor];
 		}
 
-	private static Cursor createCursor(int cursor) {
+	public static Cursor createCursor(int cursor) {
 		if (cursor<cCursorData.length) {
 			Toolkit tk = Toolkit.getDefaultToolkit();
 			Dimension size = tk.getBestCursorSize(16, 16);

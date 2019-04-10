@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,28 +18,6 @@
 
 package com.actelion.research.datawarrior.task.db;
 
-import java.awt.Dimension;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
-import java.sql.Connection;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.Statement;
-import java.util.ArrayList;
-import java.util.Hashtable;
-import java.util.Properties;
-import java.util.TreeMap;
-import java.util.TreeSet;
-
-import javax.swing.BorderFactory;
-import javax.swing.JComboBox;
-import javax.swing.JComponent;
-import javax.swing.JLabel;
-import javax.swing.JOptionPane;
-import javax.swing.JPanel;
-import javax.swing.JSlider;
-import javax.swing.SwingUtilities;
-
 import com.actelion.research.calc.ProgressController;
 import com.actelion.research.chem.Canonizer;
 import com.actelion.research.chem.SSSearcherWithIndex;
@@ -52,10 +30,21 @@ import com.actelion.research.datawarrior.DEFrame;
 import com.actelion.research.datawarrior.DataWarrior;
 import com.actelion.research.datawarrior.task.ConfigurableTask;
 import com.actelion.research.gui.JEditableStructureView;
-import com.actelion.research.table.CompoundRecord;
-import com.actelion.research.table.CompoundTableEvent;
-import com.actelion.research.table.CompoundTableModel;
+import com.actelion.research.gui.hidpi.HiDPIHelper;
+import com.actelion.research.table.model.CompoundRecord;
+import com.actelion.research.table.model.CompoundTableEvent;
+import com.actelion.research.table.model.CompoundTableModel;
 import com.actelion.research.util.ByteArrayComparator;
+
+import javax.swing.*;
+import java.awt.*;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.sql.Connection;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.util.*;
 
 public abstract class DETaskStructureQuery extends ConfigurableTask implements ActionListener,ProgressController,Runnable {
     public static final int SEARCH_TYPE_SSS = StructureSearchSpecification.TYPE_SUBSTRUCTURE;
@@ -372,8 +361,12 @@ public abstract class DETaskStructureQuery extends ConfigurableTask implements A
 			idcode = getSelectedIDCodes();
 			if (searchType == SEARCH_TYPE_SIMILARITY) {
 				descriptor = getSelectedDescriptors(getDescriptorShortName(configuration));
-				if (!DescriptorConstants.DESCRIPTOR_FFP512.shortName.equals(getDescriptorShortName(configuration)))
-					searchType |= StructureSearchSpecification.MODE_LARGEST_FRAGMENT_ONLY;
+
+// This seems rubbish. The default should always be to compare the full molecule.
+// In the ChEMBL database server the SkeletonSpheres is done from the largest fragment,
+// but the respective client specific handling must be done in the DETaskChemblQuery
+//				if (!DescriptorConstants.DESCRIPTOR_FFP512.shortName.equals(getDescriptorShortName(configuration)))
+//					searchType |= StructureSearchSpecification.MODE_LARGEST_FRAGMENT_ONLY;
 				}
 			}
 
@@ -435,7 +428,7 @@ public abstract class DETaskStructureQuery extends ConfigurableTask implements A
 
 	@Override
 	public void runTask(Properties configuration) {
-		startProgress("Retrieving Chemical Data...", 0, 0);
+		startProgress("Retrieving Chemical Structure Data...", 0, 0);
 
 		try {
 		    retrieveRecords();
@@ -458,13 +451,13 @@ public abstract class DETaskStructureQuery extends ConfigurableTask implements A
 			mTargetFrame = mApplication.getEmptyFrame(getDocumentTitle());
 			CompoundTableModel tableModel = mTargetFrame.getTableModel();
             String[] columnName = getColumnNames();
-		    int columnCount = columnName.length + 3;
+		    int columnCount = columnName.length + getStructureColumnCount();
 			tableModel.initializeTable(mResultList.size(), columnCount);
-            tableModel.prepareStructureColumns(0, "Structure", true, true);
+            prepareStructureColumns(tableModel);
             if (getIdentifierColumn() != -1)
             	tableModel.setColumnProperty(0, CompoundTableModel.cColumnPropertyIdentifierColumn, columnName[getIdentifierColumn()]);
-			for (int i=3; i<columnCount; i++)
-				tableModel.setColumnName(columnName[i-3], i);
+			for (int i=getStructureColumnCount(); i<columnCount; i++)
+				tableModel.setColumnName(columnName[i-getStructureColumnCount()], i);
 
 			startProgress("Populating Table...", 0, mResultList.size());
 			for (int row=0; row<mResultList.size(); row++) {
@@ -513,8 +506,8 @@ public abstract class DETaskStructureQuery extends ConfigurableTask implements A
 			Object[] newResult = new Object[noOfColumns];
 			boolean found = false;
 			for (int i=0; i<noOfColumns; i++) {
-			    // columns: 0->idcodeBytes; 1->coordinateBytes, 2->indexInts; 3...->valueBytes
-			    if (i == 2) {	// index
+			    // default columns: 0->idcodeBytes; 1->coordinateBytes, 2->fragFpInts; 3...->valueBytes
+			    if (i == getFragFpColumn()) {	// fragFp
 			        newResult[i] = DescriptorHandlerFFP512.getDefaultInstance().decode(rset.getString(i+1));
 			    	}
 				else {
@@ -560,7 +553,7 @@ public abstract class DETaskStructureQuery extends ConfigurableTask implements A
             	newResultList.add(result);
             	}
             else {
-                for (int i=3; i<result.length; i++) {
+                for (int i=getStructureColumnCount(); i<result.length; i++) {
                 	boolean isExtendedKey = false;
                     if (otherGroupColumn != null) {
                     	for (int column:otherGroupColumn) {
@@ -592,7 +585,7 @@ public abstract class DETaskStructureQuery extends ConfigurableTask implements A
 
         // get rid of empty content concatenated by '\n'
         for (Object[] result:mResultList) {
-            for (int i=3; i<result.length; i++) {
+            for (int i=getStructureColumnCount(); i<result.length; i++) {
                 byte[] bytes = (byte[])result[i];
                 boolean found = false;
                 if (bytes != null) {
@@ -639,27 +632,29 @@ public abstract class DETaskStructureQuery extends ConfigurableTask implements A
     protected JComponent createStructureView() {
         StereoMolecule mol = new StereoMolecule();
         mol.setFragment(true);
+		int scaled100 = HiDPIHelper.scale(100);
         mStructureView = new JEditableStructureView(mol);
-        mStructureView.setMinimumSize(new Dimension(100, 100));
-        mStructureView.setPreferredSize(new Dimension(100, 100));
+        mStructureView.setMinimumSize(new Dimension(scaled100, scaled100));
+        mStructureView.setPreferredSize(new Dimension(scaled100, scaled100));
         mStructureView.setBorder(BorderFactory.createTitledBorder("Structure"));
         return mStructureView;
     	}
 
     protected JComponent createSimilaritySlider() {
         Hashtable<Integer,JLabel> labels = new Hashtable<Integer,JLabel>();
+	    labels.put(new Integer(70), new JLabel("70%"));
         labels.put(new Integer(80), new JLabel("80%"));
         labels.put(new Integer(90), new JLabel("90%"));
         labels.put(new Integer(100), new JLabel("100%"));
-        mSimilaritySlider = new JSlider(JSlider.VERTICAL, 80, 100, 90);
+        mSimilaritySlider = new JSlider(JSlider.VERTICAL, 70, 100, 90);
         mSimilaritySlider.setMinorTickSpacing(1);
         mSimilaritySlider.setMajorTickSpacing(10);
         mSimilaritySlider.setLabelTable(labels);
         mSimilaritySlider.setPaintLabels(true);
         mSimilaritySlider.setPaintTicks(true);
         int width = mSimilaritySlider.getPreferredSize().width;
-        mSimilaritySlider.setMinimumSize(new Dimension(width, 116));
-        mSimilaritySlider.setPreferredSize(new Dimension(width, 116));
+        mSimilaritySlider.setMinimumSize(new Dimension(width, HiDPIHelper.scale(116)));
+        mSimilaritySlider.setPreferredSize(new Dimension(width, HiDPIHelper.scale(116)));
         mSimilaritySlider.setEnabled(false);
         JPanel spanel = new JPanel();
         spanel.add(mSimilaritySlider);
@@ -770,7 +765,33 @@ public abstract class DETaskStructureQuery extends ConfigurableTask implements A
         return idcodeColumn;
         }
 
-    /**
+	/**
+	 * Override this, getFragFpColumn(), and prepareStructureColumns(), if the result
+	 * does not contain the default structure columns idcode,2D-coords,fragFp.
+	 * @return
+	 */
+	protected int getStructureColumnCount() {
+		return 3;
+		}
+
+	/**
+	 * Override this, getStructureColumnCount(), and prepareStructureColumns(),
+	 * if the result does not contain the default structure columns idcode,2D-coords,fragFp.
+	 * @return
+	 */
+	protected int getFragFpColumn() {
+		return 2;
+		}
+
+	/**
+	 * Override this, getFragFpColumn(), and getStructureColumnCount(), if the result
+	 * does not contain the default structure columns idcode,2D-coords,fragFp.
+	 */
+	protected void prepareStructureColumns(CompoundTableModel tableModel) {
+		tableModel.prepareStructureColumns(0, "Structure", true, true);
+		}
+
+	/**
      * May be overridden to define special columns before finalizing the tableModel.
      * This method is called from the worker thread.
      */

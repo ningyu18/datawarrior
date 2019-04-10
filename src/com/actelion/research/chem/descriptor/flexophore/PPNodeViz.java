@@ -51,6 +51,7 @@ public class PPNodeViz extends PPNode implements Serializable {
 		super(new PPNode()); 
 		init();
 	}
+
 	public PPNodeViz(PPNodeViz node){
 		copy(node);
 	}

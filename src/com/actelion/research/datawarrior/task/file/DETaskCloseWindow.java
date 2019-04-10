@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -23,12 +23,10 @@ import java.util.Properties;
 
 import com.actelion.research.datawarrior.DEFrame;
 import com.actelion.research.datawarrior.DataWarrior;
-import com.actelion.research.datawarrior.task.DEAbstractWindowTask;
+import com.actelion.research.datawarrior.task.AbstractWindowTask;
 
-public class DETaskCloseWindow extends DEAbstractWindowTask {
+public class DETaskCloseWindow extends AbstractWindowTask {
 	public static final String TASK_NAME = "Close Window";
-
-    private static Properties sRecentConfiguration;
 
 	public DETaskCloseWindow(Frame parent, DataWarrior application, DEFrame window) {
 		super(parent, application, window);
@@ -41,21 +39,11 @@ public class DETaskCloseWindow extends DEAbstractWindowTask {
 
 	@Override
 	public void runTask(Properties configuration) {
-		getApplication().closeFrame(getConfiguredWindow(configuration));
+		getApplication().closeFrameSafely(getConfiguredWindow(configuration), isInteractive());
 		}
 
 	@Override
 	public DEFrame getNewFrontFrame() {
 		return getApplication().getNewFrontFrameAfterClosing();
 		}
-
-	@Override
-	public Properties getRecentConfiguration() {
-    	return sRecentConfiguration;
-    	}
-
-	@Override
-	public void setRecentConfiguration(Properties configuration) {
-    	sRecentConfiguration = configuration;
-    	}
 	}

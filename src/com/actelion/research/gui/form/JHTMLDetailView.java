@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,18 +18,13 @@
 
 package com.actelion.research.gui.form;
 
-import java.awt.Color;
-import java.awt.Graphics;
-import java.awt.Graphics2D;
-import java.awt.Toolkit;
+import javax.swing.*;
+import javax.swing.border.Border;
+import java.awt.*;
 import java.awt.datatransfer.StringSelection;
 import java.awt.event.ActionEvent;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Rectangle2D;
-
-import javax.swing.JEditorPane;
-import javax.swing.JScrollPane;
-import javax.swing.border.Border;
 
 public class JHTMLDetailView extends JResultDetailView {
     private static final long serialVersionUID = 0x20110912;
@@ -84,7 +79,7 @@ public class JHTMLDetailView extends JResultDetailView {
 		}
 
     @Override
-	public void print(Graphics g, Rectangle2D.Float r, float scale, Object data) {
+	public void print(Graphics g, Rectangle2D.Double r, float scale, Object data) {
 	    final double internalScale = 0.75;
 	    
 	    if (data == null)

@@ -1,12 +1,10 @@
 <!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN">
-<html>
 <head>
   <title>Chemistry Functionality</title>
   <base href="../">
   <link type="text/css" href="styles.css" rel="stylesheet">
 </head>
 
-<body>
 <hr align="left" size="2" width="550">
 <h2><a name="ChemicalStructures"></a>Working With Chemical Structures</h2>
 
@@ -39,7 +37,8 @@ case one can always add new <span class="keyword">Structure Filters</span> by se
 </table>
 
 <br>
-There are three kinds of options within a <span class="keyword">Structure Filter</span>:<br>
+A <span class="keyword">Structure Filter</span> option menu allows to switch between two
+general operation modes:<br>
 
 <li><span class="menu">contains</span> hides compounds (not) having a
 certain a sub-structure</li>
@@ -47,8 +46,6 @@ certain a sub-structure</li>
 <li><span class="menu">is similar to [...]</span> hides rows with
 (dis-)similar structures. The descriptor used is given in brackets.</li>
 
-<li>The <span class="menu">&lt;disabled&gt;</span> option disables the filter
-but keeps the query molecule for later filtering.</li>
 <br>
 
 <p>A double-click on the filter's structure field opens the <span class="keyword">Osiris
@@ -80,49 +77,71 @@ refer to the <a href="help/../editor/editor.html">Structure Editor</a> section.<
 <h3>Substructure Search</h3>
 
 <p>A filter in substructure search mode hides all rows, whose structures do not contain
-the drawn molecule fragment.
-Atoms or bonds of the query fragment can be specified more precisely to narrow
-the search. A double click on an atom or bond after selecting the lasso tool opens
-an atom or bond query feature dialog. If the double clicked atom or bond is one of
-multiple selected ones, then the dialog's settings are applied to all selected atoms
-or bonds when the dialog is closed with <span class="menu">OK</span>.</p>
+the drawn molecule fragment. Required atom or bond features of the query fragment can be defined
+to narrow the search. A double click on an atom or bond after selecting the lasso tool opens
+an corresponding atom or bond query feature dialog. If multiple atoms or bonds have been selected,
+then the dialog's settings are applied to all selected atoms or bonds when the dialog is closed.</p>
 
 <p align="center"><img src="help/img/chem/atomQF.jpeg"><br></p>
 <p><center><i>Atom query feature dialog of structure editor in fragment mode.</i></center></p>
 
 <p align="left">The first option in the atom query feature dialog lets you convert
-a defined atom into a wild card. In the next <span class="menu">allowed atoms</span>
-field one may specify more precisely, which atom are allowed atom this position.
-If <span class="menu">any atomic number</span> is selected and the respective atom is
-declared as wild card then the <span class="menu">allowed atoms</span> field turns
-into an <span class="menu">excluded atoms</span> field, accepting any atom the explicitly
-specified ones. While these options make the query fragment less specific, all following
-options narrow the search. These options are self explanatory.</p>
+a defined atom into a wild-card. In the following field <span class="menu">allowed atoms</span>
+one may specify more precisely, which atom types are allowed at this position.
+If <span class="menu">any atomic number</span> is selected and therefore the atom is
+declared a wild-card then the <span class="menu">allowed atoms</span> field turns
+into an <span class="menu">excluded atoms</span> field. This causes the struture search to accept
+any atom but the explicitly excluded ones. While these options make the query fragment less specific,
+all following options narrow the search. Most of these options are self explanatory.</p>
 
-<p align="center"><img src="help/img/chem/query.jpeg"></p>
-<p><center><i>Query fragment with yellow markers to indicated not visible query features.</i></center></p>
+<p>The option <span class="menu">is part of an exclude group</span> is a powerful feature that
+goes well beyond a standard substructure search. This option lets you mark a part of a query structure
+to represent an unwanted structural feature. This way you may search for amines (nitrogen atoms
+without an attached carbonyl group), for single fluoro substituent that is not part of a di-
+or tri-fluoro substitution, or for pyridyl-substituents without a methoxy in meta-position, etc.
+Exclude groups are also very useful in the context of generic reactions to build combinatorial
+libraries.</p>
+<p align="center"><img src="help/img/chem/excludeGroup.jpeg"></p>
+<p><center><i>Exclude groups are drawn in dark red with a pink background.</i></center></p>
+<p>If a query fragment contains an <span class="keyword">exclude group</span> then the substructure
+search process runs in two steps. First it locates all matches of the query fragment without
+exclude group. If multiple matches are found, this can have two reasons: the query fragment may
+exist multiple times in a molecule or the query fragment is symmetrical and matches the same atoms
+multiple times with different query-to-molecule atom assignments. The latter case we call
+equivalent matches. The second step of the substructure search now checks any original match,
+whether it can be extended to also include the exclude group. If the exclude group can be
+matched, then the original match and all equivalent matches are discarded.
+For the m-methoxy-pyridin example above this means that a molecule containing a pyridin fragment is
+not considered a match if <b>any</b> of the two meta positions carries a methoxy substituent.</p>
 
 <p>In the <span class="keyword">Structure Editor</span> atom or bond query features are
-usually reflected in the drawing in an obvious way or indicated with small letters.
-More complex query features may not be shown directly. In this case affected atoms or
-bonds are indicated in yellow for easy recognition.</p>
+usually reflected in the drawing in an obvious way or indicated with small letters
+(<i>s</i>:further substituted, <i>a</i>:aromatic, <i>h</i>:hydrogen count, <i>c</i>:charge,
+<i>n</i>:neighbour count, <i>r</i>:ring size, etc.).
+Some complex query features may not be shown directly. In any case atoms and bonds with query
+features show a yellow spot in their background to indicate their special meaning.</p>
 
-<p align="center"><img src="help/img/chem/bondQF.jpeg"></p>
-<p><center><i>Bond query feature dialog of structure editor in fragment mode.</i></center></p>
+<p align="center"><img src="help/img/chem/query.jpeg"></p>
+<p><center><i>Query fragment with yellow markers to indicate invisible query features.</i></center></p>
 
-<p>In the bond query features dialog one may define more than one bond types to satisfy the search.
-The <span class="keyword">Single</span> or <span class="keyword">Double</span> bond options
-match any non-delocalized single or double bonds, respectively. <span class="keyword">DataWarrior</span>
-considers 5-membered aromatic rings as non-delocalized. Therefore, the
+<p>In the bond query features dialog one may select more than one bond types, e.g.
+<span class="keyword">Single</span> and <span class="keyword">Delocalized</span> as in the
+example below. This would match the query bond to both, single and delocalized bonds.
+It is important to understand that <span class="keyword">DataWarrior</span>
+considers 5-membered aromatic rings not to be delocalized. Therefore, the
 <span class="keyword">Delocalized</span> option does not match to any bond of an aromatic
 5-membered ring, unless it is annelated to an aromatic 6-membered ring, which is considered
 delocalized and which causes the shared bond between the two rings to be delocalized as well.
 In general <span class="keyword">DataWarrior</span> considers aromatic bonds with no
-preferred mesomeric structure being delocalized.</p>
+preferred mesomeric structure as being delocalized.</p>
 
-<p>A query bond may also be redefined to be a chain of multiple connected atoms
-rather than a directly connecting bond. The allowed range for the chain length
-dose not include the end atoms already drawn as part of the query structure.</p>
+<p align="center"><img src="help/img/chem/bondQF.jpeg"></p>
+<p><center><i>Bond query feature dialog of structure editor in fragment mode.</i></center></p>
+
+<p>An <span class="keyword">Atom Bridge</span> option allows to convert any bond of the query
+structure to represent a chain of multiple connected atoms rather than a direct connection.
+One defines the allowed number of atoms within the chain not counting the atoms already drawn
+as part of the query structure.</p>
 
 <p>If <span class="menu">Highlight Structure By -> Recent Filter</span> is selected in column
 header menu of the structure column in the <span class="keyword">Table View</span>, then
@@ -160,15 +179,17 @@ Here you can find more information on <a href="help/similarity.html">descriptors
 and <a href="help/similarity.html#WhichDescriptor">which kind of similarity</a> should be used for which purpose.</p>
 <br>
 
-<h3><a name="SearchReplace"></a>Search & Replace with Chemical Structures</h3>
+<h3><a name="FindReplace"></a>Find & Replace with Chemical Structures</h3>
 <p>
-Usually, <span class="keyword">Search & Replace</span> functionality is performed on text data.
-For this purpose the <span class="keyword">Search & Replace</span> dialog (left) lets you select a column,
+Usually, <span class="keyword">Find & Replace</span> functionality is performed on text data.
+For this purpose the <span class="keyword">Find & Replace</span> dialog (left) lets you select a column,
 a text string to be searched for and another piece of text as a replacement string.
-You may also define, whether the search target shall be replaced in all rows, in all
-visible rows, or in the selected rows only.</p>
+You may also choose all empty cells or any cell content to be replaced by a new content.
+In addition you may define, whether the replacement shall take place in all rows, or whether
+it shall be restricted to visible or selected rows only. This way you may for instance choose
+to replace any content of all selected cells with some new content.</p>
 <p align="center"><img src="help/img/chem/searchReplace.jpeg"></p>
-<p><center><i>Search & Replace dialogs for alphanumerial and structure columns.</i></center></p>
+<p><center><i>Find & Replace dialogs for alphanumerial and structure columns.</i></center></p>
 <p>If the target column doesn't contain text but chemical structures, then the dialog changes
 and shows two substructure fields instead of text fields to define the search and replacement
 fragments (dialog on the right). For replacing one substructure by another,
@@ -178,9 +199,16 @@ to both fragments. In oder to replace a phenyl group with a cyclohexyl substitue
 to draw phenyl-R1 and cyclohexyl-R1. Atoms of the search fragment, which don't carry an R-group,
 are considered not to carry any more substituents. To define linkers or scaffolds instead of
 single bonded substituents one needs to attach two or more R-groups to the search target
-and replacement fragment.
-</p>
-<br>
+and replacement fragment.</p>
+<p>If neither search nor replacement fragment carry any R-group, then the search fragment
+effectively defines an unconnected structure to be replaced. If in this case the replacement
+fragment is kept empty, then the search fragments are just removed from the target structures.</p>
+<p>Typical structure related use cases are:
+<li>Replace a given scaffold/linker/substituent by another one</li>
+<li>Fill empty structures cells with a given structure</li>
+<li>Remove certain unwanted fragments, e.g. HCl</li>
+<li>Remove all selected structures</li>
+</p><br>
 
 <h3><a name="Add2DCoords"></a>Unifying 2D Atom Coordinates</h3>
 <p>
@@ -234,11 +262,52 @@ influenced by the list of found scaffolds.
 <h3><a name="CompareFiles"></a>Comparing Structure Files</h3>
 <p>
 Sometimes the need arises to compare two rather big sets of compounds for overlaps, i.e.
-for compounds in one set, which are matched by very similar compounds in the other set.
-Typically, this task is due whenever new compounds shall be purchased from some provider,
-which should be substantially different to the compounds one already owns. 
+for compounds in one set, which are matched by similar compounds from the other set.
+One use case may be locating commercially available compounds, which are dissimilar to any
+compound of an existing screening library. In a second step one might filter these compounds
+according to a desired property profile and then purchase a diverse subset of these compounds.
+Another example may be a virtual screening for those commercially available compounds, which are
+similar to at least one of a known set of bioactive compounds. Both, chemical or flexophore
+similarity may be useful in this case.</p>
+<p>This task compares all compounds of the currently active <span class="keyword">DataWarrior</span>
+window with all compounds of a specified compound file. The open window will receive a new column
+containing the most similar structure of the other file and another new column containing the
+similarity value. In addition one may select more information from the external file to be
+included into this window. One may also create new files containing all similar structures
+or all dissimilar structure from the external file. As a last option one may write
+all compared compound pairs or just the similar ones into a new file.  
 </p>
 <p align="center"><img src="help/img/chem/compareFiles.jpeg"></p>
+<p><center><i>Options for locating (dis-)similar compounds between two files.</i></center></p>
+<p><b>File:</b> Click <span class="menu">Choose</span> to select the structure file,
+which the active window's structures shall be compared to. This file may actually be the
+same file that was opened to show the active window.</p>
+<p><b>Descriptor:</b> The descriptor from which to calculate similarity values. Only descriptors
+existing in your open windows are shown. If the external file does not contain the selected
+descriptor then it is calculated on the fly.</p>
+<p><b>Similarity limit:</b> This defines the similarity threshold above which two compounds
+are considered similar. If the most similar compound is not above this limit, it will
+not be shown in the new columns of the active window. If a compound pair file is written,
+then this will also not include pairs, whose similarity is below this threshold.</p>
+<p><b>Select columns:</b> This allows to select columns from the compared file, which
+shall be included as new columns into the current window and populated with the respective
+information of the most similar compound for each row.</p>
+<p><b>Save similar compounds to file:</b> Select this to define a file name for storing
+all compounds of the external file that are found to be similar to any of the current window's
+compounds.</p>
+<p><b>Save dissimilar compounds to file:</b> Select this to define a file name for storing
+all compounds of the external file that are not found to be similar to any of the current window's
+compounds.</p>
+<p><b>Save similar compound pairs to file:</b> Select this to define a file name for storing
+all compound pairs that are more similar than the defined similarity limit.</p>
+<p><b>Compound-ID of this dataset:</b> Here you may select a column from the active window
+containing compound identifiers, which will be written into the compound pair file.</p>
+<p><b>Compound-ID of external file:</b> Here you may select a column from the external
+file containing compound identifiers, which will be written into the compound pair file.</p>
+<p><b>Create half matrix:</b> This option is only available, if the active window's content was
+read from the same file that it is compared against. If this option is selected,
+then only half of the similarity matrix is processed, because this already covers all
+possible compound pair combinations.</p>
 <br>
 
 <h3><a name="SelectDiverse"></a>Selecting Diverse Compounds from Large Set</h3>
@@ -307,7 +376,7 @@ property sections and click <span class="menu">OK</span>.</p>
 the selection of a corresponding numerical column that contains IC50-values.</p>
 <p>Some properties match those available in the <i>OSIRIS Property Explorer</i>,
 which was made public in 2000 and in now maintained on www.openmolecules.org.
-These properties and the algorithms used are explained in more detail
+Some of these properties and the algorithms used are explained in more detail
 <a href="help/../properties/properties.html">here</a>.</p> 
 <br>
 
@@ -396,6 +465,44 @@ current generation and the overall best ranking molecule. The background color
 of these molecules reflect how well the fitness portfolio is already met.
 Any time during the evolution process one may click <span class="menu">Stop</span>
 to create a new document with the fittest structures of all generations.</p>
+<br>
+
+<h3><a name="ScaffoldAnalysis"></a>Analysing Scaffolds</h3>
+
+<p>The <i>Scaffold Analysis</i> locates the core structure(s) of every molecule within a
+given column and creates a new column that contains these scaffolds. The method used to
+locate the core structure(s) depends on the chosen <span class="menu">Scaffold type</span>:
+
+<ul><li><span class="menu">Plain ring systems</span>: This mode locates all single ring
+and annelated ring systems without any substituents.</li>
+<li><span class="menu">Ring systems with substitution pattern</span>: This mode works
+as the previous one, but marks every ring atom as being substituted, which carries an
+exeo-cyclic, non-hydrogen substituent in the original molecule.</li>
+<li><span class="menu">Ring systems with carbon/hetero subst. pattern</span>: This
+mode goes a step further by distinguishing, whether a substituent's first atom was a
+carbon atom or a hetero atom.</li>
+<li><span class="menu">Ring system with atomic-no subst. pattern</span>: This mode
+is even more specific. Every exocyclic substituent is represented by its first atom.</li>
+<li><span class="menu">Murcko scaffold</span>:The <i>Murcko scaffold</i>
+contains all plain ring systems of the given molecule plus all direct connections
+between them. Substituents, which don't contain ring systems are removed from rings and
+ring connecting chains.</li>
+<li><span class="menu">Murcko skeleton</span>: The <i>Murcko skeleton</i> is a
+generalized <i>Murcko scaffold</i>, which has all hetero atoms replaced by carbon atoms.</li>
+<li><span class="menu">Most central ring system</span>: As the name implies, this is
+that ring system of the molecule, which is closest to its topological center. It does not
+contain any exocyclic substitution information.</li></ul></p>
+
+<p>The image below illustrated the different scaffold modes. The original molecule
+structure is shown at the top middle position. The scaffold structures produced by any
+of the seven scaffold modes are shown around the original molecule.</p>
+<p align="center"><img src="help/img/chem/scaffolds.jpeg"></p>
+
+<p>If the <span class="menu">Save scaffold frequency file</span> option is selected, then
+<span class="keyword">DataWarrior</span> creates a new document listing all detected scaffold
+and their occurence frequency. The name and location of the scaffold file can be set
+after pressing the <span class="menu">Choose</span> button.</p>
+
 <br>
 
 <h3><a name="SARTables"></a>Creating SAR-Tables</h3>

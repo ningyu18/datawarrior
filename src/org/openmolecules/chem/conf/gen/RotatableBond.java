@@ -14,11 +14,11 @@
 
 package org.openmolecules.chem.conf.gen;
 
+import com.actelion.research.chem.Coordinates;
 import com.actelion.research.chem.StereoMolecule;
-import com.actelion.research.chem.conf.Conformer;
-import com.actelion.research.chem.conf.TorsionDB;
-import com.actelion.research.chem.conf.TorsionDetail;
-import com.actelion.research.chem.conf.TorsionPrediction;
+import com.actelion.research.chem.conf.*;
+
+import java.util.Random;
 
 /**
  * A RotatableBond knows the two rigid fragments within a molecule
@@ -29,24 +29,44 @@ import com.actelion.research.chem.conf.TorsionPrediction;
  * a given torsion angle.
  */
 public class RotatableBond {
-	private static final float ANGLE_TOLERANCE = 0.001f;	// limit for considering bonds as parallel
+	private static final double ANGLE_TOLERANCE = 0.001f;	// limit for considering bonds as parallel
 
-	private static final float ACCEPTABLE_CENTER_STRAIN = 0.05f;	// if we have less strain than this we don't check whether range edges improve strain
-	private static final float NECESSARY_EDGE_STRAIN_IMPROVEMENT = 0.02f;	// necessary strain improvement to use edge torsion rather than center torsion
-	private static final float MAXIMUM_CENTER_STRAIN = 0.2f;		// if center torsion is above this limit we refuse that torsion
+	// For every optimum torsion we check for collisions and in case we try, whether left or right
+	// range ends are substantially better.
+	private static final double ACCEPTABLE_CENTER_STRAIN = 0.05f;	// if we have less strain than this we don't check whether range edges improve strain
+	private static final double NECESSARY_EDGE_STRAIN_IMPROVEMENT = 0.02f;	// necessary strain improvement to use edge torsion rather than center torsion
+	private static final double MAXIMUM_CENTER_STRAIN = 0.2f;		// if center torsion is above this limit we refuse that torsion
+
+	// If no acceptable torsion remains after checking and attempting to use range edge values,
+	// we try to modify the least bad torsion stepwise until it is acceptable.
+	private static final int ESCAPE_ANGLE = 8;  // degrees to rotate the rotatable bond to escape collisions
+	private static final int ESCAPE_STEPS = 4;	// how often we apply this rotation trying to solve the collision
+	private static final double MIN_ESCAPE_GAIN_PER_STEP = 0.05;
+
+	private static final short[] SIXTY_DEGREE_TORSION = { 0, 60, 120, 180, 240, 300};
+	private static final short[] SIXTY_DEGREE_FREQUENCY = { 17, 17, 17, 17, 17, 17};
+	private static final short[][] SIXTY_DEGREE_RANGE = { {-20,20},{40,80},{100,140},{160,200},{220,260},{280,320}};
 
 	private Rigid3DFragment mFragment1,mFragment2;
+	private Random mRandom;
 	private int mRotationCenter,mBond,mFragmentNo1,mFragmentNo2;
 	private boolean mBondAtomsInFragmentOrder;
+	private float mBondRelevance;
 	private short[] mTorsion;
 	private short[] mFrequency;
 	private short[][] mTorsionRange;
-	private float[] mLikelyhood; // considering directly connected rigid fragments (frequency and collision strain)
+	private double[] mLikelyhood; // considering directly connected rigid fragments (frequency and collision strain)
 	private int[] mTorsionAtom,mRearAtom,mSmallerSideAtomList;
 
 	public RotatableBond(StereoMolecule mol, int bond, int[] fragmentNo, int[] disconnectedFragmentNo,
-						 int disconnectedFragmentSize, Rigid3DFragment[] fragment) {
+	                     int disconnectedFragmentSize, Rigid3DFragment[] fragment, Random random) {
+		this(mol, bond, fragmentNo, disconnectedFragmentNo, disconnectedFragmentSize, fragment, random, false);
+		}
+
+	public RotatableBond(StereoMolecule mol, int bond, int[] fragmentNo, int[] disconnectedFragmentNo,
+						 int disconnectedFragmentSize, Rigid3DFragment[] fragment, Random random, boolean use60degreeSteps) {
 		mBond = bond;
+		mRandom = random;
 		mTorsionAtom = new int[4];
 		mRearAtom = new int[2];
 		TorsionDetail detail = new TorsionDetail();
@@ -65,19 +85,26 @@ public class RotatableBond {
 
 		mBondAtomsInFragmentOrder = (fragmentNo[mol.getBondAtom(0, bond)] == mFragmentNo1);
 
-		mTorsion = TorsionDB.getTorsions(detail.getID());
-		if (mTorsion == null) {
-			TorsionPrediction prediction  = new TorsionPrediction(mol, mTorsionAtom);
-			mTorsion = prediction.getTorsions();
-			mFrequency = prediction.getTorsionFrequencies();
-			mTorsionRange = prediction.getTorsionRanges();
+		if (use60degreeSteps) {
+			mTorsion = SIXTY_DEGREE_TORSION;
+			mFrequency = SIXTY_DEGREE_FREQUENCY;
+			mTorsionRange = SIXTY_DEGREE_RANGE;
 			}
 		else {
-			mFrequency = TorsionDB.getTorsionFrequencies(detail.getID());
-			mTorsionRange = TorsionDB.getTorsionRanges(detail.getID());
+			mTorsion = TorsionDB.getTorsions(detail.getID());
+			if (mTorsion == null) {
+				TorsionPrediction prediction = new TorsionPrediction(mol, mTorsionAtom);
+				mTorsion = prediction.getTorsions();
+				mFrequency = prediction.getTorsionFrequencies();
+				mTorsionRange = prediction.getTorsionRanges();
+			} else {
+				mFrequency = TorsionDB.getTorsionFrequencies(detail.getID());
+				mTorsionRange = TorsionDB.getTorsionRanges(detail.getID());
 			}
+		}
+
 		removeEquivalentTorsions(mol);
-		mLikelyhood = new float[mTorsion.length];
+		mLikelyhood = new double[mTorsion.length];
 
 		findSmallerSideAtomList(mol, disconnectedFragmentNo, disconnectedFragmentSize);
 		}
@@ -181,7 +208,16 @@ public class RotatableBond {
 			if (disconnectedFragmentNo[atom] == fragmentNo && (isMember[atom] ^ invert))
 				mSmallerSideAtomList[memberNo++] = atom;
 
+		mBondRelevance = (float)((memberCount == 1) ? 1 : 2*memberCount) / mol.getAtoms();
+
 		mRotationCenter = mTorsionAtom[invert ? 2 : 1];
+		}
+
+	/**
+	 * @return bond index in molecule
+	 */
+	public int getBond() {
+		return mBond;
 		}
 
 	public int getTorsionCount() {
@@ -197,10 +233,10 @@ public class RotatableBond {
 	 * @param random
 	 * @param progress 0...1 
 	 */
-	public int getLikelyRandomTorsionIndex(float random, float progress) {
-		float sum = 0;
+	public int getLikelyRandomTorsionIndex(double random, double progress) {
+		double sum = 0;
 		for (int t=0; t<mTorsion.length; t++) {
-			float contribution = (1f-progress)*mLikelyhood[t] + progress/mTorsion.length;
+			double contribution = (1f-progress)*mLikelyhood[t] + progress/mTorsion.length;
 			sum += contribution;
 			if (random <= sum)
 				return t;
@@ -211,14 +247,14 @@ public class RotatableBond {
 	/**
 	 * @return the i'th torsion angle in degrees
 	 */
-	public float getTorsion(int t) {
+	public short getTorsion(int t) {
 		return mTorsion[t];
 		}
 
 	/**
 	 * @return the likelyhood of torsion i among all torsions of this bond
 	 */
-	public float getTorsionLikelyhood(int t) {
+	public double getTorsionLikelyhood(int t) {
 		return mLikelyhood[t];
 		}
 
@@ -230,11 +266,21 @@ public class RotatableBond {
 		}
 
 	/**
+	 * The relevance of a rotatable bond and its torsion angle for creating substantially different conformers
+	 * depends on how close the bond is to the center of the molecule. Bond relevance values range from
+	 * 1.0/atomCount (e.g. bond to methyl group) to 1.0 (bond dividing molecule into two equally large parts).
+	 * @return relevance of this bond in the molecule to contribute to conformation change
+	 */
+	public float getRelevance() {
+		return mBondRelevance;
+		}
+
+	/**
 	 * Checks both rigid fragments that are connected by this bond, whether they have
 	 * been attached to the conformer yet, i.e. whether their local coordinates have been
 	 * copied to conformer and transformed according to the connecting torsion.
 	 * If one was already attached, then the other's coordinates are transformed according
-	 * to the torsion and copied to the conformer. A likelyhood is calculated for every torsion
+	 * to the torsion and copied to the conformer. A likelihood is calculated for every torsion
 	 * value based on its frequency and the collision strain of the two fragments' atoms.
 	 * If both fragments were not attached yet, then the larger one's coordinates are
 	 * copied and the smaller one's coordinates are translated and then copied.
@@ -248,9 +294,7 @@ public class RotatableBond {
 			int fragmentConformer = (fragmentPermutation == null) ? 0 : fragmentPermutation[largerFragmentNo];
 			for (int i=0; i<largerFragment.getExtendedSize(); i++) {
 				int atom = largerFragment.extendedToOriginalAtom(i);
-				conformer.x[atom] = largerFragment.getExtendedAtomX(fragmentConformer, i);
-				conformer.y[atom] = largerFragment.getExtendedAtomY(fragmentConformer, i);
-				conformer.z[atom] = largerFragment.getExtendedAtomZ(fragmentConformer, i);
+				conformer.setCoordinates(atom, largerFragment.getExtendedCoordinates(fragmentConformer, i));
 				}
 			}
 
@@ -277,56 +321,30 @@ public class RotatableBond {
 		int fRootAtom = fragment.originalToExtendedAtom(rootAtom);
 		int fRearAtom = fragment.originalToExtendedAtom(rearAtom);
 
-		float frootx = fragment.getExtendedAtomX(fragmentConformer, fRootAtom);
-		float frooty = fragment.getExtendedAtomY(fragmentConformer, fRootAtom);
-		float frootz = fragment.getExtendedAtomZ(fragmentConformer, fRootAtom);
-		float rootx = conformer.x[rootAtom];
-		float rooty = conformer.y[rootAtom];
-		float rootz = conformer.z[rootAtom];
+		Coordinates froot = fragment.getExtendedCoordinates(fragmentConformer, fRootAtom);
+		Coordinates root = conformer.getCoordinates(rootAtom);
+		Coordinates fuv = froot.subC(fragment.getExtendedCoordinates(fragmentConformer, fRearAtom)).unit();
+		Coordinates uv = root.subC(conformer.getCoordinates(rearAtom)).unit();
+		double alpha = fuv.getAngle(uv);
 
-		float[] fuv = getUnitVector(frootx-fragment.getExtendedAtomX(fragmentConformer, fRearAtom),
-									frooty-fragment.getExtendedAtomY(fragmentConformer, fRearAtom),
-									frootz-fragment.getExtendedAtomZ(fragmentConformer, fRearAtom));
-		float[] uv  = getUnitVector(rootx-conformer.x[rearAtom],
-									rooty-conformer.y[rearAtom],
-									rootz-conformer.z[rearAtom]);
-		double alpha = getAngle(uv, fuv);
-
-		float fx[] = new float[fragment.getExtendedSize()];
-		float fy[] = new float[fragment.getExtendedSize()];
-		float fz[] = new float[fragment.getExtendedSize()];
+		Coordinates[] fcoords = new Coordinates[fragment.getExtendedSize()];
 
 		if (alpha < ANGLE_TOLERANCE || alpha > Math.PI - ANGLE_TOLERANCE) {   // special cases
 			for (int i=0; i<fragment.getExtendedSize(); i++) {
 				int atom = fragment.extendedToOriginalAtom(i);
-				if (atom != rootAtom && atom != rearAtom) {
-					fx[i] = fragment.getExtendedAtomX(fragmentConformer, i) - frootx;
-					fy[i] = fragment.getExtendedAtomY(fragmentConformer, i) - frooty;
-					fz[i] = fragment.getExtendedAtomZ(fragmentConformer, i) - frootz;
-	
-					if (alpha > Math.PI / 2) {
-						fx[i] = -fx[i];
-						fy[i] = -fy[i];
-						fz[i] = -fz[i];
-						}
-					}
+				if (atom != rootAtom && atom != rearAtom)
+					fcoords[i] = (alpha > Math.PI / 2) ?
+							froot.subC(fragment.getExtendedCoordinates(fragmentConformer, i))
+						  : fragment.getExtendedCoordinates(fragmentConformer, i).subC(froot);
 				}
 			}
 		else {
-			float[] cp  = getCrossProduct(uv, fuv);
-			float[][] m = getRotationMatrix(getUnitVector(cp[0], cp[1], cp[2]), alpha);
+			double[][] m = getRotationMatrix(uv.cross(fuv).unit(), alpha);
 	
 			for (int i=0; i<fragment.getExtendedSize(); i++) {
 				int atom = fragment.extendedToOriginalAtom(i);
-				if (atom != rootAtom && atom != rearAtom) {
-					float x = fragment.getExtendedAtomX(fragmentConformer, i) - frootx;
-					float y = fragment.getExtendedAtomY(fragmentConformer, i) - frooty;
-					float z = fragment.getExtendedAtomZ(fragmentConformer, i) - frootz;
-	
-					fx[i] = x*m[0][0]+y*m[1][0]+z*m[2][0];
-					fy[i] = x*m[0][1]+y*m[1][1]+z*m[2][1];
-					fz[i] = x*m[0][2]+y*m[1][2]+z*m[2][2];
-					}
+				if (atom != rootAtom && atom != rearAtom)
+					fcoords[i] = fragment.getExtendedCoordinates(fragmentConformer, i).subC(froot).rotate(m);
 				}
 			}
 		isAttached[fragmentNo] = true;
@@ -337,139 +355,170 @@ public class RotatableBond {
 			int connAtom = conformer.getMolecule().getConnAtom(rootAtom, i);
 			if (connAtom != rearAtom) {
 				int fAtom = fragment.originalToExtendedAtom(connAtom);
-				conformer.x[connAtom] = fx[fAtom] + rootx;
-				conformer.y[connAtom] = fy[fAtom] + rooty;
-				conformer.z[connAtom] = fz[fAtom] + rootz;
+				conformer.setCoordinatesReplace(connAtom, fcoords[fAtom].addC(root));
 				}
 			}
+
 		double startTorsion = TorsionDB.calculateTorsionExtended(conformer, mTorsionAtom);
 
-		short currentTorsion = -1;
+		boolean multipleFragments = (mFragment1.getConformerCount() > 1)
+								 || (mFragment2.getConformerCount() > 1);
 
 //System.out.print("connectFragments() original torsions:"); for (int t=0; t<mTorsion.length; t++) System.out.print(mTorsion[t]+" "); System.out.println();
+		short currentTorsion = -1;
+		int bestTorsionIndex = 0;
+		int bestTorsionEdgeUsed = 0;	// 0:peakCenter, 1:leftEdge, 2:rightEdge
+		double bestTorsionStrain = 0;
 		for (int t=0; t<mTorsion.length; t++) {
 			currentTorsion = mTorsion[t];
-			float[][] m = getRotationMatrix(uv, Math.PI * mTorsion[t] / 180 - startTorsion);
+			double[][] m = getRotationMatrix(uv, Math.PI * currentTorsion / 180 - startTorsion);
 			for (int i=0; i<fragment.getExtendedSize(); i++) {
 				int atom = fragment.extendedToOriginalAtom(i);
 				if (atom != rootAtom && atom != rearAtom) {
-					conformer.x[atom] = fx[i]*m[0][0]+fy[i]*m[1][0]+fz[i]*m[2][0] + rootx;
-					conformer.y[atom] = fx[i]*m[0][1]+fy[i]*m[1][1]+fz[i]*m[2][1] + rooty;
-					conformer.z[atom] = fx[i]*m[0][2]+fy[i]*m[1][2]+fz[i]*m[2][2] + rootz;
+					conformer.setCoordinates(atom, fcoords[i]);
+					conformer.getCoordinates(atom).rotate(m).add(root);
 					}
 				}
 
-			float strain = calculateCollisionStrain(conformer);
+			double centerStrain = calculateCollisionStrain(conformer);
+			double usedStrain = centerStrain;	// default
+			int torsionEdgeUsed = 0;	// default
 			// if the strain is above a certain limit, we investigate whether we should use the
 			// limits of the torsion range rather than the central torsion value, which has the
 			// highest frequency.
 			// If we use torsion range limits, then we need to consider half of the frequency
 			// for each of the lower and higher limits.
-			if (strain < ACCEPTABLE_CENTER_STRAIN) {
-				float relativeStrain = strain / MAXIMUM_CENTER_STRAIN;
-				mLikelyhood[t] = mFrequency[t] * (1f - relativeStrain * relativeStrain);
+			if (multipleFragments) {
+				mLikelyhood[t] = mFrequency[t];
+				}
+			else if (centerStrain < ACCEPTABLE_CENTER_STRAIN) {
+				double relativeStrain = centerStrain / MAXIMUM_CENTER_STRAIN;
+				mLikelyhood[t] = mFrequency[t] * (1.0 - relativeStrain * relativeStrain);
 				}
 			else {
 				boolean foundAlternative = false;
 				boolean isFirstAlternative = true;
 				for (int r=0; r<2; r++) {
 					currentTorsion = mTorsionRange[t][r];
-					m = getRotationMatrix(uv, Math.PI * mTorsionRange[t][r] / 180 - startTorsion);
+					m = getRotationMatrix(uv, Math.PI * currentTorsion / 180 - startTorsion);
 					for (int i=0; i<fragment.getExtendedSize(); i++) {
 						int atom = fragment.extendedToOriginalAtom(i);
 						if (atom != rootAtom && atom != rearAtom) {
-							conformer.x[atom] = fx[i]*m[0][0]+fy[i]*m[1][0]+fz[i]*m[2][0] + rootx;
-							conformer.y[atom] = fx[i]*m[0][1]+fy[i]*m[1][1]+fz[i]*m[2][1] + rooty;
-							conformer.z[atom] = fx[i]*m[0][2]+fy[i]*m[1][2]+fz[i]*m[2][2] + rootz;
+							conformer.setCoordinates(atom, fcoords[i]);
+							conformer.getCoordinates(atom).rotate(m).add(root);
 							}
 						}
 
-					float rangeStrain = calculateCollisionStrain(conformer);
-					if (strain - rangeStrain > NECESSARY_EDGE_STRAIN_IMPROVEMENT) {
+					double rangeStrain = calculateCollisionStrain(conformer);
+					if (centerStrain - rangeStrain > NECESSARY_EDGE_STRAIN_IMPROVEMENT) {
 						if (isFirstAlternative) {
 							mTorsion[t] = mTorsionRange[t][r];
 							mFrequency[t] = (short)((mFrequency[t]+1) / 2);
-							float relativeStrain = rangeStrain / MAXIMUM_CENTER_STRAIN;
+							double relativeStrain = rangeStrain / MAXIMUM_CENTER_STRAIN;
 							mLikelyhood[t] = mFrequency[t] * (1f - relativeStrain * relativeStrain);
+							usedStrain = rangeStrain;
+							torsionEdgeUsed = r+1;
 							isFirstAlternative = false;
 							}
 						else {
-							float relativeStrain = rangeStrain / MAXIMUM_CENTER_STRAIN;
-							insertTorsion(t+1, mTorsionRange[t][r], (short)((mFrequency[t]+1) / 2),
-									mFrequency[t] * (1f - relativeStrain * relativeStrain));
+							double relativeStrain = rangeStrain / MAXIMUM_CENTER_STRAIN;
+							insertTorsion(t, r, relativeStrain);
+							if (mLikelyhood[t+1] > mLikelyhood[t]) {
+								usedStrain = rangeStrain;
+								torsionEdgeUsed = r+1;
+								}
 							t++;
 							}
 						foundAlternative = true;
 						}
 					}
-				if (!foundAlternative && strain < MAXIMUM_CENTER_STRAIN) {
-					float relativeStrain = strain / MAXIMUM_CENTER_STRAIN;
+				if (!foundAlternative /* && strain < MAXIMUM_CENTER_STRAIN really bad ones should get a negative likelyhood */) {
+					double relativeStrain = centerStrain / MAXIMUM_CENTER_STRAIN;
 					mLikelyhood[t] = mFrequency[t] * (1f - relativeStrain * relativeStrain);
 					}
 				}
+			if (mLikelyhood[bestTorsionIndex] < mLikelyhood[t]) {
+				bestTorsionIndex = t;
+				bestTorsionEdgeUsed = torsionEdgeUsed;
+				bestTorsionStrain = usedStrain;	// this is the strain with the highest likelyhood (not necessarily the lowest strain)
+				}
 			}
 
-		float totalLikelyhood = 0f;
-		float maxLikelyHood = -Float.MAX_VALUE;
-		int maxTorsionIndex = -1;
-		for (int t=0; t<mTorsion.length; t++) {
-			if (maxLikelyHood < mLikelyhood[t]) {
-				maxLikelyHood = mLikelyhood[t];
-				maxTorsionIndex = t;
-				}
+		double totalLikelyhood = 0f;
+		for (int t=0; t<mTorsion.length; t++)
 			if (mLikelyhood[t] > 0f)
 				totalLikelyhood += mLikelyhood[t];
-			}
 
 		// make sure, we have at least one torsion with positive likelyhood, because only those are considered later
-		if (maxLikelyHood <= 0f)
-			mLikelyhood[maxTorsionIndex] = 1.0f;
-		else
-			for (int t=0; t<mTorsion.length; t++)
-				mLikelyhood[t] /= totalLikelyhood;
+		if (mLikelyhood[bestTorsionIndex] <= 0f) {
+			mLikelyhood[bestTorsionIndex] = 1.0f;
+			int angle = bestTorsionEdgeUsed == 1 ? -ESCAPE_ANGLE
+					  : bestTorsionEdgeUsed == 2 ? ESCAPE_ANGLE
+					  : (mRandom.nextDouble() < 0.5) ? -ESCAPE_ANGLE : ESCAPE_ANGLE;
+			for (int step=1; step<=ESCAPE_STEPS; step++) {
+				currentTorsion = (short)(mTorsion[bestTorsionIndex]+angle*step);
+				double[][] m = getRotationMatrix(uv, Math.PI * currentTorsion / 180 - startTorsion);
+				for (int i=0; i<fragment.getExtendedSize(); i++) {
+					int atom = fragment.extendedToOriginalAtom(i);
+					if (atom != rootAtom && atom != rearAtom) {
+						conformer.setCoordinates(atom, fcoords[i]);
+						conformer.getCoordinates(atom).rotate(m).add(root);
+						}
+					}
 
-		maxTorsionIndex = removeUnlikelyTorsions(maxTorsionIndex);
+				double escapeStrain = calculateCollisionStrain(conformer);
+				if (bestTorsionStrain - escapeStrain < MIN_ESCAPE_GAIN_PER_STEP)
+					break;
+
+				mTorsion[bestTorsionIndex] = currentTorsion;
+				}
+			}
+		else {
+			for (int t = 0; t < mTorsion.length; t++)
+				mLikelyhood[t] /= totalLikelyhood;
+			}
+
+		bestTorsionIndex = removeUnlikelyTorsions(bestTorsionIndex);
 
 //System.out.print("connectFragments() applied torsions:"); for (int t=0; t<mTorsion.length; t++) System.out.print(mTorsion[t]+" "); System.out.println();
 //System.out.print("connectFragments() applied likelyhoods:"); for (int t=0; t<mTorsion.length; t++) System.out.print(mLikelyhood[t]+" "); System.out.println();
 //System.out.println();
 
-		if (currentTorsion != mTorsion[maxTorsionIndex]) {
-			float[][] m = getRotationMatrix(uv, Math.PI * mTorsion[maxTorsionIndex] / 180 - startTorsion);
+		if (currentTorsion != mTorsion[bestTorsionIndex]) {
+			double[][] m = getRotationMatrix(uv, Math.PI * mTorsion[bestTorsionIndex] / 180 - startTorsion);
 			for (int i=0; i<fragment.getExtendedSize(); i++) {
 				int atom = fragment.extendedToOriginalAtom(i);
 				if (atom != rootAtom && atom != rearAtom) {
-					conformer.x[atom] = fx[i]*m[0][0]+fy[i]*m[1][0]+fz[i]*m[2][0] + rootx;
-					conformer.y[atom] = fx[i]*m[0][1]+fy[i]*m[1][1]+fz[i]*m[2][1] + rooty;
-					conformer.z[atom] = fx[i]*m[0][2]+fy[i]*m[1][2]+fz[i]*m[2][2] + rootz;
+					conformer.setCoordinates(atom, fcoords[i]);
+					conformer.getCoordinates(atom).rotate(m).add(root);
 					}
 				}
 			}
-		conformer.setBondTorsion(mBond, mTorsion[maxTorsionIndex]);
+		conformer.setBondTorsion(mBond, mTorsion[bestTorsionIndex]);
 		}
 
-	private float calculateCollisionStrain(Conformer conformer) {
-		float panalty = 0f;
+	private double calculateCollisionStrain(Conformer conformer) {
+		double panalty = 0f;
 		int bondAtom1 = conformer.getMolecule().getBondAtom(0, mBond);
 		int bondAtom2 = conformer.getMolecule().getBondAtom(1, mBond);
 		for (int i=0; i<mFragment1.getCoreSize(); i++) {
 			int atom1 = mFragment1.coreToOriginalAtom(i);
 			if (atom1 != bondAtom1 && atom1 != bondAtom2) {
-				float vdwr1 = ConformerGenerator.getToleratedVDWRadius(conformer.getMolecule().getAtomicNo(atom1));
+				double vdwr1 = ConformerGenerator.getToleratedVDWRadius(conformer.getMolecule().getAtomicNo(atom1));
 				for (int j=0; j<mFragment2.getCoreSize(); j++) {
 					int atom2 = mFragment2.coreToOriginalAtom(j);
 					if (atom2 != bondAtom1 && atom2 != bondAtom2) {
-						float minDistance = vdwr1 + ConformerGenerator.getToleratedVDWRadius(
+						double minDistance = vdwr1 + ConformerGenerator.getToleratedVDWRadius(
 								conformer.getMolecule().getAtomicNo(atom2));
-						float dx = Math.abs(conformer.x[atom1] - conformer.x[atom2]);
+						double dx = Math.abs(conformer.getX(atom1) - conformer.getX(atom2));
 						if (dx < minDistance) {
-							float dy = Math.abs(conformer.y[atom1] - conformer.y[atom2]);
+							double dy = Math.abs(conformer.getY(atom1) - conformer.getY(atom2));
 							if (dy < minDistance) {
-								float dz = Math.abs(conformer.z[atom1] - conformer.z[atom2]);
+								double dz = Math.abs(conformer.getZ(atom1) - conformer.getZ(atom2));
 								if (dz < minDistance) {
-									float distance = (float)Math.sqrt(dx*dx+dy*dy+dz*dz);
+									double distance = Math.sqrt(dx*dx+dy*dy+dz*dz);
 									if (distance < minDistance) {
-										float p = (minDistance - distance) / minDistance;
+										double p = (minDistance - distance) / minDistance;
 										panalty += p*p;
 										}
 									}
@@ -486,7 +535,8 @@ public class RotatableBond {
 	 * Removes all torsions with non-positive likelyhoods.
 	 * Sorts torsions, frequencies and likelyhoods by descending likelyhoods.
 	 * Translates originalTorsionIndex to new sorted and resized torsion values.
-	 * @param adapted torsion index
+	 * @param originalTorsionIndex
+	 * @return adapted torsion index
 	 */
 	private int removeUnlikelyTorsions(int originalTorsionIndex) {
 		int newTorsionIndex = -1;
@@ -497,9 +547,9 @@ public class RotatableBond {
 
 		short[] newTorsion = new short[count];
 		short[] newFrequency = new short[count];
-		float[] newLikelyhood = new float[count];
+		double[] newLikelyhood = new double[count];
 		for (int i=0; i<count; i++) {
-			float maxLikelyhood = 0f;
+			double maxLikelyhood = 0f;
 			int maxIndex = -1;
 			for (int t=0; t<mTorsion.length; t++) {
 				if (maxLikelyhood < mLikelyhood[t]) {
@@ -523,14 +573,19 @@ public class RotatableBond {
 		return newTorsionIndex;
 		}
 
-	private void insertTorsion(int index, short torsion, short frequency, float likelyhood) {
+	private void insertTorsion(int t, int r, double relativeStrain) {
 		short[] newTorsion = new short[mTorsion.length+1];
 		short[][] newRange = new short[mTorsion.length+1][];
 		short[] newFrequency = new short[mTorsion.length+1];
-		float[] newLikelyhood = new float[mTorsion.length+1];
+		double[] newLikelyhood = new double[mTorsion.length+1];
 		int oldIndex = 0;
+
+		short torsion = mTorsionRange[t][r];
+		short frequency = (short)((mFrequency[t]+1) / 2);
+		double likelyhood = mFrequency[t] * (1.0 - relativeStrain * relativeStrain);
+
 		for (int i=0; i<=mTorsion.length; i++) {
-			if (i == index) {
+			if (i == t+1) {
 				newTorsion[i] = torsion;
 				newRange[i] = new short[2];
 				newRange[i][0] = torsion;
@@ -553,45 +608,24 @@ public class RotatableBond {
 		mLikelyhood = newLikelyhood;
 		}
 
-	private static float[] getUnitVector(float x, float y, float z) {
-		float l = (float)Math.sqrt(x*x+y*y+z*z);
-		float[] uv = new float[3];
-		uv[0] = x/l;
-		uv[1] = y/l;
-		uv[2] = z/l;
-		return uv;
-		}
+	private static double[][] getRotationMatrix(Coordinates n, double alpha) {
+		double sinAlpha = Math.sin(alpha);
+		double cosAlpha = Math.cos(alpha);
+		double invcosAlpha = 1.0-cosAlpha;
 
-	private static float[] getCrossProduct(float[] v1, float[] v2) {
-		float[] cp = new float[3];
-		cp[0] = v1[1]*v2[2] - v1[2]*v2[1]; 
-		cp[1] = v1[2]*v2[0] - v1[0]*v2[2];
-		cp[2] = v1[0]*v2[1] - v1[1]*v2[0];
-		return cp;
-		}
-
-	private static double getAngle(float[] v1, float[] v2) {
-		return Math.acos(v1[0]*v2[0]+v1[1]*v2[1]+v1[2]*v2[2]);
-		}
-
-	private static float[][] getRotationMatrix(float[] uv, double alpha) {
-		float sinAlpha = (float)Math.sin(alpha);
-		float cosAlpha = (float)Math.cos(alpha);
-		float invcosAlpha = 1f-cosAlpha;
-
-		// rotation matrix is: m11 m12 m13
-		//					 m21 m22 m23
-		//					 m31 m32 m33
-		float[][] m = new float[3][3];
-		m[0][0] = uv[0]*uv[0]*invcosAlpha+cosAlpha;
-		m[1][1] = uv[1]*uv[1]*invcosAlpha+cosAlpha;
-		m[2][2] = uv[2]*uv[2]*invcosAlpha+cosAlpha;
-		m[0][1] = uv[0]*uv[1]*invcosAlpha-uv[2]*sinAlpha;
-		m[1][2] = uv[1]*uv[2]*invcosAlpha-uv[0]*sinAlpha;
-		m[2][0] = uv[2]*uv[0]*invcosAlpha-uv[1]*sinAlpha;
-		m[0][2] = uv[0]*uv[2]*invcosAlpha+uv[1]*sinAlpha;
-		m[1][0] = uv[1]*uv[0]*invcosAlpha+uv[2]*sinAlpha;
-		m[2][1] = uv[2]*uv[1]*invcosAlpha+uv[0]*sinAlpha;
+		// rotation matrix is:  m11 m12 m13
+		//					    m21 m22 m23
+		//					    m31 m32 m33
+		double[][] m = new double[3][3];
+		m[0][0] = n.x*n.x*invcosAlpha+cosAlpha;
+		m[1][1] = n.y*n.y*invcosAlpha+cosAlpha;
+		m[2][2] = n.z*n.z*invcosAlpha+cosAlpha;
+		m[0][1] = n.x*n.y*invcosAlpha-n.z*sinAlpha;
+		m[1][2] = n.y*n.z*invcosAlpha-n.x*sinAlpha;
+		m[2][0] = n.z*n.x*invcosAlpha-n.y*sinAlpha;
+		m[0][2] = n.x*n.z*invcosAlpha+n.y*sinAlpha;
+		m[1][0] = n.y*n.x*invcosAlpha+n.z*sinAlpha;
+		m[2][1] = n.z*n.y*invcosAlpha+n.x*sinAlpha;
 		return m;
 		}
 
@@ -624,26 +658,34 @@ public class RotatableBond {
 	 * of the torsion list, because we would get equivalent conformers.
 	 */
 	private void removeEquivalentTorsions(StereoMolecule mol) {
+		final int[][] SYMMETRY_COUNT = {{1,2,3},{2,4,12},{3,12,6}};
 		int symmetryCount1 = (mFragment1.getConnectionPointCount() != 1) ? 1
 				: countSymmetricalTerminalNeighbors(mol, mTorsionAtom[1], mRearAtom[0]);
 		int symmetryCount2 = (mFragment2.getConnectionPointCount() != 1) ? 1
 				: countSymmetricalTerminalNeighbors(mol, mTorsionAtom[2], mRearAtom[1]);
 
 		if (symmetryCount1 == 1 && symmetryCount2 == 1)
-        	return;
+			return;
 
-		int symmetryCount = (symmetryCount1 == symmetryCount2) ?
-        		symmetryCount1 : symmetryCount1 * symmetryCount2;
+		// we assume that we have only 1,2,3 as individual symmetryCounts
+		int maxAngle = 360 / Math.max(symmetryCount1, symmetryCount2);
 
-		assert(mTorsion.length % symmetryCount == 0);
-		int count = mTorsion.length / symmetryCount;
+		int count = 0;
+		int frequencySum = 0;
+		for (int i=0; i<mTorsion.length && mTorsion[i] < maxAngle; i++) {
+			frequencySum += mFrequency[i];
+			count++;
+			}
+
+		if (count == 0)	// should not happen
+			return;
 
 		short[] newTorsion = new short[count];
 		short[] newFrequency = new short[count];
 		short[][] newRange = new short[count][];
         for (int i=0; i<count; i++) {
         	newTorsion[i] = mTorsion[i];
-        	newFrequency[i] = (short)(mFrequency[i] * symmetryCount);
+        	newFrequency[i] = (short)(mFrequency[i] * 100 / frequencySum);
         	newRange[i] = mTorsionRange[i];
         	}
 
@@ -660,7 +702,7 @@ public class RotatableBond {
      * @param mol
      * @param atom
      * @param rearAtom connected to atom and not considered
-     * @return
+     * @return 1,2, or 3
      */
     private int countSymmetricalTerminalNeighbors(StereoMolecule mol, int atom, int rearAtom) {
 		if (mol.getAtomPi(atom) == 2)
@@ -687,29 +729,23 @@ public class RotatableBond {
 	/**
 	 * Rotates all atoms in atomList around the axis leading from atom1 through atom2
 	 * by angle. The coordinates of atom1 and atom2 are not touched.
-	 * @param mol
-	 * @param atom1
-	 * @param atom2
-	 * @param Alpha
-	 * @param atomList
+	 * @param conformer
+	 * @param alpha
 	 */
 	private void rotateSmallerSide(Conformer conformer, double alpha) {
-		float x0 = conformer.x[mTorsionAtom[2]];
-		float y0 = conformer.y[mTorsionAtom[2]];
-		float z0 = conformer.z[mTorsionAtom[2]];
-		float[] n = getUnitVector(x0 - conformer.x[mTorsionAtom[1]],
-								  y0 - conformer.y[mTorsionAtom[1]],
-								  z0 - conformer.z[mTorsionAtom[1]]);
-		float[][] m = getRotationMatrix(n, (mRotationCenter == mTorsionAtom[1]) ? alpha : -alpha);
+		Coordinates t2 = conformer.getCoordinates(mTorsionAtom[2]);
+		Coordinates unit = t2.subC(conformer.getCoordinates(mTorsionAtom[1])).unit();
+
+		double[][] m = getRotationMatrix(unit, (mRotationCenter == mTorsionAtom[1]) ? alpha : -alpha);
 
 		for (int atom:mSmallerSideAtomList) {
 			if (atom != mRotationCenter) {
-				float x = conformer.x[atom] - x0;
-				float y = conformer.y[atom] - y0;
-				float z = conformer.z[atom] - z0;
-				conformer.x[atom] = x*m[0][0]+y*m[0][1]+z*m[0][2] + x0;
-				conformer.y[atom] = x*m[1][0]+y*m[1][1]+z*m[1][2] + y0;
-				conformer.z[atom] = x*m[2][0]+y*m[2][1]+z*m[2][2] + z0;
+				double x = conformer.getX(atom) - t2.x;
+				double y = conformer.getY(atom) - t2.y;
+				double z = conformer.getZ(atom) - t2.z;
+				conformer.setX(atom, x*m[0][0]+y*m[0][1]+z*m[0][2] + t2.x);
+				conformer.setY(atom, x*m[1][0]+y*m[1][1]+z*m[1][2] + t2.y);
+				conformer.setZ(atom, x*m[2][0]+y*m[2][1]+z*m[2][2] + t2.z);
 				}
 			}
 		}

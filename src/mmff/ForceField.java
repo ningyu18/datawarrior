@@ -1,5 +1,5 @@
 /*
- * Copyright 2015 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of ActelionMMFF94.
  * 
@@ -70,6 +70,7 @@ import com.actelion.research.chem.ExtendedMolecule;
 public final class ForceField {
 	public static final String MMFF94 = "MMFF94";
 	public static final String MMFF94S = "MMFF94s";
+    public static final String MMFF94SPLUS = "MMFF94s+";
 
 	public static final double FUNCTOL = 1e-4;
     public static final double MOVETOL = 1e-7;
@@ -559,10 +560,7 @@ public final class ForceField {
     }
 
     public static void initialize(String tableSet) {
-    	if (MMFF94.equals(tableSet))
-	        ForceField.loadTable(MMFF94, Tables.newMMFF94());
-    	if (MMFF94.equals(tableSet))
-	        ForceField.loadTable(MMFF94S, Tables.newMMFF94s());
+        ForceField.loadTable(tableSet, Tables.newMMFF94(tableSet));
     }
 
     /**

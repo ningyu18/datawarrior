@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,23 +18,17 @@
 
 package com.actelion.research.datawarrior.task.chem;
 
-import info.clearthought.layout.TableLayout;
-
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
-import java.util.Properties;
-
-import javax.swing.JCheckBox;
-import javax.swing.JComboBox;
-import javax.swing.JLabel;
-import javax.swing.JPanel;
-import javax.swing.JTextField;
-
 import com.actelion.research.chem.Clusterer;
 import com.actelion.research.chem.descriptor.DescriptorConstants;
 import com.actelion.research.datawarrior.DEFrame;
 import com.actelion.research.datawarrior.task.ConfigurableTask;
-import com.actelion.research.table.CompoundTableModel;
+import com.actelion.research.table.model.CompoundTableModel;
+import info.clearthought.layout.TableLayout;
+
+import javax.swing.*;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.util.Properties;
 
 public class DETaskClusterCompounds extends ConfigurableTask implements ActionListener,Runnable {
     static final long serialVersionUID = 0x20061004;
@@ -47,28 +41,14 @@ public class DETaskClusterCompounds extends ConfigurableTask implements ActionLi
 
     public static final String TASK_NAME = "Cluster Similar Compounds";
 
-    private static Properties sRecentConfiguration;
-
 	private CompoundTableModel  mTableModel;
-	private boolean				mIsInteractive;
 	private JComboBox			mComboBoxDescriptorColumn;
 	private JCheckBox	        mOptionButton1,mOptionButton2;
 	private JTextField          mTextField1,mTextField2;
 
-    public DETaskClusterCompounds(DEFrame parent, boolean isInteractive) {
+    public DETaskClusterCompounds(DEFrame parent) {
 		super(parent, true);
 		mTableModel = parent.getTableModel();
-		mIsInteractive = isInteractive;
-    	}
-
-	@Override
-	public Properties getRecentConfiguration() {
-    	return sRecentConfiguration;
-    	}
-
-	@Override
-	public void setRecentConfiguration(Properties configuration) {
-    	sRecentConfiguration = configuration;
     	}
 
 	@Override
@@ -83,9 +63,13 @@ public class DETaskClusterCompounds extends ConfigurableTask implements ActionLi
 			if (qualifiesAsDescriptorColumn(column)) {
 				if (!descriptorFound) {
 					int count = getStructureCount(column);
-					if (count > 10000) {
-						showErrorMessage("Sorry, compound clustering is limited to 10,000 compounds.");
+					if (count > 100000) {
+						showErrorMessage("Clustering is limited to 100,000 compounds.");
 						return false;
+						}
+					if (count > 20000) {
+						showMessage("Clustering of more than 20,000 compounds may take hours\n" +
+								"and multiple GB of memory.", WARNING_MESSAGE);
 						}
 
 					descriptorFound = true;
@@ -129,7 +113,7 @@ public class DETaskClusterCompounds extends ConfigurableTask implements ActionLi
 		for (int column=0; column<mTableModel.getTotalColumnCount(); column++)
 			if (qualifiesAsDescriptorColumn(column))
 				mComboBoxDescriptorColumn.addItem(mTableModel.getColumnTitle(column));
-		mComboBoxDescriptorColumn.setEditable(!mIsInteractive);
+		mComboBoxDescriptorColumn.setEditable(!isInteractive());
 		content.add(mComboBoxDescriptorColumn, "3,7,5,7");
 
 		return content;
@@ -187,8 +171,8 @@ public class DETaskClusterCompounds extends ConfigurableTask implements ActionLi
 				int countLimit = Integer.parseInt(clusterCountLimit);
 				if (isLive) {
 					int structureCount = getStructureCount(descriptorColumn);
-					if (countLimit < 2 || countLimit >= structureCount) {
-						showErrorMessage("The final cluster count must be more than 1\n and less than the number of available structures ("+structureCount+").");
+					if (countLimit < 1 || countLimit >= structureCount) {
+						showErrorMessage("The final cluster count must be at least 1\n and less than the number of available structures ("+structureCount+").");
 						return false;
 						}
 					}
@@ -233,12 +217,12 @@ public class DETaskClusterCompounds extends ConfigurableTask implements ActionLi
 			int column = mTableModel.findColumn(value);
 			if (column != -1 && qualifiesAsDescriptorColumn(column))
 				mComboBoxDescriptorColumn.setSelectedItem(mTableModel.getColumnTitle(column));
-			else if (!mIsInteractive)
+			else if (!isInteractive())
 				mComboBoxDescriptorColumn.setSelectedItem(value);
 			else if (mComboBoxDescriptorColumn.getItemCount() != 0)
 				mComboBoxDescriptorColumn.setSelectedIndex(0);
 			}
-		else if (!mIsInteractive) {
+		else if (!isInteractive()) {
 			mComboBoxDescriptorColumn.setSelectedItem("Structure ["+DescriptorConstants.DESCRIPTOR_FFP512.shortName+"]");
 			}
 		}
@@ -247,7 +231,7 @@ public class DETaskClusterCompounds extends ConfigurableTask implements ActionLi
     public void setDialogConfigurationToDefault() {
 		if (mComboBoxDescriptorColumn.getItemCount() != 0)
 			mComboBoxDescriptorColumn.setSelectedIndex(0);
-		else if (!mIsInteractive)
+		else if (!isInteractive())
 			mComboBoxDescriptorColumn.setSelectedItem("Structure ["+DescriptorConstants.DESCRIPTOR_FFP512.shortName+"]");
 
 		mOptionButton1.setSelected(false);

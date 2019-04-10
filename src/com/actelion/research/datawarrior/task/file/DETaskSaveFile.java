@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -29,30 +29,18 @@ import javax.swing.JPanel;
 
 import com.actelion.research.datawarrior.DEFrame;
 import com.actelion.research.datawarrior.task.ConfigurableTask;
-import com.actelion.research.table.CompoundTableModel;
+import com.actelion.research.table.model.CompoundTableModel;
 
 public class DETaskSaveFile extends ConfigurableTask {
     public static final String TASK_NAME = "Save File";
 
 	private static final String PROPERTY_EMBED_DETAIL = "embedDetail";
 
-	private static Properties sRecentConfiguration;
-
 	private JCheckBox mCheckBoxEmbedDetails;
 
 	public DETaskSaveFile(DEFrame parent) {
 		super(parent, false);
 		}
-
-	@Override
-	public Properties getRecentConfiguration() {
-    	return sRecentConfiguration;
-    	}
-
-	@Override
-	public void setRecentConfiguration(Properties configuration) {
-    	sRecentConfiguration = configuration;
-    	}
 
 	@Override
 	public Properties getPredefinedConfiguration() {

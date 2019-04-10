@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,6 +18,8 @@
 
 package com.actelion.research.datawarrior.task.view;
 
+import com.actelion.research.gui.hidpi.HiDPIHelper;
+import com.actelion.research.table.model.CompoundTableListHandler;
 import info.clearthought.layout.TableLayout;
 
 import java.awt.Dimension;
@@ -33,8 +35,7 @@ import javax.swing.JPanel;
 import javax.swing.JSlider;
 
 import com.actelion.research.datawarrior.DEMainPane;
-import com.actelion.research.table.CompoundTableHitlistHandler;
-import com.actelion.research.table.CompoundTableModel;
+import com.actelion.research.table.model.CompoundTableModel;
 import com.actelion.research.table.view.CompoundTableView;
 import com.actelion.research.table.view.JVisualization;
 import com.actelion.research.table.view.VisualizationPanel;
@@ -49,8 +50,6 @@ public class DETaskSplitView extends DETaskAbstractSetViewOptions {
 	private static final String PROPERTY_COLUMN2 = "column2";
 	private static final String PROPERTY_ASPECT = "aspect";
 	private static final String PROPERTY_SHOW_EMPTY_VIEWS = "showEmpty";
-
-	private static Properties sRecentConfiguration;
 
 	private JComboBox	mComboBoxColumn1,mComboBoxColumn2;
 	private JSlider		mSlider;
@@ -93,9 +92,9 @@ public class DETaskSplitView extends DETaskAbstractSetViewOptions {
 				mComboBoxColumn2.addItem(getTableModel().getColumnTitle(column));
 				}
 			}
-		for (int i=0; i<getTableModel().getHitlistHandler().getHitlistCount(); i++) {
-			mComboBoxColumn1.addItem(getTableModel().getColumnTitleExtended(CompoundTableHitlistHandler.getColumnFromHitlist(i)));
-			mComboBoxColumn2.addItem(getTableModel().getColumnTitleExtended(CompoundTableHitlistHandler.getColumnFromHitlist(i)));
+		for (int i = 0; i<getTableModel().getListHandler().getListCount(); i++) {
+			mComboBoxColumn1.addItem(getTableModel().getColumnTitleExtended(CompoundTableListHandler.getColumnFromList(i)));
+			mComboBoxColumn2.addItem(getTableModel().getColumnTitleExtended(CompoundTableListHandler.getColumnFromList(i)));
 			}
 		if (!hasInteractiveView()) {
 			mComboBoxColumn1.setEditable(true);
@@ -113,13 +112,13 @@ public class DETaskSplitView extends DETaskAbstractSetViewOptions {
 		JPanel sp = new JPanel();
 		mSlider = new JSlider(JSlider.HORIZONTAL, 0, 100, 50);
 		mSlider.addChangeListener(this);
-		mSlider.setPreferredSize(new Dimension(120, mSlider.getPreferredSize().height));
+		mSlider.setPreferredSize(new Dimension(HiDPIHelper.scale(120), mSlider.getPreferredSize().height));
 		sp.add(new JLabel("narrow"));
 		sp.add(mSlider);
 		sp.add(new JLabel("wide"));
 		p.add(sp, "3,5");
 
-		mCheckBoxShowEmpty = new JCheckBox("Show empty views");
+		mCheckBoxShowEmpty = new JCheckBox("Show empty categories");
 		mCheckBoxShowEmpty.addActionListener(this);
 		p.add(mCheckBoxShowEmpty, "3,7");
 
@@ -167,11 +166,11 @@ public class DETaskSplitView extends DETaskAbstractSetViewOptions {
 
 	@Override
 	public void addViewConfiguration(Properties configuration) {
-		int[] column = getVisualization().getSplittingColumns();
+		int[] column = getInteractiveVisualization().getSplittingColumns();
 		configuration.setProperty(PROPERTY_COLUMN1, ""+getTableModel().getColumnTitleNoAlias(column[0]));
 		configuration.setProperty(PROPERTY_COLUMN2, ""+getTableModel().getColumnTitleNoAlias(column[1]));
-		configuration.setProperty(PROPERTY_ASPECT, ""+getVisualization().getSplittingAspectRatio());
-		configuration.setProperty(PROPERTY_SHOW_EMPTY_VIEWS, getVisualization().isShowEmptyInSplitView() ? "true" : "false");
+		configuration.setProperty(PROPERTY_ASPECT, ""+ getInteractiveVisualization().getSplittingAspectRatio());
+		configuration.setProperty(PROPERTY_SHOW_EMPTY_VIEWS, getInteractiveVisualization().isShowEmptyInSplitView() ? "true" : "false");
 
 		// if an interactive view is configured to exceed split view limit, then we don't show a warning later
 		mHighMultiplicityAccepted = (getMultiplicity(configuration) > JVisualization.cMaxSplitViewCount);
@@ -225,7 +224,7 @@ public class DETaskSplitView extends DETaskAbstractSetViewOptions {
 				showErrorMessage("Column '"+columnName+"' does not contain categories.");
 				return 0;
 				}
-			return CompoundTableHitlistHandler.isHitlistColumn(column) ? 2 : getTableModel().getCategoryCount(column);
+			return CompoundTableListHandler.isListColumn(column) ? 2 : getTableModel().getCategoryCount(column);
 			}
 		return 1;
 		}
@@ -233,16 +232,6 @@ public class DETaskSplitView extends DETaskAbstractSetViewOptions {
 	@Override
 	public void enableItems() {
 		mSlider.setEnabled(mComboBoxColumn1.getSelectedIndex() == 0 || mComboBoxColumn2.getSelectedIndex() == 0);
-		}
-
-	@Override
-	public Properties getRecentConfigurationLocal() {
-		return sRecentConfiguration;
-		}
-	
-	@Override
-	public void setRecentConfiguration(Properties configuration) {
-		sRecentConfiguration = configuration;
 		}
 
 	@Override
@@ -255,6 +244,6 @@ public class DETaskSplitView extends DETaskAbstractSetViewOptions {
 			}
 		catch (NumberFormatException nfe) {}
 		boolean showEmptyViews = "true".equals(configuration.getProperty(PROPERTY_SHOW_EMPTY_VIEWS, "true"));
-		getVisualization().setSplittingColumns(column1, column2, aspect, showEmptyViews);
+		((VisualizationPanel)view).getVisualization().setSplittingColumns(column1, column2, aspect, showEmptyViews);
 		}
 	}

@@ -1,10 +1,26 @@
+/*
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
+ *
+ * This file is part of DataWarrior.
+ * 
+ * DataWarrior is free software: you can redistribute it and/or modify it under the terms of the
+ * GNU General Public License as published by the Free Software Foundation, either version 3 of
+ * the License, or (at your option) any later version.
+ * 
+ * DataWarrior is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+ * without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ * See the GNU General Public License for more details.
+ * You should have received a copy of the GNU General Public License along with DataWarrior.
+ * If not, see http://www.gnu.org/licenses/.
+ *
+ * @author freyssj
+ */
 package com.actelion.research.util;
 
 import java.util.*;
 
 /**
  * Represents a polynomial spline function.
- * @author freyssj, jakarta
  */
 public final class FastSpline {
    
@@ -21,7 +37,6 @@ public final class FastSpline {
 
 		public final double value(double x) {
 			return coeffs[0]+x*(coeffs[1]+x*(coeffs[2]+x*coeffs[3]));			
-//			PolynomialFunction
 		}
 		public final double[] getCoefficients() {
 			return coeffs;
@@ -51,23 +66,8 @@ public final class FastSpline {
     /**
      * Construct a polynomial spline function with the given segment delimiters
      * and interpolating polynomials.
-     * <p>
-     * The constructor copies both arrays and assigns the copies to the knots
-     * and polynomials properties, respectively.
-     * 
-     * @param knots spline segment interval delimiters
-     * @param polynomials polynomial functions that make up the spline
-     * @throws NullPointerException if either of the input arrays is null
-     * @throws IllegalArgumentException if knots has length less than 2,  
-     * <code>polynomials.length != knots.length - 1 </code>, or the knots array
-     * is not strictly increasing.
-     * 
      */
     public FastSpline(double knots[], Polynome polynomials[]) {
-        if (knots.length < 2) throw new IllegalArgumentException("Not enough knot values -- spline partition must have at least 2 points.");
-        if (knots.length - 1 != polynomials.length) throw new IllegalArgumentException("Number of polynomial interpolants must match the number of segments.");
-        if (!isStrictlyIncreasing(knots)) throw new IllegalArgumentException("Knot values must be strictly increasing.");
-        
         this.n = knots.length -1;
         this.knots = new double[n + 1];
         this.polynomials = new Polynome[n];
@@ -78,30 +78,16 @@ public final class FastSpline {
 
     /**
      * Compute the value for the function.
-     * <p>
-     * Throws FunctionEvaluationException if v is outside of the domain of the
-     * function.  The domain is [smallest knot, largest knot).
-     * <p>
-     * See {@link PolynomialSplineFunction} for details on the algorithm for
-     * computing the value of the function.
-     * 
-     * @param v the point for which the function value should be computed
-     * @return the value
-     * @throws FunctionEvaluationException if v is outside of the domain of
-     * of the spline function (less than the smallest knot point or greater
-     * than or equal to the largest knot point)
      */
     public final double value(double v) {    	
-    	//if (v < knots[0]) return polynomials[0].value(v - knots[0]);
         int i = Arrays.binarySearch(knots, v);
         if (i < 0) i = -i - 2;
+        if (i < 0) i = 0; 
         return polynomials[i].value(v - knots[i]);
     }
         
     /**
      * Returns the derivative of the polynomial spline function as a PolynomialSplineFunction
-     * 
-     * @return  the derivative function
      */
     public final FastSpline derivative() {
     	Polynome derivativePolynomials[] = new Polynome[n];
@@ -109,32 +95,4 @@ public final class FastSpline {
         return new FastSpline(knots, derivativePolynomials);
     }
 
-
-    /**
-     * Returns a copy of the interpolating polynomials array.
-     * <p>
-     * Returns a fresh copy of the array. Changes made to the copy will
-     * not affect the polynomials property.
-     * 
-     * @return the interpolating polynomials
-     */
-    public final Polynome[] getPolynomes() {
-    	Polynome p[] = new Polynome[n];
-        System.arraycopy(polynomials, 0, p, 0, n);
-        return p;
-    }
-
-
-    /**
-     * Determines if the given array is ordered in a strictly increasing
-     * fashion.
-     * 
-     * @param x the array to examine.
-     * @return <code>true</code> if the elements in <code>x</code> are ordered
-     * in a stricly increasing manner.  <code>false</code>, otherwise.
-     */
-    private final static boolean isStrictlyIncreasing(double[] x) {
-        for (int i = 1; i < x.length; ++i) if (x[i - 1] >= x[i]) return false;
-        return true;
-    }
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,26 +18,20 @@
 
 package com.actelion.research.datawarrior.task.chem;
 
-import info.clearthought.layout.TableLayout;
-
-import java.util.Properties;
-
-import javax.swing.JComboBox;
-import javax.swing.JLabel;
-import javax.swing.JPanel;
-import javax.swing.SwingUtilities;
-
 import com.actelion.research.chem.descriptor.DescriptorConstants;
 import com.actelion.research.chem.descriptor.DescriptorHelper;
 import com.actelion.research.chem.io.CompoundTableConstants;
 import com.actelion.research.datawarrior.DEFrame;
 import com.actelion.research.datawarrior.task.ConfigurableTask;
-import com.actelion.research.table.CompoundTableModel;
+import com.actelion.research.table.model.CompoundTableModel;
+import info.clearthought.layout.TableLayout;
+
+import javax.swing.*;
+import java.util.Properties;
 
 
 public class DETaskCalculateDescriptor extends ConfigurableTask {
 	public static final String TASK_NAME = "Calculate Descriptor";
-	private static Properties sRecentConfiguration;
 
 	private static final String PROPERTY_COLUMN = "column";
 	private static final String PROPERTY_DESCRIPTOR = "descriptor";
@@ -50,16 +44,6 @@ public class DETaskCalculateDescriptor extends ConfigurableTask {
 		super(parent, descriptor == null);
 		mTableModel = parent.getTableModel();
 		mDescriptor = descriptor;
-		}
-
-	@Override
-	public Properties getRecentConfiguration() {
-		return sRecentConfiguration;
-		}
-
-	@Override
-	public void setRecentConfiguration(Properties configuration) {
-		sRecentConfiguration = configuration;
 		}
 
 	@Override
@@ -131,19 +115,24 @@ public class DETaskCalculateDescriptor extends ConfigurableTask {
 	public Properties getDialogConfiguration() {
 		Properties configuration = new Properties();
 		configuration.setProperty(PROPERTY_DESCRIPTOR, (String)mComboBoxDescriptor.getSelectedItem());
-		configuration.setProperty(PROPERTY_COLUMN, (String)mComboBoxColumn.getSelectedItem());
+		String item = (String)mComboBoxColumn.getSelectedItem();
+		if (item != null)
+			configuration.setProperty(PROPERTY_COLUMN, item);
 		return configuration;
 		}
 
 	@Override
 	public void setDialogConfiguration(Properties configuration) {
-		mComboBoxDescriptor.setSelectedItem(configuration.getProperty(PROPERTY_DESCRIPTOR));
-		mComboBoxColumn.setSelectedItem(configuration.getProperty(PROPERTY_COLUMN));
+		if (mDescriptor == null)
+			mComboBoxDescriptor.setSelectedItem(configuration.getProperty(PROPERTY_DESCRIPTOR));
+		mComboBoxColumn.setSelectedItem(configuration.getProperty(PROPERTY_COLUMN, ""));
 		}
 
 	@Override
 	public void setDialogConfigurationToDefault() {
-		mComboBoxDescriptor.setSelectedItem(DescriptorConstants.DESCRIPTOR_SkeletonSpheres.shortName);
+		if (mDescriptor == null)
+			mComboBoxDescriptor.setSelectedItem(DescriptorConstants.DESCRIPTOR_SkeletonSpheres.shortName);
+		mComboBoxColumn.setSelectedItem("Structure");
 		}
 
 	@Override
@@ -202,7 +191,7 @@ public class DETaskCalculateDescriptor extends ConfigurableTask {
 			}
 		if (column != -1 && mTableModel.getChildColumn(column, descriptor) == -1) {
 			if (SwingUtilities.isEventDispatchThread()) {	// is interactive
-				int descriptorColumn = mTableModel.createDescriptorColumn(column, descriptor);
+				int descriptorColumn = mTableModel.addDescriptorColumn(column, descriptor);
 				}
 			else {
 				try {
@@ -210,7 +199,7 @@ public class DETaskCalculateDescriptor extends ConfigurableTask {
 					SwingUtilities.invokeAndWait(new Runnable() {
 						@Override
 						public void run() {
-							int descriptorColumn = mTableModel.createDescriptorColumn(_column, descriptor);
+							int descriptorColumn = mTableModel.addDescriptorColumn(_column, descriptor);
 							}
 						});
 					}

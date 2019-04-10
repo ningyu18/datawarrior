@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,6 +18,7 @@
 
 package com.actelion.research.datawarrior.task.view;
 
+import com.actelion.research.gui.hidpi.HiDPIHelper;
 import info.clearthought.layout.TableLayout;
 
 import java.awt.Dimension;
@@ -31,7 +32,7 @@ import javax.swing.JPanel;
 import javax.swing.JSlider;
 
 import com.actelion.research.datawarrior.DEMainPane;
-import com.actelion.research.table.CompoundTableModel;
+import com.actelion.research.table.model.CompoundTableModel;
 import com.actelion.research.table.view.CompoundTableView;
 import com.actelion.research.table.view.JVisualization;
 import com.actelion.research.table.view.VisualizationPanel;
@@ -50,8 +51,6 @@ public class DETaskSeparateCases extends DETaskAbstractSetViewOptions {
 
 	private static final String PROPERTY_COLUMN = "column";
 	private static final String PROPERTY_AMOUNT = "amount";
-
-    private static Properties sRecentConfiguration;
 
 	private JSlider         mSlider;
     private JComboBox		mComboBox;
@@ -97,7 +96,7 @@ public class DETaskSeparateCases extends DETaskAbstractSetViewOptions {
 		sp.add(new JLabel("Case distance:"), "1,3");
 
 		mSlider = new JSlider(JSlider.HORIZONTAL, 0, 100, 50);
-		mSlider.setPreferredSize(new Dimension(120, 20));
+		mSlider.setPreferredSize(new Dimension(HiDPIHelper.scale(120), mSlider.getPreferredSize().height));
 		mSlider.setMinorTickSpacing(10);
 		mSlider.setMajorTickSpacing(100);
 		mSlider.setEnabled(mComboBox.getSelectedIndex() != 0);
@@ -140,8 +139,8 @@ public class DETaskSeparateCases extends DETaskAbstractSetViewOptions {
 
 	@Override
 	public void addViewConfiguration(Properties configuration) {
-		configuration.setProperty(PROPERTY_COLUMN, ""+getTableModel().getColumnTitleNoAlias(getVisualization().getCaseSeparationColumn()));
-		configuration.setProperty(PROPERTY_AMOUNT, ""+getVisualization().getCaseSeparationValue());
+		configuration.setProperty(PROPERTY_COLUMN, ""+getTableModel().getColumnTitleNoAlias(getInteractiveVisualization().getCaseSeparationColumn()));
+		configuration.setProperty(PROPERTY_AMOUNT, ""+ getInteractiveVisualization().getCaseSeparationValue());
 		}
 
 	@Override
@@ -167,16 +166,6 @@ public class DETaskSeparateCases extends DETaskAbstractSetViewOptions {
 	@Override
 	public void enableItems() {
 		mSlider.setEnabled(mComboBox.getSelectedIndex() != 0);
-		}
-
-	@Override
-	public Properties getRecentConfigurationLocal() {
-		return sRecentConfiguration;
-		}
-	
-	@Override
-	public void setRecentConfiguration(Properties configuration) {
-		sRecentConfiguration = configuration;
 		}
 
 	@Override

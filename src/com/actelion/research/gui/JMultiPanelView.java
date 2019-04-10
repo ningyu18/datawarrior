@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,10 +18,11 @@
 
 package com.actelion.research.gui;
 
-import java.util.ArrayList;
-import javax.swing.*;
 import com.actelion.research.util.DoubleFormat;
-import info.clearthought.layout.*;
+import info.clearthought.layout.TableLayout;
+
+import javax.swing.*;
+import java.util.ArrayList;
 
 public class JMultiPanelView extends JPanel implements MultiPanelDragListener {
     static final long serialVersionUID = 0x20070314;
@@ -53,7 +54,7 @@ public class JMultiPanelView extends JPanel implements MultiPanelDragListener {
 				mPanelList.get(i).titlePanel.setDragEnabled(true);
 			}
 
-		mLayout.insertRow(2*position, JMultiPanelTitle.HEIGHT);
+		mLayout.insertRow(2*position, JMultiPanelTitle.height());
 		mLayout.insertRow(2*position+1, height);
 
 		super.add(titlePanel, "0, "+(2*position));
@@ -61,6 +62,18 @@ public class JMultiPanelView extends JPanel implements MultiPanelDragListener {
 
 		mPanelList.add(position, new MultiPanelObject(c, titlePanel, title));
 		validateHeights();
+		}
+
+	public int getViewCount() {
+		return mPanelList.size();
+		}
+
+	public JComponent getView(int index) {
+		return mPanelList.get(index).panel;
+		}
+
+	public void setTitle(int position, String title) {
+		mPanelList.get(position).titlePanel.setTitle(title);
 		}
 
 	public void remove(JComponent c) {
@@ -94,28 +107,33 @@ public class JMultiPanelView extends JPanel implements MultiPanelDragListener {
 		for (int i=0; i<mPanelList.size(); i++)
 			mLayout.setRow(2*i+1, 0.0);
 
-		int titleStart = VIEW_HEIGHT.length()+1;
-		while (titleStart < properties.length()) {
-			int titleEnd = properties.indexOf("]=", titleStart);
-			if (titleEnd == -1)
-				break;
+		if (properties.startsWith(VIEW_HEIGHT+"[")) {
+			boolean[] isAssigned = new boolean[mPanelList.size()];
+			int titleStart = VIEW_HEIGHT.length()+1;
+			while (titleStart < properties.length()) {
+				int titleEnd = properties.indexOf("]=", titleStart);
+				if (titleEnd == -1)
+					break;
 
-			String title = properties.substring(titleStart, titleEnd);
-			int numberEnd = properties.indexOf(";", titleEnd);
-			if (numberEnd == -1)
-				numberEnd = properties.length();
+				String title = properties.substring(titleStart, titleEnd);
+				int numberEnd = properties.indexOf(";", titleEnd);
+				if (numberEnd == -1)
+					numberEnd = properties.length();
 
-			for (int i=0; i<mPanelList.size(); i++) {
-				if (mPanelList.get(i).title.equals(title)) {
-					try {
-						double height = Double.parseDouble(properties.substring(titleEnd+2, numberEnd));
-						mLayout.setRow(2*i+1, Math.min(0.999999, height));
+				for (int i=0; i<mPanelList.size(); i++) {
+					if (!isAssigned[i] && mPanelList.get(i).titleMatches(title)) {
+						isAssigned[i] = true;
+						try {
+							double height = Double.parseDouble(properties.substring(titleEnd+2, numberEnd));
+							mLayout.setRow(2*i+1, Math.min(0.999999, height));
+							}
+						catch (NumberFormatException nfe) {}
 						}
-					catch (NumberFormatException nfe) {}
 					}
+				titleStart = numberEnd + VIEW_HEIGHT.length()+2;
 				}
-			titleStart = numberEnd + VIEW_HEIGHT.length()+2;
 			}
+
 		validateHeights();
 		}
 
@@ -198,7 +216,7 @@ public class JMultiPanelView extends JPanel implements MultiPanelDragListener {
 	private int getAbsoluteY(int y, int[] panelHeight) {
 		int absoluteY = y;
 		for (int i=0; i<mDragTitle; i++)
-			absoluteY += JMultiPanelTitle.HEIGHT + panelHeight[i];
+			absoluteY += JMultiPanelTitle.height() + panelHeight[i];
 		return absoluteY;
 		}
 
@@ -237,5 +255,21 @@ class MultiPanelObject {
 		this.panel = c;
 		this.titlePanel = titlePanel;
 		this.title = title;
+		}
+
+	/**
+	 * The given name matches the title of this panel object if<br>
+	 *     - name equals title
+	 *     - if title starts with name followed by ' ('+someString+')'
+	 * @param name
+	 * @return
+	 */
+	public boolean titleMatches(String name) {
+		if (title.equals(name))
+			return true;
+		if (!title.startsWith(name))
+			return false;
+		int nameLength = name.length();
+		return (title.length() > nameLength+3 && title.substring(nameLength, nameLength+2).equals(" (") && title.endsWith(")"));
 		}
 	}

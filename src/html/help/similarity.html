@@ -121,11 +121,12 @@ Different from common 3D-pharmacophore approaches, this descriptor matches entir
 individual conformers, leading to higher predictability and taking molecular flexibility into account.</p>
 
 <p>The calculation of the <span class="keyword">Flexophore</span> descriptor is computationally quite demanding.
-For a given molecule it starts with the creation of a representative set of conformers using a self organization
-based algorithm, which give more diverse conformers than rule based approaches. It also detects and classifies atoms
-in the underlying molecule, which have the potential to interact with protein atoms in any way. De-facto an
-enhanced MM2 atom type is used to describe these atoms as interaction point. In some cases multiple atoms contribute
-to one summarized interaction point, e.g. in aromatic rings.</p>
+For a given molecule it starts with the creation of a representative set of up to 250 conformers using
+a self organization based algorithm to construct small rigid molecule fragments, which are then connected with
+likely torsion angles. This conformer generation approach balances high diversity and conformer likelyhood.
+Then, the atoms of the underlying molecule are detected and classified, which have the potential to interact
+with protein atoms in any way. De-facto an enhanced MM2 atom type is used to describe these atoms as interaction point.
+In some cases multiple atoms contribute to one summarized interaction point, e.g. in aromatic rings.</p>
 
 <p align="center"><img src="help/img/similarity/interactionPoints.jpeg" width="400" height="240"></p>
 <p align="center"><i>Sample molecule with assigned interaction points</i></p>
@@ -146,3 +147,7 @@ edge and node similarities. Edge similarities are derived from the distance hist
 are taken from a interaction point (extended MM2 atom type) similarity matrix, which was originally derived from a
 ligand-protein interaction analysis of the PDB database.</p>
 <br>
+
+</body>
+</html>
+

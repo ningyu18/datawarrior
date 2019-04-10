@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -29,25 +29,11 @@ import com.actelion.research.table.CompoundTableLoader;
 
 public class DETaskApplyTemplateFromFile extends DETaskAbstractOpenFile {
 	public static final String TASK_NAME = "Open And Apply Template";
-    private static Properties sRecentConfiguration;
-
-    private DataWarrior mApplication;
 
     public DETaskApplyTemplateFromFile(DataWarrior application) {
-		super(application.getActiveFrame(), "Open & Apply DataWarrior Template",
+		super(application, "Open & Apply DataWarrior Template",
 				FileHelper.cFileTypeDataWarriorTemplateContaining);
-		mApplication = application;
 		}
-
-	@Override
-	public Properties getRecentConfiguration() {
-    	return sRecentConfiguration;
-    	}
-
-	@Override
-	public void setRecentConfiguration(Properties configuration) {
-    	sRecentConfiguration = configuration;
-    	}
 
 	@Override
 	public String getTaskName() {
@@ -56,7 +42,7 @@ public class DETaskApplyTemplateFromFile extends DETaskAbstractOpenFile {
 
 	@Override
 	public DEFrame openFile(File file, Properties configuration) {
-		DEFrame activeFrame = mApplication.getActiveFrame();
+		DEFrame activeFrame = getApplication().getActiveFrame();
         CompoundTableLoader loader = new CompoundTableLoader(activeFrame, activeFrame.getTableModel(), getProgressController());
 	    loader.readTemplate(file, new DERuntimeProperties(activeFrame.getMainFrame()));
 	    activeFrame.setDirty(true);	// has to be done explicitly, because no CompoundTableModel events are triggered

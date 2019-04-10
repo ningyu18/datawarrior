@@ -17,9 +17,7 @@ import java.awt.image.DataBufferInt;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 
 import javax.swing.JPanel;
 
@@ -62,6 +60,7 @@ public class Canvas3D extends JPanel {
 	/**
 	 * @see javax.swing.JComponent#paintComponent(java.awt.Graphics)
 	 */
+	@Override
 	public void paintComponent(Graphics gr) {
 		Dimension dim = getSize();
 
@@ -238,6 +237,7 @@ public class Canvas3D extends JPanel {
 	
 
 	
+	@Override
 	public void update(Graphics g) {		
 		paint(g);
 	}
@@ -247,32 +247,25 @@ public class Canvas3D extends JPanel {
 		paint(image.getGraphics());		
 		return image;
 	}	
-	
-	
+		
 	public final void addShape(Shape s) {
 		synchronized (shapes) {
 			shapes.add(s);
 		}		
 	}
+	
 	public final void addShapes(Collection<Shape> c) {
 		synchronized (shapes) {
 			shapes.addAll(c);
 		}
 	}	
+	
 	public final void removeShape(Shape s) {
 		synchronized (shapes) {
 			shapes.remove(s);
 		}
 	}	
-	public final void removeShapes(Collection<Shape> c) {
-		if(c.size()==0) return;		
-		Set<Shape> all = new HashSet<Shape>(shapes);
-		all.removeAll(c);
-		synchronized (shapes) {
-			shapes.clear();
-			shapes.addAll(all);
-		}
-	}	
+	
 	public void clearShapes() {
 		synchronized (shapes) {
 			shapes.clear();
@@ -349,14 +342,16 @@ public class Canvas3D extends JPanel {
 	public boolean isStereo() {
 		return getStereoMode()!="";
 	}
-	boolean stereo = false;
+	
+	private boolean stereo = false;
+	
 	public void setStereo(boolean b) {
 		stereo = b;
 		try {
 		if(b) System.setProperty("stereo", "interlaced");
 		else System.getProperties().remove("stereo");
 		} catch (Exception e) {
-			// TODO: handle exception
+			e.printStackTrace();
 		}
 		
 	}

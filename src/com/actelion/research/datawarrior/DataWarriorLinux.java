@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,41 +18,43 @@
 
 package com.actelion.research.datawarrior;
 
+import com.actelion.research.gui.LookAndFeelHelper;
+
+import javax.swing.*;
+import javax.swing.plaf.FontUIResource;
 import java.util.ArrayList;
 
-import javax.swing.JOptionPane;
-import javax.swing.SwingUtilities;
-import javax.swing.UIDefaults;
-import javax.swing.UIManager;
-import javax.swing.plaf.FontUIResource;
-
-import org.jvnet.substance.SubstanceLookAndFeel;
-import org.jvnet.substance.fonts.FontPolicy;
-import org.jvnet.substance.fonts.FontSet;
-import org.jvnet.substance.theme.SubstanceBrownTheme;
-import org.jvnet.substance.theme.SubstanceMixTheme;
-import org.jvnet.substance.theme.SubstanceSunGlareTheme;
-import org.jvnet.substance.theme.SubstanceTheme;
-import org.jvnet.substance.utils.SubstanceConstants.TabContentPaneBorderKind;
-
-import com.actelion.research.util.Platform;
-
 public class DataWarriorLinux extends DataWarrior {
+	private static final String DEFAULT_LAF = "org.pushingpixels.substance.api.skin.SubstanceGraphiteAquaLookAndFeel";
+
+	private static final String[] LOOK_AND_FEEL_ITEM_NAME = {
+			"Classic",
+			"Graphite",
+			"Gray",
+			"Nebula",
+	};
+	private static final String[] LOOK_AND_FEEL_CLASS_NAME = {
+			"org.jvnet.substance.SubstanceLookAndFeel",
+			"org.pushingpixels.substance.api.skin.SubstanceGraphiteAquaLookAndFeel",
+			"org.pushingpixels.substance.api.skin.SubstanceOfficeBlack2007LookAndFeel",
+			"org.pushingpixels.substance.api.skin.SubstanceNebulaLookAndFeel",
+	};
+
 	protected static DataWarriorLinux sDataExplorer;
 	protected static ArrayList<String> sPendingDocumentList;
 
-	private static class SubstanceFontSet implements FontSet {
-		private int extra;
-		private FontSet delegate;
+	private static class OldSubstanceFontSet implements org.jvnet.substance.fonts.FontSet {
+		private float factor;
+		private org.jvnet.substance.fonts.FontSet delegate;
 
 		/**
 		 * @param delegate The base Substance font set.
-		 * @param extra Extra size in pixels. Can be positive or negative.
+		 * @param factor Extra size in pixels. Can be positive or negative.
 		 */
-		public SubstanceFontSet(FontSet delegate, int extra) {
+		public OldSubstanceFontSet(org.jvnet.substance.fonts.FontSet delegate, float factor) {
 			super();
 			this.delegate = delegate;
-			this.extra = extra;
+			this.factor = factor;
 			}
 
 		/**
@@ -61,7 +63,7 @@ public class DataWarriorLinux extends DataWarrior {
 		 */
 		private FontUIResource getWrappedFont(FontUIResource systemFont) {
 			return new FontUIResource(systemFont.getFontName(), systemFont.getStyle(),
-									  systemFont.getSize() + this.extra);
+									  Math.round(this.factor * systemFont.getSize()));
 			}
 
 		public FontUIResource getControlFont() {
@@ -88,6 +90,54 @@ public class DataWarriorLinux extends DataWarrior {
 			return this.getWrappedFont(this.delegate.getWindowTitleFont());
 			}
 		}
+
+	private static class NewSubstanceFontSet implements org.pushingpixels.substance.api.fonts.FontSet {
+		private float factor;
+		private org.pushingpixels.substance.api.fonts.FontSet delegate;
+
+		/**
+		 * @param delegate The base Substance font set.
+		 * @param factor Extra size in pixels. Can be positive or negative.
+		 */
+		public NewSubstanceFontSet(org.pushingpixels.substance.api.fonts.FontSet delegate, float factor) {
+			super();
+			this.delegate = delegate;
+			this.factor = factor;
+		}
+
+		/**
+		 * @param systemFont Original font.
+		 * @return Wrapped font.
+		 */
+		private FontUIResource getWrappedFont(FontUIResource systemFont) {
+			return new FontUIResource(systemFont.getFontName(), systemFont.getStyle(),
+									  Math.round(this.factor * systemFont.getSize()));
+		}
+
+		public FontUIResource getControlFont() {
+			return this.getWrappedFont(this.delegate.getControlFont());
+		}
+
+		public FontUIResource getMenuFont() {
+			return this.getWrappedFont(this.delegate.getMenuFont());
+		}
+
+		public FontUIResource getMessageFont() {
+			return this.getWrappedFont(this.delegate.getMessageFont());
+		}
+
+		public FontUIResource getSmallFont() {
+			return this.getWrappedFont(this.delegate.getSmallFont());
+		}
+
+		public FontUIResource getTitleFont() {
+			return this.getWrappedFont(this.delegate.getTitleFont());
+		}
+
+		public FontUIResource getWindowTitleFont() {
+			return this.getWrappedFont(this.delegate.getWindowTitleFont());
+		}
+	}
 
 	/**
 	 *  This is called from the Windows bootstrap process instead of main(), when
@@ -123,63 +173,110 @@ public class DataWarriorLinux extends DataWarrior {
 		return false;
 		}
 
-	protected static void setSubstanceLookAndFeel() {
-		try {
-			if (Platform.isLinux()) {
-				// reduce the default font size a little
-				final FontSet substanceCoreFontSet = SubstanceLookAndFeel.getFontPolicy().getFontSet("Substance", null);
-				FontPolicy newFontPolicy = new FontPolicy() {
-					public FontSet getFontSet(String lafName, UIDefaults table) {
-						return new SubstanceFontSet(substanceCoreFontSet, -1);
-						}
-					};
-				SubstanceLookAndFeel.setFontPolicy(newFontPolicy);
+	@Override
+	public String[] getAvailableLAFNames() {
+		return LOOK_AND_FEEL_ITEM_NAME;
+		};
+
+	@Override
+	public String[] getAvailableLAFClassNames() {
+		return LOOK_AND_FEEL_CLASS_NAME;
+		}
+
+	@Override
+	public String getDefaultLaFName() {
+		return DEFAULT_LAF;
+		}
+
+	private void setFontSetOldSubstance(final float factor) {
+		// reset the base font policy to null - this
+		// restores the original font policy (default size).
+		org.jvnet.substance.SubstanceLookAndFeel.setFontPolicy(null);
+
+		// reduce the default font size a little
+		final org.jvnet.substance.fonts.FontSet substanceCoreFontSet = org.jvnet.substance.SubstanceLookAndFeel.getFontPolicy().getFontSet("Substance", null);
+		org.jvnet.substance.fonts.FontPolicy newFontPolicy = new org.jvnet.substance.fonts.FontPolicy() {
+			public org.jvnet.substance.fonts.FontSet getFontSet(String lafName, UIDefaults table) {
+				return new OldSubstanceFontSet(substanceCoreFontSet, factor);
 				}
+			};
+		org.jvnet.substance.SubstanceLookAndFeel.setFontPolicy(newFontPolicy);
+		}
 
-			UIManager.setLookAndFeel(new SubstanceLookAndFeel());
+	private void setFontSetNewSubstance(final float factor) {
+		// reset the base font policy to null - this
+		// restores the original font policy (default size).
+		org.pushingpixels.substance.api.SubstanceLookAndFeel.setFontPolicy(null);
 
-			if (System.getProperty("development") != null) {
-				// nice yellow-brown based mixed look and feel
-				SubstanceTheme t2 = new SubstanceSunGlareTheme();
-				SubstanceTheme t3 = new SubstanceBrownTheme();
-				SubstanceLookAndFeel.setCurrentTheme(new SubstanceMixTheme(t3, t2));
+		// reduce the default font size a little
+		final org.pushingpixels.substance.api.fonts.FontSet substanceCoreFontSet = org.pushingpixels.substance.api.SubstanceLookAndFeel.getFontPolicy().getFontSet("Substance", null);
+		org.pushingpixels.substance.api.fonts.FontPolicy newFontPolicy = new org.pushingpixels.substance.api.fonts.FontPolicy() {
+			public org.pushingpixels.substance.api.fonts.FontSet getFontSet(String lafName, UIDefaults table) {
+				return new NewSubstanceFontSet(substanceCoreFontSet, factor);
 				}
-			else {
-				SubstanceTheme t1 = new org.jvnet.substance.theme.SubstanceLightAquaTheme().hueShift(0.04);
-				SubstanceLookAndFeel.setCurrentTheme(t1);
+			};
+		org.pushingpixels.substance.api.SubstanceLookAndFeel.setFontPolicy(newFontPolicy);
+		}
+
+	@Override
+	public boolean setLookAndFeel(String lafName) {
+		float fontFactor = 1f;
+		String dpiFactor = System.getProperty("dpifactor");
+		if (dpiFactor != null)
+			try { fontFactor = Float.parseFloat(dpiFactor); } catch (NumberFormatException nfe) {}
+
+		if (fontFactor != 1f) {
+			if (lafName.contains("jvnet")) {
+				// for OLD substance we have to set the alternative font set before setting the LaF
+				setFontSetOldSubstance(fontFactor);
 				}
-			UIManager.put(SubstanceLookAndFeel.TABBED_PANE_CONTENT_BORDER_KIND, TabContentPaneBorderKind.SINGLE_PLACEMENT);
-
-//javax.imageio.ImageIO.write(SubstanceImageCreator.getArrow(11,7,2,3,new org.jvnet.substance.theme.SubstanceLightAquaTheme().hueShift(0.04)),
-//"png", new java.io.File("/home/sandert/arrow0.png"));
-
-//			JFrame.setDefaultLookAndFeelDecorated(true);
-//			JDialog.setDefaultLookAndFeelDecorated(true);
-			
-/*		  System.out.println(SubstanceLookAndFeel.getColorScheme().getForegroundColor()+" ForegroundColor");
-			System.out.println(SubstanceLookAndFeel.getColorScheme().getUltraLightColor()+" UltraLight");
-			System.out.println(SubstanceLookAndFeel.getColorScheme().getExtraLightColor()+" ExtraLight");
-			System.out.println(SubstanceLookAndFeel.getColorScheme().getLightColor()+" Light");
-			System.out.println(SubstanceLookAndFeel.getColorScheme().getMidColor()+" MidColor");
-			System.out.println(SubstanceLookAndFeel.getColorScheme().getDarkColor()+" DarkColor");
-			System.out.println(SubstanceLookAndFeel.getColorScheme().getUltraDarkColor()+" UltraDarkColor"); */
-
-//				  UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
-//				  UIManager.setLookAndFeel("javax.swing.plaf.metal.MetalLookAndFeel");
 			}
-		catch (Exception e) {
-			JOptionPane.showMessageDialog(null, "Unexpected Exception: "+e);
+
+		// if we don't remove the old substance font set, setting to NEW substance LaF crashes
+		if (LookAndFeelHelper.isOldSubstance())
+			org.jvnet.substance.SubstanceLookAndFeel.setFontPolicy(null);
+
+		if (super.setLookAndFeel(lafName)) {
+			if (fontFactor != 1f) {
+				if (LookAndFeelHelper.isNewSubstance()) {
+					setFontSetNewSubstance(fontFactor);
+					}
+				}
+			if (LookAndFeelHelper.isOldSubstance()) {
+				if (System.getProperty("development") != null) {
+					// nice yellow-brown based mixed look and feel
+					org.jvnet.substance.theme.SubstanceTheme t2 = new org.jvnet.substance.theme.SubstanceSunGlareTheme();
+					org.jvnet.substance.theme.SubstanceTheme t3 = new org.jvnet.substance.theme.SubstanceBrownTheme();
+					org.jvnet.substance.SubstanceLookAndFeel.setCurrentTheme(new org.jvnet.substance.theme.SubstanceMixTheme(t3, t2));
+					}
+				else {
+					org.jvnet.substance.theme.SubstanceTheme t1 = new org.jvnet.substance.theme.SubstanceLightAquaTheme().hueShift(0.04);
+					org.jvnet.substance.SubstanceLookAndFeel.setCurrentTheme(t1);
+					}
+				UIManager.put(org.jvnet.substance.SubstanceLookAndFeel.TABBED_PANE_CONTENT_BORDER_KIND, org.jvnet.substance.utils.SubstanceConstants.TabContentPaneBorderKind.SINGLE_PLACEMENT);
+				}
+			return true;
 			}
+		return false;
 		}
 
 	public static void main(final String[] args) {
 		SwingUtilities.invokeLater(new Runnable() {
 			public void run() {
-				setSubstanceLookAndFeel();
-//				try { UIManager.setLookAndFeel( "com.sun.java.swing.plaf.nimbus.NimbusLookAndFeel"); } catch(Exception e) {}
-
 				try {
 					sDataExplorer = new DataWarriorLinux();
+
+					Thread.setDefaultUncaughtExceptionHandler(new Thread.UncaughtExceptionHandler() {
+						@Override
+						public void uncaughtException(final Thread t, final Throwable e) {
+							SwingUtilities.invokeLater(new Runnable() {
+								public void run() {
+									e.printStackTrace();
+									JOptionPane.showMessageDialog(sDataExplorer.getActiveFrame(), "Uncaught Exception:"+e.getMessage());
+									}
+								});
+							}
+						});
 
 					if (args != null && args.length != 0) {
 						String[] filename = sDataExplorer.deduceFileNamesFromArgs(args);

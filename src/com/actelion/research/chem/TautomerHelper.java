@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -52,7 +52,6 @@ public class TautomerHelper {
 	 * of double bonds and D and T atoms. The returned molecule has the fragment bit set.
 	 * Canonicalizing the returned molecule with Canonizer mode ENCODE_ATOM_CUSTOM_LABELS
 	 * produces the same idcode from any tautomer.
-	 * @param mol
 	 * @param keepStereoCenters
 	 * @return generic tautomer with normalized tautomer regions and custom label to encode pi,D,T counts
 	 */

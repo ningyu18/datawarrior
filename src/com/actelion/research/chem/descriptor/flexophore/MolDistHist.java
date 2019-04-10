@@ -151,17 +151,32 @@ public class MolDistHist extends DistHist implements Serializable, IMolDistHist 
 		
 		finalized = false;
 	}
-	
+
+	/**
+	 *
+	 * @param node
+	 */
 	public void addNode(PPNode node) {
+
 		byte [] arr = node.get();
 		
-		int newlen = posNode + arr.length + 1;
-		
-		if(arrNode.length <= newlen){
-			resize(arrNode.length+SIZE_BUFFER);
+		int newLen = posNode + arr.length + 1;
+
+		if(arrNode.length <= newLen){
+
+			int lenBuffer = SIZE_BUFFER;
+
+			while(arrNode.length + lenBuffer < newLen) {
+
+				lenBuffer *= 2;
+
+			}
+
+			resize(arrNode.length + lenBuffer);
 		}
 		
 		arrNode[posNode++] = (byte)node.getInteractionTypeCount();
+
 		for (int i = 0; i < arr.length; i++) {
 			arrNode[posNode++]= arr[i];
 		}
@@ -195,9 +210,11 @@ public class MolDistHist extends DistHist implements Serializable, IMolDistHist 
 		
 	}
 
+	/**
+	 * Resizes the node array to the needed length.
+	 */
 	public void realize(){
-		super.realize();
-		
+
 		int size = getNumPPNodes();
 		
 		if(size==0){

@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,34 +18,24 @@
 
 package com.actelion.research.datawarrior.task.file;
 
-import info.clearthought.layout.TableLayout;
-
-import java.awt.Color;
-import java.awt.Dimension;
-import java.awt.Graphics;
-import java.awt.image.BufferedImage;
-import java.io.BufferedInputStream;
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Comparator;
-import java.util.Properties;
-
-import javax.imageio.ImageIO;
-import javax.swing.JLabel;
-import javax.swing.JList;
-import javax.swing.JPanel;
-import javax.swing.JScrollPane;
-import javax.swing.JTextField;
-
 import com.actelion.research.datawarrior.DEFrame;
 import com.actelion.research.datawarrior.DataWarrior;
 import com.actelion.research.datawarrior.task.ConfigurableTask;
-import com.actelion.research.table.CompoundRecord;
-import com.actelion.research.table.CompoundTableEvent;
-import com.actelion.research.table.CompoundTableModel;
+import com.actelion.research.table.model.CompoundRecord;
+import com.actelion.research.table.model.CompoundTableDetailHandler;
+import com.actelion.research.table.model.CompoundTableEvent;
+import com.actelion.research.table.model.CompoundTableModel;
 import com.actelion.research.table.view.JVisualization;
 import com.actelion.research.table.view.VisualizationPanel2D;
+import info.clearthought.layout.TableLayout;
+
+import javax.imageio.ImageIO;
+import javax.swing.*;
+import java.awt.*;
+import java.awt.image.BufferedImage;
+import java.io.BufferedInputStream;
+import java.io.IOException;
+import java.util.*;
 
 
 public class DETaskNewFileFromReversePivoting extends ConfigurableTask {
@@ -54,8 +44,6 @@ public class DETaskNewFileFromReversePivoting extends ConfigurableTask {
 	private static final String PROPERTY_DATA_COLUMN_NAME = "dataColumnName";
 
 	public static final String TASK_NAME = "New File From Reverse-Pivoting";
-
-	private static Properties sRecentConfiguration;
 
 	private CompoundTableModel  mSourceTableModel;
 	private JList				mDataColumns;
@@ -237,6 +225,7 @@ public class DETaskNewFileFromReversePivoting extends ConfigurableTask {
 
 		int newColumnCount = mSourceTableModel.getTotalColumnCount()-dataColumn.length+2;
 		ArrayList<Object[]> rowList = new ArrayList<Object[]>();
+		ArrayList<DetailInfo> detailList = new ArrayList<DetailInfo>();
 
         boolean[] isDataColumn = new boolean[mSourceTableModel.getTotalColumnCount()];
 		for (int column:dataColumn)
@@ -259,11 +248,14 @@ public class DETaskNewFileFromReversePivoting extends ConfigurableTask {
                 				else if (cellData instanceof int[])
                 					rowData[targetColumn] = ((int[])cellData).clone();
                 				}
+							addDetailReferences(record.getDetailReferences(column), rowList.size(), targetColumn, detailList);
                 			targetColumn++;
         					}
         				}
     				rowData[targetColumn++] = mSourceTableModel.getColumnTitle(currentDataColumn).getBytes().clone();
-    				rowData[targetColumn++] = currentData.clone();
+    				rowData[targetColumn] = currentData.clone();
+					addDetailReferences(record.getDetailReferences(currentDataColumn), rowList.size(), targetColumn, detailList);
+
         			rowList.add(rowData);
         			}
         		}
@@ -273,19 +265,21 @@ public class DETaskNewFileFromReversePivoting extends ConfigurableTask {
         CompoundTableModel targetTableModel = mTargetFrame.getTableModel();
         targetTableModel.initializeTable(rowList.size(), newColumnCount);
 
-
         // build column titles
 		int targetColumn = 0;
 		for (int column=0; column<mSourceTableModel.getTotalColumnCount(); column++) {
 			if (!isDataColumn[column]) {
-				targetTableModel.setColumnName(mSourceTableModel.getColumnTitle(column), targetColumn);
-				mSourceTableModel.copyColumnProperties(column, targetColumn, targetTableModel);
+				targetTableModel.setColumnName(mSourceTableModel.getColumnTitleNoAlias(column), targetColumn);
+				mSourceTableModel.copyColumnProperties(column, targetColumn, targetTableModel, true);
 
 	        	targetColumn++;
 				}
 			}
 		targetTableModel.setColumnName(configuration.getProperty(PROPERTY_GROUP_COLUMN_NAME, "Kind"), targetColumn++);
-		targetTableModel.setColumnName(configuration.getProperty(PROPERTY_DATA_COLUMN_NAME, "Value"), targetColumn++);
+		targetTableModel.setColumnName(configuration.getProperty(PROPERTY_DATA_COLUMN_NAME, "Value"), targetColumn);
+		for (int column=0; column<mSourceTableModel.getTotalColumnCount(); column++)
+			if (isDataColumn[column])
+				mSourceTableModel.copyColumnProperties(column, targetColumn, targetTableModel, false);
 
         // set cell values
         int row = 0;
@@ -297,7 +291,18 @@ public class DETaskNewFileFromReversePivoting extends ConfigurableTask {
         	row++;
         	}
 
-        targetTableModel.finalizeTable(CompoundTableEvent.cSpecifierNoRuntimeProperties, getProgressController());
+		for (DetailInfo di:detailList)
+        	targetTableModel.getTotalRecord(di.row).setDetailReferences(di.column, di.ref);
+
+		HashMap<String,byte[]> sourceMap = mSourceTableModel.getDetailHandler().getEmbeddedDetailMap();
+		if (sourceMap != null) {
+			HashMap<String,byte[]> targetMap = new HashMap<String,byte[]>();
+			for (String key:sourceMap.keySet())
+				targetMap.put(key,sourceMap.get(key).clone());
+			targetTableModel.getDetailHandler().setEmbeddedDetailMap(targetMap);
+			}
+
+		targetTableModel.finalizeTable(CompoundTableEvent.cSpecifierNoRuntimeProperties, getProgressController());
 
         VisualizationPanel2D view = mTargetFrame.getMainFrame().getMainPane().add2DView("2D View", null);
         view.getVisualization().setPreferredChartType(JVisualization.cChartTypeBoxPlot, -1, -1);
@@ -305,18 +310,29 @@ public class DETaskNewFileFromReversePivoting extends ConfigurableTask {
         view.setAxisColumnName(1, targetTableModel.getColumnTitle(newColumnCount-1));
 		}
 
+	private void addDetailReferences(String[][] detailRef, int row, int column, ArrayList<DetailInfo> detailList) {
+		if (detailRef != null)
+			detailList.add(new DetailInfo(row, column, detailRef));
+		}
+
 	@Override
 	public DEFrame getNewFrontFrame() {
 		return mTargetFrame;
 		}
 
-	@Override
-	public Properties getRecentConfiguration() {
-		return sRecentConfiguration;
-		}
+	private class DetailInfo {
+		int row,column;
+		String[][] ref;
 
-	@Override
-	public void setRecentConfiguration(Properties configuration) {
-		sRecentConfiguration = configuration;
+		public DetailInfo(int row, int column, String[][] detailRef) {
+			this.row = row;
+			this.column = column;
+			ref = new String[detailRef.length][];
+			for (int i=0; i<detailRef.length; i++) {
+				ref[i] = new String[detailRef[i].length];
+				for (int j=0; j<detailRef[i].length; j++)
+					ref[i][j] = new String(detailRef[i][j]);
+				}
+			}
 		}
 	}

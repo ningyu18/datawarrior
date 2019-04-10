@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -36,7 +36,7 @@ import com.actelion.research.chem.Molecule;
 import com.actelion.research.chem.ScaffoldHelper;
 import com.actelion.research.chem.StereoMolecule;
 import com.actelion.research.datawarrior.DEFrame;
-import com.actelion.research.table.CompoundTableModel;
+import com.actelion.research.table.model.CompoundTableModel;
 import com.actelion.research.table.view.JVisualization;
 import com.actelion.research.table.view.JVisualization2D;
 import com.actelion.research.table.view.VisualizationPanel2D;
@@ -54,8 +54,6 @@ public class DETaskAutomaticSAR extends DETaskAbstractAddChemProperty implements
 	private static final String[] SCAFFOLD_TEXT = { "Most central ring system", "Murcko scaffolds" };
 	private static final String[] SCAFFOLD_CODE = { "centralRing", "murcko" };
 
-	private static Properties sRecentConfiguration;
-
 	private DEFrame		mFrame;
 	private JComboBox	mComboBoxScaffoldMode;
 	private String[]	mCoreIDCode;
@@ -69,18 +67,13 @@ public class DETaskAutomaticSAR extends DETaskAbstractAddChemProperty implements
 		}
 
 	@Override
-	public Properties getRecentConfiguration() {
-		return sRecentConfiguration;
-		}
-
-	@Override
-	public void setRecentConfiguration(Properties configuration) {
-		sRecentConfiguration = configuration;
-		}
-
-	@Override
 	public String getTaskName() {
 		return TASK_NAME;
+		}
+
+	@Override
+	public boolean hasExtendedDialogContent() {
+		return true;
 		}
 
 	@Override
@@ -357,7 +350,7 @@ public class DETaskAutomaticSAR extends DETaskAbstractAddChemProperty implements
 			return "";
 
 		int[] fragmentNo = new int[mol.getAllAtoms()];
-		int fragments = mol.getFragmentNumbers(fragmentNo, false);
+		int fragments = mol.getFragmentNumbers(fragmentNo, false, true);
 		if (fragments == 1)
 			return new MolecularFormula(mol).getFormula();
 

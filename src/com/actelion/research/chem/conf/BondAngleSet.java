@@ -1,10 +1,17 @@
 /*
- * @(#)BondAngleSet.java
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
- * Copyright 2013 openmolecules.org, Inc. All Rights Reserved.
+ * This file is part of DataWarrior.
  *
- * This software is the proprietary information of openmolecules.org
- * Use is subject to license terms.
+ * DataWarrior is free software: you can redistribute it and/or modify it under the terms of the
+ * GNU General Public License as published by the Free Software Foundation, either version 3 of
+ * the License, or (at your option) any later version.
+ *
+ * DataWarrior is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+ * without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ * See the GNU General Public License for more details.
+ * You should have received a copy of the GNU General Public License along with DataWarrior.
+ * If not, see http://www.gnu.org/licenses/.
  *
  * @author Thomas Sander
  */
@@ -55,8 +62,8 @@ public class BondAngleSet {
 			// define remaining angles between yet undefined angles between vicinal bonds
 		final int[] cTotalAngleCount = { 0, 0, 1, 3, 6, 10, 15, 21 };
 		for (int atom=0; atom<mMol.getAtoms(); atom++) {
+			int[] connAtom = new int[mMol.getAllConnAtoms(atom)];
 			int connAtoms = mMol.getAllConnAtoms(atom);
-	
 			if (connAtoms > 4) {
 				for (int i=1; i<connAtoms; i++)
 					for (int j=0; j<i; j++)
@@ -75,9 +82,44 @@ public class BondAngleSet {
 			  || (mMol.getAtomRingSize(atom) <= 4
 			   && mMol.getAtomPi(atom) > 0))) {
 				if (connAtoms > 2) {
-					float angle = (mDefinedAngleCount[atom] == 1) ?
-										(2f * (float)Math.PI - mDefinedAngleSum[atom]) / 2.0f
-									   : 2f * (float)Math.PI - mDefinedAngleSum[atom];
+					float angle;
+					if (mDefinedAngleCount[atom] == 1) {
+						if (mMol.getAtomicNo(atom) <= 14)   // up to Si
+							angle = (2f * (float)Math.PI - mDefinedAngleSum[atom]) / 2.0f;
+						else
+							angle = calculateRemainingTetrahedralAngle(mDefinedAngleSum[atom]);
+						}
+					else {
+						// mDefinedAngleCount==2: we assume two annelated aromatic rings
+						// (and not spiro, which theoretically might be possible with e.g. sulphur)
+						angle = 2f * (float)Math.PI - mDefinedAngleSum[atom];
+						if (connAtoms > 3) {
+							// strange case with P,S,Se,etc sharing two/three annelated flat rings and additional substituent(s) sticking out of plane
+							if (mDefinedAngleCount[atom] == 2) {  // we need to find the third angle in the plane
+								boolean[] isMissingIndex = new boolean[mMol.getAllConnAtoms(atom)];
+								for (int i=1; i<connAtoms; i++) {
+									for (int j=0; j<i; j++) {
+										if (mBondAngle[atom][i][j] != 0.0) {
+											isMissingIndex[i] = !isMissingIndex[i];
+											isMissingIndex[j] = !isMissingIndex[j];
+											}
+										}
+									}
+								for (int i=0; i<connAtoms; i++) {
+									if (isMissingIndex[i]) {
+										for (int j=i+1; j<connAtoms; j++) {
+											if (isMissingIndex[j]) {
+												mBondAngle[atom][j][i] = angle;
+												break;
+												}
+											}
+										break;
+										}
+									}
+								}
+							angle = (float)Math.PI / 2;
+							}
+						}
 					for (int i=1; i<connAtoms; i++)
 						for (int j=0; j<i; j++)
 							if (mBondAngle[atom][i][j] == 0.0)
@@ -218,11 +260,13 @@ public class BondAngleSet {
 
 	private void calculateBondAnglesOfFlatRings() {
 		RingCollection ringSet = mMol.getRingSet();
+		boolean[] isAromaticRing = new boolean[ringSet.getSize()];
+		ringSet.determineAromaticity(isAromaticRing, new boolean[ringSet.getSize()], new int[ringSet.getSize()], true);
 		for (int consideredRingSize=3; consideredRingSize<=7; consideredRingSize++) {
 			for (int ring=0; ring<ringSet.getSize(); ring++) {
 			    int ringSize = ringSet.getRingSize(ring);
 				if (ringSize == consideredRingSize) {
-				    if (ringSet.isAromatic(ring))
+				    if (isAromaticRing[ring])
 				        calculateBondAnglesOfAromaticRing(ring);
 				    else if (ringSize <= 4)
 				        calculateBondAnglesOfSmallRing(ring);
@@ -418,5 +462,9 @@ public class BondAngleSet {
 			mDefinedAngleCount[atom]++;
 	    	}
 		}
-	
+
+	private float calculateRemainingTetrahedralAngle(float firstAngle) {
+		float a109 = 109.47f * (float)Math.PI/180.0f;
+		return a109 + (a109 - firstAngle) * 0.18f;  // this is an aproximation
+		}
 	}

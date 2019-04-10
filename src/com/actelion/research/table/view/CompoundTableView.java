@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,12 +18,12 @@
 
 package com.actelion.research.table.view;
 
-import com.actelion.research.table.CompoundTableHitlistEvent;
-import com.actelion.research.table.CompoundTableListener;
-import com.actelion.research.table.CompoundTableModel;
+import com.actelion.research.table.model.CompoundTableListEvent;
+import com.actelion.research.table.model.CompoundTableListener;
+import com.actelion.research.table.model.CompoundTableModel;
 
 public interface CompoundTableView extends CompoundTableListener {
-	public void hitlistChanged(CompoundTableHitlistEvent e);
+	public void listChanged(CompoundTableListEvent e);
 	public void cleanup();
 	public CompoundTableModel getTableModel();
 	}

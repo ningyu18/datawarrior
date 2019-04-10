@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -28,6 +28,7 @@ import javax.swing.JPanel;
 import javax.swing.JSlider;
 
 import com.actelion.research.datawarrior.DEMainPane;
+import com.actelion.research.gui.hidpi.HiDPIHelper;
 import com.actelion.research.table.view.CompoundTableView;
 import com.actelion.research.table.view.JVisualization2D;
 import com.actelion.research.table.view.VisualizationPanel;
@@ -38,8 +39,6 @@ public class DETaskSetMarkerTransparency extends DETaskAbstractSetViewOptions {
 	public static final String TASK_NAME = "Set Marker Transparency";
 
 	private static final String PROPERTY_TRANSPARENCY = "transparency";
-
-    private static Properties sRecentConfiguration;
 
 	private JSlider         mSlider;
 
@@ -66,7 +65,7 @@ public class DETaskSetMarkerTransparency extends DETaskAbstractSetViewOptions {
 	public JComponent createInnerDialogContent() {
 		JPanel sp = new JPanel();
 		mSlider = new JSlider(JSlider.HORIZONTAL, 0, 100, 0);
-		mSlider.setPreferredSize(new Dimension(100, 20));
+		mSlider.setPreferredSize(new Dimension(HiDPIHelper.scale(100), mSlider.getPreferredSize().height));
 		mSlider.setMinorTickSpacing(10);
 		mSlider.setMajorTickSpacing(100);
 		mSlider.addChangeListener(this);
@@ -98,21 +97,11 @@ public class DETaskSetMarkerTransparency extends DETaskAbstractSetViewOptions {
 
 	@Override
 	public void addViewConfiguration(Properties configuration) {
-		configuration.setProperty(PROPERTY_TRANSPARENCY, ""+((JVisualization2D)getVisualization()).getMarkerTransparency());
+		configuration.setProperty(PROPERTY_TRANSPARENCY, ""+((JVisualization2D) getInteractiveVisualization()).getMarkerTransparency());
 		}
 
 	@Override
 	public void enableItems() {
-		}
-
-	@Override
-	public Properties getRecentConfigurationLocal() {
-		return sRecentConfiguration;
-		}
-	
-	@Override
-	public void setRecentConfiguration(Properties configuration) {
-		sRecentConfiguration = configuration;
 		}
 
 	@Override

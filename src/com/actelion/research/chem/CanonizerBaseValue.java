@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -21,14 +21,17 @@ package com.actelion.research.chem;
 import java.util.Arrays;
 
 public class CanonizerBaseValue implements Comparable<CanonizerBaseValue> {
-	private static final int BASE_VALUE_SIZE = 3;	// bond query features need third long
     public long[] mValue;
     private int mAtom;
     private int mIndex;
     private int mAvailableBits;
 
-    public CanonizerBaseValue() {
-        mValue = new long[BASE_VALUE_SIZE];
+    /**
+     * @param size depends on the maximum number of non-H neighbors
+     *             and whether bond query features are present
+     */
+    public CanonizerBaseValue(int size) {
+        mValue = new long[size];
         }
 
     public void init(int atom) {
@@ -38,11 +41,11 @@ public class CanonizerBaseValue implements Comparable<CanonizerBaseValue> {
         Arrays.fill(mValue, 0);
         }
 
-    public void add(int data) {
+    public void add(long data) {
         mValue[mIndex] += data;
         }
 
-    public void add(int bits, int data) {
+    public void add(int bits, long data) {
         if (mAvailableBits == 0) {
             mIndex++;
             mAvailableBits = 63;
@@ -73,8 +76,7 @@ public class CanonizerBaseValue implements Comparable<CanonizerBaseValue> {
         }
 
     public int compareTo(CanonizerBaseValue b) {
-        if (mIndex != b.mIndex)
-            return (mIndex < b.mIndex) ? -1 : 1;
+        assert(mIndex == b.mIndex);
         for (int i=0; i<mIndex; i++)
             if (mValue[i] != b.mValue[i])
                 return (mValue[i] < b.mValue[i]) ? -1 : 1;

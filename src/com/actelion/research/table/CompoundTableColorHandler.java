@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -22,6 +22,9 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.TreeMap;
 
+import com.actelion.research.table.model.CompoundTableEvent;
+import com.actelion.research.table.model.CompoundTableListEvent;
+import com.actelion.research.table.model.CompoundTableModel;
 import com.actelion.research.table.view.JVisualization;
 import com.actelion.research.table.view.VisualizationColor;
 import com.actelion.research.table.view.VisualizationColorListener;
@@ -72,11 +75,11 @@ public class CompoundTableColorHandler implements VisualizationColorListener {
         	vc.compoundTableChanged(e);
         }
 
-	public void hitlistChanged(CompoundTableHitlistEvent e) {
+	public void hitlistChanged(CompoundTableListEvent e) {
         for (VisualizationColor vc:mForegroundColorMap.values())
-        	vc.hitlistChanged(e);
+        	vc.listChanged(e);
         for (VisualizationColor vc:mBackgroundColorMap.values())
-        	vc.hitlistChanged(e);
+        	vc.listChanged(e);
 		}
 
 	/**

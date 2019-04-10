@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -24,10 +24,8 @@ import java.util.Properties;
 import com.actelion.research.datawarrior.DEFrame;
 import com.actelion.research.datawarrior.DataWarrior;
 
-public class DETaskSelectWindow extends DEAbstractWindowTask {
+public class DETaskSelectWindow extends AbstractWindowTask {
 	public static final String TASK_NAME = "Select Window";
-
-    private static Properties sRecentConfiguration;
 
     private DEFrame mNewFrontFrame;
 
@@ -61,14 +59,4 @@ public class DETaskSelectWindow extends DEAbstractWindowTask {
 	public DEFrame getNewFrontFrame() {
 		return mNewFrontFrame;
 		}
-
-	@Override
-	public Properties getRecentConfiguration() {
-    	return sRecentConfiguration;
-    	}
-
-	@Override
-	public void setRecentConfiguration(Properties configuration) {
-    	sRecentConfiguration = configuration;
-    	}
 	}

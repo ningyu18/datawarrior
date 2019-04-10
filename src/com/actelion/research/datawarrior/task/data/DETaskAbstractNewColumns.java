@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,30 +18,20 @@
 
 package com.actelion.research.datawarrior.task.data;
 
+import com.actelion.research.datawarrior.DEFormView;
+import com.actelion.research.datawarrior.DEFrame;
+import com.actelion.research.datawarrior.DataWarrior;
+import com.actelion.research.datawarrior.task.ConfigurableTask;
+import com.actelion.research.table.model.CompoundTableEvent;
+import com.actelion.research.table.model.CompoundTableModel;
 import info.clearthought.layout.TableLayout;
 
+import javax.swing.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
 import java.util.Properties;
-
-import javax.swing.DefaultListModel;
-import javax.swing.JButton;
-import javax.swing.JComboBox;
-import javax.swing.JComponent;
-import javax.swing.JLabel;
-import javax.swing.JList;
-import javax.swing.JPanel;
-import javax.swing.JScrollPane;
-import javax.swing.JTextField;
-
-import com.actelion.research.datawarrior.DEFormView;
-import com.actelion.research.datawarrior.DEFrame;
-import com.actelion.research.datawarrior.DataWarrior;
-import com.actelion.research.datawarrior.task.ConfigurableTask;
-import com.actelion.research.table.CompoundTableEvent;
-import com.actelion.research.table.CompoundTableModel;
 
 public abstract class DETaskAbstractNewColumns extends ConfigurableTask implements ActionListener {
     private static final String PROPERTY_COLUMN_NAME_LIST = "columnNames";
@@ -131,7 +121,7 @@ public abstract class DETaskAbstractNewColumns extends ConfigurableTask implemen
 	        externalName[i] = item.substring(0, index);
 	        }
 	    CompoundTableModel refModel = createNewTable() ? null : mApplication.getActiveFrame().getTableModel();
-	    return CompoundTableModel.validateColumnName(desiredName, externalName, externalName.length, refModel);
+	    return CompoundTableModel.validateColumnName(desiredName, -1, externalName, externalName.length, refModel);
 	    }
 
 	protected abstract boolean createNewTable();
@@ -225,16 +215,36 @@ public abstract class DETaskAbstractNewColumns extends ConfigurableTask implemen
                 }
             }
 
-        if (createNewTable()) {
-            tableModel.finalizeTable(CompoundTableEvent.cSpecifierNoRuntimeProperties, null);
-            tableModel.setActiveRow(0);
-            DEFormView form = mNewFrame.getMainFrame().getMainPane().addFormView("Form View", null, true);
-            form.setEditMode(true);
+		if (SwingUtilities.isEventDispatchThread()) {
+			createNewViews(tableModel, firstNewColumn, oldFrame);
+			}
+		else {
+	        try {
+		        final CompoundTableModel _tableModel = tableModel;
+		        final int _firstNewColumn = firstNewColumn;
+		        final DEFrame _oldFrame = oldFrame;
+		        SwingUtilities.invokeAndWait(new Runnable() {
+			        @Override
+			        public void run() {
+				        createNewViews(_tableModel, _firstNewColumn, _oldFrame);
+			            }
+		            });
+	            }
+	        catch (Exception e) {}
             }
-        else {
-            tableModel.finalizeNewColumns(firstNewColumn, null);
-            if (oldFrame.getMainFrame().getMainPane().getDockableCount() == 0)
-            	oldFrame.getMainFrame().getMainPane().addTableView("Table", null);
-            }
+		}
+
+	private void createNewViews(final CompoundTableModel tableModel, final int firstNewColumn, final DEFrame oldFrame) {
+		if (createNewTable()) {
+			tableModel.finalizeTable(CompoundTableEvent.cSpecifierNoRuntimeProperties, null);
+			tableModel.setActiveRow(0);
+			DEFormView form = mNewFrame.getMainFrame().getMainPane().addFormView("Form View", null, true);
+			form.setEditMode(true);
+			}
+		else {
+			tableModel.finalizeNewColumns(firstNewColumn, null);
+			if (oldFrame.getMainFrame().getMainPane().getTableView() == null)
+				oldFrame.getMainFrame().getMainPane().addTableView("Table", null);
+			}
 		}
 	}

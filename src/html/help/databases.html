@@ -9,7 +9,7 @@
 <body>
 
 <hr align="left" size="2" width="550">
-<h2><a name="UsingMacros"></a>Accessing External Databases</h2>
+<h2><a name="Databases"></a>Accessing External Databases</h2>
 <hr align="left" size="2" width="550">
 
 <p><span class="keyword">DataWarrior</span>, as its name already implies, lives from data.
@@ -83,6 +83,42 @@ For running a query one needs to specify at least one of the three kinds of sear
 you should do that from the ChEMBL web site.
 </p>
 <br>
-
+<h3><a name="COD"></a>The Crystallography Open Database (COD)</h3>
+<p>
+The COD is probably the most comprehensive open database for crystallographic structures of small
+molecules. It is a valuable resource for studying conformational aspects of molecules like typical
+torsion angles, bond lengths and atom distances. The COD contains more than 360.000 organic and
+organo-metallic structures. <span class="keyword">DataWarrior</span> uses conformational knowledge
+extracted from the COD for its conformation generation algorithm.</p>
+<p><span class="keyword">DataWarrior</span> allows to run sub-structure queries on the COD-database,
+which returns the matching 3D-structures along with meta data. The picture below shows a
+<span class="keyword">DataWarrior</span> window with organic structures from the COD and a form view
+containing a large 3D-structure view.<p>
+<p align="center"><img src="help/img/database/cod.jpeg"></p>
+<p><center><i>COD database entry showing the torsion angle of an sulfonamide</i></center></p>
+<p><b>If you have measured or will create X-ray structures from small molecules, please consider
+uploading them to the COD. Open source software needs open data and the well known
+<span class="keyword">Cambridge Structural Database</span> does not qualify as open data, since
+neither its structures nor any extracted information may be used as part of open source software.</b></p>
+<br>
+<h3><a name="CustomURL"></a>Data From Custom URL</h3>
+<p>The Internet is full of WebServices that offer the retrieval of data tables of any kind typically
+in TAB delimited or other formats. For instance, the <span class="keyword">Open Source Malaria Project
+</span> maintains data in a Google spreadsheet, which can be accessed in TAB delimited format via this
+URL:<br>
+https://docs.google.com/spreadsheets/d/1Rvy6OiM291d1GN_cyT6eSw_C3lSuJ1jaR7AJa8hgGsc/export?format=tsv
+<br>
+One of its columns contains the chemical structures in SMILES format.
+<span class="keyword">DataWarrior</span>'s <span class="menu">Database</span> menu contains an item
+<span class="menu">Retrieve Data From URL</span> to retrieve data from such web resources. Whenever
+a column of such a web resource contains SMILES codes, then
+<span class="keyword">DataWarrior</span> recognizes them and creates an additional column showing
+the associated chemical structures. If one frequently retrieves updated data from the same URL,
+then it may be a good idea to create a short macro with the URL retrieval task and save it in the
+macro folder within the <span class="keyword">DataWarrior</span> installation folder. This way the
+<span class="menu">Macro</span> menu contains an item to directly retrieve the data into a new
+<span class="keyword">DataWarrior</span> window.
+</p>
+<br>
 </body>
 </html>

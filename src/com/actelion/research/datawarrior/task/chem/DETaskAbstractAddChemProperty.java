@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,25 +18,20 @@
 
 package com.actelion.research.datawarrior.task.chem;
 
+import com.actelion.research.chem.StereoMolecule;
+import com.actelion.research.chem.descriptor.DescriptorConstants;
+import com.actelion.research.chem.descriptor.DescriptorHandler;
+import com.actelion.research.chem.descriptor.DescriptorHelper;
+import com.actelion.research.datawarrior.DEFrame;
+import com.actelion.research.datawarrior.task.ConfigurableTask;
+import com.actelion.research.table.model.CompoundTableModel;
 import info.clearthought.layout.TableLayout;
 
+import javax.swing.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.util.Properties;
 import java.util.concurrent.atomic.AtomicInteger;
-
-import javax.swing.JComboBox;
-import javax.swing.JLabel;
-import javax.swing.JPanel;
-import javax.swing.JTextField;
-
-import com.actelion.research.chem.StereoMolecule;
-import com.actelion.research.chem.descriptor.DescriptorConstants;
-import com.actelion.research.chem.descriptor.DescriptorHandler;
-import com.actelion.research.chem.descriptor.DescriptorInfo;
-import com.actelion.research.datawarrior.DEFrame;
-import com.actelion.research.datawarrior.task.ConfigurableTask;
-import com.actelion.research.table.CompoundTableModel;
 
 /**
  * This class simplifies creating new tasks that calculate some stuff based on an existing
@@ -92,7 +87,6 @@ public abstract class DETaskAbstractAddChemProperty extends ConfigurableTask imp
 	/**
 	 * This method is called after the table is modified with calculated results
 	 * and may be overwritten to generate new views etc.
-	 * @param tableModel
 	 * @param firstNewColumn is -1 if getNewColumnCount() returned 0
 	 */
 	protected void postprocess(int firstNewColumn) {
@@ -101,7 +95,6 @@ public abstract class DETaskAbstractAddChemProperty extends ConfigurableTask imp
 	/**
 	 * Derived classes may overwrite this to assign column properties to the new columns.
 	 * This method is only called if getNewColumnCount() does not return 0.
-	 * @param tableModel
 	 * @param firstNewColumn
 	 */
 	protected void setNewColumnProperties(int firstNewColumn) {
@@ -157,6 +150,28 @@ public abstract class DETaskAbstractAddChemProperty extends ConfigurableTask imp
 			}
 
 		return true;
+		}
+
+	@Override
+	public Properties getPredefinedConfiguration() {
+		Properties configuration = null;
+
+		if (!mEditableColumnNames && !hasExtendedDialogContent() && isInteractive()) {
+			int[] structureColumn = getCompatibleStructureColumnList();
+			if (structureColumn != null && structureColumn.length == 1) {
+				int[] descriptorColumn = (mDescriptorClass == DESCRIPTOR_NONE) ? null
+									   : getCompatibleDescriptorColumnList(structureColumn[0]);
+				if (mDescriptorClass == DESCRIPTOR_NONE
+				 || (descriptorColumn != null && descriptorColumn.length == 1)) {
+					configuration = new Properties();
+					configuration.setProperty(PROPERTY_STRUCTURE_COLUMN, mTableModel.getColumnTitleNoAlias(structureColumn[0]));
+					if (mDescriptorClass != DESCRIPTOR_NONE)
+						configuration.setProperty(PROPERTY_DESCRIPTOR_SHORT_NAME, mTableModel.getDescriptorHandler(descriptorColumn[0]).getInfo().shortName);
+					}
+				}
+			}
+
+		return configuration;
 		}
 
 	@Override
@@ -230,6 +245,14 @@ public abstract class DETaskAbstractAddChemProperty extends ConfigurableTask imp
 		}
 
 	/**
+	 * If this task has no additional configuration items and if there is one structure column
+	 * only, then the configuration dialog can be skipped in a live context. This is done by
+	 * returning a valid configuration to getPredefinedConfiguration().
+	 * @return true if this task has configuration items beyond the structure selection combobox
+	 */
+	public abstract boolean hasExtendedDialogContent();
+
+	/**
 	 * If the implementation needs additional configuration items, then override this method
 	 * to return a panel containing the corresponding control elements without any border.
 	 * @return null or JPanel with controls
@@ -292,8 +315,8 @@ public abstract class DETaskAbstractAddChemProperty extends ConfigurableTask imp
 					value = configuration.getProperty(PROPERTY_DESCRIPTOR_SHORT_NAME);
 					if (value != null) {
 						int descriptorColumn = mTableModel.getChildColumn(column, value);
-						if (descriptorColumn != -1)
-							mComboBoxDescriptorColumn.setSelectedItem(value);
+						if (descriptorColumn != -1 || !isInteractive())
+							mComboBoxDescriptorColumn.setSelectedItem(DescriptorHelper.shortNameToName(value));
 						}
 					}
 				}
@@ -302,7 +325,7 @@ public abstract class DETaskAbstractAddChemProperty extends ConfigurableTask imp
 				if (mComboBoxDescriptorColumn != null) {
 					value = configuration.getProperty(PROPERTY_DESCRIPTOR_SHORT_NAME);
 					if (value != null) {
-						mComboBoxDescriptorColumn.setSelectedItem(value);
+						mComboBoxDescriptorColumn.setSelectedItem(DescriptorHelper.shortNameToName(value));
 						}
 					}
 				}
@@ -347,12 +370,7 @@ public abstract class DETaskAbstractAddChemProperty extends ConfigurableTask imp
 		if (mComboBoxDescriptorColumn != null) {
 			String descriptorName = (String)mComboBoxDescriptorColumn.getSelectedItem();
 			if (descriptorName != null) {
-				for (DescriptorInfo d:DescriptorConstants.DESCRIPTOR_LIST) {
-					if (d.name.equals(descriptorName)) {
-						configuration.setProperty(PROPERTY_DESCRIPTOR_SHORT_NAME, d.shortName);
-						break;
-						}
-					}
+				configuration.setProperty(PROPERTY_DESCRIPTOR_SHORT_NAME, DescriptorHelper.nameToShortName(descriptorName));
 				}
 			}
 
@@ -451,6 +469,7 @@ public abstract class DETaskAbstractAddChemProperty extends ConfigurableTask imp
 							}
 						catch (Exception e) {
 							mSMPErrorCount.incrementAndGet();
+							e.printStackTrace();
 							}
 
 						updateProgress(-1);

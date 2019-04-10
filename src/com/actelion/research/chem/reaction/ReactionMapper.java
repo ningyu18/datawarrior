@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,7 +18,7 @@
 
 package com.actelion.research.chem.reaction;
 
-import com.actelion.research.chem.CoordinateInventor;
+import com.actelion.research.chem.coords.CoordinateInventor;
 import com.actelion.research.chem.Molecule;
 import com.actelion.research.chem.SSSearcher;
 import com.actelion.research.chem.StereoMolecule;
@@ -29,7 +29,7 @@ import java.util.Arrays;
 public class ReactionMapper implements IReactionMapper
 {
     private static int COLORTABLE[] = {
-        Molecule.cAtomColorBlack,
+        Molecule.cAtomColorNone,
         Molecule.cAtomColorBlue,
         Molecule.cAtomColorRed,
         Molecule.cAtomColorGreen,

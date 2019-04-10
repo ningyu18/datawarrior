@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,24 +18,32 @@
 
 package com.actelion.research.datawarrior.task;
 
-import java.util.Properties;
-
-import javax.swing.JOptionPane;
-import javax.swing.SwingUtilities;
-
 import com.actelion.research.calc.ProgressController;
 import com.actelion.research.datawarrior.DEFrame;
+import com.actelion.research.datawarrior.task.macro.DETaskRepeatNextTask;
+import com.actelion.research.datawarrior.task.macro.DETaskSetMessageMode;
+import com.actelion.research.datawarrior.task.macro.GenericTaskRunMacro;
+
+import javax.swing.*;
+import java.util.Properties;
+import java.util.concurrent.ConcurrentHashMap;
 
 
 public class DEMacroRecorder implements ProgressController,Runnable {
 	public static final String RECORDING_MESSAGE = "Recording Macro...";
 	private static volatile DEMacroRecorder sRecorder = null;
 
+	public static final int MESSAGE_MODE_SHOW_ERRORS = 0;
+	public static final int MESSAGE_MODE_SKIP_ERRORS = 1;
+	public static final int DEFAULT_MESSAGE_MODE = MESSAGE_MODE_SHOW_ERRORS;
+
 	private volatile boolean	mIsRecording;
 	private volatile Thread		mMacroThread;
 	private volatile DEFrame	mFrontFrame;
 	private volatile DEMacro	mRunningMacro;
+	private volatile int		mMessageMode;
 	private volatile StandardTaskFactory	mTaskFactory;
+	private volatile ConcurrentHashMap<String,String> mVariableMap;
 	private DEFrame				mRecordingMacroOwner,mFrontFrameWhenRecordingStopped;
 	private DEMacro				mRecordingMacro;
 
@@ -72,6 +80,11 @@ public class DEMacroRecorder implements ProgressController,Runnable {
 		}
 
 	private DEMacroRecorder() {
+		mMessageMode = DEFAULT_MESSAGE_MODE;
+		}
+
+	public void setTaskFactory(StandardTaskFactory tf) {
+		mTaskFactory = tf;
 		}
 
 	public void startRecording(DEMacro macro, DEFrame macroOwner) {
@@ -120,8 +133,30 @@ public class DEMacroRecorder implements ProgressController,Runnable {
 		return (mMacroThread != null);
 		}
 
+	public String getVariable(String name) {
+		return mVariableMap.get(name);
+		}
+
+	public int getMessageMode() {
+		return mMessageMode;
+		}
+
+	public void setMessageMode(int mode) {
+		mMessageMode = mode;
+		}
+
+	public void setVariable(String name, String value) {
+		mVariableMap.put(name, value);
+		}
+
+	public String resolveVariables(String text) {
+		for (String name:mVariableMap.keySet())
+			text = text.replace("$".concat(name), mVariableMap.get(name));
+		return text;
+		}
+
 	private void recordTask(AbstractTask task, Properties configuration) {
-		String taskCode = task.getTaskCode();
+		String taskCode = mTaskFactory.getTaskCodeFromName(task.getTaskName());
 		int previous = mRecordingMacro.getTaskCount()-1;
 		if (previous != -1
 		 && taskCode.equals(mRecordingMacro.getTaskCode(previous))
@@ -137,8 +172,7 @@ public class DEMacroRecorder implements ProgressController,Runnable {
 			if (mMacroThread == null) {
 				mRunningMacro = macro;
 				mFrontFrame = frontFrame;
-				mTaskFactory = frontFrame.getApplication().getTaskFactory();
-	
+
 				for (DEFrame frame:frontFrame.getApplication().getFrameList())
 					frame.getMainFrame().getMainPane().getMacroProgressPanel().initializeThreadMustDie();
 		
@@ -154,11 +188,13 @@ public class DEMacroRecorder implements ProgressController,Runnable {
 		startProgress("Running Macro...", 0, 0);
 
 		try {
+			mMessageMode = DEFAULT_MESSAGE_MODE;
+			mVariableMap = new ConcurrentHashMap<String,String>();
 			for (int i=0; i<mRunningMacro.getTaskCount(); i++) {
 				if (threadMustDie())
 					break;
 	
-				AbstractTask cf = mTaskFactory.createTask(mFrontFrame, mRunningMacro.getTaskCode(i));
+				AbstractTask cf = mTaskFactory.createTaskFromCode(mFrontFrame, mRunningMacro.getTaskCode(i));
 				if (cf != null) {
 		    		if (cf instanceof DETaskRepeatNextTask && i<mRunningMacro.getTaskCount()-1) {
 		    			Properties config = mRunningMacro.getTaskConfiguration(i);
@@ -197,9 +233,11 @@ public class DEMacroRecorder implements ProgressController,Runnable {
 	
 				// if we have finished a daughter macro, then continue with the parent one
 				if (i == mRunningMacro.getTaskCount()-1) {
-					if (mRunningMacro.getParentMacro() != null) {
+					DEMacro parentMacro = mRunningMacro.getParentMacro();
+					if (parentMacro != null) {
 						i = mRunningMacro.getParentIndex();
-						mRunningMacro = mRunningMacro.getParentMacro();
+						mRunningMacro.setParentMacro(null, 0);
+						mRunningMacro = parentMacro;
 						}
 					}
 	
@@ -219,6 +257,7 @@ public class DEMacroRecorder implements ProgressController,Runnable {
 
 		stopProgress();
 
+		mVariableMap = null;
 		mMacroThread = null;
 		mRunningMacro = null;
 		}
@@ -242,16 +281,21 @@ public class DEMacroRecorder implements ProgressController,Runnable {
 
 	@Override
 	public void updateProgress(final int value) {
+		updateProgress(value, null);
+		}
+
+	@Override
+	public void updateProgress(final int value, final String message) {
 		if (SwingUtilities.isEventDispatchThread()) {
 			for (DEFrame frame:mFrontFrame.getApplication().getFrameList())
-				frame.getMainFrame().getMainPane().getMacroProgressPanel().updateProgress(value);
+				frame.getMainFrame().getMainPane().getMacroProgressPanel().updateProgress(value, message);
 			}
 		else {
 			SwingUtilities.invokeLater(new Runnable() {
 				@Override
 				public void run() {
 					for (DEFrame frame:mFrontFrame.getApplication().getFrameList())
-						frame.getMainFrame().getMainPane().getMacroProgressPanel().updateProgress(value);
+						frame.getMainFrame().getMainPane().getMacroProgressPanel().updateProgress(value, message);
 					}
 				});
 			}
@@ -276,16 +320,18 @@ public class DEMacroRecorder implements ProgressController,Runnable {
 
 	@Override
 	public void showErrorMessage(final String message) {
-		if (SwingUtilities.isEventDispatchThread()) {
-			mFrontFrame.getApplication().getActiveFrame().getMainFrame().getMainPane().getMacroProgressPanel().showErrorMessage(message);
-			}
-		else {
-			SwingUtilities.invokeLater(new Runnable() {
-				@Override
-				public void run() {
-					mFrontFrame.getApplication().getActiveFrame().getMainFrame().getMainPane().getMacroProgressPanel().showErrorMessage(message);
-					}
-				});
+		if (mMessageMode == MESSAGE_MODE_SHOW_ERRORS) {
+			if (SwingUtilities.isEventDispatchThread()) {
+				mFrontFrame.getApplication().getActiveFrame().getMainFrame().getMainPane().getMacroProgressPanel().showErrorMessage(message);
+				}
+			else {
+				SwingUtilities.invokeLater(new Runnable() {
+					@Override
+					public void run() {
+						mFrontFrame.getApplication().getActiveFrame().getMainFrame().getMainPane().getMacroProgressPanel().showErrorMessage(message);
+						}
+					});
+				}
 			}
 		}
 
@@ -295,5 +341,12 @@ public class DEMacroRecorder implements ProgressController,Runnable {
 			if (frame.getMainFrame().getMainPane().getMacroProgressPanel().threadMustDie())
 				return true;
 		return false;
+		}
+
+	/**
+	 * Programmatically tells the frame's progress panel to stop the execution.
+	 */
+	public void stopMacro() {
+		mFrontFrame.getApplication().getActiveFrame().getMainFrame().getMainPane().getMacroProgressPanel().cancel();
 		}
 	}

@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,11 +18,11 @@
 
 package com.actelion.research.chem.descriptor;
 
-import java.util.Arrays;
-import java.util.TreeSet;
-
 import com.actelion.research.chem.StereoMolecule;
 import com.actelion.research.chem.reaction.FunctionalGroupClassifier;
+
+import java.util.Arrays;
+import java.util.TreeSet;
 
 public class DescriptorHandlerFunctionalGroups implements DescriptorHandler<int[][], StereoMolecule> {
     private static final double CORRECTION_FACTOR = 0.7;
@@ -51,6 +51,9 @@ public class DescriptorHandlerFunctionalGroups implements DescriptorHandler<int[
      * are neglected by the descriptor generation.
      */
     public int[][] createDescriptor(StereoMolecule mol) {
+	    if (mol ==null)
+		    return null;
+
         FunctionalGroupClassifier fgc = new FunctionalGroupClassifier(mol);
 		return fgc.getOrganicFunctionalGroupCounts();
         }
@@ -77,7 +80,7 @@ public class DescriptorHandlerFunctionalGroups implements DescriptorHandler<int[
         }
 
     public String getVersion() {
-        return "1.0";
+        return DescriptorConstants.DESCRIPTOR_OrganicFunctionalGroups.version;
         }
 
     public float getSimilarity(int[][] dl1, int[][] dl2) {
@@ -131,7 +134,7 @@ public class DescriptorHandlerFunctionalGroups implements DescriptorHandler<int[
 			 : (float)(1.0-Math.pow(1-Math.pow(value, CORRECTION_FACTOR) ,1.0/CORRECTION_FACTOR));
 		}
 
-    public DescriptorHandler<int[][], StereoMolecule> getDeepCopy() {
+    public DescriptorHandler<int[][], StereoMolecule> getThreadSafeCopy() {
 		return new DescriptorHandlerFunctionalGroups();
     	}
 

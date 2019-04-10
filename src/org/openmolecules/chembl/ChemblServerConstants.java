@@ -85,6 +85,8 @@ public interface ChemblServerConstants {
 
 	public static final int PROTEIN_CLASS_LEVELS = 6;
 
+	public static final String REQUEST_GET_VERSION = "getVersion";
+	public static final String REQUEST_GET_VERSION_AND_TARGETS = "getVersionAndTargets";
 	public static final String REQUEST_GET_TARGET_LIST = "getTargets";
 	public static final String REQUEST_GET_PROTEIN_CLASS_DICTIONARY = "getProteinClassDictionary";
 	public static final String REQUEST_GET_ACTIVE_TARGET_LIST = "getActiveTargets";

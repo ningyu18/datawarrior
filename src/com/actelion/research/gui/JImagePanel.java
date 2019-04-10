@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,34 +18,18 @@
 
 package com.actelion.research.gui;
 
-import java.awt.Color;
-import java.awt.Dimension;
-import java.awt.Graphics;
-import java.awt.Image;
-import java.awt.Point;
-import java.awt.Rectangle;
-import java.awt.Toolkit;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
-import java.awt.event.KeyEvent;
-import java.awt.event.KeyListener;
-import java.awt.event.MouseEvent;
-import java.awt.event.MouseListener;
-import java.awt.event.MouseMotionListener;
-import java.awt.event.MouseWheelEvent;
-import java.awt.event.MouseWheelListener;
-import java.awt.image.ImageObserver;
-
-import javax.swing.JMenuItem;
-import javax.swing.JPanel;
-import javax.swing.JPopupMenu;
-import javax.swing.SwingUtilities;
-
 import com.actelion.research.gui.clipboard.ImageClipboardHandler;
 import com.actelion.research.util.CursorHelper;
 
+import javax.swing.*;
+import java.awt.*;
+import java.awt.event.*;
+import java.awt.image.ImageObserver;
+
 public class JImagePanel extends JPanel implements ActionListener,ImageObserver,KeyListener,MouseListener,MouseMotionListener,MouseWheelListener {
 	private static final long serialVersionUID = 0x20120502;
+
+	public static final Color BACKGROUND_COLOR = UIManager.getColor("Panel.background");
 
 	public static final String cLargeImageExtension = ".jpg";
 	public static final String cSmallImageExtension = "_s.jpg";		// used in case of thumbnails
@@ -60,10 +44,9 @@ public class JImagePanel extends JPanel implements ActionListener,ImageObserver,
 	private static final float MAX_ZOOM_FACTOR = 8f;
 
 	private String				mImagePath,mFileName;
-	private Image				mImage,mOffImage,mLowResImage;
+	private Image				mImage,mLowResImage;
 	private byte[]				mImageData;
-	private Graphics			mOffG;
-	private boolean				mOffImageValid,mImageIsThumbNail,mUseThumbNail,mAltIsDown,mMouseIsDown,mMouseIsInside;
+	private boolean				mImageIsThumbNail,mUseThumbNail,mAltIsDown,mMouseIsDown,mMouseIsInside;
 	private int					mImageStatus,mImageCenterOffsetX,mImageCenterOffsetY,mCurrentCursor,mImageUpdateCount;
 	private float				mZoomFactor;
 	private Point				mMouseLocation;
@@ -111,54 +94,44 @@ public class JImagePanel extends JPanel implements ActionListener,ImageObserver,
 		}
 
 	public void paintComponent(Graphics g) {
+		super.paintComponent(g);
+
 		Dimension theSize = getSize();
 		if (theSize.width == 0 || theSize.height == 0)
 			return;
 
-		if (mOffImage == null
-		 || mOffImage.getWidth(null) != theSize.width
-		 || mOffImage.getHeight(null) != theSize.height) {
-			mOffImage = createImage(theSize.width, theSize.height);
-			mOffG = mOffImage.getGraphics();
-			mOffImageValid = false;
+		g.setColor(BACKGROUND_COLOR);
+		g.fillRect(0, 0, theSize.width, theSize.height);
+
+		if (mImageStatus == IMAGE_PENDING) {
+			if (mImageData != null || mFileName != null) {
+				createAndPrepareImage();	// changes status to IMAGE_LOADING or IMAGE_AVAILABLE
+				}
+			else {
+				mImage = null;
+				mImageStatus = IMAGE_NO_IMAGE;
+				}
 			}
 
-		if (!mOffImageValid) {
-			mOffG.setColor(getBackground());
-			mOffG.fillRect(0, 0, mOffImage.getWidth(null), mOffImage.getHeight(null));
+		if (mImage != null) {
+			if (mImageStatus == IMAGE_LOADING) {
+				if (mLowResImage != null)	// if we have a thumbnail
+					drawImage(g, mLowResImage);
 
-			if (mImageStatus == IMAGE_PENDING) {
-				if (mImageData != null || mFileName != null) {
-					createAndPrepareImage();	// changes status to IMAGE_LOADING or IMAGE_AVAILABLE
-					}
-				else {
-					mImage = null;
-					mImageStatus = IMAGE_NO_IMAGE;
-					}
+				String message = (mUseThumbNail && !mImageIsThumbNail) ?
+						"higher resolution loading..." : "image loading...";
+				g.setColor(Color.blue);
+				g.drawString(message, 4, theSize.height - 4);
 				}
-
-			if (mImage != null) {
-				if (mImageStatus == IMAGE_LOADING) {
-					if (mLowResImage != null)	// if we have a thumbnail
-						drawImage(mLowResImage);
-
-					String message = (mUseThumbNail && !mImageIsThumbNail) ?
-							"higher resolution loading..." : "image loading...";
-					mOffG.setColor(Color.blue);
-					mOffG.drawString(message, 4, theSize.height - 4);
-					}
-				else if (mImageStatus == IMAGE_ERROR) {
-					mOffG.setColor(Color.red);
-					mOffG.drawString("image loading error.", 4, theSize.height - 4);
-					}
-				else if (mImageStatus == IMAGE_AVAILABLE) {
-					drawImage(mImage);
-					}
+			else if (mImageStatus == IMAGE_ERROR) {
+				g.setColor(Color.red);
+				g.drawString("image loading error.", 4, theSize.height - 4);
 				}
-			mOffImageValid = true;
+			else if (mImageStatus == IMAGE_AVAILABLE) {
+				drawImage(g, mImage);
+				}
 			}
 
-		g.drawImage(mOffImage, 0, 0, null);
 		if (mSelectionRect != null) {
 			g.setColor(mSelectionRect.width >= MIN_SELECTION_PIXELS
 					&& mSelectionRect.height >= MIN_SELECTION_PIXELS ? Color.GREEN : Color.RED);
@@ -167,27 +140,23 @@ public class JImagePanel extends JPanel implements ActionListener,ImageObserver,
 			}
 		}
 
-	private void drawImage(Image image) {
+	private void drawImage(Graphics g, Image image) {
 		if (image.getWidth(this) > 0 && image.getHeight(this) > 0) {
 			if (mZoomFactor == 1f) {
-				mImageRect.x = (int)mImageCenterOffsetX + (mOffImage.getWidth(null) - image.getWidth(this)) / 2;
-				mImageRect.y = (int)mImageCenterOffsetY + (mOffImage.getHeight(null) - image.getHeight(this)) / 2;
+				mImageRect.x = mImageCenterOffsetX + (getWidth() - image.getWidth(this)) / 2;
+				mImageRect.y = mImageCenterOffsetY + (getHeight() - image.getHeight(this)) / 2;
 				mImageRect.width = image.getWidth(this);
 				mImageRect.height = image.getHeight(this);
-				mOffG.drawImage(image, mImageRect.x, mImageRect.y, this);
+				g.drawImage(image, mImageRect.x, mImageRect.y, this);
 				}
 			else {
 				mImageRect.width = (int)(image.getWidth(this)*mZoomFactor);
 				mImageRect.height = (int)(image.getHeight(this)*mZoomFactor);
-				mImageRect.x = (int)mImageCenterOffsetX + (mOffImage.getWidth(null) - mImageRect.width) / 2;
-				mImageRect.y = (int)mImageCenterOffsetY + (mOffImage.getHeight(null) - mImageRect.height) / 2;
-				mOffG.drawImage(image, mImageRect.x, mImageRect.y, mImageRect.width, mImageRect.height, this);
+				mImageRect.x = mImageCenterOffsetX + (getWidth() - mImageRect.width) / 2;
+				mImageRect.y = mImageCenterOffsetY + (getHeight() - mImageRect.height) / 2;
+				g.drawImage(image, mImageRect.x, mImageRect.y, mImageRect.width, mImageRect.height, this);
 				}
 			}
-		}
-
-	public void update(Graphics g) {
-		paint(g);
 		}
 
 	public boolean imageUpdate(Image img, final int flags, int x, int y, int width, int height) {
@@ -202,7 +171,6 @@ public class JImagePanel extends JPanel implements ActionListener,ImageObserver,
 						mImageStatus = ((ImageObserver.ALLBITS & flags) == 0) ? IMAGE_ERROR : IMAGE_AVAILABLE;
 						if (mImageStatus == IMAGE_AVAILABLE)
 							setInitialFullImageZoomState();
-						mOffImageValid = false;
 						repaint();
 						}
 					}
@@ -232,8 +200,6 @@ public class JImagePanel extends JPanel implements ActionListener,ImageObserver,
 		mSelectionRect = null;
 		mLowResImage = null;
 		resetZoomState();
-
-		mOffImageValid = false;
 		repaint();
 		}
 
@@ -254,8 +220,6 @@ public class JImagePanel extends JPanel implements ActionListener,ImageObserver,
 		mSelectionRect = null;
 		mLowResImage = null;
 		resetZoomState();
-
-		mOffImageValid = false;
 		repaint();
 		}
 
@@ -311,8 +275,6 @@ public class JImagePanel extends JPanel implements ActionListener,ImageObserver,
 		mFileName = null;
 		mImageData = null;
 		mImageStatus = IMAGE_NO_IMAGE;
-
-		mOffImageValid = false;
 		repaint();
 		}
 
@@ -387,7 +349,6 @@ public class JImagePanel extends JPanel implements ActionListener,ImageObserver,
 					mImageCenterOffsetX = (int)(factor * (mImageRect.x-sharedRect.x+(mImageRect.width-sharedRect.width)/2));
 					mImageCenterOffsetY = (int)(factor * (mImageRect.y-sharedRect.y+(mImageRect.height-sharedRect.height)/2));
 					mZoomFactor *= factor;
-					mOffImageValid = false;
 		   			}
 				}
 
@@ -424,7 +385,6 @@ public class JImagePanel extends JPanel implements ActionListener,ImageObserver,
 			mMouseLocation.x += dx;
 			mMouseLocation.y += dy;
 	   		validateOffsets();
-			mOffImageValid = false;
 			repaint();
 			}
 		}
@@ -451,7 +411,6 @@ public class JImagePanel extends JPanel implements ActionListener,ImageObserver,
 	   		mImageCenterOffsetX += (0.5f-relX)*((int)(mImage.getWidth(this)*mZoomFactor)-oldZoomedImageWidth);
 	   		mImageCenterOffsetY += (0.5f-relY)*((int)(mImage.getHeight(this)*mZoomFactor)-oldZoomedImageHeight);
 	   		validateOffsets();
-			mOffImageValid = false;
 			repaint();
    			}
 		}

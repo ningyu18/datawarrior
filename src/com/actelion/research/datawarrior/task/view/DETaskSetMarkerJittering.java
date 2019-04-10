@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -22,25 +22,24 @@ import java.awt.Dimension;
 import java.awt.Frame;
 import java.util.Properties;
 
-import javax.swing.JComponent;
-import javax.swing.JLabel;
-import javax.swing.JPanel;
-import javax.swing.JSlider;
+import javax.swing.*;
 
 import com.actelion.research.datawarrior.DEMainPane;
+import com.actelion.research.gui.hidpi.HiDPIHelper;
 import com.actelion.research.table.view.CompoundTableView;
 import com.actelion.research.table.view.JVisualization;
 import com.actelion.research.table.view.VisualizationPanel;
+import info.clearthought.layout.TableLayout;
 
 
 public class DETaskSetMarkerJittering extends DETaskAbstractSetViewOptions {
 	public static final String TASK_NAME = "Set Marker Jittering";
 
 	private static final String PROPERTY_JITTER = "jitter";
+	private static final String PROPERTY_AXES = "axes";
 
-    private static Properties sRecentConfiguration;
-
-	private JSlider         mSlider;
+	private JSlider		mSlider;
+	private JCheckBox	mCheckBoxX,mCheckBoxY,mCheckBoxZ;
 
     public DETaskSetMarkerJittering(Frame owner, DEMainPane mainPane, VisualizationPanel view) {
 		super(owner, mainPane, view);
@@ -63,55 +62,82 @@ public class DETaskSetMarkerJittering extends DETaskAbstractSetViewOptions {
 
 	@Override
 	public JComponent createInnerDialogContent() {
+		double[][] size = { {8, TableLayout.FILL, TableLayout.PREFERRED, TableLayout.FILL, 8},
+				{8, TableLayout.PREFERRED, 8, TableLayout.PREFERRED, TableLayout.PREFERRED, TableLayout.PREFERRED, 16} };
+		JPanel p = new JPanel();
+		p.setLayout(new TableLayout(size));
+
 		JPanel sp = new JPanel();
 		mSlider = new JSlider(JSlider.HORIZONTAL, 0, 100, 0);
-		mSlider.setPreferredSize(new Dimension(100, 20));
+		mSlider.setPreferredSize(new Dimension(HiDPIHelper.scale(100), mSlider.getPreferredSize().height));
 		mSlider.setMinorTickSpacing(10);
 		mSlider.setMajorTickSpacing(100);
 		mSlider.addChangeListener(this);
-		sp.add(new JLabel("Jittering:  "));
+		sp.add(new JLabel("none"));
 		sp.add(mSlider);
+		sp.add(new JLabel("max"));
+		p.add(sp, "1,1,3,1");
 
-		return sp;
+		mCheckBoxX = new JCheckBox("Jitter in X-direction");
+		mCheckBoxX.addActionListener(this);
+		p.add(mCheckBoxX, "2,3");
+
+		mCheckBoxY = new JCheckBox("Jitter in Y-direction");
+		mCheckBoxY.addActionListener(this);
+		p.add(mCheckBoxY, "2,4");
+
+		if (!isInteractive() || getInteractiveVisualization().getDimensionCount() == 3) {
+			mCheckBoxZ = new JCheckBox("Jitter in Z-direction");
+			mCheckBoxZ.addActionListener(this);
+			p.add(mCheckBoxZ, "2,5");
+			}
+
+		return p;
 	    }
 
 	@Override
 	public void setDialogToDefault() {
 		mSlider.setValue(0);
+		mCheckBoxX.setSelected(true);
+		mCheckBoxY.setSelected(true);
+		if (mCheckBoxZ != null)
+			mCheckBoxZ.setSelected(true);
 		}
 
 	@Override
 	public void setDialogToConfiguration(Properties configuration) {
 		float jitter = 0f;
+		int axes = 7;
 		try {
 			jitter = Float.parseFloat(configuration.getProperty(PROPERTY_JITTER, "0"));
+			axes = Integer.parseInt(configuration.getProperty(PROPERTY_JITTER, "7"));
 			}
 		catch (NumberFormatException nfe) {}
+
 		mSlider.setValue((int)(100f*jitter));
+		mCheckBoxX.setSelected((axes & 1) != 0);
+		mCheckBoxY.setSelected((axes & 2) != 0);
+		if (mCheckBoxZ != null)
+			mCheckBoxZ.setSelected((axes & 4) != 0);
 		}
 
 	@Override
 	public void addDialogConfiguration(Properties configuration) {
 		configuration.setProperty(PROPERTY_JITTER, ""+(0.01f*mSlider.getValue()));
+		int axes = (mCheckBoxX.isSelected() ? 1 : 0)
+				 + (mCheckBoxY.isSelected() ? 2 : 0)
+				 + (mCheckBoxZ != null && mCheckBoxZ.isSelected() ? 4 : 0);
+		configuration.setProperty(PROPERTY_AXES, Integer.toString(axes));
 		}
 
 	@Override
 	public void addViewConfiguration(Properties configuration) {
-		configuration.setProperty(PROPERTY_JITTER, ""+getVisualization().getJittering());
+		configuration.setProperty(PROPERTY_JITTER, ""+ getInteractiveVisualization().getJittering());
+		configuration.setProperty(PROPERTY_AXES, ""+ getInteractiveVisualization().getJitterAxes());
 		}
 
 	@Override
 	public void enableItems() {
-		}
-
-	@Override
-	public Properties getRecentConfigurationLocal() {
-		return sRecentConfiguration;
-		}
-	
-	@Override
-	public void setRecentConfiguration(Properties configuration) {
-		sRecentConfiguration = configuration;
 		}
 
 	@Override
@@ -122,10 +148,10 @@ public class DETaskSetMarkerJittering extends DETaskAbstractSetViewOptions {
 	@Override
 	public void applyConfiguration(CompoundTableView view, Properties configuration, boolean isAdjusting) {
 		JVisualization visualization = ((VisualizationPanel)view).getVisualization();
-		float jitter = 0f;
 		try {
-			jitter = Float.parseFloat(configuration.getProperty(PROPERTY_JITTER, "0"));
-			visualization.setJittering(jitter, isAdjusting);
+			float jitter = Float.parseFloat(configuration.getProperty(PROPERTY_JITTER, "0"));
+			int axes = Integer.parseInt(configuration.getProperty(PROPERTY_AXES, "7"));
+			visualization.setJittering(jitter, axes, isAdjusting);
 			}
 		catch (NumberFormatException nfe) {}
 		}

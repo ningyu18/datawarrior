@@ -1,193 +1,183 @@
 package com.actelion.research.gui.dock;
 
-import java.awt.BorderLayout;
-import java.awt.Dimension;
-import java.awt.Graphics;
-import java.awt.Graphics2D;
-import java.awt.Image;
-import java.awt.Paint;
-import java.awt.Toolkit;
+import com.actelion.research.gui.HeaderPaintHelper;
+import com.actelion.research.gui.LookAndFeelHelper;
+import com.actelion.research.gui.hidpi.HiDPIIconButton;
+import info.clearthought.layout.TableLayout;
+
+import javax.swing.*;
+import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
-import java.net.URL;
-
-import javax.swing.BorderFactory;
-import javax.swing.Icon;
-import javax.swing.ImageIcon;
-import javax.swing.JButton;
-import javax.swing.JLabel;
-import javax.swing.JPanel;
-import javax.swing.JToolBar;
-import javax.swing.SwingConstants;
-
-import com.actelion.research.gui.HeaderPaintHelper;
+import java.util.ArrayList;
 
 public class DockableHeader extends JPanel implements ActionListener {
-    private static final long serialVersionUID = 0x20070723;
+	private static final long serialVersionUID = 0x20070723;
 
-    private Dockable mDockable;
-    private JLabel mTitleLabel;
-    private ActionListener mActionListener;
-    private HeaderMouseAdapter mMouseAdapter;
-    private boolean mIsSelected;
+	private Dockable mDockable;
+	private JLabel mTitleLabel;
+	private ActionListener mActionListener;
+	private HeaderMouseAdapter mMouseAdapter;
+	private boolean mIsSelected;
 
-    public DockableHeader(Dockable dockable, String title, ActionListener al, boolean isClosable, boolean hasMenuButton) {
-        super(new BorderLayout());
+	public DockableHeader(Dockable dockable, String title, ActionListener al, boolean isClosable, boolean hasPopupButton) {
+		super(new BorderLayout());
 
-        mDockable = dockable;
-        mTitleLabel = new JLabel(title, SwingConstants.LEADING) {
-            private static final long serialVersionUID = 0x20080423;
-            public Dimension getPreferredSize() {
-                return new Dimension(super.getPreferredSize().width, 16);
-                }
-            };
-        mTitleLabel.setBorder(BorderFactory.createEmptyBorder(0, 4, 0, 0));
-        mTitleLabel.setOpaque(false);
-        add(mTitleLabel, BorderLayout.WEST);
+		mDockable = dockable;
+		mTitleLabel = new JLabel(title, SwingConstants.LEADING) /*{
+			private static final long serialVersionUID = 0x20080423;
+			public Dimension getPreferredSize() {
+				return new Dimension(super.getPreferredSize().width, 16);
+				}
+			}*/;
+		mTitleLabel.setBorder(BorderFactory.createEmptyBorder(0, 4, 0, 0));
+		mTitleLabel.setOpaque(false);
+		add(mTitleLabel, BorderLayout.WEST);
 
-        JToolBar bar = createToolBar(isClosable, hasMenuButton);
-        bar.setBorder(BorderFactory.createEmptyBorder(0, 0, 0, 0));
-        bar.setOpaque(false);
-        add(bar, BorderLayout.EAST);
+		JPanel tbp = new JPanel();
+		double[][] size = {{TableLayout.PREFERRED},{TableLayout.FILL,TableLayout.PREFERRED,TableLayout.FILL}};
+		tbp.setLayout(new TableLayout(size));
+		tbp.setOpaque(false);
+		tbp.add(createToolBar(isClosable, hasPopupButton),"0,1");
 
-        setOpaque(true);
-        mActionListener = al;
-        mMouseAdapter = new HeaderMouseAdapter(this);
-        addMouseListener(mMouseAdapter);
-        addMouseMotionListener(mMouseAdapter);
-        }
+		add(tbp, BorderLayout.EAST);
 
-    public String getTitle() {
-        return mTitleLabel.getText();
-        }
-        
-    public void setTitle(String title) {
-        mTitleLabel.setText(title);
-        }
+		setOpaque(true);
+		mActionListener = al;
+		mMouseAdapter = new HeaderMouseAdapter(this);
+		addMouseListener(mMouseAdapter);
+		addMouseMotionListener(mMouseAdapter);
+		}
 
-    public Dockable getDockable() {
-        return mDockable;
-        }
+	@Override
+	public void updateUI() {
+		super.updateUI();
+		updateToolbarSeparators();
+		}
 
-    public void paintComponent(Graphics g) {
-        super.paintComponent(g);
+	private JToolBar createToolBar(boolean isClosable, boolean hasPopupButton) {
+		JToolBar toolbar = new JToolBar();
+		if (LookAndFeelHelper.isSubstance())
+			toolbar.addSeparator();
 
-        int width = getWidth();
-        int height = getHeight();
+		if (hasPopupButton) {
+			JButton popupButton = new HiDPIIconButton("axisButton.png", null, "popup", 0, null);
+			popupButton.addActionListener(this);
+			toolbar.add(popupButton);
+			if (LookAndFeelHelper.isSubstance())
+				toolbar.addSeparator();
+		}
 
-        Graphics2D g2 = (Graphics2D) g;
-        Paint storedPaint = g2.getPaint();
+		JButton maxButton = new HiDPIIconButton("maxButton.png", "Maximize view", "max", 0, null);
+		maxButton.addActionListener(this);
+		toolbar.add(maxButton);
+		if (LookAndFeelHelper.isSubstance())
+			toolbar.addSeparator();
 
-        g2.setPaint(HeaderPaintHelper.getHeaderPaint(mIsSelected, height));
-        g2.fillRect(0, 0, width, height);
+		if (isClosable) {
+			JButton closeButton = new HiDPIIconButton("closeButton.png", null, "close", 0, null);
+			closeButton.addActionListener(this);
+			toolbar.add(closeButton);
+			if (LookAndFeelHelper.isSubstance())
+				toolbar.addSeparator();
+		}
 
-        g2.setPaint(storedPaint);
-        }
+		toolbar.setFloatable(false);
+		toolbar.setRollover(true);
 
-    public void update(boolean isSelected) {
-        mIsSelected = isSelected;
-        repaint();
-        }
+		toolbar.setBorder(BorderFactory.createEmptyBorder(0, 0, 0, 0));
+		toolbar.setOpaque(false);
+		return toolbar;
+		}
 
-    public PopupProvider getPopupProvider() {
-        return mMouseAdapter.getPopupProvider();
-        }
+	/**
+	 * Depending on the look&feel, this method puts separators between
+	 * the toolbar buttons or removes them. For 'substance' we use use
+	 * separators, for 'quaqua' we don't.
+	 */
+	private void updateToolbarSeparators() {
+		for (Component c:getComponents()) {
+			if (c instanceof JPanel && ((JPanel) c).getComponentCount() == 1) {
+				Component t = ((JPanel)c).getComponent(0);
+				if (t instanceof JToolBar) {
+					JToolBar toolbar = (JToolBar)t;
+					ArrayList<JButton> buttonList = new ArrayList<JButton>();
+					for (Component b:toolbar.getComponents())
+						if (b instanceof JButton)
+							buttonList.add((JButton) b);
+					toolbar.removeAll();
+					if (LookAndFeelHelper.isSubstance())
+						toolbar.addSeparator();
+					for (JButton b:buttonList) {
+						toolbar.add(b);
+						if (LookAndFeelHelper.isSubstance())
+							toolbar.addSeparator();
+						else if (LookAndFeelHelper.isQuaQua())
+							// after switch from substance to quaqua the toolbar button style is not re-established
+							// (instead if only showing aqua design when rolling over, it uses steady round style)
+							// "toolBarTab" seems the best what we can do.
+							b.putClientProperty("Quaqua.Button.style", "toolBarTab");
+						}
+					}
+				}
+			}
+		}
 
-    public void setPopupProvider(PopupProvider p) {
-        mMouseAdapter.setPopupProvider(p);
-        }
+	public String getTitle() {
+		return mTitleLabel.getText();
+		}
 
-    private JToolBar createToolBar(boolean isClosable, boolean hasPopupButton) {
-        JToolBar toolbar = new JToolBar();
+	public void setTitle(String title) {
+		mTitleLabel.setText(title);
+		}
 
-        if (hasPopupButton) {
-            JButton popupButton = createButton(createIcon("axisButton.png"));
-            popupButton.addActionListener(this);
-            popupButton.setActionCommand("popup");
-            toolbar.add(popupButton);
-            }
+	public Dockable getDockable() {
+		return mDockable;
+		}
 
-        JButton maxButton = createButton(createIcon("maxButton.png"));
-        maxButton.addActionListener(this);
-        maxButton.setActionCommand("max");
-        toolbar.add(maxButton);
+	public void paintComponent(Graphics g) {
+		super.paintComponent(g);
 
-        if (isClosable) {
-            JButton closeButton = createButton(createIcon("closeButton.png"));
-            closeButton.addActionListener(this);
-            closeButton.setActionCommand("close");
-            toolbar.add(closeButton);
-            }
+		int width = getWidth();
+		int height = getHeight();
 
-        toolbar.setFloatable(false);
-        toolbar.putClientProperty("JToolBar.isRollover", Boolean.TRUE);
+		Graphics2D g2 = (Graphics2D) g;
+		Paint storedPaint = g2.getPaint();
 
-        return toolbar;
-        }
+		g2.setPaint(HeaderPaintHelper.getHeaderPaint(mIsSelected, height));
+		g2.fillRect(0, 0, width, height);
 
-    private JButton createButton(Icon icon) {
-        JButton button = new JButton(icon);
-        button.setFocusable(false);
-        return button;
-        }
+		g2.setPaint(storedPaint);
+		}
 
-    public void actionPerformed(ActionEvent e) {
-        String title = mTitleLabel.getText();
-        if (e.getActionCommand().equals("popup")) {
-            mActionListener.actionPerformed(new ActionEvent(this, ActionEvent.ACTION_PERFORMED, "popup_"+title));
-            return;
-            }
+	public void update(boolean isSelected) {
+		mIsSelected = isSelected;
+		repaint();
+		}
 
-        if (e.getActionCommand().equals("max")) {
-            mActionListener.actionPerformed(new ActionEvent(this, ActionEvent.ACTION_PERFORMED, "max_"+title));
-            return;
-            }
+	public PopupProvider getPopupProvider() {
+		return mMouseAdapter.getPopupProvider();
+		}
 
-        if (e.getActionCommand().equals("close")) {
-            mActionListener.actionPerformed(new ActionEvent(this, ActionEvent.ACTION_PERFORMED, "close_"+title));
-            return;
-            }
-        }
+	public void setPopupProvider(PopupProvider p) {
+		mMouseAdapter.setPopupProvider(p);
+		}
 
-    private Icon createIcon(String icon) {
-        return new ImageIcon(createImageImpl(icon));
-        }
+	public void actionPerformed(ActionEvent e) {
+		String title = mTitleLabel.getText();
+		if (e.getActionCommand().equals("popup")) {
+			mActionListener.actionPerformed(new ActionEvent(this, ActionEvent.ACTION_PERFORMED, "popup_"+title));
+			return;
+			}
 
-    private Image createImageImpl(String imageFileName) {
-        URL iconURL = getClass().getResource("/images/"+imageFileName);
-        if (iconURL == null)
-            throw new RuntimeException("Could not find: " + imageFileName);
+		if (e.getActionCommand().equals("max")) {
+			mActionListener.actionPerformed(new ActionEvent(this, ActionEvent.ACTION_PERFORMED, "max_"+title));
+			return;
+			}
 
-        return Toolkit.getDefaultToolkit().createImage(iconURL);
-        }
-
-    /**
-     * Determines and answers the header's background color. Tries to lookup a special color from the L&F.
-     * In case it is absent, it uses the standard internal frame background.
-     * 
-     * @return the color of the header's background
-     *
-    private Color getHeaderBackground() {
-        Color c = UIManager.getColor("SimpleInternalFrame.activeTitleBackground");
-        if (c != null)
-            return c;
-
-        return UIManager.getColor("InternalFrame.activeTitleBackground");
-        }*/
-
-    /**
-     * Determines and answers the header's text foreground color. Tries to lookup a special color from the
-     * L&amp;F. In case it is absent, it uses the standard internal frame forground.
-     * 
-     * @param selected true to lookup the active color, false for the inactive
-     * @return the color of the foreground text
-     *
-    private Color getTextForeground(boolean selected) {
-        Color c = UIManager.getColor(selected ? "SimpleInternalFrame.activeTitleForeground"
-            : "SimpleInternalFrame.inactiveTitleForeground");
-        if (c != null)
-            return c;
-
-        return UIManager.getColor(selected ? "InternalFrame.activeTitleForeground" : "Label.foreground");
-        }*/
-    }
+		if (e.getActionCommand().equals("close")) {
+			mActionListener.actionPerformed(new ActionEvent(this, ActionEvent.ACTION_PERFORMED, "close_"+title));
+			return;
+			}
+		}
+	}

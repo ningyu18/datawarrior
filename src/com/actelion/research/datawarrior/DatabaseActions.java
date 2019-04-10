@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -23,7 +23,7 @@ import java.util.ArrayList;
 
 import javax.swing.JPopupMenu;
 
-import com.actelion.research.table.CompoundRecord;
+import com.actelion.research.table.model.CompoundRecord;
 
 public interface DatabaseActions extends ActionListener {
 	public void addActionItems(JPopupMenu menu, CompoundRecord record, ArrayList<String> idcodeColumnList);

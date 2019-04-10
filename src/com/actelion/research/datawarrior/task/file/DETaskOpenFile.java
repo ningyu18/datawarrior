@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -19,43 +19,36 @@
 package com.actelion.research.datawarrior.task.file;
 
 import java.io.File;
+import java.util.ArrayList;
 import java.util.Properties;
 
-import javax.swing.SwingUtilities;
-
+import com.actelion.research.chem.io.CompoundTableConstants;
 import com.actelion.research.datawarrior.DEFrame;
 import com.actelion.research.datawarrior.DERuntimeProperties;
 import com.actelion.research.datawarrior.DataWarrior;
+import com.actelion.research.datawarrior.task.DEMacro;
+import com.actelion.research.datawarrior.task.DEMacroRecorder;
 import com.actelion.research.gui.FileHelper;
 import com.actelion.research.table.CompoundTableLoader;
 
+import javax.swing.*;
+
 public class DETaskOpenFile extends DETaskAbstractOpenFile {
 	public static final String TASK_NAME = "Open File";
-    private static Properties sRecentConfiguration;
 
     private DataWarrior mApplication;
 
     public DETaskOpenFile(DataWarrior application) {
-		super(application.getActiveFrame(), "Open DataWarrior-, SD- or Text-File",
+		super(application, "Open DataWarrior-, SD- or Text-File",
 				FileHelper.cFileTypeDataWarriorCompatibleData);
 		mApplication = application;
 		}
 
     public DETaskOpenFile(DataWarrior application, String filePath) {
-		super(application.getActiveFrame(), "Open DataWarrior-, SD- or Text-File",
+		super(application, "Open DataWarrior-, SD- or Text-File",
 				FileHelper.cFileTypeDataWarriorCompatibleData, filePath);
 		mApplication = application;
 		}
-
-	@Override
-	public Properties getRecentConfiguration() {
-    	return sRecentConfiguration;
-    	}
-
-	@Override
-	public void setRecentConfiguration(Properties configuration) {
-    	sRecentConfiguration = configuration;
-    	}
 
 	@Override
 	public String getTaskName() {
@@ -66,13 +59,27 @@ public class DETaskOpenFile extends DETaskAbstractOpenFile {
 	public DEFrame openFile(File file, Properties configuration) {
 		final int filetype = FileHelper.getFileType(file.getName());
 		final DEFrame emptyFrame = mApplication.getEmptyFrame(file.getName());
-		new CompoundTableLoader(emptyFrame, emptyFrame.getTableModel(), this) {
+		CompoundTableLoader loader = new CompoundTableLoader(emptyFrame, emptyFrame.getTableModel(), this) {
 			public void finalStatus(boolean success) {
-				if (success && filetype == FileHelper.cFileTypeDataWarrior)
+				if (success && filetype == FileHelper.cFileTypeDataWarrior) {
 					emptyFrame.setDirty(false);
+					SwingUtilities.invokeLater(() -> runAutoStartMacros(emptyFrame));
+					}
 				}
-			}.readFile(file, new DERuntimeProperties(emptyFrame.getMainFrame()), filetype);
-
+			};
+		loader.addDataDependentPropertyReader(CustomLabelPositionWriter.PROPERTY_NAME, new CustomLabelPositionReader(emptyFrame));
+		loader.readFile(file, new DERuntimeProperties(emptyFrame.getMainFrame()), filetype);
 		return emptyFrame;
+		}
+
+	private void runAutoStartMacros(DEFrame frame) {
+		ArrayList<DEMacro> macroList = (ArrayList<DEMacro>)frame.getTableModel().getExtensionData(CompoundTableConstants.cExtensionNameMacroList);
+		if (macroList != null) {
+			for (DEMacro macro:macroList) {
+				if (macro.isAutoStarting()) {
+					DEMacroRecorder.getInstance().runMacro(macro, frame);
+					}
+				}
+			}
 		}
 	}

@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -29,20 +29,21 @@ import java.math.BigDecimal;
 
 import javax.swing.JPanel;
 
+import com.actelion.research.gui.hidpi.HiDPIHelper;
 import com.actelion.research.table.BinGenerator;
-import com.actelion.research.table.CompoundTableModel;
+import com.actelion.research.table.model.CompoundTableModel;
 
 public class BinningPreview extends JPanel implements MouseMotionListener {
     private static final long serialVersionUID = 0x20120808;
 
-    private static final int cPreviewWidth = 240;
-	private static final int cPreviewHeight = 180;
+    private static final int cPreviewWidth = HiDPIHelper.scale(240);
+	private static final int cPreviewHeight = HiDPIHelper.scale(180);
 	private static final int cBorder = 6;
 
 	private CompoundTableModel  mTableModel;
 	private Image               mOffImage;
 	private int[]				mMemberCount;
-	private boolean				mPreviewValid,mOffImageValid,mIsLogarithmic;
+	private boolean				mPreviewValid,mOffImageValid,mIsLogarithmic,mIsDate;
 	private BinGenerator		mLimits;
 	private int					mColumn,mMaxMemberCount,mMouseX,mMouseY;
 	private double				mBinSize,mBinStart;
@@ -72,8 +73,9 @@ public class BinningPreview extends JPanel implements MouseMotionListener {
 		    }
 
 		if (!mPreviewValid) {
-			if (mColumn != -1) {
-				mLimits = new BinGenerator(mTableModel, mColumn, new BigDecimal(mBinStart), new BigDecimal(mBinSize), mIsLogarithmic);
+			if (mColumn != -1 && !Double.isNaN(mBinStart) && !Double.isNaN(mBinSize)) {
+				mLimits = new BinGenerator(mTableModel, mColumn, new BigDecimal(mBinStart),
+						new BigDecimal(mBinSize), mIsLogarithmic, mIsDate);
 				int binCount = mLimits.getBinCount();
 
 				mMemberCount = new int[binCount];
@@ -134,12 +136,13 @@ public class BinningPreview extends JPanel implements MouseMotionListener {
 		paint(g);
 		}*/
 
-	public void update(int column, double binSize, double binStart, boolean isLogarithmic) {
+	public void update(int column, double binSize, double binStart, boolean isLogarithmic, boolean isDate) {
 		if (mColumn != column || mBinSize != binSize || mBinStart != binStart || mIsLogarithmic != isLogarithmic) {
 			mColumn = column;
 			mBinSize = binSize;
 			mBinStart = binStart;
 			mIsLogarithmic = isLogarithmic;
+			mIsDate = isDate;
 			mPreviewValid = false;
 			repaint();
 			}

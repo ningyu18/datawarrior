@@ -156,8 +156,7 @@ public class CompleteGraph {
 	
 
 	/**
-	 * Adds a bond between 2 atoms
-	 * @see com.actelion.research.chem.IMolecule#addBond(int, int, int)
+	 * Sets a distance between 2 atoms.
 	 */
 	public void addBond(int atm1, int atm2, double length) {
 		edges[atm1][atm2] = length;
@@ -190,16 +189,50 @@ public class CompleteGraph {
 	}
 	
 	public String toStringDistances() {
-		String str = "";
+
 		int nNodes = getAllNodes();
-		DecimalFormat df = new DecimalFormat("0.000"); 
-		
+
+		DecimalFormat df = new DecimalFormat("0.0");
+
+		String [][] arrStr = new String[nNodes][nNodes];
+
+		int maxLen = 0;
 		for (int i = 0; i < nNodes; i++) {
-			for (int j = 0; j < nNodes; j++) {
-				str += df.format(edges[i][j]) + " "; 
+			for (int j = i; j < nNodes; j++) {
+				arrStr[i][j] = df.format(edges[i][j]);
+				arrStr[j][i] = arrStr[i][j];
+				if(arrStr[i][j].length() > maxLen){
+					maxLen = arrStr[i][j].length();
+				}
 			}
-			str += "\n";
 		}
-		return str;
+
+		maxLen++;
+
+		StringBuilder sb = new StringBuilder();
+
+		for (int i = 0; i < nNodes; i++) {
+
+			for (int j = 0; j < nNodes; j++) {
+
+				StringBuilder sbSub = new StringBuilder(arrStr[i][j]);
+
+				while (sbSub.length() < maxLen){
+
+					sbSub.append(" ");
+
+				}
+
+				sb.append(sbSub);
+			}
+
+			if(i < nNodes-1){
+
+				sb.append("\n");
+			}
+		}
+
+
+		return sb.toString();
 	}
 }

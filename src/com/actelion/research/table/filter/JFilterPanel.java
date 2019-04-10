@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,16 +18,16 @@
 
 package com.actelion.research.table.filter;
 
+import com.actelion.research.gui.hidpi.HiDPIHelper;
+import com.actelion.research.gui.hidpi.HiDPIIconButton;
+import com.actelion.research.gui.hidpi.HiDPIToggleButton;
+import com.actelion.research.table.model.CompoundTableEvent;
+import com.actelion.research.table.model.CompoundTableListener;
+import com.actelion.research.table.model.CompoundTableModel;
 import info.clearthought.layout.TableLayout;
 
-import java.awt.BorderLayout;
-import java.awt.Color;
-import java.awt.Component;
-import java.awt.Container;
-import java.awt.Dimension;
-import java.awt.Frame;
-import java.awt.GridLayout;
-import java.awt.Insets;
+import javax.swing.*;
+import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.MouseAdapter;
@@ -35,27 +35,11 @@ import java.awt.event.MouseEvent;
 import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
 
-import javax.swing.BorderFactory;
-import javax.swing.ImageIcon;
-import javax.swing.JButton;
-import javax.swing.JDialog;
-import javax.swing.JLabel;
-import javax.swing.JMenuItem;
-import javax.swing.JPanel;
-import javax.swing.JPopupMenu;
-import javax.swing.JTextField;
-import javax.swing.SwingUtilities;
-
-import com.actelion.research.table.CompoundTableEvent;
-import com.actelion.research.table.CompoundTableListener;
-import com.actelion.research.table.CompoundTableModel;
-
 public abstract class JFilterPanel extends JPanel
 		implements ActionListener,CompoundTableListener {
 	private static final long serialVersionUID = 0x20110325;
 
-//	public static final int FILTER_TYPE_UNKNOWN = -1;
-	public static final int FILTER_TYPE_STRING = 0;
+	public static final int FILTER_TYPE_TEXT = 0;
 	public static final int FILTER_TYPE_DOUBLE = 1;
 	public static final int FILTER_TYPE_CATEGORY = 2;
 	public static final int FILTER_TYPE_STRUCTURE = 3;
@@ -65,9 +49,14 @@ public abstract class JFilterPanel extends JPanel
 	public static final int FILTER_TYPE_ROWLIST = 7;
 	public static final int FILTER_TYPE_CATEGORY_BROWSER = 8;
 
-	static private final String cInverse = "#inverse#";
-	static private final String cDisabled = "#disabled#";
-	static private ImageIcon sIcon,sInverseIcon,sNotInverseIcon,sDisabledIcon,sEnabledIcon,sAnimateIcon;
+	public static final int PSEUDO_COLUMN_ROW_LIST = -4;
+	public static final int PSEUDO_COLUMN_ALL_COLUMNS = -5;	// currently only used by JTextFilterPanel
+
+	public static final String ALL_COLUMN_TEXT = "<All Columns>";
+	public static final String ALL_COLUMN_CODE = "#allColumns#";
+
+	static private final String INVERSE_CODE = "#inverse#";
+	static private final String DISABLED_CODE = "#disabled#";
 
 	protected CompoundTableModel	mTableModel;
 	protected int					mColumnIndex,mExclusionFlag;
@@ -75,9 +64,10 @@ public abstract class JFilterPanel extends JPanel
 													// and is temporarily disabled, whenever a programmatic change occurs.
 	private JLabel					mColumnNameLabel;
 	private JPanel					mTitlePanel;
-	private JButton					mButtonInverse,mButtonDisabled,mAnimationButton;
+	private HiDPIIconButton		    mAnimationButton;
+	private HiDPIToggleButton		mButtonInverse,mButtonDisabled;
 	private JPopupMenu				mAnimationPopup;
-	private boolean					mIsInverse,mIsActive;
+	private boolean					mIsActive,mIsInverse,mSuppressErrorMessages;
 	private Animator				mAnimator;
 	private JTextField				mTextFieldFrameDelay;
 	private JDialog					mOptionsDialog;
@@ -103,40 +93,31 @@ public abstract class JFilterPanel extends JPanel
 							{TableLayout.PREFERRED, 4} };
 		mTitlePanel.setLayout(new TableLayout(size));
 		mTitlePanel.setOpaque(false);
-		mColumnNameLabel = new JLabel((mColumnIndex == -4) ? "Row list" : isActive() ? mTableModel.getColumnTitle(mColumnIndex) : "") {
+		mColumnNameLabel = new JLabel(getTitle()) {
 			private static final long serialVersionUID = 0x20080128;
 			public Dimension getPreferredSize() {
 				Dimension size = super.getPreferredSize();
-				size.width = Math.min(size.width, 72);
+				size.width = Math.min(size.width, HiDPIHelper.scale(72));
 				return size;
 				}
 			};
-		mColumnNameLabel.setMaximumSize(new Dimension(50,mColumnNameLabel.getMaximumSize().height));
+		mColumnNameLabel.setMaximumSize(new Dimension(HiDPIHelper.scale(50),mColumnNameLabel.getMaximumSize().height));
 		mTitlePanel.add(mColumnNameLabel, "1,0");
 
-		if (sIcon == null)
-			sIcon = new ImageIcon(this.getClass().getResource("/images/closeButton.png"));
-		if (sNotInverseIcon == null)
-			sNotInverseIcon = new ImageIcon(this.getClass().getResource("/images/yy16.png"));
-		if (sInverseIcon == null)
-			sInverseIcon = new ImageIcon(this.getClass().getResource("/images/iyy16.png"));
-		if (sEnabledIcon == null)
-			sEnabledIcon = new ImageIcon(this.getClass().getResource("/images/disabled16.png"));
-		if (sDisabledIcon == null)
-			sDisabledIcon = new ImageIcon(this.getClass().getResource("/images/idisabled16.png"));
-
 		JPanel lbp = new JPanel();
-		mButtonInverse = createButton(sNotInverseIcon, 18, 18, "inverse", this);
-		mButtonInverse.setToolTipText("Invert filter");
+		mButtonInverse = new HiDPIToggleButton("yy16.png", "iyy16.png", "Invert filter", "inverse");
+		mButtonInverse.addActionListener(this);
 		lbp.add(mButtonInverse);
-		mButtonDisabled = createButton(sEnabledIcon, 18, 18, "disable", this);
-		mButtonDisabled.setToolTipText("Disable filter");
+		mButtonDisabled = new HiDPIToggleButton("disabled16.png", "idisabled16.png", "Disable filter", "disable");
+		mButtonDisabled.addActionListener(this);
 		lbp.add(mButtonDisabled);
 		mTitlePanel.add(lbp, "4,0");
 
 		if (isActive()) {
 			JPanel rbp = new JPanel();
-			JButton cb = createButton(sIcon, 14, 14, "close", this);
+			rbp.setLayout(new FlowLayout(FlowLayout.RIGHT, 0, 5));  // 5 is the default vgap matching that of lbp
+			JButton cb = new HiDPIIconButton("closeButton.png", null, "close", 0, "square");
+			cb.addActionListener(this);
 			rbp.add(cb);
 			mTitlePanel.add(rbp, "6,0");
 			}
@@ -147,6 +128,12 @@ public abstract class JFilterPanel extends JPanel
 			mAnimator = new Animator(500);
 			showAnimationControls();
 			}
+		}
+
+	public String getTitle() {
+		return (mColumnIndex == PSEUDO_COLUMN_ROW_LIST) ? "List membership"
+			 : (mColumnIndex == PSEUDO_COLUMN_ALL_COLUMNS) ? ALL_COLUMN_TEXT
+			 : (mColumnIndex >= 0) ? mTableModel.getColumnTitle(mColumnIndex) : "";
 		}
 
 	public void addFilterListener(FilterListener l) {
@@ -193,22 +180,6 @@ public abstract class JFilterPanel extends JPanel
 		return mIsActive;
 		}
 
-	public static JButton createButton(ImageIcon icon, int w, int h, String command, ActionListener listener) {
-		JButton button = new JButton(icon);
-		if ("quaqua".equals(System.getProperty("com.actelion.research.laf"))) {
-			w += 4;
-			h += 3;
-			button.putClientProperty("Quaqua.Component.visualMargin", new Insets(1,1,1,1));
-			button.putClientProperty("Quaqua.Button.style", "bevel");
-			}
-		button.setPreferredSize(new Dimension(w, h));
-		if (command != null) {
-			button.addActionListener(listener);
-			button.setActionCommand(command);
-			}
-		return button;
-		}
-
 	/**
 	 * This is called to check whether an inversion can be performed.
 	 * For disabled filters the state of the inversion checkbox is irrelevant
@@ -218,10 +189,10 @@ public abstract class JFilterPanel extends JPanel
 //	public abstract boolean isFilterEnabled();
 
 	/**
-	 * If a CompoundTableEvent informs about a change that need to update the filter settings,
+	 * If a CompoundTableEvent informs about a change that needs to update the filter settings,
 	 * then this update should be delayed to not interfere with the completion of the
 	 * original change through all listeners. Use this method to do so...
-	 * This is should only be caled, if the update request is indirect (not direct user change)
+	 * This is should only be called, if the update request is indirect (not direct user change)
 	 */
 	public void updateExclusionLater() {
 		SwingUtilities.invokeLater(new Runnable() {
@@ -249,7 +220,7 @@ public abstract class JFilterPanel extends JPanel
 	 * If the filter cannot be enabled, display a message, why.
 	 * @return
 	 */
-	public boolean canEnable() {
+	public boolean canEnable(boolean allowShowMessage) {
 		return true;
 		}
 
@@ -307,12 +278,12 @@ public abstract class JFilterPanel extends JPanel
 			return;
 			}
 		if (e.getSource() == mButtonInverse) {
-			setInverse(!mIsInverse);
+			setInverse(mButtonInverse.isSelected());
 			fireFilterChanged(FilterEvent.FILTER_UPDATED, false);
 			return;
 			}
 		if (e.getSource() == mButtonDisabled) {
-			setEnabled(!isEnabled());
+			setEnabled(!mButtonDisabled.isSelected());
 			fireFilterChanged(FilterEvent.FILTER_UPDATED, false);
 			return;
 			}
@@ -345,7 +316,7 @@ public abstract class JFilterPanel extends JPanel
 		mOptionsDialog.getContentPane().add(buttonPanel, BorderLayout.SOUTH);
 		mOptionsDialog.getRootPane().setDefaultButton(bok);
 		mOptionsDialog.pack();
-		mOptionsDialog.setLocationRelativeTo((Frame)frame);
+		mOptionsDialog.setLocationRelativeTo(frame);
 		mOptionsDialog.setVisible(true);
 		}
 
@@ -371,7 +342,7 @@ public abstract class JFilterPanel extends JPanel
 			resetAnimation();
 
 		if (mExclusionFlag != -1)
-			mTableModel.freeCompoundFlag(mExclusionFlag);
+			mTableModel.freeRowFlag(mExclusionFlag);
 		mExclusionFlag = -1;
 		Container theParent = getParent();
 		theParent.remove(this);
@@ -410,18 +381,18 @@ public abstract class JFilterPanel extends JPanel
 	@Override
 	public void setEnabled(boolean b) {
 		if (isEnabled() != b
-		 && (!b || canEnable())) {
+		 && (!b || canEnable(mSuppressErrorMessages))) {
 			super.setEnabled(b);
-			mButtonDisabled.setIcon(b ? sEnabledIcon : sDisabledIcon);
+			mButtonDisabled.setSelected(!b);
 			if (isActive()) {
 				if (!b) {
-					mTableModel.freeCompoundFlag(mExclusionFlag);
+					mTableModel.freeRowFlag(mExclusionFlag);
 					mExclusionFlag = -1;
 					}
 				else {
-					mExclusionFlag = mTableModel.getUnusedCompoundFlag(true);
+					mExclusionFlag = mTableModel.getUnusedRowFlag(true);
 					if (mExclusionFlag == -1) {
-						mButtonDisabled.setIcon(sDisabledIcon);
+						mButtonDisabled.setSelected(true);
 						b = false;
 						}
 					else {
@@ -441,7 +412,7 @@ public abstract class JFilterPanel extends JPanel
 	public void setInverse(boolean b) {
 		if (mIsInverse != b) {
 			mIsInverse = b;
-			mButtonInverse.setIcon(mIsInverse ? sInverseIcon : sNotInverseIcon);
+			mButtonInverse.setSelected(b);
 			if (isEnabled() && isActive()) {
 				mTableModel.invertExclusion(mExclusionFlag);
 				}
@@ -451,11 +422,11 @@ public abstract class JFilterPanel extends JPanel
 	public final String getSettings() {
 		StringBuilder sb = new StringBuilder();
 		if (isInverse())
-			sb.append(cInverse);
+			sb.append(INVERSE_CODE);
 		if (!isEnabled()) {
 			if (sb.length() != 0)
 				sb.append('\t');
-			sb.append(cDisabled);
+			sb.append(DISABLED_CODE);
 			}
 		String innerSettings = getInnerSettings();
 		if (innerSettings != null && innerSettings.length() != 0) {
@@ -466,19 +437,20 @@ public abstract class JFilterPanel extends JPanel
 		return (sb.length() == 0) ? null : sb.toString();
 		}
 
-	public void applySettings(String settings) {
+	public void applySettings(String settings, boolean suppressErrorMessages) {
 		mIsUserChange = false;
+		mSuppressErrorMessages = suppressErrorMessages;
 
 		boolean inverse = false;
-		if (settings != null && settings.startsWith(cInverse)) {
+		if (settings != null && settings.startsWith(INVERSE_CODE)) {
 			inverse = true;
-			settings = (settings.length() == cInverse.length()) ? null : settings.substring(cInverse.length()+1);
+			settings = (settings.length() == INVERSE_CODE.length()) ? null : settings.substring(INVERSE_CODE.length()+1);
 			}
 		boolean enabled = true;
-		if (settings != null && (settings.startsWith(cDisabled) || settings.startsWith("<disabled>"))) {
+		if (settings != null && (settings.startsWith(DISABLED_CODE) || settings.startsWith("<disabled>"))) {
 			// || settings.startsWith("<disabled>") to be compatible with earlier "<disabled>" option as inner settings
 			enabled = false;
-			settings = (settings.length() == cDisabled.length()) ? null : settings.substring(cDisabled.length()+1);
+			settings = (settings.length() == DISABLED_CODE.length()) ? null : settings.substring(DISABLED_CODE.length()+1);
 			}
 
 		setEnabled(enabled);
@@ -487,6 +459,7 @@ public abstract class JFilterPanel extends JPanel
 		if (settings != null && settings.length() != 0)
 			applyInnerSettings(settings);
 
+		mSuppressErrorMessages = true;
 		mIsUserChange = true;
 		}
 
@@ -553,15 +526,12 @@ public abstract class JFilterPanel extends JPanel
 	public abstract void innerReset();
 
 	public void showAnimationControls() {
-		if (sAnimateIcon == null && mAnimator != null)
-			sAnimateIcon = new ImageIcon(this.getClass().getResource("/images/gear14.png"));
-
 		JPanel mbp = new JPanel();
-		mAnimationButton = createButton(sAnimateIcon, 32, 18, "showPopup", this);
+		mAnimationButton = new HiDPIIconButton("gear14.png", null, "showPopup");
 		mAnimationButton.addMouseListener(new MouseAdapter() {
 			@Override
 			public void mousePressed(MouseEvent e) {
-				if (mAnimationPopup == null)
+				if (mAnimationButton.isEnabled() && mAnimationPopup == null)
 					showAnimationPopup(e);
 				}
 			});

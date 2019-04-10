@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -24,15 +24,13 @@ import java.util.TreeMap;
 import org.nfunk.jep.ParseException;
 import org.nfunk.jep.function.PostfixMathCommand;
 
-import com.actelion.research.table.CompoundTableModel;
+import com.actelion.research.table.model.CompoundTableModel;
 import com.actelion.research.util.ByteArrayComparator;
 
 /**
  * An example custom function class for JEP.
  */
 public class JEPFrequencyFunction extends PostfixMathCommand {
-	public static final String FUNCTION_NAME = "frequency";
-
 	private CompoundTableModel mTableModel;
     private TreeMap<byte[],Integer> mByteArrayMap;
     private TreeMap<Double,Integer> mDoubleMap;
@@ -114,8 +112,15 @@ public class JEPFrequencyFunction extends PostfixMathCommand {
 				else {
 					if (param1 instanceof String || param1 instanceof JEPParameter) {
 						createByteArrayMap(column);
-						byte[] bytes = (param1 instanceof String) ? ((String)param1).getBytes()
-								: (byte[])((JEPParameter)param1).record.getData(((JEPParameter)param1).column);
+						byte[] bytes = null;
+						if (param1 instanceof String) {
+							bytes = ((String)param1).getBytes();
+							}
+						else {
+							JEPParameter jepp = (JEPParameter)param1;
+							if (jepp.record != null)
+								bytes = (byte[])jepp.record.getData(jepp.column);
+							}
 						Integer co = mByteArrayMap.get(bytes);
 						int count = (co == null) ? 0 : co.intValue();
 						inStack.push(new Double(count));

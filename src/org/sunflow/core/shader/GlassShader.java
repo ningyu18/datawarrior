@@ -32,6 +32,10 @@ public class GlassShader implements Shader {
         return true;
     }
 
+    public Color getColor(ShadingState state) {
+        return color;
+    }
+
     public Color getRadiance(ShadingState state) {
         if (!state.includeSpecular())
             return Color.BLACK;
@@ -79,16 +83,16 @@ public class GlassShader implements Shader {
         // refracted ray
         Color ret = Color.black();
         if (!tir) {
-            ret.madd(kt, state.traceRefraction(new Ray(state.getPoint(), refrDir), 0)).mul(color);
+            ret.madd(kt, state.traceRefraction(new Ray(state.getPoint(), refrDir), 0)).mul(getColor(state));
         }
         if (!inside || tir)
-            ret.add(Color.mul(kr, state.traceReflection(new Ray(state.getPoint(), reflDir), 0)).mul(color));
+            ret.add(Color.mul(kr, state.traceReflection(new Ray(state.getPoint(), reflDir), 0)).mul(getColor(state)));
         return absorbtion != null ? ret.mul(absorbtion) : ret;
     }
 
     public void scatterPhoton(ShadingState state, Color power) {
-        Color refr = Color.mul(1 - f0, color);
-        Color refl = Color.mul(f0, color);
+        Color refr = Color.mul(1 - f0, getColor(state));
+        Color refl = Color.mul(f0, getColor(state));
         float avgR = refl.getAverage();
         float avgT = refr.getAverage();
         double rnd = state.getRandom(0, 0, 1);

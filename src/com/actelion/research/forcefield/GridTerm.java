@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -17,9 +17,6 @@
  */
 package com.actelion.research.forcefield;
 
-import java.io.FileOutputStream;
-import java.io.PrintStream;
-
 import com.actelion.research.chem.Coordinates;
 import com.actelion.research.chem.FFMolecule;
 
@@ -35,13 +32,13 @@ import com.actelion.research.chem.FFMolecule;
 public class GridTerm extends AbstractTerm {
 	
 	private static class FGValue {
-		FGValue(double x, double gx, double gy, double gz) {
-			this.x = x;
+		FGValue(double e, double gx, double gy, double gz) {
+			this.e = e;
 			this.gx = gx;
 			this.gy = gy;
 			this.gz = gz;			
 		}
-		final double x;
+		final double e;
 		final double gx;
 		final double gy;
 		final double gz;
@@ -53,43 +50,39 @@ public class GridTerm extends AbstractTerm {
 
 	protected final TermList termsToAggregate;
 	private final Coordinates[] g;
-	protected final int evalAtom;
+	protected final int atom;
 
 	/**
 	 * Term that shares the property of an other term
-	 * @param tl
-	 * @param atom
-	 * @param evalAtom
-	 * @param termsToAggregate
-	 * @param grid
-	 * @param grad
-	 * @param bounds
 	 */
-	public GridTerm(FFMolecule mol, int atom, GridTerm gt) {//int evalAtom, TermList termsToAggregate, FGValue[][][] grid, Coordinates[] bounds) {
+	public GridTerm(FFMolecule mol, int atom, GridTerm gt) {
 		super(mol, new int[] {atom});
 		
 		this.bounds = gt.bounds;		
-		this.evalAtom = gt.evalAtom;
+		this.atom = gt.atom;
 		this.grid = gt.grid;		
 		this.gridSize = gt.gridSize;		
 		
 		this.termsToAggregate = gt.termsToAggregate;		
-		g = new Coordinates[evalAtom+1];
-		g[evalAtom] = new Coordinates();
+		g = new Coordinates[atom+1];
+		g[atom] = new Coordinates();
 		
 	
 	}
-	public GridTerm(FFMolecule mol, int atom, TermList termsToAggregate, Coordinates[] bounds, double gridSize) {
-		super(mol, new int[] {atom});
+	public GridTerm(int atom, TermList termsToAggregate, Coordinates[] bounds, double gridSize) {
+		super(termsToAggregate.getMolecule(), new int[] {atom});
 		
 		this.bounds = bounds;		
 		this.gridSize = gridSize;		
-		this.evalAtom = atom;
-		this.grid = new FGValue[(int)((bounds[1].x-bounds[0].x)/gridSize+1)][(int)((bounds[1].y-bounds[0].y)/gridSize+1)][(int)((bounds[1].z-bounds[0].z)/gridSize+1)];
+		this.atom = atom;
+		this.grid = new FGValue
+				[(int)((bounds[1].x-bounds[0].x)/gridSize+1)]
+				[(int)((bounds[1].y-bounds[0].y)/gridSize+1)]
+				[(int)((bounds[1].z-bounds[0].z)/gridSize+1)];
 
 		this.termsToAggregate = termsToAggregate;		
-		g = new Coordinates[evalAtom+1];
-		g[evalAtom] = new Coordinates();
+		g = new Coordinates[atom+1];
+		g[atom] = new Coordinates();
 				
 	}
 
@@ -97,14 +90,17 @@ public class GridTerm extends AbstractTerm {
 	public double getFGValue(final Coordinates[] gradient) {
 		final int atom = atoms[0];
 		final Coordinates c = getMolecule().getCoordinates(atom);
-		final Coordinates delta = c.subC(bounds[0]);
+//		final Coordinates delta = c.subC(bounds[0]);
+		double deltax = c.x-bounds[0].x;
+		double deltay = c.y-bounds[0].y;
+		double deltaz = c.z-bounds[0].z;
 		
-		final int X = (int) (delta.x / gridSize); 
-		final int Y = (int) (delta.y / gridSize); 
-		final int Z = (int) (delta.z / gridSize);
-		final double x = delta.x/gridSize - X; 
-		final double y = delta.y/gridSize - Y; 
-		final double z = delta.z/gridSize - Z; 
+		final int X = (int) ( deltax / gridSize); 
+		final int Y = (int) ( deltay / gridSize); 
+		final int Z = (int) ( deltaz / gridSize);
+		final double x = deltax/gridSize - X; 
+		final double y = deltay/gridSize - Y; 
+		final double z = deltaz/gridSize - Z; 
 		
 		//Check if we are out of bounds
 		if(X<0 || X+1>=grid.length || Y<0 || Y+1>=grid[X].length || Z<0 || Z+1>=grid[X][Y].length) return 0;
@@ -142,18 +138,17 @@ public class GridTerm extends AbstractTerm {
 		
 		
 		final double v = 	
-			v0.x * t0 +
-			v1.x * t1 +
-			v2.x * t2 +
-			v3.x * t3 +
-			v4.x * t4 +
-			v5.x * t5 +
-			v6.x * t6 +
-			v7.x * t7;
+			v0.e * t0 +
+			v1.e * t1 +
+			v2.e * t2 +
+			v3.e * t3 +
+			v4.e * t4 +
+			v5.e * t5 +
+			v6.e * t6 +
+			v7.e * t7;
 		
 		if(gradient!=null && gradient.length>atom) {
-			
-			gradient[atom].add(new Coordinates(
+			gradient[atom].x += 
 					v0.gx * t0 +
 					v1.gx * t1 +
 					v2.gx * t2 +
@@ -161,8 +156,9 @@ public class GridTerm extends AbstractTerm {
 					v4.gx * t4 +
 					v5.gx * t5 +
 					v6.gx * t6 +
-					v7.gx * t7,
-					
+					v7.gx * t7;
+			
+			gradient[atom].y += 
 					v0.gy * t0 +
 					v1.gy * t1 +
 					v2.gy * t2 +
@@ -170,8 +166,8 @@ public class GridTerm extends AbstractTerm {
 					v4.gy * t4 +
 					v5.gy * t5 +
 					v6.gy * t6 +
-					v7.gy * t7,
-					
+					v7.gy * t7;
+			gradient[atom].z += 
 					v0.gz * t0 +
 					v1.gz * t1 +
 					v2.gz * t2 +
@@ -179,8 +175,7 @@ public class GridTerm extends AbstractTerm {
 					v4.gz * t4 +
 					v5.gz * t5 +
 					v6.gz * t6 +
-					v7.gz * t7						
-			));
+					v7.gz * t7;
 			
 		}
 		
@@ -189,41 +184,41 @@ public class GridTerm extends AbstractTerm {
 	
 	private final void precompute(int X, int Y, int Z) {
 		if(grid[X][Y][Z]!=null) return;		
-		final Coordinates initial = getMolecule().getCoordinates(evalAtom);
+		final Coordinates initial = getMolecule().getCoordinates(atom);
 		final Coordinates C = new Coordinates(
 				bounds[0].x + X*gridSize,
 				bounds[0].y + Y*gridSize,
 				bounds[0].z + Z*gridSize);
 
-		getMolecule().setCoordinates(evalAtom, C);	
+		getMolecule().setCoordinates(atom, C);	
 		double v = termsToAggregate.getFGValue(g);
-		getMolecule().setCoordinates(evalAtom, initial);
+		getMolecule().setCoordinates(atom, initial);
 		
-		grid[X][Y][Z] = new FGValue(v, g[evalAtom].x, g[evalAtom].y, g[evalAtom].z);
+		grid[X][Y][Z] = new FGValue(v, g[atom].x, g[atom].y, g[atom].z);
 	}
 	
-	/**
-	 * Debug instruction to visualize potential
-	 */
-	public void printValues(String name) {
-		try {
-			PrintStream os = new PrintStream(new FileOutputStream("c:/"+name.replace('*', ' ')+".txt"));
-			os.println("X\tY\tZ\tval");
-			int offset = (int)(6/gridSize);
-			for (int X = offset; X < grid.length-offset; X++) {
-				for (int Y = offset; Y < grid[X].length-offset; Y++) {				
-					for (int Z = offset; Z < grid[X][Y].length-offset; Z++) {
-						precompute(X, Y, Z);
-						
-						os.println(X+"\t"+Y+"\t"+Z+"\t"+grid[X][Y][Z].x);
-					}	
-				}	
-			}
-			os.close();		
-		} catch (Exception e) {
-			e.printStackTrace();
-		}
-		
-	}
+//	/**
+//	 * Debug instruction to visualize potential
+//	 */
+//	public void printValues(String name) {
+//		try {
+//			PrintStream os = new PrintStream(new FileOutputStream("c:/"+name.replace('*', ' ')+".txt"));
+//			os.println("X\tY\tZ\tval");
+//			int offset = (int)(6/gridSize);
+//			for (int X = offset; X < grid.length-offset; X++) {
+//				for (int Y = offset; Y < grid[X].length-offset; Y++) {				
+//					for (int Z = offset; Z < grid[X][Y].length-offset; Z++) {
+//						precompute(X, Y, Z);
+//						
+//						os.println(X+"\t"+Y+"\t"+Z+"\t"+grid[X][Y][Z].e);
+//					}	
+//				}	
+//			}
+//			os.close();		
+//		} catch (Exception e) {
+//			e.printStackTrace();
+//		}
+//		
+//	}
 
 }

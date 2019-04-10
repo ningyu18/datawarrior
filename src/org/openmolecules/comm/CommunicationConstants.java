@@ -29,5 +29,6 @@ public interface CommunicationConstants {
 
     public static final String REQUEST_NEW_SESSION = "new";
     public static final String REQUEST_END_SESSION = "end";
+    public static final String REQUEST_GET_STATUS = "status";
     public static final String REQUEST_RUN_QUERY = "query";
 	}

@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -20,28 +20,17 @@ package com.actelion.research.datawarrior.task.chem;
 
 import java.util.Properties;
 
-import com.actelion.research.chem.SmilesCreator;
+import com.actelion.research.chem.IsomericSmilesCreator;
 import com.actelion.research.chem.StereoMolecule;
 import com.actelion.research.datawarrior.DEFrame;
 
 
 public class DETaskAddSmiles extends DETaskAbstractAddChemProperty implements Runnable {
 	public static final String TASK_NAME = "Add Smiles Codes";
-    private static Properties sRecentConfiguration;
 
 	public DETaskAddSmiles(DEFrame parent) {
 		super(parent, DESCRIPTOR_NONE, true, true);
 		}
-
-	@Override
-	public Properties getRecentConfiguration() {
-    	return sRecentConfiguration;
-    	}
-
-	@Override
-	public void setRecentConfiguration(Properties configuration) {
-    	sRecentConfiguration = configuration;
-    	}
 
 	@Override
 	public String getTaskName() {
@@ -59,7 +48,12 @@ public class DETaskAddSmiles extends DETaskAbstractAddChemProperty implements Ru
 		}
 
 	@Override
+	public boolean hasExtendedDialogContent() {
+		return false;
+	}
+
+	@Override
 	protected String getNewColumnValue(StereoMolecule mol, Object descriptor, int column) {
-    	return new SmilesCreator().generateSmiles(mol);
+    	return new IsomericSmilesCreator(mol).getSmiles();
 		}
 	}

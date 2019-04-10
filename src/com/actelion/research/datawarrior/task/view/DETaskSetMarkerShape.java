@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,6 +18,7 @@
 
 package com.actelion.research.datawarrior.task.view;
 
+import com.actelion.research.table.model.CompoundTableListHandler;
 import info.clearthought.layout.TableLayout;
 
 import java.awt.Frame;
@@ -29,8 +30,7 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 
 import com.actelion.research.datawarrior.DEMainPane;
-import com.actelion.research.table.CompoundTableHitlistHandler;
-import com.actelion.research.table.CompoundTableModel;
+import com.actelion.research.table.model.CompoundTableModel;
 import com.actelion.research.table.view.CompoundTableView;
 import com.actelion.research.table.view.JVisualization2D;
 import com.actelion.research.table.view.JVisualization3D;
@@ -41,8 +41,6 @@ public class DETaskSetMarkerShape extends DETaskAbstractSetViewOptions {
 	public static final String TASK_NAME = "Set Marker Shape";
 
 	private static final String PROPERTY_COLUMN = "column";
-	
-	private static Properties sRecentConfiguration;
 	
 	private JComboBox		mComboBox;
 	
@@ -74,13 +72,13 @@ public class DETaskSetMarkerShape extends DETaskAbstractSetViewOptions {
 
 		mComboBox = new JComboBox();
 		mComboBox.addItem(getTableModel().getColumnTitleExtended(-1));
-		int maxShapeCount = (hasInteractiveView()) ? getVisualization().getAvailableShapeCount()
+		int maxShapeCount = (hasInteractiveView()) ? getInteractiveVisualization().getAvailableShapeCount()
 				: Math.max(JVisualization2D.cAvailableShapeCount, JVisualization3D.cAvailableShapeCount);
 		for (int i=0; i<getTableModel().getTotalColumnCount(); i++)
 			if (getTableModel().isColumnTypeCategory(i) && getTableModel().getCategoryCount(i) <= maxShapeCount)
 				mComboBox.addItem(getTableModel().getColumnTitle(i));
-		for (int i=0; i<getTableModel().getHitlistHandler().getHitlistCount(); i++)
-			mComboBox.addItem(getTableModel().getColumnTitleExtended(CompoundTableHitlistHandler.getColumnFromHitlist(i)));
+		for (int i = 0; i<getTableModel().getListHandler().getListCount(); i++)
+			mComboBox.addItem(getTableModel().getColumnTitleExtended(CompoundTableListHandler.getColumnFromList(i)));
 		mComboBox.setEditable(!hasInteractiveView());
 		mComboBox.addItemListener(this);
 		cp.add(new JLabel("Shape by:"), "1,1");
@@ -108,7 +106,7 @@ public class DETaskSetMarkerShape extends DETaskAbstractSetViewOptions {
 
 	@Override
 	public void addViewConfiguration(Properties configuration) {
-		configuration.setProperty(PROPERTY_COLUMN, getTableModel().getColumnTitleNoAlias(getVisualization().getMarkerShapeColumn()));
+		configuration.setProperty(PROPERTY_COLUMN, getTableModel().getColumnTitleNoAlias(getInteractiveVisualization().getMarkerShapeColumn()));
 		}
 
 	@Override
@@ -122,7 +120,7 @@ public class DETaskSetMarkerShape extends DETaskAbstractSetViewOptions {
 					return false;
 					}
 				int maxShapeCount = ((VisualizationPanel)view).getVisualization().getAvailableShapeCount();
-				if (!CompoundTableHitlistHandler.isHitlistColumn(column)
+				if (!CompoundTableListHandler.isListColumn(column)
 				 && (!getTableModel().isColumnTypeCategory(column)
 				  || !(getTableModel().getCategoryCount(column) <= maxShapeCount))) {
 					showErrorMessage("Column '"+columnName+"' does not contain categories or contains to many categories.");
@@ -136,16 +134,6 @@ public class DETaskSetMarkerShape extends DETaskAbstractSetViewOptions {
 
 	@Override
 	public void enableItems() {
-		}
-
-	@Override
-	public Properties getRecentConfigurationLocal() {
-		return sRecentConfiguration;
-		}
-	
-	@Override
-	public void setRecentConfiguration(Properties configuration) {
-		sRecentConfiguration = configuration;
 		}
 
 	@Override

@@ -14,21 +14,21 @@
 
 package org.openmolecules.chem.conf.so;
 
-import java.util.ArrayList;
-
 import com.actelion.research.chem.StereoMolecule;
 import com.actelion.research.chem.conf.Conformer;
 import com.actelion.research.chem.conf.TorsionDescriptor;
 
+import java.util.ArrayList;
+
 public class SelfOrganizedConformer extends Conformer {
-	private static final float	MAX_ATOM_STRAIN = 0.01f;
+	private static final double	MAX_ATOM_STRAIN = 0.01;
 
 	// adjust such that a molecule strain of atom count times MAX_AVERARAGE_ATOM_STRAIN reduces frequency by factor 100
-	private static final float	MAX_AVERARAGE_ATOM_STRAIN = 0.001f;
+	private static final double	MAX_AVERARAGE_ATOM_STRAIN = 0.001;
 
-	private float	mMaxAtomStrain,mTotalStrain;
-	private float[]	mAtomStrain,mRuleStrain;
-	private boolean	mIsUsed;
+	private double	    mMaxAtomStrain,mTotalStrain;
+	private double[]	mAtomStrain,mRuleStrain;
+	private boolean 	mIsUsed;
 	private TorsionDescriptor mTorsionDescriptor;
 
 	public SelfOrganizedConformer(StereoMolecule mol) {
@@ -37,7 +37,7 @@ public class SelfOrganizedConformer extends Conformer {
 
 	/**
 	 * Checks whether the total strain of this Conformer is larger than that of conformer,
-	 * assuming that the calulated strain values are up-to-date.
+	 * assuming that the calculated strain values are up-to-date.
 	 * @param conformer
 	 * @return
 	 */
@@ -49,8 +49,8 @@ public class SelfOrganizedConformer extends Conformer {
 		if (mAtomStrain != null)
 			return;
 
-		mAtomStrain = new float[getMolecule().getAllAtoms()];
-		mRuleStrain = new float[ConformationRule.RULE_NAME.length];
+		mAtomStrain = new double[getMolecule().getAllAtoms()];
+		mRuleStrain = new double[ConformationRule.RULE_NAME.length];
 
 		for (ConformationRule rule:ruleList)
 			if (rule.isEnabled())
@@ -65,15 +65,19 @@ public class SelfOrganizedConformer extends Conformer {
 			}
 		}
 
-	public float getAtomStrain(int atom) {
+	public double getAtomStrain(int atom) {
 		return mAtomStrain[atom];
 		}
 
-	public float getRuleStrain(int rule) {
+	public double getRuleStrain(int rule) {
 		return mRuleStrain[rule];
 		}
 
-	public float getTotalStrain() {
+	public double getHighestAtomStrain() {
+		return mMaxAtomStrain;
+		}
+
+	public double getTotalStrain() {
 		return mTotalStrain;
 		}
 
@@ -82,12 +86,17 @@ public class SelfOrganizedConformer extends Conformer {
 	 * considering an unstrained conformer to have a likelyhood of 1.0.
 	 * @return conformer likelyhood
 	 */
-	public float getLikelyhood() {
-		return (float)Math.pow(100, -mTotalStrain / (SelfOrganizedConformer.MAX_AVERARAGE_ATOM_STRAIN*getMolecule().getAllAtoms()));
+	public double getLikelyhood() {
+		return Math.pow(100, -mTotalStrain / (SelfOrganizedConformer.MAX_AVERARAGE_ATOM_STRAIN*getMolecule().getAllAtoms()));
 		}
 
+	/**
+	 * @param ruleList may be null, if isAcceptable() was called earlier and neither ruleList not conformer were changes since
+	 * @return
+	 */
 	protected boolean isAcceptable(ArrayList<ConformationRule> ruleList) {
-		calculateStrain(ruleList);
+		if (ruleList != null)
+			calculateStrain(ruleList);
 		return (mMaxAtomStrain < MAX_ATOM_STRAIN
 			 && mTotalStrain < MAX_AVERARAGE_ATOM_STRAIN * getMolecule().getAllAtoms());
 		}
@@ -111,7 +120,7 @@ public class SelfOrganizedConformer extends Conformer {
 	 * Returns true, if none of the torsion angles between both conformers
 	 * are more different than TorsionDescriptor.TORSION_EQUIVALENCE_TOLERANCE;
 	 * Calling this method requires that calculateDescriptor() has been called earlier.
-	 * @param td
+	 * @param conformer
 	 * @return true if all torsions are similar
 	 */
 	public boolean equals(SelfOrganizedConformer conformer) {

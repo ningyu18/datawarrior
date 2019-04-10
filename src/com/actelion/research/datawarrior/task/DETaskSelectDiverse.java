@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -35,14 +35,13 @@ import javax.swing.JTextField;
 
 import com.actelion.research.chem.DiversitySelector;
 import com.actelion.research.chem.SortedStringList;
-import com.actelion.research.chem.descriptor.DescriptorConstants;
 import com.actelion.research.chem.descriptor.DescriptorHelper;
 import com.actelion.research.chem.io.CompoundFileParser;
 import com.actelion.research.chem.io.DWARFileParser;
 import com.actelion.research.chem.io.SDFileParser;
 import com.actelion.research.datawarrior.DEFrame;
 import com.actelion.research.gui.FileHelper;
-import com.actelion.research.table.CompoundTableModel;
+import com.actelion.research.table.model.CompoundTableModel;
 
 
 public class DETaskSelectDiverse extends ConfigurableTask implements ActionListener,Runnable {
@@ -56,8 +55,6 @@ public class DETaskSelectDiverse extends ConfigurableTask implements ActionListe
 
 	public static final String TASK_NAME = "Select Diverse Compounds";
 
-	private static Properties sRecentConfiguration;
-
 	private DEFrame			 mSourceFrame;
 	private CompoundTableModel  mTableModel;
 	private JComboBox		   mComboBoxDescriptorColumn;
@@ -65,23 +62,11 @@ public class DETaskSelectDiverse extends ConfigurableTask implements ActionListe
 	private JCheckBox		   mCheckBoxAddFile;
 	private File				mFile;
 	private JLabel			  mLabelFileName;
-	private boolean				mIsInteractive;
 
-	public DETaskSelectDiverse(DEFrame parent, boolean isInteractive) {
+	public DETaskSelectDiverse(DEFrame parent) {
 		super(parent, true);
 		mSourceFrame = parent;
 		mTableModel = mSourceFrame.getTableModel();
-		mIsInteractive = isInteractive;
-		}
-
-	@Override
-	public Properties getRecentConfiguration() {
-		return sRecentConfiguration;
-		}
-
-	@Override
-	public void setRecentConfiguration(Properties configuration) {
-		sRecentConfiguration = configuration;
 		}
 
 	@Override
@@ -121,7 +106,7 @@ public class DETaskSelectDiverse extends ConfigurableTask implements ActionListe
 		for (int column=0; column<mTableModel.getTotalColumnCount(); column++)
 			if (qualifiesAsDescriptorColumn(column))
 				mComboBoxDescriptorColumn.addItem(mTableModel.getColumnTitle(column));
-		mComboBoxDescriptorColumn.setEditable(!mIsInteractive);
+		mComboBoxDescriptorColumn.setEditable(!isInteractive());
 		content.add(mComboBoxDescriptorColumn, "3,1");
 
 		content.add(new JLabel("No of compounds:"), "1,3");
@@ -206,12 +191,12 @@ public class DETaskSelectDiverse extends ConfigurableTask implements ActionListe
 			int column = mTableModel.findColumn(value);
 			if (column != -1 && qualifiesAsDescriptorColumn(column))
 				mComboBoxDescriptorColumn.setSelectedItem(mTableModel.getColumnTitle(column));
-			else if (!mIsInteractive)
+			else if (!isInteractive())
 				mComboBoxDescriptorColumn.setSelectedItem(value);
 			else if (mComboBoxDescriptorColumn.getItemCount() != 0)
 				mComboBoxDescriptorColumn.setSelectedIndex(0);
 			}
-		else if (!mIsInteractive) {
+		else if (!isInteractive()) {
 			mComboBoxDescriptorColumn.setSelectedItem("Structure [FragFp]");
 			}
 
@@ -222,7 +207,7 @@ public class DETaskSelectDiverse extends ConfigurableTask implements ActionListe
 	public void setDialogConfigurationToDefault() {
 		if (mComboBoxDescriptorColumn.getItemCount() != 0)
 			mComboBoxDescriptorColumn.setSelectedIndex(0);
-		else if (!mIsInteractive)
+		else if (!isInteractive())
 			mComboBoxDescriptorColumn.setSelectedItem("Structure [FragFp]");
 		mTextFieldCount.setText("1000");
 		mCheckBoxAddFile.setSelected(false);

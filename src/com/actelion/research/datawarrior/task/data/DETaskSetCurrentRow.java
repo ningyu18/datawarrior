@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -29,8 +29,8 @@ import javax.swing.JPanel;
 
 import com.actelion.research.datawarrior.DEFrame;
 import com.actelion.research.datawarrior.task.ConfigurableTask;
-import com.actelion.research.table.CompoundTableHitlistHandler;
-import com.actelion.research.table.CompoundTableModel;
+import com.actelion.research.table.model.CompoundTableListHandler;
+import com.actelion.research.table.model.CompoundTableModel;
 
 
 public class DETaskSetCurrentRow extends ConfigurableTask implements Runnable {
@@ -49,21 +49,9 @@ public class DETaskSetCurrentRow extends ConfigurableTask implements Runnable {
 	private static final String[] WHICH_CODE = { "next", "random" };
 	private static final String[] WHICH_ITEM = { "the next row", "a random row" };
 
-	private static Properties sRecentConfiguration;
-
 	private DEFrame				mParentFrame;
 	private CompoundTableModel	mTableModel;
 	private JComboBox			mComboBoxWhich,mComboBoxWhere;
-
-	@Override
-	public Properties getRecentConfiguration() {
-		return sRecentConfiguration;
-		}
-
-	@Override
-	public void setRecentConfiguration(Properties configuration) {
-		sRecentConfiguration = configuration;
-		}
 
 	public DETaskSetCurrentRow(DEFrame owner) {
 		super(owner, false);
@@ -87,7 +75,7 @@ public class DETaskSetCurrentRow extends ConfigurableTask implements Runnable {
 
 		mComboBoxWhere = new JComboBox();
 		mComboBoxWhere.addItem(OPTION_IN_FILE);
-		String[] names = mTableModel.getHitlistHandler().getHitlistNames();
+		String[] names = mTableModel.getListHandler().getListNames();
 		if (names != null)
 			for (String name:names)
 				mComboBoxWhere.addItem(name);
@@ -152,14 +140,14 @@ public class DETaskSetCurrentRow extends ConfigurableTask implements Runnable {
 		String listName = configuration.getProperty(PROPERTY_WHERE, "");
 		int list = -1;
 		if (listName.length() != 0 && !listName.equals(OPTION_IN_FILE))
-			list = mTableModel.getHitlistHandler().getHitlistIndex(listName);
+			list = mTableModel.getListHandler().getListIndex(listName);
 
 		int oldRow = mTableModel.getActiveRowIndex();
 		int newRow = -1;
 
 		if (list != -1) {
-			CompoundTableHitlistHandler hlh = mTableModel.getHitlistHandler();
-			long mask = hlh.getHitlistMask(list);
+			CompoundTableListHandler hlh = mTableModel.getListHandler();
+			long mask = hlh.getListMask(list);
 
 			int count = 0;
 			for (int row=0; row<mTableModel.getTotalRowCount(); row++)

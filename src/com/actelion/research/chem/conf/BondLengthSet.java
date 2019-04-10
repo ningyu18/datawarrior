@@ -1,10 +1,17 @@
 /*
- * @(#)BondLengthSet.java
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
- * Copyright 2015 openmolecules.org, Inc. All Rights Reserved.
+ * This file is part of DataWarrior.
  *
- * This software is the proprietary information of openmolecules.org
- * Use is subject to license terms.
+ * DataWarrior is free software: you can redistribute it and/or modify it under the terms of the
+ * GNU General Public License as published by the Free Software Foundation, either version 3 of
+ * the License, or (at your option) any later version.
+ *
+ * DataWarrior is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+ * without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ * See the GNU General Public License for more details.
+ * You should have received a copy of the GNU General Public License along with DataWarrior.
+ * If not, see http://www.gnu.org/licenses/.
  *
  * @author Thomas Sander
  */
@@ -14,664 +21,25 @@ package com.actelion.research.chem.conf;
 import com.actelion.research.chem.Molecule;
 import com.actelion.research.chem.StereoMolecule;
 
+import java.io.BufferedReader;
+import java.io.IOException;
+
 public class BondLengthSet {
-	private static final String[] BOND_TYPE = {
-		 "1AgAg",  "1AgAs",  "1AgAu",  "1AgB0",  "1AgBi",  "1AgBr",  "1AgC0",  "1AgC1", 
-		 "1AgC2",  "1AgCl",  "1AgCo",  "1AgCu",   "1AgF",  "1AgFe",  "1AgGa",  "1AgGe", 
-		  "1AgH",   "1AgI",  "1AgIr",  "1AgMo",  "1AgN0",  "1AgN1",  "1AgN2",  "1AgNb", 
-		 "1AgO0",  "1AgO1",  "1AgOs",  "1AgP0",  "1AgP1",  "1AgPd",  "1AgPt",  "1AgRe", 
-		 "1AgRu",  "1AgS0",  "1AgS1",  "1AgSb",  "1AgSe",  "1AgSi",  "1AgSn",  "1AgTa", 
-		 "1AgTe",   "1AgW",  "1AlAl",  "1AlAs",  "1AlB0",  "1AlBi",  "1AlBr",  "1AlC0", 
-		 "1AlC1",  "1AlC2",  "1AlCa",  "1AlCl",  "1AlCr",   "1AlF",  "1AlGe",   "1AlH", 
-		  "1AlI",  "1AlIr",  "1AlLi",  "1AlMn",  "1AlN0",  "1AlN1",  "1AlN2",  "1AlNa", 
-		 "1AlO0",  "1AlO1",  "1AlP0",  "1AlP1",  "1AlPt",  "1AlRe",  "1AlS0",  "1AlS1", 
-		 "1AlSb",  "1AlSe",  "1AlSi",  "1AlSn",  "1AlTe",   "1AlW",  "1AmN0",  "1AmO0", 
-		 "1AsAs",  "1AsAu",  "1AsB0",  "1AsBi",  "1AsBr",  "1AsC0",  "1AsC1",  "1AsC2", 
-		 "1AsCd",  "1AsCl",  "1AsCo",  "1AsCr",  "1AsCu",   "1AsF",  "1AsFe",  "1AsGa", 
-		 "1AsGe",   "1AsH",  "1AsHf",  "1AsHg",   "1AsI",  "1AsIn",  "1AsIr",  "1AsMn", 
-		 "1AsMo",  "1AsN0",  "1AsN1",  "1AsN2",  "1AsNb",  "1AsNi",  "1AsO0",  "1AsO1", 
-		 "1AsOs",  "1AsP0",  "1AsP1",  "1AsPb",  "1AsPd",  "1AsPt",  "1AsRe",  "1AsRh", 
-		 "1AsRu",  "1AsS0",  "1AsS1",  "1AsSb",  "1AsSe",  "1AsSi",  "1AsSn",  "1AsTe", 
-		 "1AsTi",  "1AsTl",   "1AsW",  "1AsZn",  "1AsZr",  "1AuAu",  "1AuB0",  "1AuBi", 
-		 "1AuBr",  "1AuC0",  "1AuC1",  "1AuC2",  "1AuCl",  "1AuCo",  "1AuCr",  "1AuCu", 
-		  "1AuF",  "1AuFe",  "1AuGa",  "1AuGe",   "1AuH",  "1AuHg",   "1AuI",  "1AuIn", 
-		 "1AuIr",  "1AuLi",  "1AuMn",  "1AuMo",  "1AuN0",  "1AuN1",  "1AuN2",  "1AuNi", 
-		 "1AuO0",  "1AuO1",  "1AuOs",  "1AuP0",  "1AuP1",  "1AuPd",  "1AuPt",  "1AuRe", 
-		 "1AuRh",  "1AuRu",  "1AuS0",  "1AuS1",  "1AuS2",  "1AuSb",  "1AuSe",  "1AuSi", 
-		 "1AuSn",  "1AuTe",  "1AuTl",   "1AuV",   "1AuW",  "1B0B0",  "1B0B1",  "1B0Ba", 
-		 "1B0Be",  "1B0Br",  "1B0C0",  "1B0C1",  "1B0C2",  "1B0Ca",  "1B0Cd",  "1B0Cl", 
-		 "1B0Co",  "1B0Cr",  "1B0Cs",  "1B0Cu",  "1B0Dy",  "1B0Er",  "1B0Eu",   "1B0F", 
-		 "1B0Fe",  "1B0Ga",  "1B0Gd",  "1B0Ge",   "1B0H",  "1B0Hf",  "1B0Hg",  "1B0Ho", 
-		  "1B0I",  "1B0In",  "1B0Ir",  "1B0La",  "1B0Li",  "1B0Lu",  "1B0Mg",  "1B0Mn", 
-		 "1B0Mo",  "1B0N0",  "1B0N1",  "1B0N2",  "1B0Na",  "1B0Nb",  "1B0Nd",  "1B0Ni", 
-		 "1B0O0",  "1B0O1",  "1B0Os",  "1B0P0",  "1B0P1",  "1B0Pb",  "1B0Pd",  "1B0Pt", 
-		 "1B0Re",  "1B0Rh",  "1B0Ru",  "1B0S0",  "1B0S1",  "1B0S2",  "1B0Sb",  "1B0Sc", 
-		 "1B0Se",  "1B0Si",  "1B0Sm",  "1B0Sn",  "1B0Sr",  "1B0Ta",  "1B0Tb",  "1B0Th", 
-		 "1B0Ti",  "1B0Tl",  "1B0Tm",   "1B0U",   "1B0V",   "1B0W",   "1B0Y",  "1B0Yb", 
-		 "1B0Zr",  "1B1B1",  "1B1Br",  "1B1C0",  "1B1C1",  "1B1C2",  "1B1Cl",   "1B1F", 
-		 "1B1Fe",   "1B1H",  "1B1Ir",  "1B1Li",  "1B1Mn",  "1B1Mo",  "1B1N0",  "1B1N1", 
-		 "1B1O0",  "1B1Os",  "1B1P0",  "1B1P1",  "1B1Pd",  "1B1Pt",  "1B1Rh",  "1B1Ru", 
-		 "1B1Se",  "1B1Si",  "1B1Sn",   "1B1W",  "1B2B2",  "1B2C1",  "1B2Pd",  "1B2Pt", 
-		 "1B2Rh",  "1BaC0",  "1BaC1",  "1BaC2",  "1BaGa",   "1BaH",  "1BaSn",  "1BaTe", 
-		 "1BeBr",  "1BeC0",  "1BeC1",  "1BeC2",  "1BeCl",   "1BeF",   "1BeH",   "1BeI", 
-		 "1BeLi",  "1BeN0",  "1BeN1",  "1BeN2",  "1BeO0",  "1BeO1",  "1BeP0",  "1BePt", 
-		 "1BeS0",  "1BeZr",  "1BiBi",  "1BiBr",  "1BiC0",  "1BiC1",  "1BiC2",  "1BiCl", 
-		 "1BiCo",  "1BiCr",  "1BiCs",  "1BiCu",   "1BiF",  "1BiFe",  "1BiGa",  "1BiGe", 
-		  "1BiI",  "1BiIn",  "1BiLi",  "1BiMn",  "1BiMo",  "1BiN0",  "1BiN1",  "1BiN2", 
-		 "1BiNi",  "1BiO0",  "1BiO1",  "1BiOs",  "1BiP0",  "1BiPt",  "1BiRe",  "1BiRu", 
-		 "1BiS0",  "1BiS1",  "1BiSe",  "1BiSi",   "1BiW",  "1BrBr",  "1BrC0",  "1BrC1", 
-		 "1BrC2",  "1BrCd",  "1BrCe",  "1BrCl",  "1BrCo",  "1BrCr",  "1BrCu",  "1BrEr", 
-		 "1BrEu",   "1BrF",  "1BrFe",  "1BrGa",  "1BrGd",  "1BrGe",   "1BrH",  "1BrHf", 
-		 "1BrHg",  "1BrHo",   "1BrI",  "1BrIn",  "1BrIr",  "1BrLa",  "1BrMn",  "1BrMo", 
-		 "1BrN0",  "1BrN1",  "1BrNb",  "1BrNd",  "1BrNi",  "1BrO0",  "1BrOs",  "1BrP0", 
-		 "1BrP1",  "1BrPb",  "1BrPd",  "1BrPr",  "1BrPt",  "1BrPu",  "1BrRe",  "1BrRh", 
-		 "1BrRu",  "1BrS0",  "1BrS1",  "1BrSb",  "1BrSc",  "1BrSe",  "1BrSi",  "1BrSm", 
-		 "1BrSn",  "1BrTa",  "1BrTe",  "1BrTh",  "1BrTi",  "1BrTl",   "1BrU",   "1BrV", 
-		  "1BrW",  "1BrYb",  "1BrZn",  "1BrZr",  "1C0C0",  "1C0C1",  "1C0C2",  "1C0Ca", 
-		 "1C0Cd",  "1C0Ce",  "1C0Cl",  "1C0Co",  "1C0Cr",  "1C0Cs",  "1C0Cu",  "1C0Dy", 
-		 "1C0Er",  "1C0Eu",   "1C0F",  "1C0Fe",  "1C0Ga",  "1C0Gd",  "1C0Ge",   "1C0H", 
-		 "1C0Hf",  "1C0Hg",  "1C0Ho",   "1C0I",  "1C0In",  "1C0Ir",   "1C0K",  "1C0La", 
-		 "1C0Li",  "1C0Lu",  "1C0Mg",  "1C0Mn",  "1C0Mo",  "1C0N0",  "1C0N1",  "1C0N2", 
-		 "1C0Na",  "1C0Nb",  "1C0Nd",  "1C0Ni",  "1C0O0",  "1C0O1",  "1C0Os",  "1C0P0", 
-		 "1C0P1",  "1C0P2",  "1C0Pb",  "1C0Pd",  "1C0Pr",  "1C0Pt",  "1C0Rb",  "1C0Re", 
-		 "1C0Rh",  "1C0Ru",  "1C0S0",  "1C0S1",  "1C0S2",  "1C0Sb",  "1C0Sc",  "1C0Se", 
-		 "1C0Si",  "1C0Sm",  "1C0Sn",  "1C0Sr",  "1C0Ta",  "1C0Tb",  "1C0Te",  "1C0Th", 
-		 "1C0Ti",  "1C0Tl",  "1C0Tm",   "1C0U",   "1C0V",   "1C0W",   "1C0Y",  "1C0Yb", 
-		 "1C0Zn",  "1C0Zr",  "1C1C1",  "1C1C2",  "1C1Ca",  "1C1Cd",  "1C1Ce",  "1C1Cl", 
-		 "1C1Co",  "1C1Cr",  "1C1Cs",  "1C1Cu",  "1C1Dy",  "1C1Er",  "1C1Eu",   "1C1F", 
-		 "1C1Fe",  "1C1Ga",  "1C1Gd",  "1C1Ge",   "1C1H",  "1C1Hf",  "1C1Hg",  "1C1Ho", 
-		  "1C1I",  "1C1In",  "1C1Ir",   "1C1K",  "1C1La",  "1C1Li",  "1C1Lu",  "1C1Mg", 
-		 "1C1Mn",  "1C1Mo",  "1C1N0",  "1C1N1",  "1C1N2",  "1C1Na",  "1C1Nb",  "1C1Nd", 
-		 "1C1Ni",  "1C1O0",  "1C1O1",  "1C1Os",  "1C1P0",  "1C1P1",  "1C1P2",  "1C1Pb", 
-		 "1C1Pd",  "1C1Pt",  "1C1Rb",  "1C1Re",  "1C1Rh",  "1C1Ru",  "1C1S0",  "1C1S1", 
-		 "1C1S2",  "1C1S3",  "1C1Sb",  "1C1Sc",  "1C1Se",  "1C1Si",  "1C1Sm",  "1C1Sn", 
-		 "1C1Sr",  "1C1Ta",  "1C1Tb",  "1C1Te",  "1C1Th",  "1C1Ti",  "1C1Tl",  "1C1Tm", 
-		  "1C1U",   "1C1V",   "1C1W",   "1C1Y",  "1C1Yb",  "1C1Zn",  "1C1Zr",  "1C2C2", 
-		 "1C2Cd",  "1C2Ce",  "1C2Cl",  "1C2Co",  "1C2Cr",  "1C2Cu",  "1C2Er",  "1C2Eu", 
-		 "1C2Fe",  "1C2Ga",  "1C2Ge",   "1C2H",  "1C2Hf",  "1C2Hg",   "1C2I",  "1C2In", 
-		 "1C2Ir",  "1C2La",  "1C2Li",  "1C2Lu",  "1C2Mg",  "1C2Mn",  "1C2Mo",  "1C2N0", 
-		 "1C2N1",  "1C2Na",  "1C2Nb",  "1C2Ni",  "1C2O0",  "1C2Os",  "1C2P0",  "1C2P1", 
-		 "1C2Pb",  "1C2Pd",  "1C2Pr",  "1C2Pt",  "1C2Re",  "1C2Rh",  "1C2Ru",  "1C2S0", 
-		 "1C2S1",  "1C2S2",  "1C2Sb",  "1C2Sc",  "1C2Se",  "1C2Si",  "1C2Sn",  "1C2Ta", 
-		 "1C2Te",  "1C2Th",  "1C2Ti",   "1C2U",   "1C2V",   "1C2W",   "1C2Y",  "1C2Yb", 
-		 "1C2Zn",  "1C2Zr",   "1CaH",  "1CaSi",  "1CdCd",  "1CdCl",  "1CdCo",   "1CdF", 
-		 "1CdFe",  "1CdGa",   "1CdH",   "1CdI",  "1CdMn",  "1CdN0",  "1CdN1",  "1CdN2", 
-		 "1CdNi",  "1CdO0",  "1CdO1",  "1CdP0",  "1CdPb",  "1CdPt",  "1CdRu",  "1CdS0", 
-		 "1CdS1",  "1CdSe",  "1CdSi",  "1CdSn",  "1CdTe",  "1CeCl",   "1CeF",   "1CeI", 
-		 "1CeN0",  "1CeN1",  "1CeN2",  "1CeO0",  "1CeO1",  "1CeS0",  "1CeSe",  "1CfO0", 
-		 "1ClCl",  "1ClCo",  "1ClCr",  "1ClCu",  "1ClDy",  "1ClEr",  "1ClEu",   "1ClF", 
-		 "1ClFe",  "1ClGa",  "1ClGd",  "1ClGe",   "1ClH",  "1ClHf",  "1ClHg",  "1ClHo", 
-		  "1ClI",  "1ClIn",  "1ClIr",  "1ClLa",  "1ClLu",  "1ClMn",  "1ClMo",  "1ClN0", 
-		 "1ClN1",  "1ClNb",  "1ClNd",  "1ClNi",  "1ClNp",  "1ClO0",  "1ClOs",  "1ClP0", 
-		 "1ClP1",  "1ClP2",  "1ClPb",  "1ClPd",  "1ClPr",  "1ClPt",  "1ClPu",  "1ClRe", 
-		 "1ClRh",  "1ClRu",  "1ClS0",  "1ClS1",  "1ClS2",  "1ClSb",  "1ClSc",  "1ClSe", 
-		 "1ClSi",  "1ClSm",  "1ClSn",  "1ClTa",  "1ClTb",  "1ClTe",  "1ClTh",  "1ClTi", 
-		 "1ClTl",  "1ClTm",   "1ClU",   "1ClV",   "1ClW",   "1ClY",  "1ClYb",  "1ClZn", 
-		 "1ClZr",  "1CmO0",  "1CoCo",  "1CoCr",  "1CoCu",   "1CoF",  "1CoFe",  "1CoGa", 
-		 "1CoGe",   "1CoH",  "1CoHf",  "1CoHg",   "1CoI",  "1CoIn",  "1CoIr",  "1CoMn", 
-		 "1CoMo",  "1CoN0",  "1CoN1",  "1CoN2",  "1CoNi",  "1CoO0",  "1CoO1",  "1CoP0", 
-		 "1CoP1",  "1CoPd",  "1CoPt",  "1CoRe",  "1CoRh",  "1CoRu",  "1CoS0",  "1CoS1", 
-		 "1CoS2",  "1CoSb",  "1CoSe",  "1CoSi",  "1CoSn",  "1CoTa",  "1CoTe",  "1CoTi", 
-		 "1CoTl",   "1CoU",   "1CoW",  "1CoZr",  "1CrCr",  "1CrCu",   "1CrF",  "1CrFe", 
-		 "1CrGa",  "1CrGe",   "1CrH",   "1CrI",  "1CrIn",  "1CrLi",  "1CrMo",  "1CrN0", 
-		 "1CrN1",  "1CrN2",  "1CrO0",  "1CrO1",  "1CrOs",  "1CrP0",  "1CrP1",  "1CrP2", 
-		 "1CrPb",  "1CrPt",  "1CrRh",  "1CrRu",  "1CrS0",  "1CrS1",  "1CrS2",  "1CrSb", 
-		 "1CrSe",  "1CrSi",  "1CrSn",  "1CrTe",   "1CsH",  "1CsSi",  "1CuCu",   "1CuF", 
-		 "1CuFe",  "1CuGa",  "1CuGe",   "1CuH",  "1CuHg",   "1CuI",  "1CuIr",  "1CuLa", 
-		 "1CuLi",  "1CuMn",  "1CuMo",  "1CuN0",  "1CuN1",  "1CuN2",  "1CuNi",  "1CuO0", 
-		 "1CuO1",  "1CuOs",  "1CuP0",  "1CuP1",  "1CuPb",  "1CuPd",  "1CuPt",  "1CuRe", 
-		 "1CuRh",  "1CuRu",  "1CuS0",  "1CuS1",  "1CuS2",  "1CuSb",  "1CuSe",  "1CuSi", 
-		 "1CuSn",  "1CuTe",   "1CuV",   "1CuW",  "1DyDy",   "1DyH",   "1DyI",  "1DyN0", 
-		 "1DyN1",  "1DyN2",  "1DyO0",  "1DyO1",  "1DyP0",  "1DyS0",  "1DyS1",   "1ErH", 
-		  "1ErI",  "1ErN0",  "1ErN1",  "1ErN2",  "1ErO0",  "1ErO1",  "1ErP0",  "1ErS0", 
-		 "1ErS1",  "1ErSe",  "1EuEu",   "1EuF",   "1EuH",   "1EuI",  "1EuN0",  "1EuN1", 
-		 "1EuN2",  "1EuO0",  "1EuO1",  "1EuP0",  "1EuS0",  "1EuSe",   "1FFe",   "1FGa", 
-		  "1FGd",   "1FGe",    "1FH",   "1FHf",   "1FHg",   "1FHo",    "1FI",   "1FIn", 
-		  "1FIr",   "1FLa",   "1FMn",   "1FMo",   "1FN0",   "1FN1",   "1FNb",   "1FNd", 
-		  "1FNi",   "1FOs",   "1FP0",   "1FP1",   "1FPd",   "1FPt",   "1FRe",   "1FRh", 
-		  "1FRu",   "1FS0",   "1FS1",   "1FS2",   "1FSb",   "1FSc",   "1FSe",   "1FSi", 
-		  "1FSn",   "1FTa",   "1FTe",   "1FTi",   "1FTl",    "1FU",    "1FV",    "1FW", 
-		   "1FY",   "1FYb",   "1FZn",   "1FZr",  "1FeFe",  "1FeGa",  "1FeGe",   "1FeH", 
-		 "1FeHg",   "1FeI",  "1FeIn",  "1FeIr",  "1FeLi",  "1FeMn",  "1FeMo",  "1FeN0", 
-		 "1FeN1",  "1FeN2",  "1FeNd",  "1FeNi",  "1FeO0",  "1FeO1",  "1FeOs",  "1FeP0", 
-		 "1FeP1",  "1FePb",  "1FePd",  "1FePt",  "1FeRe",  "1FeRh",  "1FeRu",  "1FeS0", 
-		 "1FeS1",  "1FeS2",  "1FeSb",  "1FeSe",  "1FeSi",  "1FeSn",  "1FeTa",  "1FeTe", 
-		 "1FeTl",   "1FeV",   "1FeW",  "1FeZn",  "1FeZr",  "1GaGa",  "1GaGe",   "1GaH", 
-		  "1GaI",  "1GaIn",  "1GaIr",  "1GaMn",  "1GaMo",  "1GaN0",  "1GaN1",  "1GaN2", 
-		 "1GaNa",  "1GaNi",  "1GaO0",  "1GaO1",  "1GaP0",  "1GaP1",  "1GaPd",  "1GaPt", 
-		 "1GaRe",  "1GaRh",  "1GaRu",  "1GaS0",  "1GaS1",  "1GaSb",  "1GaSe",  "1GaSi", 
-		 "1GaSn",  "1GaSr",  "1GaTe",  "1GaYb",  "1GaZn",   "1GdH",   "1GdI",  "1GdN0", 
-		 "1GdN1",  "1GdN2",  "1GdO0",  "1GdO1",  "1GdP0",  "1GdS0",  "1GdSe",  "1GeGe", 
-		  "1GeH",  "1GeHg",   "1GeI",  "1GeIn",  "1GeIr",   "1GeK",  "1GeLi",  "1GeMg", 
-		 "1GeMn",  "1GeMo",  "1GeN0",  "1GeN1",  "1GeN2",  "1GeNi",  "1GeO0",  "1GeO1", 
-		 "1GeOs",  "1GeP0",  "1GeP1",  "1GePb",  "1GePd",  "1GePt",  "1GeRb",  "1GeRe", 
-		 "1GeRh",  "1GeRu",  "1GeS0",  "1GeS1",  "1GeSb",  "1GeSe",  "1GeSi",  "1GeSn", 
-		 "1GeTe",  "1GeTi",  "1GeTl",   "1GeW",  "1GeYb",  "1GeZn",   "1HHf",   "1HHo", 
-		  "1HIn",   "1HIr",    "1HK",   "1HLa",   "1HLi",   "1HLu",   "1HMg",   "1HMn", 
-		  "1HMo",   "1HN0",   "1HN1",   "1HN2",   "1HNa",   "1HNb",   "1HNd",   "1HNi", 
-		  "1HNp",   "1HO0",   "1HO1",   "1HOs",   "1HP0",   "1HP1",   "1HPb",   "1HPd", 
-		  "1HPr",   "1HPt",   "1HRb",   "1HRe",   "1HRh",   "1HRu",   "1HS0",   "1HS1", 
-		  "1HSb",   "1HSc",   "1HSe",   "1HSi",   "1HSm",   "1HSn",   "1HSr",   "1HTa", 
-		  "1HTb",   "1HTe",   "1HTi",   "1HTm",    "1HU",    "1HV",    "1HW",    "1HY", 
-		  "1HYb",   "1HZn",   "1HZr",  "1HfHf",   "1HfI",  "1HfN0",  "1HfN1",  "1HfN2", 
-		 "1HfO0",  "1HfO1",  "1HfP0",  "1HfP1",  "1HfS0",  "1HfSi",  "1HfSn",  "1HfTe", 
-		 "1HgHg",   "1HgI",  "1HgIn",  "1HgIr",  "1HgLi",  "1HgMn",  "1HgMo",  "1HgN0", 
-		 "1HgN1",  "1HgN2",  "1HgO0",  "1HgO1",  "1HgOs",  "1HgP0",  "1HgP1",  "1HgPd", 
-		 "1HgPt",  "1HgRe",  "1HgRh",  "1HgRu",  "1HgS0",  "1HgS1",  "1HgSb",  "1HgSe", 
-		 "1HgSi",  "1HgSn",  "1HgTe",   "1HgW",  "1HoHo",   "1HoI",  "1HoN0",  "1HoN1", 
-		 "1HoN2",  "1HoO0",  "1HoO1",  "1HoS0",  "1HoS1",  "1HoSe",    "1II",   "1IIn", 
-		  "1IIr",   "1ILa",   "1ILu",   "1IMn",   "1IMo",   "1IN0",   "1IN1",   "1IN2", 
-		  "1INb",   "1INd",   "1INi",   "1IO0",   "1IOs",   "1IP0",   "1IP1",   "1IPb", 
-		  "1IPd",   "1IPr",   "1IPt",   "1IPu",   "1IRe",   "1IRh",   "1IRu",   "1IS0", 
-		  "1IS1",   "1IS2",   "1ISb",   "1ISc",   "1ISe",   "1ISi",   "1ISm",   "1ISn", 
-		  "1ITa",   "1ITe",   "1ITh",   "1ITi",   "1ITl",   "1ITm",    "1IU",    "1IV", 
-		   "1IW",    "1IY",   "1IYb",   "1IZn",   "1IZr",  "1InIn",  "1InIr",  "1InMn", 
-		 "1InMo",  "1InN0",  "1InN1",  "1InN2",  "1InNi",  "1InO0",  "1InO1",  "1InOs", 
-		 "1InP0",  "1InPd",  "1InPt",  "1InRe",  "1InS0",  "1InS1",  "1InSb",  "1InSe", 
-		 "1InSi",  "1InTe",   "1InW",  "1IrIr",  "1IrMo",  "1IrN0",  "1IrN1",  "1IrN2", 
-		 "1IrNi",  "1IrO0",  "1IrO1",  "1IrOs",  "1IrP0",  "1IrP1",  "1IrPd",  "1IrPt", 
-		 "1IrRe",  "1IrRh",  "1IrRu",  "1IrS0",  "1IrS1",  "1IrS2",  "1IrSe",  "1IrSi", 
-		 "1IrSn",  "1IrTe",  "1IrTl",   "1IrV",   "1IrW",   "1KPd",   "1KPt",   "1KSi", 
-		  "1KSn",   "1KTe",  "1LaLa",  "1LaN0",  "1LaN1",  "1LaN2",  "1LaNa",  "1LaO0", 
-		 "1LaO1",  "1LaP0",  "1LaS0",  "1LaSe",  "1LaTe",  "1LiLi",  "1LiNi",  "1LiPb", 
-		 "1LiPd",  "1LiPt",  "1LiRu",  "1LiSb",  "1LiSi",  "1LiSn",  "1LiTe",   "1LiV", 
-		  "1LiY",  "1LiZr",  "1LuLu",  "1LuN0",  "1LuN1",  "1LuN2",  "1LuNa",  "1LuO0", 
-		 "1LuO1",  "1LuP0",  "1LuRe",  "1LuS0",  "1MgMg",  "1MgSi",  "1MgTe",  "1MnMn", 
-		 "1MnMo",  "1MnN0",  "1MnN1",  "1MnN2",  "1MnO0",  "1MnO1",  "1MnOs",  "1MnP0", 
-		 "1MnP1",  "1MnPd",  "1MnPt",  "1MnRe",  "1MnRh",  "1MnRu",  "1MnS0",  "1MnS1", 
-		 "1MnS2",  "1MnSb",  "1MnSe",  "1MnSi",  "1MnSn",  "1MnTe",  "1MnTl",   "1MnW", 
-		 "1MnZn",  "1MnZr",  "1MoMo",  "1MoN0",  "1MoN1",  "1MoN2",  "1MoNi",  "1MoO0", 
-		 "1MoO1",  "1MoO2",  "1MoP0",  "1MoP1",  "1MoPb",  "1MoPd",  "1MoPt",  "1MoRe", 
-		 "1MoRh",  "1MoRu",  "1MoS0",  "1MoS1",  "1MoS2",  "1MoSb",  "1MoSe",  "1MoSi", 
-		 "1MoSn",  "1MoTe",   "1MoU",   "1MoV",   "1MoW",  "1N0N0",  "1N0N1",  "1N0N2", 
-		 "1N0Nb",  "1N0Nd",  "1N0Ni",  "1N0O0",  "1N0O1",  "1N0Os",  "1N0P0",  "1N0P1", 
-		 "1N0P2",  "1N0Pb",  "1N0Pd",  "1N0Pr",  "1N0Pt",  "1N0Pu",  "1N0Re",  "1N0Rh", 
-		 "1N0Ru",  "1N0S0",  "1N0S1",  "1N0S2",  "1N0S3",  "1N0Sb",  "1N0Sc",  "1N0Se", 
-		 "1N0Si",  "1N0Sm",  "1N0Sn",  "1N0Ta",  "1N0Tb",  "1N0Te",  "1N0Th",  "1N0Ti", 
-		 "1N0Tl",  "1N0Tm",   "1N0U",   "1N0V",   "1N0W",   "1N0Y",  "1N0Yb",  "1N0Zn", 
-		 "1N0Zr",  "1N1N1",  "1N1N2",  "1N1Nb",  "1N1Nd",  "1N1Ni",  "1N1Np",  "1N1O0", 
-		 "1N1O1",  "1N1Os",  "1N1P0",  "1N1P1",  "1N1P2",  "1N1Pb",  "1N1Pd",  "1N1Pr", 
-		 "1N1Pt",  "1N1Pu",  "1N1Re",  "1N1Rh",  "1N1Ru",  "1N1S0",  "1N1S1",  "1N1S2", 
-		 "1N1Sb",  "1N1Sc",  "1N1Se",  "1N1Si",  "1N1Sm",  "1N1Sn",  "1N1Ta",  "1N1Tb", 
-		 "1N1Te",  "1N1Th",  "1N1Ti",  "1N1Tl",  "1N1Tm",   "1N1U",   "1N1V",   "1N1W", 
-		  "1N1Y",  "1N1Yb",  "1N1Zn",  "1N1Zr",  "1N2Nb",  "1N2Nd",  "1N2Ni",  "1N2O0", 
-		 "1N2Os",  "1N2P0",  "1N2Pb",  "1N2Pd",  "1N2Pr",  "1N2Pt",  "1N2Pu",  "1N2Re", 
-		 "1N2Rh",  "1N2Ru",  "1N2Sb",  "1N2Sc",  "1N2Si",  "1N2Sm",  "1N2Sn",  "1N2Ta", 
-		 "1N2Tb",  "1N2Te",  "1N2Ti",  "1N2Tl",  "1N2Tm",   "1N2U",   "1N2V",   "1N2W", 
-		  "1N2Y",  "1N2Yb",  "1N2Zn",  "1N2Zr",  "1NaNa",  "1NaNd",  "1NaNi",  "1NaSi", 
-		 "1NaSm",  "1NaTe",  "1NaYb",  "1NbNb",  "1NbO0",  "1NbO1",  "1NbO2",  "1NbP0", 
-		 "1NbS0",  "1NbS1",  "1NbSe",  "1NdNd",  "1NdO0",  "1NdO1",  "1NdP0",  "1NdS0", 
-		 "1NdSe",  "1NiNi",  "1NiO0",  "1NiO1",  "1NiO2",  "1NiOs",  "1NiP0",  "1NiP1", 
-		 "1NiPd",  "1NiPt",  "1NiRe",  "1NiRh",  "1NiRu",  "1NiS0",  "1NiS1",  "1NiS2", 
-		 "1NiSb",  "1NiSe",  "1NiSi",  "1NiSn",  "1NiTa",  "1NiTe",  "1NiTl",   "1NiW", 
-		 "1NiZn",  "1NpO0",  "1NpO1",  "1NpSe",  "1O0O0",  "1O0Os",  "1O0P0",  "1O0P1", 
-		 "1O0P2",  "1O0Pb",  "1O0Pd",  "1O0Pr",  "1O0Pt",  "1O0Pu",  "1O0Re",  "1O0Rh", 
-		 "1O0Ru",  "1O0S0",  "1O0S1",  "1O0S2",  "1O0S3",  "1O0Sb",  "1O0Sc",  "1O0Se", 
-		 "1O0Si",  "1O0Sm",  "1O0Sn",  "1O0Ta",  "1O0Tb",  "1O0Te",  "1O0Th",  "1O0Ti", 
-		 "1O0Tl",  "1O0Tm",   "1O0U",   "1O0V",   "1O0W",   "1O0Y",  "1O0Yb",  "1O0Zn", 
-		 "1O0Zr",  "1O1Os",  "1O1P0",  "1O1P2",  "1O1Pb",  "1O1Pd",  "1O1Pr",  "1O1Pt", 
-		 "1O1Pu",  "1O1Re",  "1O1Rh",  "1O1Ru",  "1O1S1",  "1O1Sb",  "1O1Sc",  "1O1Se", 
-		 "1O1Si",  "1O1Sm",  "1O1Sn",  "1O1Ta",  "1O1Tb",  "1O1Te",  "1O1Th",  "1O1Ti", 
-		 "1O1Tl",  "1O1Tm",   "1O1U",   "1O1V",   "1O1W",   "1O1Y",  "1O1Yb",  "1O1Zn", 
-		 "1O1Zr",   "1O2U",   "1O2V",  "1OsOs",  "1OsP0",  "1OsP1",  "1OsPb",  "1OsPd", 
-		 "1OsPt",  "1OsRe",  "1OsRh",  "1OsRu",  "1OsS0",  "1OsS1",  "1OsS2",  "1OsSb", 
-		 "1OsSe",  "1OsSi",  "1OsSn",  "1OsTe",   "1OsW",  "1P0P0",  "1P0P1",  "1P0P2", 
-		 "1P0Pb",  "1P0Pd",  "1P0Pt",  "1P0Re",  "1P0Rh",  "1P0Ru",  "1P0S0",  "1P0S1", 
-		 "1P0S2",  "1P0Sb",  "1P0Sc",  "1P0Se",  "1P0Si",  "1P0Sm",  "1P0Sn",  "1P0Ta", 
-		 "1P0Te",  "1P0Th",  "1P0Ti",  "1P0Tl",   "1P0U",   "1P0V",   "1P0W",   "1P0Y", 
-		 "1P0Yb",  "1P0Zn",  "1P0Zr",  "1P1P1",  "1P1Pd",  "1P1Pt",  "1P1Re",  "1P1Rh", 
-		 "1P1Ru",  "1P1S0",  "1P1Sb",  "1P1Se",  "1P1Si",  "1P1Sn",  "1P1Te",   "1P1W", 
-		 "1P1Zn",  "1P1Zr",  "1P2P2",  "1P2Ru",  "1P2S0",  "1P2Se",   "1P2W",  "1PbPb", 
-		 "1PbPt",  "1PbRu",  "1PbS0",  "1PbS1",  "1PbSe",  "1PbSi",  "1PbSn",  "1PbTe", 
-		  "1PbW",  "1PbZn",  "1PbZr",  "1PdPd",  "1PdPt",  "1PdRe",  "1PdRh",  "1PdRu", 
-		 "1PdS0",  "1PdS1",  "1PdS2",  "1PdSb",  "1PdSe",  "1PdSi",  "1PdSn",  "1PdTe", 
-		 "1PdTi",  "1PdTl",   "1PdW",  "1PdZn",  "1PrPr",  "1PrS0",  "1PrS1",  "1PrSe", 
-		 "1PtPt",  "1PtRe",  "1PtRh",  "1PtRu",  "1PtS0",  "1PtS1",  "1PtS2",  "1PtSb", 
-		 "1PtSe",  "1PtSi",  "1PtSn",  "1PtTe",  "1PtTl",   "1PtW",  "1PtZn",  "1PtZr", 
-		 "1PuS0",  "1PuSe",  "1RbRb",  "1RbSb",  "1RbSi",  "1ReRe",  "1ReRh",  "1ReRu", 
-		 "1ReS0",  "1ReS1",  "1ReS2",  "1ReSb",  "1ReSe",  "1ReSi",  "1ReSn",  "1ReTe", 
-		  "1ReU",   "1ReW",  "1ReYb",  "1ReZn",  "1RhRh",  "1RhRu",  "1RhS0",  "1RhS1", 
-		 "1RhS2",  "1RhSb",  "1RhSe",  "1RhSi",  "1RhSn",  "1RhTe",  "1RhTi",   "1RhW", 
-		 "1RhZn",  "1RhZr",  "1RuRu",  "1RuS0",  "1RuS1",  "1RuS2",  "1RuSb",  "1RuSe", 
-		 "1RuSi",  "1RuSn",  "1RuTe",  "1RuTi",   "1RuW",  "1RuYb",  "1RuZn",  "1S0S0", 
-		 "1S0S1",  "1S0S2",  "1S0Sb",  "1S0Sc",  "1S0Se",  "1S0Si",  "1S0Sm",  "1S0Sn", 
-		 "1S0Ta",  "1S0Te",  "1S0Th",  "1S0Ti",  "1S0Tl",  "1S0Tm",   "1S0U",   "1S0V", 
-		  "1S0W",   "1S0Y",  "1S0Yb",  "1S0Zn",  "1S0Zr",  "1S1S1",  "1S1S2",  "1S1Sb", 
-		 "1S1Sc",  "1S1Se",  "1S1Sm",  "1S1Sn",  "1S1Ta",  "1S1Te",  "1S1Ti",  "1S1Tl", 
-		 "1S1Tm",   "1S1U",   "1S1V",   "1S1W",   "1S1Y",  "1S1Zn",  "1S1Zr",  "1S2S2", 
-		 "1S2Se",   "1S2W",  "1SbSb",  "1SbSe",  "1SbSi",  "1SbSn",  "1SbTe",  "1SbTi", 
-		 "1SbTl",   "1SbW",  "1SeSe",  "1SeSi",  "1SeSm",  "1SeSn",  "1SeTa",  "1SeTe", 
-		 "1SeTh",  "1SeTi",  "1SeTl",  "1SeTm",   "1SeU",   "1SeV",   "1SeW",   "1SeY", 
-		 "1SeYb",  "1SeZn",  "1SiSi",  "1SiSn",  "1SiSr",  "1SiTa",  "1SiTe",  "1SiTi", 
-		 "1SiTl",   "1SiU",   "1SiW",   "1SiY",  "1SiYb",  "1SiZn",  "1SiZr",  "1SmTe", 
-		 "1SnSn",  "1SnSr",  "1SnTe",   "1SnW",  "1SnYb",  "1SnZn",  "1SnZr",  "1TaTa", 
-		 "1TeTe",  "1TeTi",   "1TeV",   "1TeW",  "1TeYb",  "1TeZn",  "1TeZr",  "1TiTi", 
-		 "1TlTl",    "1VV",   "1VZn",    "1WW",   "1WYb",    "1YY",  "1ZnZn",  "1ZrZr", 
-		 "2AgC1",  "2AgC3",   "2AgI",  "2AgO1",  "2AgS1",  "2AlC1",  "2AlN1",  "2AlO1", 
-		 "2AsAs",  "2AsB1",  "2AsC1",  "2AsC2",  "2AsCo",  "2AsCr",  "2AsN1",  "2AsN2", 
-		 "2AsO1",  "2AsO2",  "2AsP1",  "2AsS1",  "2AsSe",  "2AsSi",  "2AsTa",   "2AsW", 
-		 "2AuC1",  "2AuC3",  "2AuCl",  "2AuN1",  "2AuS1",  "2B1B1",  "2B1Ba",  "2B1C1", 
-		 "2B1Fe",   "2B1K",  "2B1N1",  "2B1N2",  "2B1O1",  "2B1O2",  "2B1P1",  "2B1Pt", 
-		 "2B1S1",  "2B1S2",  "2B2C1",  "2B2Cr",  "2B2Mo",  "2B2N1",   "2B2W",  "2BiBi", 
-		 "2BiC1",  "2BiN1",  "2BiO1",  "2BiO2",  "2BiP1",  "2BiS1",  "2BrC1",  "2BrHg", 
-		 "2BrMn",  "2BrN1",  "2BrO1",  "2BrRe",  "2BrZn",  "2C1C1",  "2C1C2",  "2C1Cd", 
-		 "2C1Ce",  "2C1Co",  "2C1Cr",  "2C1Cu",  "2C1Fe",  "2C1Ga",  "2C1Gd",  "2C1Ge", 
-		 "2C1Hf",  "2C1Hg",   "2C1I",  "2C1In",  "2C1Ir",  "2C1La",  "2C1Li",  "2C1Mg", 
-		 "2C1Mn",  "2C1Mo",  "2C1N1",  "2C1N2",  "2C1Na",  "2C1Nb",  "2C1Ni",  "2C1O1", 
-		 "2C1O2",  "2C1Os",  "2C1P1",  "2C1P2",  "2C1Pb",  "2C1Pd",  "2C1Pt",  "2C1Re", 
-		 "2C1Rh",  "2C1Ru",  "2C1S1",  "2C1S2",  "2C1S3",  "2C1Sb",  "2C1Sc",  "2C1Se", 
-		 "2C1Si",  "2C1Sm",  "2C1Sn",  "2C1Ta",  "2C1Te",  "2C1Th",  "2C1Ti",  "2C1Tm", 
-		  "2C1U",   "2C1V",   "2C1W",  "2C1Zn",  "2C1Zr",  "2C2C2",  "2C2C3",  "2C2Co", 
-		 "2C2Cr",  "2C2Fe",  "2C2Ir",  "2C2Mn",  "2C2N1",  "2C2N2",  "2C2Nb",  "2C2O1", 
-		 "2C2Os",  "2C2P1",  "2C2P2",  "2C2Pd",  "2C2Pt",  "2C2Re",  "2C2Rh",  "2C2Ru", 
-		 "2C2S1",  "2C2S2",  "2C2Se",  "2C2Ta",  "2C2Ti",   "2C2W",  "2C3Hg",  "2CdN1", 
-		 "2CdN2",  "2CdO1",  "2CdS1",  "2CeO1",  "2CeSe",  "2ClCo",  "2ClCu",  "2ClFe", 
-		 "2ClHg",  "2ClIr",  "2ClNd",  "2ClO1",  "2ClPt",  "2ClRu",  "2CoCo",  "2CoN1", 
-		 "2CoN2",  "2CoO1",  "2CoP1",  "2CoS1",  "2CoS2",  "2CoSe",  "2CoSi",  "2CoZr", 
-		  "2CrF",  "2CrN1",  "2CrN2",  "2CrO1",  "2CrS1",  "2CrSi",  "2CrSn",  "2CuCu", 
-		 "2CuN1",  "2CuN2",  "2CuO1",  "2CuS1",  "2DyO1",  "2ErO1",  "2EuN2",  "2EuO1", 
-		  "2FP1",  "2FeFe",  "2FeGe",  "2FeN1",  "2FeN2",  "2FeO1",  "2FeS1",  "2FeSi", 
-		  "2FeW",  "2GaO1",  "2GaO2",  "2GaP2",  "2GaS1",  "2GaSe",  "2GaTe",  "2GdO1", 
-		 "2GeGe",  "2GeIr",  "2GeMg",  "2GeN1",  "2GeN2",  "2GeO1",  "2GeRb",  "2GeRe", 
-		 "2GeRu",  "2GeS1",  "2GeSe",  "2GeSi",  "2GeSr",  "2GeTe",   "2GeW",   "2HO1", 
-		 "2HfN1",  "2HfO1",  "2HfP1",  "2HfSi",  "2HgO1",  "2HgS1",  "2HoO1",    "2II", 
-		  "2IN1",   "2IO1",   "2IS2",   "2ISb",  "2InO1",  "2InSe",  "2IrIr",  "2IrO1", 
-		 "2IrP1",  "2IrS1",   "2IrW",  "2LaNa",  "2LaO1",  "2MnMn",  "2MnN1",  "2MnO1", 
-		 "2MoMo",  "2MoN1",  "2MoN2",  "2MoO1",  "2MoP1",  "2MoP2",  "2MoS1",  "2MoSe", 
-		 "2MoSi",  "2MoSn",  "2MoTe",  "2N1N1",  "2N1N2",  "2N1Nb",  "2N1Ni",  "2N1O1", 
-		 "2N1Os",  "2N1P1",  "2N1P2",  "2N1Pd",  "2N1Pt",  "2N1Re",  "2N1Ru",  "2N1S1", 
-		 "2N1S2",  "2N1S3",  "2N1Sb",  "2N1Se",  "2N1Si",  "2N1Sn",  "2N1Ta",  "2N1Te", 
-		 "2N1Th",  "2N1Ti",   "2N1U",   "2N1V",   "2N1W",  "2N1Zn",  "2N1Zr",  "2N2Nb", 
-		 "2N2Os",  "2N2P1",  "2N2Re",  "2N2Ru",  "2N2S1",  "2N2Se",  "2N2Ta",  "2N2Ti", 
-		  "2N2U",   "2N2V",   "2N2W",  "2N2Yb",  "2N2Zr",  "2N3O1",  "2NaO1",  "2NbNb", 
-		 "2NbO1",  "2NbP1",  "2NbS1",  "2NbTe",  "2NdO1",  "2NdO2",  "2NiNi",  "2NiO1", 
-		 "2NiP1",  "2NiS1",  "2NiSe",  "2NiSi",  "2NpO1",  "2O1O1",  "2O1Os",  "2O1P1", 
-		 "2O1P2",  "2O1Pb",  "2O1Pd",  "2O1Pr",  "2O1Pt",  "2O1Pu",  "2O1Re",  "2O1Rh", 
-		 "2O1Ru",  "2O1S1",  "2O1S2",  "2O1S3",  "2O1S4",  "2O1Sb",  "2O1Se",  "2O1Si", 
-		 "2O1Sm",  "2O1Sn",  "2O1Ta",  "2O1Tb",  "2O1Te",  "2O1Th",  "2O1Ti",   "2O1U", 
-		  "2O1V",   "2O1W",   "2O1Y",  "2O1Zn",  "2O2P1",  "2O2Pr",  "2O2Sb",  "2O2Ti", 
-		  "2O2V",  "2OsOs",  "2OsSi",  "2P1P1",  "2P1P2",  "2P1Pt",  "2P1Re",  "2P1S1", 
-		 "2P1Sb",  "2P1Se",  "2P1Si",  "2P1Ta",  "2P1Te",  "2P1Ti",   "2P1V",   "2P1W", 
-		 "2P2S1",  "2P2Se",   "2P2W",  "2PbPb",  "2PdRe",  "2PdS1",  "2PdSi",  "2PdSn", 
-		 "2PrSe",  "2PtPt",  "2PtS1",  "2PtSi",  "2PtSn",  "2ReRe",  "2ReS1",  "2RhRh", 
-		  "2RhW",  "2RuRu",  "2RuS2",  "2RuSi",  "2S1S1",  "2S1S2",  "2S1S4",  "2S1Sb", 
-		 "2S1Si",  "2S1Sn",  "2S1Ti",   "2S1V",   "2S1W",  "2S1Zn",  "2S2Se",  "2SbSb", 
-		 "2SbSe",  "2SbSi",  "2SbTe",  "2SeSi",  "2SeSn",  "2SeTa",  "2SeTe",  "2SeTl", 
-		  "2SeV",   "2SeW",  "2SiSi",  "2SiTe",   "2SiW",  "2SnSn",  "2SnTe",   "2SnW", 
-		 "2TaTa",  "2TaTe",   "2TeV",   "2TeW",    "2VV",    "2WW",  "3AsMo",   "3AsW", 
-		 "3B2P2",  "3B3Ir",  "3C2C2",  "3C2C3",  "3C2Cr",  "3C2Fe",  "3C2Mn",  "3C2Mo", 
-		 "3C2N2",  "3C2N3",  "3C2Nb",  "3C2O2",  "3C2Os",  "3C2P2",  "3C2Re",  "3C2Ru", 
-		 "3C2S2",  "3C2Ta",  "3C2Ti",   "3C2W",  "3C4Pd",  "3CoN2",  "3CrN2",  "3FeN2", 
-		 "3GeGe",  "3GeMo",   "3GeW",  "3MnMn",  "3MnN2",  "3MnO2",  "3MoMo",  "3MoN2", 
-		 "3MoN3",  "3MoO2",  "3MoP2",  "3MoSi",   "3MoW",  "3N2N2",  "3N2Nb",  "3N2Ni", 
-		 "3N2O2",  "3N2Os",  "3N2P2",  "3N2Re",  "3N2Ru",  "3N2S2",  "3N2Sm",  "3N2Ta", 
-		 "3N2Ti",   "3N2U",   "3N2V",   "3N2W",  "3N3Re",  "3NbNb",  "3NbO2",  "3O2Re", 
-		  "3O2V",   "3O2W",  "3OsOs",   "3P2W",   "3PbW",  "3ReRe",  "3RuRu",  "3SiSi", 
-		 "3SnSn",   "3SnW",   "3TeW",    "3WW", "a1AgN1", "a1AsC1", "a1AsN0", "a1AuC1", 
-		"a1AuS0", "a1B1N0", "a1C0C1", "a1C0N0", "a1C0O0", "a1C1C1", "a1C1Ir", "a1C1N0", 
-		"a1C1N1", "a1C1O0", "a1C1O1", "a1C1P1", "a1C1Pt", "a1C1Re", "a1C1Ru", "a1C1S0", 
-		"a1C1S1", "a1C2N0", "a1C2O0", "a1CoN0", "a1CoN1", "a1CrN0", "a1CrN1", "a1CrO0", 
-		"a1CrO1", "a1CuN1", "a1EuO0", "a1FeN1", "a1FeO0", "a1FeO1", "a1InO0", "a1IrN0", 
-		"a1IrN1", "a1IrO0", "a1IrS0", "a1MnO0", "a1MoMo", "a1MoN0", "a1MoN1", "a1MoO0", 
-		"a1MoS0", "a1MoS1", "a1N0N0", "a1N0N1", "a1N0Os", "a1N0P1", "a1N0Pd", "a1N0Re", 
-		"a1N0Rh", "a1N0Ru", "a1N0S0", "a1N0S1", "a1N0S2", "a1N0Se",  "a1N0V",  "a1N0W", 
-		"a1N1N1", "a1N1Ni", "a1N1O0", "a1N1Os", "a1N1P1", "a1N1Pd", "a1N1Re", "a1N1Rh", 
-		"a1N1Ru", "a1N1S0", "a1N1S1", "a1N1Se",  "a1N1V",  "a1N1W", "a1N1Zn", "a1NbO0", 
-		"a1NiS0", "a1O0Os", "a1O0Re", "a1O0Rh", "a1O0Ru", "a1O0S1", "a1O0Se", "a1O0Te", 
-		 "a1O0W", "a1O0Zn", "a1O1Re", "a1O1Rh",  "a1O1V", "a1P1S0",  "a1P1W", "a1PtS0", 
-		"a1ReRe", "a1ReS0", "a1RhS1", "a1S0S1", "a1S0Sb", "a1S0Se", "a1S0Te",  "a1S0W", 
-		"a1S1S1", "a1S1Ti",  "a1S1W", "a1SeSe", "a2AgC1", "a2AsC1", "a2AuC1", "a2AuS1", 
-		"a2B1Os", "a2B1P1", "a2C1C1", "a2C1C2", "a2C1Cr", "a2C1Cu", "a2C1Fe", "a2C1Ir", 
-		"a2C1Mn", "a2C1Mo", "a2C1N1", "a2C1Nb", "a2C1O1", "a2C1P1", "a2C1Pd", "a2C1Pt", 
-		"a2C1Re", "a2C1Rh", "a2C1Ru", "a2C1S1", "a2C1S2", "a2C1Se", "a2C1Te",  "a2C1W", 
-		"a2CoCo", "a2CoN1", "a2CrCr", "a2CuO1", "a2EuO1", "a2FeO1", "a2InO1", "a2IrIr", 
-		"a2MoMo", "a2MoS1", "a2N1N1", "a2N1N2", "a2N1O1", "a2N1P1", "a2N1Re", "a2N1S1", 
-		"a2N1S2", "a2N1Se", "a2N1Ti",  "a2N1V",  "a2N1W", "a2N2Re", "a2N3Re", "a2NiO1", 
-		"a2NiS1",  "a2O1V", "a2O1Zn", "a2P1P1", "a2P1Te", "a2PdS1", "a2PtS1", "a2ReRe", 
-		"a2RhRh", "a2RuRu", "a2S1S1", "a2S1Sb",  "a2S1W", "a2S1Zr", "a2SeSe", "a3CrCr", 
-		"a3MoMo", "a3OsOs", "a3ReRe", "a3RhRh", "a3RuRu",   "a3VV",   "a3WW",  "dAgSe", 
-		 "dAsC1",  "dAsN1",  "dB1C1",  "dB1N1",  "dB1O1",  "dB1P1",  "dC0C1",  "dC0N1", 
-		 "dC1C1",  "dC1C2",  "dC1Ge",  "dC1Ir",  "dC1N1",  "dC1N2",  "dC1O1",  "dC1Os", 
-		 "dC1P1",  "dC1P2",  "dC1Re",  "dC1Ru",  "dC1S1",  "dC1S2",  "dC1Se",  "dC1Si", 
-		 "dC1Sn",  "dC1Te",   "dC1V",   "dC1W",  "dC2C2",  "dC2N1",  "dC2Os",  "dC2Re", 
-		 "dCoN1",  "dCoO1",  "dCuN1",  "dCuO1",  "dErO1",  "dEuO1",  "dFeN1",  "dFeO1", 
-		 "dGeN1",  "dGeSi",  "dHoO1",  "dInN1",  "dInO1",  "dLaO1",  "dMoN1",  "dN1N1", 
-		 "dN1Ni",  "dN1Os",  "dN1P1",  "dN1P2",  "dN1Pb",  "dN1Re",  "dN1Ru",  "dN1S1", 
-		 "dN1S2",  "dN1Se",  "dN1Si",  "dN1Sn",  "dN1Ti",   "dN1U",   "dN1V",   "dN1W", 
-		 "dN1Zn",  "dN2Re",  "dNiO1",  "dO1Pb",  "dO1Rh",  "dO1Ru",  "dO1Ti",   "dO1U", 
-		  "dO1V",  "dO1Zn",  "dP1P1",    "dWW", };
-	private static final float[] BOND_LENGTH = {
-		2.991f, 2.569f, 2.953f, 2.524f, 3.181f, 2.721f, 2.091f, 2.399f, 
-		2.069f, 2.606f, 2.592f, 2.977f, 2.648f, 2.708f, 2.411f, 2.764f, 
-		2.125f, 2.868f, 2.872f, 3.041f, 2.233f, 2.252f, 2.256f, 2.888f, 
-		2.511f, 2.476f, 2.802f, 2.436f, 2.471f, 3.042f, 2.823f, 2.906f, 
-		2.773f, 2.553f, 2.562f, 2.730f, 2.621f, 3.072f, 2.822f, 2.889f, 
-		2.805f, 3.002f, 2.617f, 2.514f, 2.288f, 2.781f, 2.293f, 1.975f, 
-		1.992f, 2.029f, 3.254f, 2.131f, 2.482f, 1.789f, 2.515f, 1.547f, 
-		2.539f, 2.411f, 2.954f, 2.393f, 1.957f, 1.987f, 1.982f, 3.285f, 
-		1.828f, 1.888f, 2.437f, 2.452f, 2.371f, 2.504f, 2.344f, 2.331f, 
-		2.769f, 2.359f, 2.476f, 2.832f, 2.582f, 2.665f, 2.702f, 2.466f, 
-		2.458f, 2.397f, 2.147f, 2.836f, 2.488f, 1.951f, 1.924f, 1.943f, 
-		2.610f, 2.261f, 2.320f, 2.447f, 2.408f, 1.704f, 2.359f, 2.527f, 
-		2.450f, 1.448f, 2.881f, 2.504f, 2.709f, 2.681f, 2.459f, 2.466f, 
-		2.598f, 1.850f, 1.931f, 1.955f, 2.733f, 2.405f, 1.734f, 2.575f, 
-		2.446f, 2.349f, 2.272f, 2.808f, 2.406f, 2.390f, 2.562f, 2.445f, 
-		2.440f, 2.254f, 2.805f, 2.674f, 2.409f, 2.357f, 2.713f, 2.607f, 
-		2.732f, 2.762f, 2.639f, 2.458f, 2.878f, 2.922f, 2.284f, 2.933f, 
-		2.418f, 2.034f, 2.051f, 1.991f, 2.282f, 2.662f, 2.770f, 2.851f, 
-		2.098f, 2.650f, 2.768f, 2.414f, 1.800f, 3.195f, 2.598f, 2.847f, 
-		2.765f, 2.864f, 2.767f, 2.794f, 2.045f, 2.036f, 2.019f, 3.178f, 
-		2.051f, 2.033f, 2.765f, 2.276f, 2.246f, 2.919f, 2.749f, 2.792f, 
-		2.807f, 2.807f, 2.312f, 2.293f, 2.313f, 2.614f, 2.444f, 2.388f, 
-		2.745f, 2.598f, 3.085f, 2.736f, 2.807f, 1.778f, 1.769f, 3.240f, 
-		1.975f, 1.956f, 1.706f, 1.623f, 1.580f, 2.853f, 2.427f, 1.798f, 
-		2.101f, 2.276f, 3.380f, 2.199f, 2.707f, 2.680f, 3.024f, 1.383f, 
-		2.168f, 2.144f, 2.757f, 2.149f, 1.101f, 2.540f, 2.217f, 2.696f, 
-		2.161f, 2.328f, 2.260f, 2.761f, 2.369f, 2.668f, 2.469f, 2.241f, 
-		2.339f, 1.524f, 1.574f, 1.591f, 2.896f, 2.478f, 2.752f, 2.116f, 
-		1.388f, 1.502f, 2.245f, 1.929f, 1.928f, 2.521f, 2.251f, 2.244f, 
-		2.364f, 2.214f, 2.241f, 1.898f, 1.993f, 1.898f, 2.354f, 2.480f, 
-		2.062f, 2.052f, 2.785f, 2.330f, 2.777f, 2.412f, 2.727f, 2.729f, 
-		2.412f, 2.311f, 2.684f, 2.563f, 2.360f, 2.395f, 2.621f, 2.661f, 
-		2.352f, 1.720f, 2.040f, 1.597f, 1.591f, 1.584f, 1.747f, 1.373f, 
-		2.189f, 1.107f, 2.458f, 2.256f, 2.387f, 2.235f, 1.464f, 1.491f, 
-		1.462f, 2.373f, 1.947f, 2.037f, 2.065f, 2.027f, 2.051f, 2.413f, 
-		2.130f, 1.926f, 2.313f, 2.281f, 1.712f, 1.580f, 1.962f, 1.982f, 
-		1.955f, 3.050f, 3.364f, 2.852f, 3.471f, 2.827f, 3.493f, 3.382f, 
-		2.122f, 1.800f, 1.807f, 1.870f, 1.993f, 1.543f, 1.474f, 2.402f, 
-		2.227f, 1.761f, 1.741f, 1.746f, 1.612f, 1.614f, 2.211f, 2.182f, 
-		2.107f, 2.388f, 3.026f, 2.835f, 2.284f, 2.238f, 2.212f, 2.680f, 
-		2.725f, 2.785f, 3.961f, 2.913f, 2.217f, 2.678f, 2.767f, 2.734f, 
-		3.069f, 2.912f, 2.873f, 2.885f, 2.833f, 2.501f, 2.546f, 2.757f, 
-		2.716f, 2.348f, 2.477f, 2.808f, 2.714f, 2.732f, 2.826f, 2.773f, 
-		2.643f, 2.831f, 2.745f, 2.638f, 3.118f, 2.539f, 1.961f, 1.897f, 
-		1.796f, 2.589f, 2.951f, 2.722f, 2.404f, 2.487f, 2.433f, 2.773f, 
-		2.802f, 1.820f, 2.389f, 2.334f, 2.824f, 2.422f, 0.912f, 2.724f, 
-		2.560f, 2.764f, 2.709f, 2.551f, 2.541f, 2.944f, 2.546f, 2.601f, 
-		1.904f, 1.911f, 2.621f, 2.856f, 2.408f, 1.876f, 2.501f, 2.297f, 
-		2.252f, 3.020f, 2.460f, 2.863f, 2.468f, 2.875f, 2.560f, 2.506f, 
-		2.550f, 2.206f, 2.444f, 2.697f, 2.613f, 2.576f, 2.266f, 2.856f, 
-		2.583f, 2.573f, 2.698f, 2.863f, 2.470f, 2.556f, 2.814f, 2.514f, 
-		2.614f, 2.708f, 2.374f, 2.700f, 1.527f, 1.510f, 1.469f, 2.608f, 
-		2.163f, 2.622f, 1.767f, 1.997f, 2.135f, 3.453f, 1.926f, 2.571f, 
-		2.525f, 2.890f, 1.334f, 2.035f, 1.980f, 2.710f, 1.959f, 0.979f, 
-		2.264f, 2.095f, 2.513f, 2.158f, 2.168f, 2.091f, 3.062f, 2.749f, 
-		2.245f, 2.374f, 2.206f, 2.138f, 2.192f, 1.469f, 1.476f, 1.450f, 
-		2.864f, 2.197f, 2.707f, 1.946f, 1.432f, 1.425f, 2.108f, 1.849f, 
-		1.820f, 1.834f, 2.330f, 2.036f, 2.605f, 2.063f, 3.283f, 2.138f, 
-		2.067f, 2.075f, 1.814f, 1.804f, 1.789f, 2.145f, 2.252f, 1.961f, 
-		1.868f, 2.745f, 2.137f, 2.776f, 2.200f, 2.584f, 2.139f, 2.570f, 
-		2.143f, 2.155f, 2.488f, 2.716f, 2.074f, 2.180f, 2.500f, 2.640f, 
-		1.984f, 2.312f, 1.474f, 1.434f, 2.733f, 2.192f, 2.795f, 1.735f, 
-		1.980f, 2.231f, 3.583f, 2.028f, 2.644f, 2.685f, 2.886f, 1.346f, 
-		2.043f, 1.983f, 2.639f, 1.957f, 0.950f, 2.522f, 2.072f, 2.636f, 
-		2.097f, 2.167f, 2.067f, 3.221f, 2.797f, 2.273f, 2.587f, 2.186f, 
-		2.125f, 2.336f, 1.373f, 1.438f, 1.403f, 2.812f, 2.285f, 2.754f, 
-		1.929f, 1.353f, 1.303f, 2.123f, 1.820f, 1.805f, 1.808f, 2.205f, 
-		2.003f, 2.030f, 3.352f, 2.202f, 2.131f, 2.188f, 1.755f, 1.791f, 
-		1.762f, 1.761f, 2.129f, 2.510f, 1.913f, 1.875f, 2.730f, 2.137f, 
-		2.835f, 2.381f, 2.697f, 2.121f, 2.848f, 2.389f, 2.154f, 2.613f, 
-		2.742f, 2.233f, 2.318f, 2.654f, 2.672f, 1.999f, 2.534f, 1.375f, 
-		2.446f, 2.809f, 1.632f, 1.789f, 1.890f, 1.949f, 2.674f, 2.856f, 
-		1.790f, 2.110f, 1.913f, 0.949f, 2.163f, 2.055f, 2.024f, 2.245f, 
-		1.882f, 2.672f, 2.277f, 2.670f, 2.195f, 1.822f, 2.013f, 1.328f, 
-		1.325f, 2.545f, 2.098f, 1.799f, 1.286f, 1.908f, 1.774f, 1.763f, 
-		2.592f, 1.970f, 2.629f, 1.978f, 1.927f, 1.863f, 1.903f, 1.679f, 
-		1.757f, 1.715f, 2.124f, 2.619f, 1.830f, 1.841f, 2.098f, 2.075f, 
-		2.059f, 2.404f, 2.077f, 2.555f, 1.977f, 2.032f, 2.631f, 2.623f, 
-		2.003f, 2.353f, 2.408f, 3.097f, 2.706f, 2.528f, 2.573f, 2.321f, 
-		2.591f, 2.510f, 2.234f, 2.760f, 2.710f, 2.368f, 2.338f, 2.293f, 
-		2.808f, 2.337f, 2.350f, 2.593f, 3.041f, 2.800f, 2.771f, 2.559f, 
-		2.579f, 2.649f, 2.524f, 2.676f, 2.801f, 2.843f, 2.706f, 3.181f, 
-		2.474f, 2.648f, 2.628f, 2.493f, 2.444f, 2.939f, 3.122f, 2.423f, 
-		2.248f, 2.267f, 2.322f, 2.281f, 2.620f, 2.605f, 2.692f, 1.771f, 
-		2.262f, 2.172f, 2.683f, 2.196f, 1.376f, 2.433f, 2.441f, 2.617f, 
-		2.540f, 2.432f, 2.389f, 2.856f, 2.596f, 2.441f, 2.455f, 1.707f, 
-		1.747f, 2.413f, 2.765f, 2.334f, 2.622f, 1.432f, 2.379f, 2.092f, 
-		1.999f, 2.064f, 2.795f, 2.316f, 2.805f, 2.315f, 2.589f, 2.387f, 
-		2.370f, 2.407f, 2.042f, 2.121f, 2.032f, 2.372f, 2.434f, 2.410f, 
-		2.055f, 2.719f, 2.427f, 2.409f, 2.657f, 2.521f, 2.697f, 2.310f, 
-		2.523f, 2.590f, 2.667f, 2.331f, 2.405f, 2.602f, 2.580f, 2.252f, 
-		2.489f, 2.453f, 2.536f, 2.593f, 2.533f, 1.995f, 2.552f, 2.529f, 
-		2.373f, 1.682f, 2.719f, 2.679f, 2.591f, 2.630f, 2.612f, 2.656f, 
-		2.812f, 1.967f, 2.022f, 2.098f, 2.548f, 2.072f, 2.077f, 2.215f, 
-		2.166f, 2.668f, 2.748f, 2.603f, 2.679f, 2.653f, 2.251f, 2.294f, 
-		2.204f, 2.615f, 2.349f, 2.301f, 2.562f, 2.791f, 2.526f, 2.554f, 
-		2.660f, 3.081f, 2.738f, 2.727f, 2.716f, 2.728f, 1.884f, 2.912f, 
-		2.422f, 2.409f, 1.773f, 2.693f, 2.626f, 2.575f, 2.951f, 2.079f, 
-		2.057f, 2.038f, 1.962f, 1.966f, 2.996f, 2.382f, 2.325f, 2.315f, 
-		2.704f, 2.744f, 2.710f, 2.548f, 2.397f, 2.401f, 2.187f, 2.602f, 
-		2.463f, 2.329f, 2.622f, 2.737f, 3.095f, 3.703f, 2.716f, 2.476f, 
-		2.551f, 2.307f, 2.485f, 1.846f, 2.920f, 2.661f, 2.696f, 3.738f, 
-		2.881f, 2.572f, 2.677f, 2.020f, 2.002f, 1.996f, 2.997f, 1.968f, 
-		1.989f, 2.646f, 2.251f, 2.256f, 2.732f, 2.502f, 2.631f, 2.769f, 
-		2.687f, 2.654f, 2.286f, 2.310f, 2.255f, 2.569f, 2.428f, 2.352f, 
-		2.610f, 2.664f, 2.666f, 2.730f, 3.521f, 2.391f, 3.016f, 2.565f, 
-		2.503f, 2.465f, 2.393f, 2.350f, 2.795f, 2.747f, 3.080f, 2.374f, 
-		2.967f, 2.509f, 2.474f, 2.387f, 2.362f, 2.300f, 2.764f, 2.845f, 
-		3.009f, 2.823f, 3.514f, 2.928f, 2.526f, 3.286f, 2.606f, 2.583f, 
-		2.543f, 2.459f, 2.377f, 3.055f, 2.918f, 3.168f, 1.925f, 1.881f, 
-		2.284f, 1.782f, 1.110f, 2.008f, 2.622f, 2.579f, 1.995f, 2.063f, 
-		2.058f, 2.724f, 1.838f, 1.975f, 1.412f, 1.356f, 1.912f, 2.335f, 
-		2.006f, 1.940f, 1.594f, 1.536f, 2.094f, 1.957f, 2.028f, 2.136f, 
-		2.096f, 1.581f, 1.540f, 1.541f, 1.862f, 1.979f, 1.831f, 1.668f, 
-		2.003f, 1.886f, 1.900f, 1.849f, 3.194f, 2.274f, 1.933f, 1.893f, 
-		2.796f, 2.213f, 2.106f, 2.021f, 2.608f, 2.456f, 2.406f, 1.621f, 
-		2.590f, 2.616f, 2.605f, 2.686f, 2.465f, 2.651f, 2.766f, 2.075f, 
-		2.068f, 1.978f, 2.994f, 2.625f, 2.001f, 2.045f, 2.744f, 2.239f, 
-		2.191f, 2.653f, 2.602f, 2.597f, 2.854f, 2.620f, 2.734f, 2.266f, 
-		2.349f, 2.216f, 2.528f, 2.384f, 2.298f, 2.637f, 2.961f, 2.577f, 
-		2.716f, 2.840f, 2.775f, 2.505f, 2.467f, 2.506f, 2.461f, 1.524f, 
-		2.549f, 2.593f, 2.418f, 2.556f, 2.656f, 2.023f, 2.045f, 2.147f, 
-		3.254f, 2.361f, 1.940f, 1.988f, 2.423f, 2.416f, 2.451f, 2.417f, 
-		2.530f, 2.426f, 2.453f, 2.283f, 2.320f, 2.717f, 2.474f, 2.425f, 
-		2.730f, 3.435f, 2.733f, 3.247f, 2.384f, 2.086f, 3.026f, 2.619f, 
-		2.560f, 2.508f, 2.434f, 2.380f, 2.821f, 2.823f, 3.010f, 2.581f, 
-		1.470f, 2.571f, 2.562f, 2.668f, 2.493f, 3.552f, 2.675f, 2.679f, 
-		2.481f, 2.669f, 1.884f, 2.013f, 1.959f, 2.465f, 1.801f, 2.047f, 
-		2.529f, 2.410f, 2.340f, 2.642f, 2.487f, 2.451f, 3.688f, 2.591f, 
-		2.475f, 2.491f, 2.229f, 2.421f, 2.649f, 2.367f, 2.400f, 2.707f, 
-		2.588f, 2.653f, 3.070f, 2.589f, 3.146f, 2.382f, 1.951f, 2.571f, 
-		1.732f, 1.579f, 2.817f, 2.470f, 2.016f, 2.210f, 2.084f, 1.720f, 
-		1.786f, 0.880f, 0.880f, 0.900f, 2.412f, 2.060f, 2.391f, 1.608f, 
-		2.170f, 0.848f, 1.169f, 1.823f, 1.302f, 1.301f, 2.385f, 1.653f, 
-		2.355f, 1.713f, 3.035f, 1.835f, 1.627f, 1.761f, 1.211f, 1.245f, 
-		1.538f, 2.104f, 1.008f, 1.396f, 2.385f, 1.649f, 2.574f, 1.832f, 
-		2.754f, 2.819f, 1.904f, 2.389f, 2.485f, 1.858f, 1.745f, 2.269f, 
-		2.379f, 1.731f, 2.067f, 3.076f, 2.897f, 2.111f, 2.302f, 2.344f, 
-		2.102f, 2.202f, 2.736f, 2.517f, 2.820f, 2.907f, 3.063f, 2.714f, 
-		2.615f, 2.716f, 3.021f, 2.787f, 2.566f, 2.613f, 2.896f, 2.335f, 
-		2.409f, 2.798f, 2.673f, 2.689f, 2.848f, 2.453f, 2.444f, 3.105f, 
-		2.770f, 2.819f, 2.732f, 2.770f, 2.502f, 2.534f, 3.080f, 2.628f, 
-		2.487f, 2.649f, 2.776f, 2.780f, 3.654f, 3.019f, 2.537f, 2.502f, 
-		2.445f, 2.378f, 2.328f, 2.717f, 3.084f, 2.881f, 2.915f, 2.707f, 
-		2.708f, 3.195f, 2.895f, 2.719f, 2.780f, 2.101f, 2.265f, 2.197f, 
-		2.959f, 3.124f, 2.603f, 2.127f, 2.735f, 2.431f, 2.458f, 3.200f, 
-		2.618f, 3.109f, 2.647f, 3.098f, 2.776f, 2.684f, 2.732f, 2.792f, 
-		2.638f, 3.251f, 3.002f, 2.848f, 2.783f, 2.482f, 3.228f, 2.806f, 
-		2.951f, 2.944f, 3.104f, 2.673f, 2.758f, 2.990f, 3.069f, 2.785f, 
-		2.845f, 2.992f, 3.073f, 2.564f, 2.898f, 2.994f, 2.601f, 2.660f, 
-		2.747f, 2.267f, 2.284f, 2.414f, 2.689f, 2.180f, 2.195f, 2.714f, 
-		2.637f, 2.614f, 2.635f, 2.795f, 2.526f, 2.591f, 2.860f, 2.659f, 
-		2.613f, 2.906f, 2.758f, 2.757f, 2.886f, 2.106f, 2.075f, 2.087f, 
-		2.682f, 2.126f, 2.182f, 2.887f, 2.319f, 2.237f, 2.613f, 2.739f, 
-		2.877f, 2.777f, 2.765f, 2.376f, 2.309f, 2.340f, 2.486f, 2.351f, 
-		2.629f, 2.616f, 2.969f, 2.775f, 2.876f, 3.844f, 3.815f, 3.441f, 
-		3.723f, 3.557f, 3.882f, 2.718f, 2.695f, 2.636f, 3.609f, 2.583f, 
-		2.501f, 3.112f, 3.063f, 3.112f, 3.168f, 2.596f, 2.838f, 2.859f, 
-		2.637f, 2.645f, 2.807f, 2.894f, 2.683f, 2.879f, 2.779f, 2.638f, 
-		3.026f, 2.918f, 3.224f, 2.394f, 2.424f, 2.401f, 3.292f, 2.325f, 
-		2.247f, 2.878f, 2.850f, 2.772f, 2.847f, 2.631f, 2.717f, 2.886f, 
-		2.913f, 2.226f, 2.240f, 2.208f, 2.153f, 2.173f, 2.848f, 2.314f, 
-		2.297f, 2.659f, 2.744f, 2.959f, 2.763f, 2.825f, 2.389f, 2.558f, 
-		2.244f, 2.663f, 2.503f, 2.376f, 2.634f, 2.649f, 2.649f, 2.958f, 
-		2.543f, 2.435f, 2.621f, 2.206f, 2.240f, 2.167f, 2.666f, 1.966f, 
-		2.254f, 2.259f, 2.504f, 2.454f, 3.040f, 2.688f, 2.715f, 3.131f, 
-		2.718f, 2.906f, 2.395f, 2.512f, 2.254f, 2.753f, 2.495f, 2.577f, 
-		2.760f, 2.748f, 3.500f, 3.097f, 3.252f, 1.412f, 1.378f, 1.231f, 
-		2.053f, 2.521f, 2.081f, 1.411f, 1.433f, 2.100f, 1.694f, 1.654f, 
-		1.660f, 2.539f, 2.060f, 2.693f, 2.047f, 2.206f, 2.186f, 2.074f, 
-		2.120f, 1.673f, 1.660f, 1.635f, 1.870f, 2.105f, 2.219f, 1.859f, 
-		1.747f, 2.479f, 2.196f, 2.034f, 2.643f, 2.052f, 2.333f, 2.027f, 
-		2.579f, 2.514f, 2.319f, 2.143f, 2.063f, 2.344f, 2.440f, 2.104f, 
-		2.124f, 1.393f, 1.345f, 2.256f, 2.612f, 2.050f, 2.558f, 1.225f, 
-		1.380f, 2.084f, 1.708f, 1.594f, 1.839f, 2.580f, 2.033f, 2.650f, 
-		2.030f, 2.603f, 2.171f, 2.060f, 2.076f, 1.644f, 1.648f, 1.609f, 
-		2.254f, 2.316f, 1.823f, 1.883f, 2.572f, 2.297f, 2.207f, 2.538f, 
-		2.093f, 2.641f, 2.199f, 2.586f, 2.488f, 2.569f, 2.117f, 2.237f, 
-		2.469f, 2.461f, 2.076f, 2.329f, 2.282f, 2.554f, 2.070f, 1.230f, 
-		2.065f, 1.781f, 2.816f, 2.058f, 2.580f, 1.977f, 2.609f, 2.099f, 
-		2.069f, 2.029f, 2.475f, 2.282f, 1.845f, 2.550f, 2.284f, 2.250f, 
-		2.482f, 2.747f, 2.213f, 2.690f, 2.394f, 2.531f, 2.108f, 2.166f, 
-		2.455f, 2.484f, 2.072f, 2.363f, 2.947f, 3.272f, 3.047f, 3.049f, 
-		3.609f, 3.062f, 3.575f, 2.924f, 2.015f, 2.135f, 1.765f, 2.617f, 
-		2.488f, 2.599f, 2.592f, 3.817f, 2.506f, 2.423f, 2.877f, 2.874f, 
-		3.035f, 2.592f, 2.057f, 2.052f, 2.390f, 2.668f, 2.191f, 2.148f, 
-		2.609f, 2.630f, 2.690f, 2.675f, 2.706f, 2.170f, 2.315f, 2.125f, 
-		2.580f, 2.338f, 2.248f, 2.645f, 2.785f, 2.516f, 2.850f, 2.868f, 
-		3.063f, 2.472f, 2.459f, 2.966f, 1.471f, 2.076f, 1.648f, 1.570f, 
-		1.599f, 2.584f, 2.027f, 2.535f, 2.026f, 2.474f, 2.030f, 2.059f, 
-		2.086f, 1.515f, 1.614f, 1.464f, 1.887f, 2.033f, 2.162f, 1.752f, 
-		1.646f, 2.466f, 2.121f, 1.922f, 2.410f, 2.002f, 2.485f, 1.913f, 
-		2.656f, 2.344f, 2.364f, 1.950f, 1.925f, 2.363f, 2.346f, 2.054f, 
-		2.138f, 2.129f, 2.236f, 1.790f, 2.585f, 2.098f, 2.446f, 2.036f, 
-		2.352f, 2.139f, 2.070f, 2.104f, 1.837f, 2.248f, 2.090f, 2.180f, 
-		1.891f, 2.385f, 2.285f, 2.137f, 2.338f, 2.368f, 2.447f, 2.091f, 
-		2.637f, 2.265f, 2.370f, 2.002f, 2.360f, 2.308f, 2.278f, 2.076f, 
-		2.197f, 2.534f, 1.990f, 2.868f, 2.362f, 2.294f, 2.832f, 2.783f, 
-		2.789f, 2.913f, 2.868f, 2.826f, 2.413f, 2.300f, 2.352f, 2.666f, 
-		2.519f, 2.426f, 2.684f, 2.715f, 3.021f, 2.219f, 2.216f, 2.230f, 
-		2.759f, 2.282f, 2.288f, 2.449f, 2.299f, 2.340f, 2.102f, 2.275f, 
-		2.193f, 2.576f, 2.750f, 2.250f, 2.263f, 2.913f, 2.604f, 2.620f, 
-		2.473f, 3.093f, 2.607f, 3.039f, 3.009f, 2.499f, 2.502f, 3.045f, 
-		2.960f, 2.408f, 2.754f, 2.232f, 2.259f, 2.327f, 2.445f, 2.274f, 
-		2.303f, 2.087f, 2.532f, 2.249f, 2.268f, 2.569f, 2.493f, 2.478f, 
-		2.405f, 2.614f, 2.925f, 2.358f, 2.112f, 2.184f, 2.454f, 3.112f, 
-		3.056f, 2.759f, 2.733f, 2.906f, 2.942f, 2.681f, 2.938f, 3.030f, 
-		2.746f, 2.834f, 3.468f, 2.792f, 2.652f, 2.858f, 2.594f, 2.801f, 
-		2.307f, 2.316f, 2.269f, 2.566f, 2.416f, 2.380f, 2.689f, 2.592f, 
-		3.158f, 2.889f, 2.868f, 2.376f, 3.801f, 2.711f, 3.014f, 3.146f, 
-		2.752f, 2.859f, 2.736f, 2.815f, 2.312f, 2.262f, 2.286f, 2.589f, 
-		2.458f, 2.373f, 2.626f, 2.601f, 3.025f, 2.791f, 2.760f, 2.708f, 
-		3.013f, 3.062f, 3.818f, 4.042f, 3.527f, 2.636f, 2.883f, 2.921f, 
-		2.403f, 2.469f, 2.340f, 2.746f, 2.522f, 2.504f, 2.767f, 2.691f, 
-		3.047f, 3.032f, 3.029f, 2.620f, 2.780f, 2.787f, 2.355f, 2.329f, 
-		2.337f, 2.587f, 2.487f, 2.337f, 2.639f, 2.582f, 2.338f, 2.836f, 
-		2.513f, 2.902f, 2.857f, 2.380f, 2.272f, 2.285f, 2.602f, 2.522f, 
-		2.395f, 2.677f, 2.706f, 2.561f, 2.940f, 3.038f, 2.436f, 2.052f, 
-		2.112f, 2.097f, 2.466f, 2.703f, 2.246f, 2.152f, 2.837f, 2.456f, 
-		2.409f, 2.617f, 2.709f, 2.443f, 2.905f, 2.795f, 2.822f, 2.370f, 
-		2.383f, 2.704f, 2.785f, 2.337f, 2.684f, 2.187f, 2.252f, 2.617f, 
-		2.620f, 2.206f, 2.874f, 2.644f, 2.574f, 2.667f, 2.540f, 2.901f, 
-		2.764f, 2.867f, 2.487f, 2.546f, 2.923f, 2.350f, 2.748f, 2.149f, 
-		2.255f, 2.258f, 2.836f, 2.511f, 2.566f, 2.799f, 2.777f, 2.844f, 
-		2.900f, 2.749f, 2.340f, 2.293f, 2.963f, 2.560f, 2.566f, 2.664f, 
-		3.011f, 2.744f, 2.653f, 2.831f, 2.935f, 2.519f, 2.465f, 2.914f, 
-		2.828f, 2.455f, 2.361f, 2.605f, 3.223f, 2.729f, 2.518f, 2.603f, 
-		2.685f, 3.091f, 2.590f, 3.147f, 3.142f, 2.417f, 2.951f, 3.187f, 
-		2.987f, 3.293f, 2.768f, 2.764f, 3.216f, 2.777f, 3.023f, 2.909f, 
-		2.737f, 2.977f, 2.666f, 2.750f, 3.282f, 2.618f, 2.732f, 2.944f, 
-		3.507f, 2.832f, 2.645f, 2.687f, 3.242f, 3.773f, 3.158f, 3.298f, 
-		2.101f, 2.069f, 2.757f, 2.812f, 2.547f, 1.991f, 1.885f, 1.709f, 
-		2.272f, 2.077f, 1.875f, 1.754f, 2.428f, 2.516f, 1.773f, 1.740f, 
-		1.653f, 1.973f, 2.271f, 2.082f, 2.250f, 2.217f, 2.428f, 2.252f, 
-		2.007f, 2.004f, 2.273f, 2.053f, 2.331f, 1.659f, 3.265f, 1.508f, 
-		1.793f, 3.289f, 1.404f, 1.334f, 1.511f, 1.487f, 1.974f, 1.862f, 
-		2.111f, 1.881f, 1.390f, 1.915f, 2.105f, 1.343f, 2.104f, 2.860f, 
-		2.159f, 2.129f, 2.493f, 2.446f, 2.454f, 2.703f, 1.866f, 2.715f, 
-		2.394f, 1.846f, 1.612f, 2.651f, 2.347f, 1.339f, 1.309f, 2.406f, 
-		2.472f, 1.938f, 2.069f, 1.894f, 1.910f, 2.037f, 2.406f, 1.899f, 
-		2.187f, 2.079f, 2.058f, 2.198f, 1.943f, 2.512f, 2.219f, 2.279f, 
-		1.925f, 1.931f, 1.289f, 1.321f, 2.568f, 1.971f, 1.882f, 1.214f, 
-		1.309f, 1.984f, 1.715f, 1.658f, 2.540f, 1.976f, 1.968f, 2.125f, 
-		2.026f, 1.859f, 1.673f, 1.680f, 1.860f, 2.078f, 2.207f, 1.852f, 
-		1.764f, 2.362f, 2.064f, 1.942f, 2.066f, 2.453f, 1.867f, 2.368f, 
-		2.375f, 1.827f, 2.185f, 2.074f, 2.211f, 1.255f, 1.424f, 1.724f, 
-		2.000f, 1.796f, 1.821f, 1.870f, 1.169f, 1.347f, 2.053f, 1.178f, 
-		1.816f, 1.637f, 1.612f, 1.925f, 1.977f, 1.953f, 1.808f, 1.813f, 
-		1.580f, 1.636f, 1.742f, 1.862f, 2.018f, 2.031f, 2.064f, 2.249f, 
-		2.259f, 2.435f, 2.430f, 2.636f, 3.316f, 2.326f, 2.625f, 2.191f, 
-		2.901f, 2.553f, 2.791f, 1.429f, 2.300f, 2.363f, 2.414f, 1.918f, 
-		1.642f, 2.064f, 2.188f, 2.358f, 2.059f, 2.164f, 2.185f, 2.365f, 
-		1.872f, 1.641f, 1.982f, 1.608f, 2.337f, 2.407f, 2.568f, 2.433f, 
-		1.937f, 1.963f, 1.955f, 2.295f, 2.326f, 2.286f, 2.185f, 2.364f, 
-		1.607f, 2.472f, 2.372f, 1.716f, 1.652f, 2.010f, 2.316f, 2.279f, 
-		2.601f, 1.984f, 2.395f, 2.394f, 2.268f, 2.214f, 2.422f, 2.447f, 
-		2.340f, 2.339f, 2.696f, 1.701f, 1.863f, 1.670f, 3.669f, 2.342f, 
-		2.358f, 2.077f, 2.216f, 2.269f, 3.127f, 2.468f, 2.524f, 1.091f, 
-		1.985f, 1.997f, 2.504f, 2.652f, 2.390f, 2.487f, 2.357f, 3.180f, 
-		2.007f, 1.798f, 2.608f, 2.849f, 2.134f, 2.376f, 2.575f, 1.896f, 
-		2.467f, 2.389f, 2.590f, 3.564f, 2.616f, 2.772f, 1.644f, 2.150f, 
-		2.552f, 1.748f, 1.807f, 1.698f, 2.369f, 2.216f, 2.159f, 2.381f, 
-		2.387f, 2.694f, 2.557f, 1.265f, 1.150f, 1.779f, 1.710f, 1.222f, 
-		1.784f, 1.578f, 1.533f, 2.023f, 2.011f, 1.740f, 1.810f, 1.618f, 
-		1.540f, 1.511f, 1.963f, 1.839f, 1.591f, 1.913f, 1.782f, 1.897f, 
-		2.034f, 1.719f, 1.858f, 1.664f, 1.756f, 1.989f, 1.945f, 1.843f, 
-		1.820f, 1.580f, 1.763f, 1.759f, 1.622f, 1.809f, 1.854f, 1.718f, 
-		2.227f, 1.748f, 1.818f, 2.122f, 2.007f, 1.235f, 2.269f, 2.696f, 
-		1.761f, 2.259f, 2.266f, 2.534f, 2.492f, 2.503f, 2.281f, 2.071f, 
-		2.077f, 2.175f, 2.279f, 2.133f, 1.830f, 1.053f, 1.728f, 1.483f, 
-		1.479f, 2.421f, 2.114f, 2.417f, 2.002f, 1.735f, 1.698f, 2.219f, 
-		1.726f, 1.494f, 1.433f, 1.426f, 1.436f, 2.171f, 1.625f, 1.807f, 
-		2.237f, 2.140f, 1.795f, 2.353f, 1.842f, 1.928f, 1.643f, 1.771f, 
-		1.605f, 1.710f, 2.322f, 2.090f, 1.532f, 2.505f, 2.206f, 1.709f, 
-		2.002f, 2.747f, 2.325f, 2.094f, 2.118f, 2.256f, 2.231f, 1.939f, 
-		2.598f, 2.104f, 2.089f, 2.312f, 2.367f, 2.183f, 2.231f, 2.251f, 
-		1.940f, 2.104f, 2.158f, 3.075f, 2.758f, 2.291f, 2.240f, 2.669f, 
-		3.299f, 2.616f, 2.308f, 2.212f, 2.554f, 2.418f, 2.098f, 2.550f, 
-		2.682f, 2.669f, 2.236f, 2.259f, 2.022f, 1.906f, 2.182f, 2.316f, 
-		1.984f, 2.316f, 2.128f, 2.126f, 2.159f, 2.337f, 2.175f, 2.736f, 
-		2.464f, 2.414f, 2.662f, 2.140f, 2.444f, 2.323f, 2.446f, 2.465f, 
-		2.176f, 2.292f, 2.193f, 2.361f, 2.385f, 2.768f, 2.611f, 2.732f, 
-		2.667f, 2.568f, 2.422f, 2.530f, 2.729f, 2.514f, 2.232f, 2.290f, 
-		1.835f, 1.896f, 1.194f, 1.213f, 1.725f, 1.671f, 1.668f, 1.791f, 
-		1.142f, 1.127f, 1.879f, 1.116f, 1.727f, 1.555f, 1.743f, 1.688f, 
-		1.424f, 1.854f, 2.106f, 1.807f, 1.973f, 1.658f, 1.559f, 1.636f, 
-		2.357f, 2.295f, 2.309f, 2.706f, 1.517f, 1.549f, 2.222f, 1.730f, 
-		1.795f, 1.697f, 2.115f, 2.224f, 2.207f, 1.116f, 1.770f, 1.619f, 
-		1.058f, 1.644f, 1.486f, 1.698f, 1.605f, 1.457f, 2.214f, 1.784f, 
-		1.699f, 1.918f, 1.662f, 1.745f, 1.771f, 2.607f, 2.083f, 1.677f, 
-		1.622f, 1.704f, 2.231f, 2.147f, 2.552f, 2.269f, 2.311f, 2.062f, 
-		2.667f, 2.490f, 2.876f, 2.322f, 2.601f, 1.920f, 1.884f, 2.016f, 
-		2.315f, 1.536f, 1.388f, 1.390f, 1.385f, 1.421f, 2.019f, 1.371f, 
-		1.378f, 1.371f, 1.405f, 1.782f, 1.988f, 2.187f, 2.078f, 1.727f, 
-		1.733f, 1.387f, 1.419f, 1.908f, 1.965f, 2.028f, 2.119f, 2.173f, 
-		2.144f, 1.968f, 2.623f, 1.968f, 2.233f, 2.073f, 2.139f, 2.012f, 
-		2.015f, 2.086f, 2.405f, 2.053f, 2.516f, 2.154f, 2.201f, 2.048f, 
-		2.447f, 2.576f, 1.362f, 1.358f, 2.120f, 1.682f, 2.145f, 2.042f, 
-		2.032f, 2.029f, 1.680f, 1.627f, 1.710f, 1.786f, 2.046f, 2.147f, 
-		1.374f, 2.010f, 1.400f, 2.097f, 1.646f, 2.143f, 2.161f, 2.048f, 
-		2.092f, 1.627f, 1.629f, 1.791f, 2.143f, 2.125f, 2.067f, 1.987f, 
-		2.156f, 1.966f, 1.941f, 2.046f, 2.260f, 1.849f, 2.042f, 2.130f, 
-		2.192f, 2.153f, 2.119f, 2.043f, 2.118f, 2.049f, 2.439f, 2.264f, 
-		2.613f, 2.381f, 2.370f, 2.190f, 2.462f, 2.340f, 2.710f, 2.404f, 
-		2.019f, 2.540f, 2.519f, 2.363f, 2.107f, 1.822f, 2.031f, 2.313f, 
-		2.072f, 2.001f, 1.364f, 1.415f, 2.001f, 1.934f, 1.910f, 1.950f, 
-		2.038f, 2.141f, 1.319f, 1.961f, 1.332f, 1.720f, 1.987f, 2.024f, 
-		2.092f, 1.968f, 1.834f, 1.722f, 1.686f, 1.899f, 2.041f, 2.125f, 
-		2.285f, 1.867f, 2.359f, 1.930f, 2.301f, 1.930f, 2.141f, 2.495f, 
-		2.524f, 2.198f, 1.306f, 1.362f, 1.379f, 1.637f, 1.771f, 1.593f, 
-		1.620f, 1.789f, 1.760f, 1.901f, 1.816f, 1.821f, 1.936f, 2.092f, 
-		2.163f, 1.898f, 2.041f, 2.069f, 2.500f, 2.291f, 2.311f, 2.540f, 
-		2.494f, 2.284f, 2.082f, 2.637f, 2.438f, 2.537f, 2.330f, 2.517f, 
-		2.154f, 2.357f, 2.280f, 2.387f, 2.271f, 1.943f, 2.716f, 2.586f, 
-		1.863f, 1.731f, 1.514f, 1.431f, 1.389f, 1.842f, 1.404f, 1.331f, 
-		1.386f, 1.398f, 1.859f, 1.990f, 1.339f, 1.387f, 1.351f, 1.959f, 
-		1.729f, 1.719f, 2.144f, 1.831f, 1.737f, 1.744f, 1.916f, 1.794f, 
-		2.098f, 2.068f, 1.898f, 1.997f, 1.403f, 1.430f, 1.780f, 1.774f, 
-		1.893f, 1.885f, 1.975f, 1.906f, 2.262f, 2.357f, 1.960f, 1.888f, 
-		1.966f, 2.322f, 2.287f, 2.205f, 2.112f, 2.473f, 1.776f, 1.336f, 
-		1.849f, 1.979f, 1.583f, 1.681f, 2.326f, 1.887f, 2.099f, 1.614f, 
-		1.563f, 1.778f, 1.747f, 2.191f, 1.741f, 2.647f, 1.755f, 1.895f, 
-		2.135f, 1.915f, 2.021f, 2.629f, 2.042f, 2.133f, 1.978f, 2.242f, 
-		1.869f, 2.041f, 2.134f, 2.674f, };
+	private static final String cBondDataFile = "bondLengthData.txt";
+
+	private static boolean isInitialized = false;
+	private static int[] BOND_ID,BOND_COUNT;
+	private static float[] BOND_LENGTH,BOND_STDDEV;
+
+	public static final float DEFAULT_BOND_LENGTH = 2.0005f;
+	public static final float DEFAULT_BOND_STDDEV = 1.0000f;
 
 	private static final boolean CONSIDER_PI[] = { false,
-				   false,  false,  false,  false,   true,   true,   //  H  f,He f,Li f,Be f,B  f,C  f,
-				   true,   true,  false,  false,  false,  false,   //  N f, O  f,F  f,Ne f,Na f,Mg f,
-				   false,  false,   true,   true };	                //  Al f,Si f,P  f,S
+				   false,  false,  false,  false,   true,   true,   //  H,  He, Li, Be, B,  C,
+				   true,   true,  false,  false,  false,  false,    //  N,  O,  F,  Ne, Na, Mg,
+				   false,  false,   true,   true };	                //  Al, Si, P,  S
 
-	private final float[]	mBondLength;
+	private final float[] mBondLength,mBondStdDev;
 
 	/**
 	 * Calculates and caches a list of bond length estimates from molecule.
@@ -681,16 +49,87 @@ public class BondLengthSet {
 		mol.ensureHelperArrays(Molecule.cHelperRings);
 	
 		mBondLength = new float[mol.getAllBonds()];
-		for (int bond=0; bond<mol.getAllBonds(); bond++)
-			mBondLength[bond] = lookupBondLength(mol, bond);
+		mBondStdDev = new float[mol.getAllBonds()];
+		for (int bond=0; bond<mol.getAllBonds(); bond++) {
+			int index = getBondIndex(mol, bond);
+			if (index == -1) {
+				mBondLength[bond] = getBondLengthFromCovalentRadii(mol, bond);
+				mBondStdDev[bond] = getStdDevFromCovalentRadii(mol, bond);
+				}
+			else {
+				mBondLength[bond] = getBondLength(index);
+				mBondStdDev[bond] = getBondStdDev(index);
+				}
+			}
+		}
+
+	private static void initialize() {
+		if (!isInitialized) {
+			synchronized (BondLengthSet.class) {
+				try {
+					BufferedReader bdr = TorsionDB.openReader(cBondDataFile);
+
+					String countString = bdr.readLine();
+					int count = (countString == null) ? 0 : Integer.parseInt(countString);
+
+					BOND_ID = new int[count];
+					BOND_LENGTH = new float[count];
+					BOND_STDDEV = new float[count];
+					BOND_COUNT = new int[count];
+
+					for (int i=0; i<count; i++) {
+						String line = bdr.readLine();
+						if (line != null) {
+							String[] item = line.split("\\t");
+							if (item.length == 4) {
+								try {
+									BOND_ID[i] = Integer.parseInt(item[0]);
+									BOND_LENGTH[i] = Float.parseFloat(item[1]);
+									BOND_STDDEV[i] = Float.parseFloat(item[2]);
+									BOND_COUNT[i] = Integer.parseInt(item[3]);
+									}
+								catch (NumberFormatException nfe) {
+									break;
+									}
+								}
+							}
+						}
+
+					bdr.close();
+					isInitialized = true;
+					}
+				catch (IOException e) {}
+				}
+			}
 		}
 
 	public float getLength(int bond) {
 		return mBondLength[bond];
 		}
 
+	public float getStdDev(int bond) {
+		return mBondStdDev[bond];
+		}
+
+	public static String getBondIDString(int index) {
+		if (index == -1)
+			return "unknown";
+		int id = BOND_ID[index];
+		int order = (id & 0xFF000000) >> 24;
+		int pi1 = (id & 0x00F00000) >> 20;
+		int pi2 = (id & 0x00000F00) >> 8;
+		int atomicNo1 = (id & 0x000FF000) >> 12;
+		int atomicNo2 = (id & 0x000000FF);
+		String piString1 = (isPiConsidered(atomicNo1)) ? Integer.toString(pi1) : "";
+		String piString2 = (isPiConsidered(atomicNo2)) ? Integer.toString(pi2) : "";
+		String s = (order == 0) ? "d" : ((order > 3) ? "a" : "") + (order & 3);
+		return s+Molecule.cAtomLabel[atomicNo1]+piString1+Molecule.cAtomLabel[atomicNo2]+piString2;
+		}
+
 	/**
-	 * Constructs a bond classification type from individual parameters.
+	 * Constructs a bond classification ID from individual parameters and returns the ID's
+	 * index in the sorted list of bond length information.
+	 * The index can be used to get typical bond length and standard deviation.
 	 * @param bondOrder
 	 * @param isAromatic
 	 * @param isDelocalized
@@ -700,28 +139,85 @@ public class BondLengthSet {
 	 * @param atomPi2
 	 * @return
 	 */
-	public static String getBondType(int bondOrder, boolean isAromatic, boolean isDelocalized, int atomicNo1, int atomicNo2, int atomPi1, int atomPi2) {
-		String pi1 = (atomicNo1 < CONSIDER_PI.length && CONSIDER_PI[atomicNo1]) ? ""+atomPi1 : "";
-		String pi2 = (atomicNo2 < CONSIDER_PI.length && CONSIDER_PI[atomicNo2]) ? ""+atomPi2 : "";
-		String atomType1 = Molecule.cAtomLabel[atomicNo1] + pi1;
-		String atomType2 = Molecule.cAtomLabel[atomicNo2] + pi2;
-		String bondType = isDelocalized ? "d" : isAromatic ? "a"+bondOrder : ""+bondOrder;
-		return bondType+((atomType1.compareTo(atomType2)<0)?atomType1+atomType2:atomType2+atomType1);
+	public static int getBondIndex(int bondOrder, boolean isAromatic, boolean isDelocalized, int atomicNo1, int atomicNo2, int atomPi1, int atomPi2) {
+		return lookupBondIndex(getBondID(bondOrder, isAromatic, isDelocalized, atomicNo1, atomicNo2, atomPi1, atomPi2));
 		}
 
-	public static String getBondType(StereoMolecule mol, int bond) {
+	/**
+	 * Constructs a bond classification index from individual parameters.
+	 * @param bondOrder
+	 * @param isAromatic
+	 * @param isDelocalized
+	 * @param atomicNo1
+	 * @param atomicNo2
+	 * @param atomPi1
+	 * @param atomPi2
+	 * @return
+	 */
+	private static int getBondID(int bondOrder, boolean isAromatic, boolean isDelocalized, int atomicNo1, int atomicNo2, int atomPi1, int atomPi2) {
+		int pi1 = (atomicNo1 < CONSIDER_PI.length && CONSIDER_PI[atomicNo1]) ? atomPi1 << 8 : 0;
+		int pi2 = (atomicNo2 < CONSIDER_PI.length && CONSIDER_PI[atomicNo2]) ? atomPi2 << 8 : 0;
+		int atomType1 = pi1 + atomicNo1;
+		int atomType2 = pi2 + atomicNo2;
+		int bondType = isDelocalized ? 0 : isAromatic ? 4+bondOrder : bondOrder;
+		return (bondType<<24)+((atomType1<atomType2)?(atomType1<<12)+atomType2:(atomType2<<12)+atomType1);
+		}
+
+	/**
+	 * Constructs a bond classification ID from a specific bond in a molecule and returns the ID's
+	 * index in the sorted list of bond length information.
+	 * The index can be used to get typical bond length and standard deviation.
+	 * @param mol
+	 * @param bond
+	 * @return
+	 */
+	public static int getBondIndex(StereoMolecule mol, int bond) {
 		int atom1 = mol.getBondAtom(0, bond);
 		int atom2 = mol.getBondAtom(1, bond);
 		int atomicNo1 = mol.getAtomicNo(atom1);
 		int atomicNo2 = mol.getAtomicNo(atom2);
-		String atomPi1 = (atomicNo1 < CONSIDER_PI.length && CONSIDER_PI[atomicNo1]) ? ""+mol.getAtomPi(atom1) : "";
-		String atomPi2 = (atomicNo2 < CONSIDER_PI.length && CONSIDER_PI[atomicNo2]) ? ""+mol.getAtomPi(atom2) : "";
-		String atomType1 = Molecule.cAtomLabel[atomicNo1] + atomPi1;
-		String atomType2 = Molecule.cAtomLabel[atomicNo2] + atomPi2;
-		String bondType = mol.isDelocalizedBond(bond) ? "d"
-						: mol.isAromaticBond(bond) ? "a"+mol.getBondOrder(bond)
-						: ""+mol.getBondOrder(bond);
-		return bondType+((atomType1.compareTo(atomType2)<0)?atomType1+atomType2:atomType2+atomType1);
+		return getBondIndex(mol.getBondOrder(bond), mol.isAromaticBond(bond), mol.isDelocalizedBond(bond), atomicNo1, atomicNo2, getAtomPi(mol, atom1), getAtomPi(mol, atom2));
+		}
+
+	/**
+	 * Constructs a bond classification index from a specific bond in a molecule.
+	 * The index can be used to get typical bond length and standard deviation.
+	 * @param mol
+	 * @param bond
+	 * @return
+	 */
+	public static int getBondID(StereoMolecule mol, int bond) {
+		int atom1 = mol.getBondAtom(0, bond);
+		int atom2 = mol.getBondAtom(1, bond);
+		int atomicNo1 = mol.getAtomicNo(atom1);
+		int atomicNo2 = mol.getAtomicNo(atom2);
+		return getBondID(mol.getBondOrder(bond), mol.isAromaticBond(bond), mol.isDelocalizedBond(bond), atomicNo1, atomicNo2, getAtomPi(mol, atom1), getAtomPi(mol, atom2));
+		}
+
+	/**
+	 * @param atomicNo
+	 * @return whether this atomicNo uses the atom's pi count to further distinguish bond type cases
+	 */
+	public static final boolean isPiConsidered(int atomicNo) {
+		return (atomicNo < CONSIDER_PI.length) && CONSIDER_PI[atomicNo];
+		}
+
+	/**
+	 * Returns an atom's pi electron count for the purpose of classifying a connected bond
+	 * to determine its length. The returned value may differ from the formal pi-electron count
+	 * if the formal count does not represent the real mesomeric situation well.
+	 * @param mol
+	 * @param atom
+	 * @return pi electron count
+	 */
+	public static int getAtomPi(StereoMolecule mol, int atom) {
+		if (atom >= mol.getAtoms())
+			return 0;
+
+		if (mol.isAromaticAtom(atom) && mol.getAtomicNo(atom) == 6 && mol.getAtomCharge(atom) != 0)
+			return 1;
+
+		return mol.getAtomPi(atom);
 		}
 
 	/**
@@ -735,27 +231,103 @@ public class BondLengthSet {
 	 * @return
 	 */
 	public static float lookupBondLength(StereoMolecule mol, int bond) {
-		return lookupBondLength(getBondType(mol, bond));
+		int index = getBondIndex(mol, bond);
+		return (index == -1) ? getBondLengthFromCovalentRadii(mol, bond) : getBondLength(index);
 		}
 
 	/**
 	 * Returns an estimate of the bond length based on atom and bond characteristics.
-	 * Requires cHelperRings level of helper arrays.
-	 * @param type valid bond classification obtained with one of the getBondType() methods
+	 * The bond is classified based on its characteristics the returned value is
+	 * the median of equally classified bonds within the COD or CSD database. Statistics of
+	 * purely organic bonds (no metal atoms) are taken from the organic subset of the COD/CSD.
+	 * If there are no similar bond in the crystallographic data sets, the the bond length
+	 * is estimated from the covalent radii, which if not available may be estimated from
+	 * the van-der-waals radii.
+	 * @param mol
 	 * @param bond
-	 * @return 2.0f if no statistics information is available for that bond type
+	 * @return
 	 */
-	public static float lookupBondLength(String type) {
+	public static float getBondLengthFromCovalentRadii(StereoMolecule mol, int bond) {
+		int atomicNo1 = mol.getAtomicNo(mol.getBondAtom(0, bond));
+		int atomicNo2 = mol.getAtomicNo(mol.getBondAtom(1, bond));
+		return getCovalentRadius(atomicNo1) + getCovalentRadius(atomicNo2);
+		}
+
+	/**
+	 * Returns an the standard deviation of bond lengths from bonds with similar
+	 * characteristics from crystallographic data. If the estimate is based on
+	 * covalent radii or van-der-waals radii, the standard deviation reflects that.
+	 * @param mol
+	 * @param bond
+	 * @return
+	 */
+	public static float getStdDevFromCovalentRadii(StereoMolecule mol, int bond) {
+		int atomicNo1 = mol.getAtomicNo(mol.getBondAtom(0, bond));
+		int atomicNo2 = mol.getAtomicNo(mol.getBondAtom(1, bond));
+		return (atomicNo1 < VDWRadii.COVALENT_RADIUS.length ? 0.05f : 0.125f)
+			 + (atomicNo2 < VDWRadii.COVALENT_RADIUS.length ? 0.05f : 0.125f);
+		}
+
+	private static float getCovalentRadius(int atomicNo) {
+		return (atomicNo < VDWRadii.COVALENT_RADIUS.length) ? VDWRadii.COVALENT_RADIUS[atomicNo]
+			 : (atomicNo < VDWRadii.VDW_RADIUS.length) ? 0.6f * VDWRadii.VDW_RADIUS[atomicNo] : 1.8f;
+	}
+
+	/**
+	 * Returns an estimate of the bond length based on atom and bond characteristics.
+	 * The bond is classified based on its characteristics the returned value is
+	 * the median of equally classified bonds within the COD or CSD database. Statistics of
+	 * purely organic bonds (no metal atoms) are taken from the organic subset of the COD/CSD.
+	 * @param index bond id index obtained with getBondIndex()
+	 * @return
+	 */
+	public static float getBondLength(int index) {
+		return (index == -1) ? DEFAULT_BOND_LENGTH : BOND_LENGTH[index];
+		}
+
+	public static float getBondCount(int index) {
+		return (index == -1) ? 0 : BOND_COUNT[index];
+	}
+
+	/**
+	 * Returns an the standard deviation of bond lengths from bonds with similar
+	 * characteristics from crystallographic data.
+	 * @param index bond id index obtained with getBondIndex()
+	 * @return
+	 */
+	public static float getBondStdDev(int index) {
+		return (index == -1) ? DEFAULT_BOND_STDDEV : BOND_STDDEV[index];
+		}
+
+
+	/**
+	 * Returns an estimate of the bond length based on atom and bond characteristics.
+	 * Requires cHelperRings level of helper arrays.
+	 * If no statistics information is available, then it return DEFAULT_BOND_LENGTH,
+	 * which is garanteed to be different from any value in the statistics table.
+	 * @param id valid bond classification obtained with one of the getBondType() methods
+	 * @return DEFAULT_BOND_LENGTH if no statistics information is available for that bond type
+	 *
+	private static float lookupBondLength(int id) {
+		int index = lookupBondIndex(id);
+		return (index == -1) ? DEFAULT_BOND_LENGTH : BOND_LENGTH[index];
+		}*/
+
+	private static int lookupBondIndex(int id) {
+		if (!isInitialized)
+			initialize();
+
 		int index = 2048;
 		int increment = 1024;
 		for (int i=0; i<12; i++) {
-			int comparison = (index < BOND_TYPE.length) ? type.compareTo(BOND_TYPE[index]) : -1;
+			int comparison = (index >= BOND_ID.length || id < BOND_ID[index]) ? -1
+					: (id == BOND_ID[index]) ? 0 : 1;
 			if (comparison == 0)
-				return BOND_LENGTH[index];
+				return index;
 			index = (comparison < 0) ? index-increment : index+increment;
 			increment /= 2;
 			}
 
-		return 2.0f;	// if not found
+		return -1;	// if not found
 		}
 	}

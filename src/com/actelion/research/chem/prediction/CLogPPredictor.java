@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,12 +18,14 @@
 
 package com.actelion.research.chem.prediction;
 
-import java.util.TreeMap;
-
 import com.actelion.research.chem.AtomTypeCalculator;
 import com.actelion.research.chem.Molecule;
 import com.actelion.research.chem.StereoMolecule;
 import com.actelion.research.util.SortedList;
+
+import java.text.DecimalFormat;
+import java.text.NumberFormat;
+import java.util.TreeMap;
 
 public class CLogPPredictor {
 	private static final int ATOM_TYPE_MODE = AtomTypeCalculator.cPropertiesForCLogPCharges;
@@ -237,6 +239,27 @@ public class CLogPPredictor {
 		return cLogP;
 		}
 
+	/**
+	 * Normalizes ambiguous bonds and assigns cLogP increments to every atom
+	 * based on its enhanced atom type.
+	 * @param mol
+	 * @param increment not smaller than non-H atom count of mol
+	 * @return
+	 */
+	public void getCLogPIncrements(StereoMolecule mol, float[] increment) {
+		mol.normalizeAmbiguousBonds();
+		mol.ensureHelperArrays(Molecule.cHelperRings);
+
+		for (int atom=0; atom<mol.getAtoms(); atom++) {
+			try {
+				int index = sSortedTypeList.getIndex(AtomTypeCalculator.getAtomType(mol, atom, ATOM_TYPE_MODE));
+				if (index != -1)
+					increment[atom] = INCREMENT[index];
+			}
+			catch (Exception e) {}	// unsupported atom type exceptions are tolerable
+		}
+	}
+
 	public ParameterizedStringList getDetail(StereoMolecule mol) {
 		ParameterizedStringList detail = new ParameterizedStringList();
 		detail.add("cLogP Values are estimated applying an atom-type based increment system.",
@@ -251,6 +274,7 @@ public class CLogPPredictor {
 		if (mol != null) {
 			int errorCount = 0;
 			TreeMap<Long,Integer> countMap = new TreeMap<Long,Integer>();
+			NumberFormat formatter = new DecimalFormat("#0.000");
 			for (int atom=0; atom<mol.getAtoms(); atom++) {
 				try {
 					long atomType = AtomTypeCalculator.getAtomType(mol, atom, ATOM_TYPE_MODE);
@@ -270,7 +294,8 @@ public class CLogPPredictor {
 
 			for (Long type:countMap.keySet()) {
 				if (sSortedTypeList.contains(type))
-					detail.add(countMap.get(type) + " * "+ INCREMENT[sSortedTypeList.getIndex(type)] + " AtomType: 0x" + Long.toHexString(type),ParameterizedStringList.cStringTypeText);
+					detail.add(countMap.get(type) + " * "+
+							formatter.format(INCREMENT[sSortedTypeList.getIndex(type)]) + " AtomType: 0x" + Long.toHexString(type),ParameterizedStringList.cStringTypeText);
 				else
 					detail.add("Warning: For atom type 0x"+Long.toHexString(type)+" ("+countMap.get(type)+" times found) is no increment available.", ParameterizedStringList.cStringTypeText);
 				}

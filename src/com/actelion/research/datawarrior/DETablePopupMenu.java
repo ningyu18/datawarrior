@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,33 +18,28 @@
 
 package com.actelion.research.datawarrior;
 
-import java.awt.Frame;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
-
-import javax.swing.JCheckBoxMenuItem;
-import javax.swing.JMenu;
-import javax.swing.JMenuItem;
-import javax.swing.JOptionPane;
-import javax.swing.JPopupMenu;
-import javax.swing.JRadioButtonMenuItem;
-
 import com.actelion.research.chem.descriptor.DescriptorConstants;
 import com.actelion.research.chem.io.CompoundTableConstants;
 import com.actelion.research.datawarrior.task.data.DETaskDeleteColumns;
 import com.actelion.research.datawarrior.task.data.DETaskSetCategoryCustomOrder;
+import com.actelion.research.datawarrior.task.data.DETaskSetColumnDataType;
 import com.actelion.research.datawarrior.task.filter.DETaskAddNewFilter;
-import com.actelion.research.datawarrior.task.view.DETaskSetTextBackgroundColor;
-import com.actelion.research.datawarrior.task.view.DETaskSetTextColor;
-import com.actelion.research.table.CompoundTableModel;
+import com.actelion.research.datawarrior.task.table.*;
+import com.actelion.research.table.model.CompoundTableModel;
 import com.actelion.research.table.filter.JCategoryFilterPanel;
 import com.actelion.research.table.filter.JFilterPanel;
+
+import javax.swing.*;
+import java.awt.*;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
 
 public class DETablePopupMenu extends JPopupMenu implements ActionListener {
     private static final long serialVersionUID = 0x20060904;
 
     private static final String SET_COLUMN_ALIAS = "Set Column Alias...";
     private static final String SET_COLUMN_DESCRIPTION = "Set Column Description...";
+	private static final String SET_COLUMN_DATA_TYPE = "Set Column Data Type To";
     private static final String SET_CATEGORY_CUSTOM_ORDER = "Set Category Custom Order...";
     private static final String NEW_STRUCTURE_FILTER = "New Structure Filter";
     private static final String NEW_SSS_LIST_FILTER = "New SSS-List Filter";
@@ -64,8 +59,9 @@ public class DETablePopupMenu extends JPopupMenu implements ActionListener {
     private static final String HIDE = "Hide '";
     private static final String SHOW = "Show '";
     private static final String DELETE = "Delete '";
-
-    private static final String[] ROUND_OPTION = {"<not rounded>", "1", "2", "3", "4", "5", "6", "7"};
+	private static final String TYPE = "type:";
+	private static final String SUMMARY = "summary:";
+	private static final String HILITE = "hilite:";
 
     private CompoundTableModel	mTableModel;
 	private int					mColumn;
@@ -85,13 +81,26 @@ public class DETablePopupMenu extends JPopupMenu implements ActionListener {
 		addItem(SET_COLUMN_ALIAS);
 		addItem(SET_COLUMN_DESCRIPTION);
 
+		String specialType = mTableModel.getColumnSpecialType(column);
+		if (specialType == null) {
+			JMenu dataTypeMenu = new JMenu(SET_COLUMN_DATA_TYPE);
+			add(dataTypeMenu);
+			for (int i=0; i<CompoundTableConstants.cDataTypeText.length; i++) {
+				JRadioButtonMenuItem dataTypeItem = new JRadioButtonMenuItem(CompoundTableConstants.cDataTypeText[i],
+						mTableModel.getExplicitDataType(column) == i);
+				dataTypeItem.addActionListener(this);
+				dataTypeItem.setActionCommand(TYPE+CompoundTableConstants.cDataTypeCode[i]);
+				dataTypeMenu.add(dataTypeItem);
+				}
+			}
+
 		if (DETaskSetCategoryCustomOrder.columnQualifies(mTableModel, column)) {
 	        addSeparator();
 			addItem(SET_CATEGORY_CUSTOM_ORDER);
 			}
 
         addSeparator();
-        String specialType = mTableModel.getColumnSpecialType(column);
+
         if (specialType != null) {
             if (specialType.equals(CompoundTableModel.cColumnTypeIDCode)) {
     			JMenu filterMenu = new JMenu("New Structure Filter");
@@ -128,6 +137,7 @@ public class DETablePopupMenu extends JPopupMenu implements ActionListener {
                 JRadioButtonMenuItem summaryItem = new JRadioButtonMenuItem(CompoundTableConstants.cSummaryModeText[i],
                         mTableModel.getColumnSummaryMode(column) == i);
                 summaryItem.addActionListener(this);
+	            summaryItem.setActionCommand(SUMMARY+CompoundTableConstants.cSummaryModeCode[i]);
                 summaryModeMenu.add(summaryItem);
                 }
             summaryModeMenu.addSeparator();
@@ -138,7 +148,7 @@ public class DETablePopupMenu extends JPopupMenu implements ActionListener {
             summaryModeMenu.add(menuItem1);
             JCheckBoxMenuItem menuItem2 = new JCheckBoxMenuItem(SHOW_STD_DEVIATION);
             menuItem2.setState(mTableModel.isColumnStdDeviationShown(column));
-            menuItem2.setEnabled(mTableModel.getColumnSummaryMode(column) != CompoundTableConstants.cSummaryModeNormal);
+            menuItem2.setEnabled(mTableModel.getColumnSummaryMode(column) == CompoundTableConstants.cSummaryModeMean);
             menuItem2.addActionListener(this);
             summaryModeMenu.add(menuItem2);
 
@@ -162,6 +172,7 @@ public class DETablePopupMenu extends JPopupMenu implements ActionListener {
                 JRadioButtonMenuItem hiliteItem = new JRadioButtonMenuItem(CompoundTableConstants.cStructureHiliteModeText[i],
                         mTableModel.getStructureHiliteMode(mColumn) == i);
                 hiliteItem.addActionListener(this);
+	            hiliteItem.setActionCommand(HILITE+CompoundTableConstants.cHiliteModeCode[i]);
                 hiliteModeMenu.add(hiliteItem);
                 }
         	addItem(SET_STRUCTURE_COLOR);
@@ -183,7 +194,7 @@ public class DETablePopupMenu extends JPopupMenu implements ActionListener {
                 addItem(SHOW+mTableModel.getColumnTitle(i)+"'");
                 }
             }
-        }
+  		}
 
 	private void addItem(String text) {
         JMenuItem menuItem = new JMenuItem(text);
@@ -206,20 +217,21 @@ public class DETablePopupMenu extends JPopupMenu implements ActionListener {
 	    }
 
 	public void actionPerformed(ActionEvent e) {
-		// TODO convert action to task
-	    for (int summaryMode=0; summaryMode<CompoundTableConstants.cSummaryModeText.length; summaryMode++) {
-	        if (e.getActionCommand().equals(CompoundTableConstants.cSummaryModeText[summaryMode])) {
-	    		// TODO convert action to task
-                mTableModel.setColumnSummaryMode(mColumn, summaryMode);
-	            return;
-	            }
+		String command = e.getActionCommand();
+		if (command.startsWith(TYPE)) {
+			int type = decodeItem(command.substring(TYPE.length()), CompoundTableConstants.cDataTypeCode);
+			new DETaskSetColumnDataType(mParentFrame, mTableModel, mColumn, type).defineAndRun();
+			return;
+			}
+		if (command.startsWith(SUMMARY)) {
+			int summaryMode = decodeItem(command.substring(SUMMARY.length()), CompoundTableConstants.cSummaryModeCode);
+            new DETaskSetNumericalColumnDisplayMode(mParentFrame, mTableModel, mColumn, summaryMode, -1, -1, -1, -1).defineAndRun();
+	        return;
 	        }
-	    for (int hiliteMode=0; hiliteMode<CompoundTableConstants.cStructureHiliteModeText.length; hiliteMode++) {
-	        if (e.getActionCommand().equals(CompoundTableConstants.cStructureHiliteModeText[hiliteMode])) {
-	    		// TODO convert action to task
-                mTableModel.setStructureHiliteMode(mColumn, hiliteMode);
-	            return;
-	            }
+		if (command.startsWith(HILITE)) {
+			int hiliteMode = decodeItem(command.substring(HILITE.length()), CompoundTableConstants.cHiliteModeCode);
+	        new DETaskSetStructureHiliteMode(mParentFrame, mTableModel, mColumn, hiliteMode).defineAndRun();
+            return;
 	        }
 		if (e.getActionCommand().equals(SET_COLUMN_ALIAS)) {
 			String alias = (String)JOptionPane.showInputDialog(
@@ -230,11 +242,8 @@ public class DETablePopupMenu extends JPopupMenu implements ActionListener {
 					null,
 					null,
 					mTableModel.getColumnTitle(mColumn));
-			if (alias != null)	// if not canceled
-				// TODO convert action to task
-			    mTableModel.setColumnAlias((alias.length() == 0
-			                             || alias.equalsIgnoreCase(mTableModel.getColumnTitleNoAlias(mColumn))) ?
-			                    null : alias, mColumn);
+			if (alias != null)    // if not canceled
+				new DETaskSetColumnAlias(mParentFrame, mTableModel, mColumn, alias).defineAndRun();
 			}
 		if (e.getActionCommand().equals(SET_COLUMN_DESCRIPTION)) {
 			String description = (String)JOptionPane.showInputDialog(
@@ -246,8 +255,7 @@ public class DETablePopupMenu extends JPopupMenu implements ActionListener {
 					null,
 					mTableModel.getColumnDescription(mColumn));
 			if (description != null)	// if not canceled
-				// TODO convert action to task
-			    mTableModel.setColumnDescription(description, mColumn);
+				new DETaskSetColumnDescription(mParentFrame, mTableModel, mColumn, description).defineAndRun();
 			}
 		else if (e.getActionCommand().equals(SET_CATEGORY_CUSTOM_ORDER)) {
 			new DETaskSetCategoryCustomOrder(mParentFrame, mTableModel, mColumn).defineAndRun();
@@ -271,7 +279,7 @@ public class DETablePopupMenu extends JPopupMenu implements ActionListener {
             	new DETaskAddNewFilter(mParentFrame, pruningPanel, mColumn, JFilterPanel.FILTER_TYPE_REACTION).defineAndRun();
                 }
             else if (e.getActionCommand().equals(NEW_TEXT_FILTER)) {
-            	new DETaskAddNewFilter(mParentFrame, pruningPanel, mColumn, JFilterPanel.FILTER_TYPE_STRING).defineAndRun();
+            	new DETaskAddNewFilter(mParentFrame, pruningPanel, mColumn, JFilterPanel.FILTER_TYPE_TEXT).defineAndRun();
                 }
             else if (e.getActionCommand().equals(NEW_SLIDER_FILTER)) {
             	new DETaskAddNewFilter(mParentFrame, pruningPanel, mColumn, JFilterPanel.FILTER_TYPE_DOUBLE).defineAndRun();
@@ -281,13 +289,13 @@ public class DETablePopupMenu extends JPopupMenu implements ActionListener {
                 }
             }
         else if (e.getActionCommand().equals(HIDE_VALUE_COUNT)) {
-    		// TODO convert action to task
-            mTableModel.setColumnSummaryCountHidden(mColumn, !mTableModel.isColumnSummaryCountHidden(mColumn));
-        	}
+			new DETaskSetNumericalColumnDisplayMode(mParentFrame, mTableModel, mColumn, -1,
+					mTableModel.isColumnSummaryCountHidden(mColumn) ? 1 : 0, -1, -1, -1).defineAndRun();
+			}
         else if (e.getActionCommand().equals(SHOW_STD_DEVIATION)) {
-    		// TODO convert action to task
-            mTableModel.setColumnStdDeviationShown(mColumn, !mTableModel.isColumnStdDeviationShown(mColumn));
-        	}
+			new DETaskSetNumericalColumnDisplayMode(mParentFrame, mTableModel, mColumn, -1, -1,
+					mTableModel.isColumnStdDeviationShown(mColumn) ? 0 : 1, -1, -1).defineAndRun();
+			}
         else if (e.getActionCommand().equals(SHOW_ROUNDED_VALUES)) {
             int oldDigits = mTableModel.getColumnSignificantDigits(mColumn);
             String selection = (String)JOptionPane.showInputDialog(
@@ -296,21 +304,19 @@ public class DETablePopupMenu extends JPopupMenu implements ActionListener {
                     "Display Rounded Value",
                     JOptionPane.QUESTION_MESSAGE,
                     null,
-                    ROUND_OPTION,
-                    "" + ROUND_OPTION[oldDigits]);
+		            DETaskSetNumericalColumnDisplayMode.ROUNDING_TEXT,
+		            DETaskSetNumericalColumnDisplayMode.ROUNDING_TEXT[oldDigits]);
             if (selection != null) {// if not cancelled
                 int newDigits = 0;
-                while (!selection.equals(ROUND_OPTION[newDigits]))
+                while (!selection.equals(DETaskSetNumericalColumnDisplayMode.ROUNDING_TEXT[newDigits]))
                     newDigits++;
 
                 if (newDigits != oldDigits)  // if changed
-            		// TODO convert action to task
-                    mTableModel.setColumnSignificantDigits(mColumn, newDigits);
+	                new DETaskSetNumericalColumnDisplayMode(mParentFrame, mTableModel, mColumn, -1, -1, -1, newDigits, -1).defineAndRun();
                 }
             }
         else if (e.getActionCommand().equals(EXCLUDE_MODIFIER_VALUES)) {
-    		// TODO convert action to task
-            mTableModel.setColumnModifierExclusion(mColumn, !mTableModel.getColumnModifierExclusion(mColumn));
+			new DETaskSetNumericalColumnDisplayMode(mParentFrame, mTableModel, mColumn, -1, -1, -1, -1, mTableModel.getColumnModifierExclusion(mColumn) ? 0 : 1).defineAndRun();
             }
         else if (e.getActionCommand().equals(SET_TEXT_COLOR)
        		  || e.getActionCommand().equals(SET_STRUCTURE_COLOR)) {
@@ -320,16 +326,14 @@ public class DETablePopupMenu extends JPopupMenu implements ActionListener {
         	new DETaskSetTextBackgroundColor(mParentFrame, mParentPane.getMainPane(), mTableView, mColumn).defineAndRun();
         	}
         else if (e.getActionCommand().equals(WRAP_TEXT)) {
-    		// TODO convert action to task
-            mTableView.setTextWrapping(mColumn, !mTableView.getTextWrapping(mColumn));
+			new DETaskSetTextWrapping(mParentFrame, mTableView, convertToList(mColumn), !mTableView.getTextWrapping(mColumn)).defineAndRun();
             }
         else if (e.getActionCommand().startsWith(HIDE)) {
-    		// TODO convert action to task
-            mTableView.setColumnVisibility(mColumn, false);
+            new DETaskHideTableColumns(mParentFrame, mTableView, convertToList(mColumn)).defineAndRun();
             }
         else if (e.getActionCommand().startsWith(SHOW)) {
-    		// TODO convert action to task
-            mTableView.setColumnVisibility(mTableModel.findColumn(e.getActionCommand().substring(6, e.getActionCommand().length()-1)), true);
+        	int column = mTableModel.findColumn(e.getActionCommand().substring(6, e.getActionCommand().length()-1));
+            new DETaskShowTableColumns(mParentFrame, mTableView, convertToList(column)).defineAndRun();
             }
 		else if (e.getActionCommand().startsWith(DELETE)) {
 	        int doDelete = JOptionPane.showConfirmDialog(this,
@@ -337,19 +341,39 @@ public class DETablePopupMenu extends JPopupMenu implements ActionListener {
                     "Delete Column?",
                     JOptionPane.OK_CANCEL_OPTION);
 	        if (doDelete == JOptionPane.OK_OPTION)
-	        	new DETaskDeleteColumns(mParentFrame, mTableModel, mColumn).defineAndRun();
+	        	new DETaskDeleteColumns(mParentFrame, mTableModel, convertToList(mColumn)).defineAndRun();
 			}
 		}
 
-    private void addDefaultDescriptor(int column) {
+	private int[] convertToList(int column) {
+    	int[] columnList = new int[1];
+    	columnList[0] = column;
+		return columnList;
+		}
+
+	/**
+	 * Tries to find item in itemList. If successful it returns the list index.
+	 * If item is null or item is not found, defaultIndex is returned.
+	 * @param item
+	 * @param itemList
+	 * @return
+	 */
+	private int decodeItem(String item, String[] itemList) {
+		for (int i=0; i<itemList.length; i++)
+			if (item.equals(itemList[i]))
+				return i;
+		return -1;  // should never happen
+		}
+
+	private void addDefaultDescriptor(int column) {
         for (int i=0; i<mTableModel.getTotalColumnCount(); i++)
             if (mTableModel.getParentColumn(i) == column
              && mTableModel.isDescriptorColumn(i))
                 return;
 
         if (CompoundTableModel.cColumnTypeIDCode.equals(mTableModel.getColumnSpecialType(column)))
-            mTableModel.createDescriptorColumn(column, DescriptorConstants.DESCRIPTOR_FFP512.shortName);
+            mTableModel.addDescriptorColumn(column, DescriptorConstants.DESCRIPTOR_FFP512.shortName);
         else if (CompoundTableModel.cColumnTypeRXNCode.equals(mTableModel.getColumnSpecialType(column)))
-            mTableModel.createDescriptorColumn(column, DescriptorConstants.DESCRIPTOR_ReactionIndex.shortName);
+            mTableModel.addDescriptorColumn(column, DescriptorConstants.DESCRIPTOR_ReactionIndex.shortName);
         }
     }

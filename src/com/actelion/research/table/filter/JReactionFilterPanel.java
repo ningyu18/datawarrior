@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,29 +18,23 @@
 
 package com.actelion.research.table.filter;
 
-import java.awt.BorderLayout;
-import java.awt.Dimension;
-import java.awt.Frame;
+import com.actelion.research.chem.StereoMolecule;
+import com.actelion.research.chem.descriptor.DescriptorHandlerFFP512;
+import com.actelion.research.chem.reaction.Reaction;
+import com.actelion.research.gui.StructureListener;
+import com.actelion.research.gui.hidpi.HiDPIHelper;
+import com.actelion.research.gui.table.ChemistryRenderPanel;
+import com.actelion.research.table.model.CompoundTableModel;
+
+import javax.swing.*;
+import javax.swing.event.ChangeEvent;
+import javax.swing.event.ChangeListener;
+import java.awt.*;
 import java.awt.event.ItemEvent;
 import java.awt.event.ItemListener;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseListener;
 import java.util.Hashtable;
-
-import javax.swing.JComboBox;
-import javax.swing.JLabel;
-import javax.swing.JOptionPane;
-import javax.swing.JPanel;
-import javax.swing.JSlider;
-import javax.swing.event.ChangeEvent;
-import javax.swing.event.ChangeListener;
-
-import com.actelion.research.chem.StereoMolecule;
-import com.actelion.research.chem.descriptor.DescriptorHandlerFFP512;
-import com.actelion.research.chem.reaction.Reaction;
-import com.actelion.research.gui.StructureListener;
-import com.actelion.research.gui.table.ChemistryRenderPanel;
-import com.actelion.research.table.CompoundTableModel;
 
 public class JReactionFilterPanel extends JFilterPanel
 				implements ChangeListener,ItemListener,MouseListener,StructureListener {
@@ -97,7 +91,7 @@ public class JReactionFilterPanel extends JFilterPanel
 		mSimilaritySlider.setPaintLabels(true);
 		mSimilaritySlider.setPaintTicks(true);
 		mSimilaritySlider.setEnabled(false);
-		mSimilaritySlider.setPreferredSize(new Dimension(42, 100));
+		mSimilaritySlider.setPreferredSize(new Dimension(HiDPIHelper.scale(44), HiDPIHelper.scale(100)));
 		mSimilaritySlider.addChangeListener(this);
 		add(mSimilaritySlider, BorderLayout.EAST);
 
@@ -113,9 +107,10 @@ public class JReactionFilterPanel extends JFilterPanel
 			updateExclusion(false);
 			}
 
+		int s = HiDPIHelper.scale(100);
 //		mReactionView.setClipboardHandler(new ClipboardHandler());
-		mReactionView.setMinimumSize(new Dimension(100, 100));
-		mReactionView.setPreferredSize(new Dimension(100, 100));
+		mReactionView.setMinimumSize(new Dimension(s, s));
+		mReactionView.setPreferredSize(new Dimension(s, s));
 		mReactionView.setBackground(getBackground());
 //		mReactionView.setEmptyMoleculeMessage("<double-click to edit>");
 //		mReactionView.addStructureListener(this);
@@ -128,9 +123,10 @@ public class JReactionFilterPanel extends JFilterPanel
 		}
 
 	@Override
-	public boolean canEnable() {
+	public boolean canEnable(boolean suppressErrorMessages) {
 		if (isActive() && mComboBox.getItemCount() == 0) {
-			JOptionPane.showMessageDialog(mParentFrame, "This reaction filter cannot be enabled, because\n" +
+			if (!suppressErrorMessages)
+				JOptionPane.showMessageDialog(mParentFrame, "This reaction filter cannot be enabled, because\n" +
 					"'"+mTableModel.getColumnTitle(mColumnIndex)+"' has no descriptor columns.");
 			return false;
 			}

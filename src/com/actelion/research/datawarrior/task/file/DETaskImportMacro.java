@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -26,55 +26,58 @@ import java.util.Properties;
 import com.actelion.research.chem.io.CompoundTableConstants;
 import com.actelion.research.datawarrior.DEFrame;
 import com.actelion.research.datawarrior.DEMacroEditor;
+import com.actelion.research.datawarrior.DataWarrior;
 import com.actelion.research.datawarrior.task.DEMacro;
 import com.actelion.research.gui.FileHelper;
 import com.actelion.research.gui.dock.Dockable;
-import com.actelion.research.table.CompoundTableModel;
+import com.actelion.research.table.model.CompoundTableModel;
+
+import javax.swing.*;
 
 public class DETaskImportMacro extends DETaskAbstractOpenFile {
 	public static final String TASK_NAME = "Import Macro";
-    private static Properties sRecentConfiguration;
 
-    private CompoundTableModel	mTableModel;
+	private CompoundTableModel mTableModel;
 
-    public DETaskImportMacro(DEFrame parent) {
-		super(parent, "Import DataWarrior Macro", FileHelper.cFileTypeDataWarriorMacro);
-		mTableModel = parent.getTableModel();
-		}
-
-	@Override
-	public Properties getRecentConfiguration() {
-    	return sRecentConfiguration;
-    	}
-
-	@Override
-	public void setRecentConfiguration(Properties configuration) {
-    	sRecentConfiguration = configuration;
-    	}
+	public DETaskImportMacro(DataWarrior application) {
+		super(application, "Import DataWarrior Macro", FileHelper.cFileTypeDataWarriorMacro);
+		mTableModel = application.getActiveFrame().getTableModel();
+	}
 
 	@Override
 	public String getTaskName() {
 		return TASK_NAME;
-		}
+	}
 
 	@Override
 	public DEFrame openFile(File file, Properties configuration) {
 		try {
 			@SuppressWarnings("unchecked")
-			ArrayList<DEMacro> macroList = (ArrayList<DEMacro>)mTableModel.getExtensionData(CompoundTableConstants.cExtensionNameMacroList);
+			ArrayList<DEMacro> macroList = (ArrayList<DEMacro>) mTableModel.getExtensionData(CompoundTableConstants.cExtensionNameMacroList);
 			DEMacro macro = new DEMacro(file, macroList);
 			if (macroList == null)
 				macroList = new ArrayList<DEMacro>();
 			macroList.add(macro);
 			mTableModel.setExtensionData(CompoundTableConstants.cExtensionNameMacroList, macroList);
 
-			for (Dockable d:((DEFrame)getParentFrame()).getMainFrame().getMainPane().getDockables())
+			for (Dockable d : ((DEFrame) getParentFrame()).getMainFrame().getMainPane().getDockables())
 				if (d.getContent() instanceof DEMacroEditor)
-					((DEMacroEditor)d.getContent()).selectMacro(macro);
-			}
-		catch (IOException ioe) {
+					selectMacroInEDT((DEMacroEditor) d.getContent(), macro);
+		} catch (IOException ioe) {
 			showErrorMessage(ioe.toString());
-			}
+		}
 		return null;
+	}
+
+	private void selectMacroInEDT(final DEMacroEditor editor, final DEMacro macro) {
+		try {
+			SwingUtilities.invokeAndWait(new Runnable() {
+				@Override
+				public void run() {
+					editor.selectMacro(macro);
+				}
+			});
+		} catch (Exception e) {
 		}
 	}
+}

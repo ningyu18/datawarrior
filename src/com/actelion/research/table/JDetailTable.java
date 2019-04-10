@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,25 +18,34 @@
 
 package com.actelion.research.table;
 
+import com.actelion.research.gui.hidpi.HiDPIHelper;
+import com.actelion.research.table.model.CompoundTableModel;
+import com.actelion.research.table.model.DetailTableModel;
+
 import javax.swing.*;
-import javax.swing.event.*;
+import javax.swing.event.TableModelEvent;
+import javax.swing.event.TableModelListener;
+import java.util.TreeMap;
 
 public class JDetailTable extends JTable implements TableModelListener {
     private static final long serialVersionUID = 0x20061009;
 
     private static final int cTextRowHeight = 16;
 	private static final int cMultiLineRowHeight = 32;
-	private static final int cSpecialRowHeight = 48;
+	private static final int cSpecialRowHeight = 64;
 
-	private DetailTableModel	mDetailModel;
+	private DetailTableModel mDetailModel;
+	private TreeMap<String,Integer> mRowHeightMap;
 
 	public JDetailTable(DetailTableModel detailTableModel) {
 		super(detailTableModel);
 
 		mDetailModel = detailTableModel;
+		mRowHeightMap = new TreeMap<String,Integer>();
 
-		getColumnModel().getColumn(1).setCellRenderer(
-					new DetailTableCellRenderer(detailTableModel.getParentModel()));
+		for (int column=0; column<2; column++)
+			getColumnModel().getColumn(column).setCellRenderer(
+						new DetailTableCellRenderer(detailTableModel));
 
 		setColumnSelectionAllowed(false);
 		setRowSelectionAllowed(false);
@@ -45,34 +54,39 @@ public class JDetailTable extends JTable implements TableModelListener {
 		}
 
     public void setColorHandler(CompoundTableColorHandler colorHandler) {
-    	((DetailTableCellRenderer)getColumnModel().getColumn(1).getCellRenderer()).setColorHandler(colorHandler);
+	    for (int column=0; column<2; column++)
+	    	((DetailTableCellRenderer)getColumnModel().getColumn(column).getCellRenderer()).setColorHandler(colorHandler);
     	}
+
+	@Override
+	public void setRowHeight(int row, int rowHeight) {
+		super.setRowHeight(row, rowHeight);
+
+		CompoundTableModel tableModel = mDetailModel.getParentModel();
+		mRowHeightMap.put(tableModel.getColumnTitleNoAlias(tableModel.convertFromDisplayableColumnIndex(row)), rowHeight);
+		}
 
 	public void tableChanged(TableModelEvent e) {
 		super.tableChanged(e);
 
-		if (mDetailModel != null) {
+		if (mDetailModel != null && e.getColumn() == TableModelEvent.ALL_COLUMNS) {
 			CompoundTableModel tableModel = mDetailModel.getParentModel();
 			for (int row=0; row<tableModel.getColumnCount(); row++) {
                 int column = tableModel.convertFromDisplayableColumnIndex(row);
-                String specialType = tableModel.getColumnSpecialType(column);
-                if (specialType != null) {
-					if (getRowHeight(row) == cTextRowHeight
-					 || getRowHeight(row) == cMultiLineRowHeight)
-						setRowHeight(row, cSpecialRowHeight);
-					}
-				else if (tableModel.isMultiLineColumn(row)) {
-					if (getRowHeight(row) == cTextRowHeight
-					 || getRowHeight(row) == cSpecialRowHeight)
-						setRowHeight(row, cMultiLineRowHeight);
+				Integer value = mRowHeightMap.get(tableModel.getColumnTitleNoAlias(column));
+				if (value != null) {
+					setRowHeight(row, value.intValue());
 					}
 				else {
-					if (getRowHeight(row) == cSpecialRowHeight
-					 || getRowHeight(row) == cMultiLineRowHeight)
-						setRowHeight(row, cTextRowHeight);
+					String specialType = tableModel.getColumnSpecialType(column);
+					if (specialType != null)
+						setRowHeight(row, HiDPIHelper.scale(cSpecialRowHeight));
+					else if (tableModel.isMultiLineColumn(row))
+						setRowHeight(row, HiDPIHelper.scale(cMultiLineRowHeight));
+					else
+						setRowHeight(row, HiDPIHelper.scale(cTextRowHeight));
 					}
 				}
 			}
 		}
-
 	}

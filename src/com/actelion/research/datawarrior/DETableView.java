@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,10 +18,18 @@
 
 package com.actelion.research.datawarrior;
 
-import java.awt.Color;
-import java.awt.Frame;
-import java.awt.Graphics;
-import java.awt.Graphics2D;
+import com.actelion.research.datawarrior.task.data.DETaskSortRows;
+import com.actelion.research.table.*;
+import com.actelion.research.table.model.CompoundListSelectionModel;
+import com.actelion.research.table.model.CompoundTableEvent;
+import com.actelion.research.table.model.CompoundTableListEvent;
+import com.actelion.research.table.model.CompoundTableListListener;
+import com.actelion.research.table.view.CompoundTableView;
+import com.actelion.research.table.view.VisualizationColor;
+
+import javax.swing.*;
+import javax.swing.table.TableCellRenderer;
+import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseListener;
@@ -30,25 +38,8 @@ import java.awt.print.PageFormat;
 import java.awt.print.Printable;
 import java.awt.print.PrinterException;
 
-import javax.swing.BorderFactory;
-import javax.swing.JPopupMenu;
-import javax.swing.JScrollPane;
-import javax.swing.table.TableCellRenderer;
-
-import com.actelion.research.datawarrior.task.data.DETaskSortRows;
-import com.actelion.research.table.ColorizedCellRenderer;
-import com.actelion.research.table.CompoundListSelectionModel;
-import com.actelion.research.table.CompoundTableColorHandler;
-import com.actelion.research.table.CompoundTableEvent;
-import com.actelion.research.table.CompoundTableHitlistEvent;
-import com.actelion.research.table.CompoundTableHitlistListener;
-import com.actelion.research.table.DetailPopupProvider;
-import com.actelion.research.table.MultiLineCellRenderer;
-import com.actelion.research.table.view.CompoundTableView;
-import com.actelion.research.table.view.VisualizationColor;
-
 public class DETableView extends JScrollPane
-		implements CompoundTableView,CompoundTableHitlistListener,MouseListener,MouseMotionListener,Printable,CompoundTableColorHandler.ColorListener {
+		implements CompoundTableView,CompoundTableListListener,MouseListener,MouseMotionListener,Printable,CompoundTableColorHandler.ColorListener {
 	private static final long serialVersionUID = 0x20060904;
 
 	private Frame				mParentFrame;
@@ -66,7 +57,7 @@ public class DETableView extends JScrollPane
 		mTableModel = tableModel;
 		mColorHandler = colorHandler;
 
-		mTable = new DETable(tableModel, null, selectionModel);
+		mTable = new DETable(parentFrame, mParentPane.getMainPane(), null, selectionModel);
 		mTable.getTableHeader().addMouseListener(this);
 		mTable.addMouseListener(this);
 		mTable.addMouseMotionListener(this);
@@ -86,7 +77,7 @@ public class DETableView extends JScrollPane
 	public void compoundTableChanged(CompoundTableEvent e) {
 		}
 
-	public void hitlistChanged(CompoundTableHitlistEvent e) {}
+	public void listChanged(CompoundTableListEvent e) {}
 
 	public DEParentPane getParentPane() {
 		return mParentPane;

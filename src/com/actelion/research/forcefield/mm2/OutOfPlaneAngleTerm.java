@@ -1,3 +1,21 @@
+/*
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
+ *
+ * This file is part of DataWarrior.
+ * 
+ * DataWarrior is free software: you can redistribute it and/or modify it under the terms of the
+ * GNU General Public License as published by the Free Software Foundation, either version 3 of
+ * the License, or (at your option) any later version.
+ * 
+ * DataWarrior is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+ * without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ * See the GNU General Public License for more details.
+ * You should have received a copy of the GNU General Public License along with DataWarrior.
+ * If not, see http://www.gnu.org/licenses/.
+ *
+ * @author Joel Freyss
+ */
+
 package com.actelion.research.forcefield.mm2;
 
 import java.text.DecimalFormat;
@@ -5,25 +23,24 @@ import java.text.DecimalFormat;
 import com.actelion.research.chem.Coordinates;
 import com.actelion.research.chem.FFMolecule;
 import com.actelion.research.forcefield.AbstractTerm;
-import com.actelion.research.forcefield.FFParameters;
 import com.actelion.research.forcefield.FastMath;
+import com.actelion.research.forcefield.mm2.MM2Parameters.OutOfPlaneBendParameters;
 
 /**
  * Out of Plane Angle term
- * 
- * @author freyssj
  */
 public final class OutOfPlaneAngleTerm extends AbstractTerm {
-	private final static FFParameters parameters = MM2Parameters.getInstance();
+	private final static MM2Parameters parameters = MM2Parameters.getInstance();
 
 //	private static final double OP_UNIT = 0.02191418;
-	private static final double OP_UNIT = 5.12191418;
+	private static final double RADIAN = 180 / Math.PI;
+	private static final double OP_UNIT = 0.02191418; //5.12191418;
 	private static final double SANG = 0.00000007;
 
-	private final FFParameters.OutOfPlaneBendParameters params;
+	private final OutOfPlaneBendParameters params;
 	private double energy;	
 
-	private OutOfPlaneAngleTerm(FFMolecule mol, int[] atoms, FFParameters.OutOfPlaneBendParameters p) {
+	private OutOfPlaneAngleTerm(FFMolecule mol, int[] atoms, OutOfPlaneBendParameters p) {
 		super(mol, atoms);
 		this.params = p;
 	}
@@ -42,16 +59,16 @@ public final class OutOfPlaneAngleTerm extends AbstractTerm {
 	 * </pre>
 	 * 
 	 * @param tl
-	 * @param a1
-	 * @param a2
-	 * @param a3
-	 * @param a4
+	 * @param a1 - atom A
+	 * @param a2 - atom B
+	 * @param a3 - atom C
+	 * @param a4 - atom D
 	 */
 	protected static OutOfPlaneAngleTerm create(MM2TermList tl, int a1, int a2, int a3, int a4) {
 		FFMolecule mol = tl.getMolecule();
-		int n1 = mol.getAtomMM2Class(a1);
-		int n2 = mol.getAtomMM2Class(a2);		
-		FFParameters.OutOfPlaneBendParameters params = parameters.getOutOfPlaneBendParameters(n1, n2);
+		int n1 = mol.getMM2AtomType(a1);
+		int n2 = mol.getMM2AtomType(a2);		
+		OutOfPlaneBendParameters params = parameters.getOutOfPlaneBendParameters(n1, n2);
 		if(params!=null) {
 			int[] atoms = new int[]{a1, a2, a3, a4};
 			return new OutOfPlaneAngleTerm(mol, atoms, params);
@@ -139,6 +156,10 @@ public final class OutOfPlaneAngleTerm extends AbstractTerm {
 	}
 
 
+	@Override
+	public final boolean isBonded() {
+		return false;
+	}
 
 	
 

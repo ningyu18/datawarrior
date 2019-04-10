@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -38,9 +38,9 @@ public class ScaffoldHelper {
 		for (int atom=0; atom<mol.getAtoms(); atom++)
 			if (!isScaffoldMember[atom])
 				mol.markAtomForDeletion(atom);
+		mol.deleteMarkedAtomsAndBonds();
 		if (skeletonOnly)
 			makeSkeleton(mol);
-		mol.deleteMarkedAtomsAndBonds();
 		}
 
 	/**
@@ -199,7 +199,7 @@ public class ScaffoldHelper {
 			return null;
 
 		int[] fragmentNo = new int[mol.getAllAtoms()];
-		int fragmentCount = mol.getFragmentNumbers(fragmentNo, isCuttableBond);
+		int fragmentCount = mol.getFragmentNumbers(fragmentNo, isCuttableBond, false);
 		float[] fragmentDistanceSum = new float[fragmentCount];
 		int[] fragmentAtomCount = new int[fragmentCount];
 		boolean[] fragmentContainsRing = new boolean[fragmentCount];

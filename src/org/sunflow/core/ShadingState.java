@@ -1,15 +1,10 @@
 package org.sunflow.core;
 
-import java.util.Iterator;
-
 import org.sunflow.core.primitive.TriangleMesh;
 import org.sunflow.image.Color;
-import org.sunflow.math.Matrix4;
-import org.sunflow.math.OrthoNormalBasis;
-import org.sunflow.math.Point2;
-import org.sunflow.math.Point3;
-import org.sunflow.math.QMC;
-import org.sunflow.math.Vector3;
+import org.sunflow.math.*;
+
+import java.util.Iterator;
 
 /**
  * Represents a point to be shaded and provides various options for the shading
@@ -639,7 +634,7 @@ public final class ShadingState implements Iterable<LightSample> {
      * reflection is assumed to be glossy.
      * 
      * @param r ray to trace
-     * @param mImage instance number of this sample
+     * @param i instance number of this sample
      * @return color observed along specified ray.
      */
     public final Color traceGlossy(Ray r, int i) {
@@ -651,7 +646,7 @@ public final class ShadingState implements Iterable<LightSample> {
      * reflection is assumed to be specular.
      * 
      * @param r ray to trace
-     * @param mImage instance number of this sample
+     * @param i instance number of this sample
      * @return color observed along specified ray.
      */
     public final Color traceReflection(Ray r, int i) {
@@ -662,7 +657,7 @@ public final class ShadingState implements Iterable<LightSample> {
      * Returns the color obtained by recursively tracing the specified ray.
      * 
      * @param r ray to trace
-     * @param mImage instance number of this sample
+     * @param i instance number of this sample
      * @return color observed along specified ray.
      */
     public final Color traceRefraction(Ray r, int i) {
@@ -773,7 +768,7 @@ public final class ShadingState implements Iterable<LightSample> {
      * render state
      * 
      * @param r ray to shoot
-     * @param mImage instance of the ray
+     * @param i instance of the ray
      * @return new render state object corresponding to the intersection result
      */
     public final ShadingState traceFinalGather(Ray r, int i) {

@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -25,13 +25,12 @@ import java.util.List;
 
 import com.actelion.research.chem.Coordinates;
 import com.actelion.research.chem.FFMolecule;
-import com.actelion.research.forcefield.FFConfig;
+import com.actelion.research.forcefield.FFConfig.Mode;
 import com.actelion.research.forcefield.ForceField;
-import com.actelion.research.forcefield.mm2.MM2Config;
-import com.actelion.research.forcefield.optimizer.AlgoLBFGS;
+import com.actelion.research.forcefield.mmff.MMFFConfig;
 import com.actelion.research.forcefield.optimizer.EvaluableConformation;
 import com.actelion.research.forcefield.optimizer.EvaluableForceField;
-import com.actelion.research.forcefield.optimizer.MultiVariate;
+import com.actelion.research.forcefield.optimizer.OptimizerLBFGS;
 import com.actelion.research.forcefield.transformation.TorsionTransform;
 
 /**
@@ -70,26 +69,25 @@ public class TorsionCalculator {
 	@SuppressWarnings("unchecked")
 	public static List<Double>[] computePossibleTorsions(FFMolecule mol, boolean considerHydrogens) {
 		FFMolecule lig = StructureCalculator.extractLigand(mol);
-		FFConfig config = new MM2Config.MM2Basic();
-		EvaluableConformation eval = new EvaluableConformation(new ForceField(lig, config), considerHydrogens, -1);
-		AlgoLBFGS algo = new AlgoLBFGS();		
+		EvaluableConformation eval = new EvaluableConformation(new ForceField(lig), considerHydrogens, -1);
+		OptimizerLBFGS algo = new OptimizerLBFGS();
 		algo.setMaxIterations(10); //Low number for speed
 		algo.setMinRMS(1); 
 		
-		MultiVariate v = eval.getState();
-		List<Double>[] res = new ArrayList[v.vector.length];
+		double[] v = eval.getState();
+		List<Double>[] res = new ArrayList[v.length];
 
 		//Foreach rotatable bond, find the acceptable torsions (without considering vdw, dipoles forces)
-		for (int i = 0; i < v.vector.length; i++) {
+		for (int i = 0; i < v.length; i++) {
 			res[i] = new ArrayList<Double>();
 			List<Double> energies = new ArrayList<Double>();
 			double minE = Double.MAX_VALUE;	
 			angle: for (double angle = 0; angle < 2*Math.PI; angle+=Math.PI/3) {
 				//compute an optimized torsion starting at angle
-				v.vector[i] = angle;
+				v[i] = angle;
 				eval.setState(v);
 				double e = algo.optimize(eval);
-				double torsion = eval.getState().vector[i];
+				double torsion = eval.getState()[i];
 				//make sure torsion is unique
 				for(double t: res[i]) {
 					double diff = Math.abs(torsion-t) % (2*Math.PI);
@@ -155,10 +153,6 @@ public class TorsionCalculator {
 	}
 
 
-	public static List<FFMolecule> createBlobOfConformations(FFMolecule ligand, double withinRMSD) {
-		return createBlobOfConformations(ligand, withinRMSD, 30);
-	}
-
 
 	/**
 	 * Generate a list of diverse conformations by updating the rings, the amines and the torsions
@@ -207,18 +201,29 @@ public class TorsionCalculator {
 	}
 
 
+	/**
+	 * Return the possible conformers of the given molecule:
+	 *  <li> the number of conformers is limited to 1800
+	 *  <li> the total Forcefield intramolecular energy is below 1000
+	 *  <li> the torsion energy is always at a minimum
+	 *  
+	 * The principle is to loop through each rotatable bond, compute the local minima and add this molecule in the returned list.
+	 * If the molecule has 4 rotatable bonds, having each 3 degrees of freedoms, the results will be maximum 3*3*3*3 molecules.     
+	 *  
+	 * @param mol
+	 * @return
+	 */
 	public static List<FFMolecule> createAllConformations(FFMolecule mol) {
 		mol.compact();
 		FFMolecule copy = new FFMolecule(mol);
-		new AlgoLBFGS().optimize(new EvaluableForceField(new ForceField(copy, new MM2Config.MM2Basic())));
-		FFConfig config = new MM2Config.DockConfig();
-		EvaluableConformation evalTorsions = new EvaluableConformation(new ForceField(copy, config), true, -1);
+		new OptimizerLBFGS().optimize(new EvaluableForceField(new ForceField(copy, Mode.PREOPTIMIZATION)));
+		EvaluableConformation evalTorsions = new EvaluableConformation(new ForceField(copy, Mode.DOCKING), true, -1);
 		TorsionTransform t = (TorsionTransform) evalTorsions.getChain().getElements()[0];
 		List<Double>[] possibleTorsions = computePossibleTorsions(copy, true);
 
 		List<FFMolecule> recs = new ArrayList<FFMolecule>();
 		FFMolecule m = new FFMolecule(copy);
-		ForceField f = new ForceField(m, config);
+		ForceField f = new ForceField(m, Mode.DOCKING);
 		
 
 		doAllConfRec(0, copy, t, possibleTorsions, f, recs);
@@ -244,6 +249,9 @@ public class TorsionCalculator {
 	 * @param M - the number of conformations to sample
 	 * @param energies - a list returning the energy of each conformation
 	 * @param transforms  - a list returning the transformation of each conformation
+	 * @param removeHighEnergy
+	 * @param centerAtom
+	 * @param ffconfig
 	 * @return
 	 */
 	public static List<FFMolecule> createConformations(FFMolecule mol, int N,
@@ -253,19 +261,18 @@ public class TorsionCalculator {
 		if(transforms==null) transforms = new ArrayList<TorsionTransform>();
 		if(energies==null) energies = new ArrayList<Double>();
 		
-		MM2Config config = new MM2Config();
-		config.setMaxDistance(0);
-		config.setMaxPLDistance(0);
-	
-		AlgoLBFGS algo = new AlgoLBFGS();
+		MMFFConfig ffConfig = new MMFFConfig();
+		ffConfig.setMaxDistance(0);
+		ffConfig.setMaxPLDistance(0);
+		OptimizerLBFGS algo = new OptimizerLBFGS();
 		algo.setMaxIterations(2000);
 		algo.setMinRMS(.5);		
-		algo.optimize(new EvaluableForceField(new ForceField(mol, config)));
 		
 		FFMolecule copy = new FFMolecule(mol);
 	
-		config.setMaxDistance(30);
-		EvaluableConformation evalTorsions = new EvaluableConformation(new ForceField(copy), true, centerAtom);
+		ForceField f = new ForceField(copy, ffConfig);
+		algo.optimize(new EvaluableForceField(f));
+		EvaluableConformation evalTorsions = new EvaluableConformation(f, true, centerAtom);
 	
 		// Randomize M conformations and optimize them
 		energies.clear();
@@ -282,7 +289,8 @@ public class TorsionCalculator {
 			tt.random();
 			
 			System.arraycopy(tt.getTransformation(coords), 0, copy.getCoordinates(), 0, coords.length);
-			double e = algo.optimize(new EvaluableConformation(new ForceField(copy), true, -1));
+			
+			double e = algo.optimize(new EvaluableConformation(f, true, -1));
 			FFMolecule conformer = new FFMolecule(copy);
 	
 	

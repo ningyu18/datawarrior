@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -22,18 +22,27 @@ import com.actelion.research.chem.Canonizer;
 import com.actelion.research.chem.DrawingObjectList;
 import com.actelion.research.chem.IDCodeParser;
 import com.actelion.research.chem.StereoMolecule;
+import com.actelion.research.util.ArrayUtils;
+
+import java.util.ArrayList;
 
 public class ReactionEncoder
 {
 	public static final char MOLECULE_DELIMITER = ' ';
 	public static final char PRODUCT_IDENTIFIER = '!';
+	public static final char CATALYST_DELIMITER = '!';
 	public static final char OBJECT_DELIMITER = '#';
 
 	public static final int INCLUDE_MAPPING = 1;
 	public static final int INCLUDE_COORDS = 2;
 	public static final int INCLUDE_DRAWING_OBJECTS = 4;
-	public static final int RETURN_RXN_CODE_ONLY = 0;
-	public static final int RETURN_DEFAULT = INCLUDE_MAPPING | INCLUDE_COORDS;
+	public static final int INCLUDE_CATALYSTS = 8;
+
+	public static final int INCLUDE_ALL = 15;
+	public static final int INCLUDE_RXN_CODE_ONLY = 0;
+	public static final int INCLUDE_DEFAULT = INCLUDE_MAPPING | INCLUDE_COORDS;
+
+	public static final int RETAIN_REACTANT_AND_PRODUCT_ORDER = 16;
 
 
     private ReactionEncoder()
@@ -51,8 +60,27 @@ public class ReactionEncoder
 	 *
 	 * @return String[4] with reaction code, coordinates, mapping, drawing objects
 	 */
-	public static String[] encode(Reaction reaction, boolean keepAbsoluteCoordinates)
-	{
+	public static String[] encode(Reaction reaction, boolean keepAbsoluteCoordinates) {
+		return encode(reaction, keepAbsoluteCoordinates, true);
+	}
+
+	/**
+	 * Creates a non-unique String containing a reaction code by
+	 * creating idcodes of every reactant and product and
+	 * concatenating them in original order.
+	 * If mapping information is available this will be encoded
+	 * in a 2nd string. Otherwise this will be null.
+	 * Coordinates, if available, will be encoded in a 3rd string.
+	 * If there are drawing objects assigned to this reaction
+	 * then these are encoded in a 4th string.
+	 * If the reaction contains catalysts, they are encoded as 5th string.
+	 *
+	 * @param reaction
+	 * @param keepAbsoluteCoordinates
+	 * @param sortByIDCode
+	 * @return String[5] with reaction code, coordinates, mapping, drawing objects, catalysts
+	 */
+	private static String[] encode(Reaction reaction, boolean keepAbsoluteCoordinates, boolean sortByIDCode) {
 		if (reaction == null
 			|| reaction.getReactants() == 0
 			|| reaction.getProducts() == 0) {
@@ -74,17 +102,20 @@ public class ReactionEncoder
 			coords[i] = canonizer.getEncodedCoordinates(keepAbsoluteCoordinates);
 		}
 
-		StringBuffer idcodeSequence = new StringBuffer();
-		StringBuffer coordsSequence = new StringBuffer();
-		StringBuffer mappingSequence = new StringBuffer();
+		StringBuilder idcodeSequence = new StringBuilder();
+		StringBuilder coordsSequence = new StringBuilder();
+		StringBuilder mappingSequence = new StringBuilder();
 
 		for (int i = 0; i < reaction.getReactants(); i++) {
-			String maxString = "";
-			int maxIndex = -1;
-			for (int j = 0; j < reaction.getReactants(); j++) {
-				if (maxString.compareTo(idcode[j]) < 0) {
-					maxString = idcode[j];
-					maxIndex = j;
+			int index = i;
+			if (sortByIDCode) {
+				String maxString = "";
+				index = -1;
+				for (int j = 0; j < reaction.getReactants(); j++) {
+					if (maxString.compareTo(idcode[j]) < 0) {
+						maxString = idcode[j];
+						index = j;
+					}
 				}
 			}
 			if (i > 0) {
@@ -92,10 +123,10 @@ public class ReactionEncoder
 				mappingSequence.append(MOLECULE_DELIMITER);
 				coordsSequence.append(MOLECULE_DELIMITER);
 			}
-			idcodeSequence.append(idcode[maxIndex]);
-			mappingSequence.append(mapping[maxIndex]);
-			coordsSequence.append(coords[maxIndex]);
-			idcode[maxIndex] = "";
+			idcodeSequence.append(idcode[index]);
+			mappingSequence.append(mapping[index]);
+			coordsSequence.append(coords[index]);
+			idcode[index] = "";
 		}
 
 		idcodeSequence.append(PRODUCT_IDENTIFIER);
@@ -103,12 +134,15 @@ public class ReactionEncoder
 		coordsSequence.append(MOLECULE_DELIMITER);
 
 		for (int i = reaction.getReactants(); i < reaction.getMolecules(); i++) {
-			String maxString = "";
-			int maxIndex = -1;
-			for (int j = reaction.getReactants(); j < reaction.getMolecules(); j++) {
-				if (maxString.compareTo(idcode[j]) < 0) {
-					maxString = idcode[j];
-					maxIndex = j;
+			int index = i;
+			if (sortByIDCode) {
+				String maxString = "";
+				index = -1;
+				for (int j = reaction.getReactants(); j < reaction.getMolecules(); j++) {
+					if (maxString.compareTo(idcode[j]) < 0) {
+						maxString = idcode[j];
+						index = j;
+					}
 				}
 			}
 			if (i > reaction.getReactants()) {
@@ -116,13 +150,13 @@ public class ReactionEncoder
 				mappingSequence.append(MOLECULE_DELIMITER);
 				coordsSequence.append(MOLECULE_DELIMITER);
 			}
-			idcodeSequence.append(idcode[maxIndex]);
-			mappingSequence.append(mapping[maxIndex]);
-			coordsSequence.append(coords[maxIndex]);
-			idcode[maxIndex] = "";
+			idcodeSequence.append(idcode[index]);
+			mappingSequence.append(mapping[index]);
+			coordsSequence.append(coords[index]);
+			idcode[index] = "";
 		}
 
-		String[] result = new String[4];
+		String[] result = new String[5];
 		result[0] = idcodeSequence.toString();
 		if (mappingSequence.length() > reaction.getMolecules() - 1)   // delimiters only
 		{
@@ -135,63 +169,85 @@ public class ReactionEncoder
 		if (reaction.getDrawingObjects() != null) {
 			result[3] = reaction.getDrawingObjects().toString();
 		}
+		if (reaction.getCatalysts() != 0) {
+			result[4] = encodeCatalysts(reaction, keepAbsoluteCoordinates);
+		}
 
 		return result;
 	}
 
+	private static String encodeCatalysts(Reaction reaction, boolean keepAbsoluteCoordinates) {
+		StringBuilder sb = new StringBuilder();
+		for (int i=0; i<reaction.getCatalysts(); i++) {
+			if (sb.length() != 0)
+				sb.append(CATALYST_DELIMITER);
+			Canonizer canonizer = new Canonizer(reaction.getCatalyst(i));
+			sb.append(canonizer.getIDCode());
+			if (keepAbsoluteCoordinates) {
+				sb.append(" ");
+				sb.append(canonizer.getEncodedCoordinates(true));
+			}
+		}
+		return sb.toString();
+	}
+
 	/**
-	 * Creates a String containing a unique reaction code by
-	 * creating idcodes of every reactant and product and
-	 * concatenating them in lexical order.
-	 * If mapping information is available this will be encoded
-	 * in a 2nd string.
+	 * Creates a String containing a reaction code by creating idcodes of every reactant and product and
+	 * concatenating them in original (if mode includes RETAIN_REACTANT_AND_PRODUCT_ORDER) or in
+	 * lexical order. In the latter case this string is a canonical reaction encoding.
+	 * If mapping information is available this will be encoded in a 2nd string.
 	 * Coordinates, if available, will be encoded in a 3rd string.
-	 * If there are drawing objects assigned to this reaction
-	 * then these are encoded in a 4th string.
+	 * If there are drawing objects assigned to this reaction then these are encoded in a 4th string.
 	 *
-	 * @return One String with reaction code, coordinates, mapping, drawing objects
-	 * as defined by whatToReturn.
+	 * @return One String with reaction code, coordinates, mapping, drawing objects as defined by mode.
 	 */
-	public static String encode(Reaction reaction, boolean keepAbsoluteCoordinates,
-								int whatToReturn)
-	{
-		String[] result = encode(reaction, keepAbsoluteCoordinates);
+	public static String encode(Reaction reaction, boolean keepAbsoluteCoordinates, int mode) {
+		String[] result = encode(reaction, keepAbsoluteCoordinates, (mode & RETAIN_REACTANT_AND_PRODUCT_ORDER) == 0);
 		if (result == null) {
 			return null;
 		}
 
 		StringBuffer buf = new StringBuffer(result[0]);
-//		System.out.println("Buffer: 1:" + buf);
-		if (whatToReturn != 0) {
+
+		if (mode != 0) {
 			buf.append(OBJECT_DELIMITER);
-			if ((whatToReturn & INCLUDE_MAPPING) != 0
+			if ((mode & INCLUDE_MAPPING) != 0
 				&& result.length > 1
 				&& result[1] != null) {
 				buf.append(result[1]);
 			}
 		}
-//		System.out.println("Buffer: 2:" + buf);
-		whatToReturn &= ~INCLUDE_MAPPING;
-		if (whatToReturn != 0) {
+
+		mode &= ~INCLUDE_MAPPING;
+		if (mode != 0) {
 			buf.append(OBJECT_DELIMITER);
-			if ((whatToReturn & INCLUDE_COORDS) != 0
+			if ((mode & INCLUDE_COORDS) != 0
 				&& result.length > 2
 				&& result[2] != null) {
 				buf.append(result[2]);
 			}
 		}
-//		System.out.println("Buffer: 3:" + buf);
-		whatToReturn &= ~INCLUDE_COORDS;
-		if (whatToReturn != 0) {
+
+		mode &= ~INCLUDE_COORDS;
+		if (mode != 0) {
 			buf.append(OBJECT_DELIMITER);
-			if ((whatToReturn & INCLUDE_DRAWING_OBJECTS) != 0
+			if ((mode & INCLUDE_DRAWING_OBJECTS) != 0
 				&& result.length > 3
 				&& result[3] != null) {
 				buf.append(result[3]);
 			}
 		}
 
-//		System.out.println("Buffer: 4:" + buf);
+		mode &= ~INCLUDE_DRAWING_OBJECTS;
+		if (mode != 0) {
+			buf.append(OBJECT_DELIMITER);
+			if ((mode & INCLUDE_CATALYSTS) != 0
+				&& result.length > 4
+				&& result[4] != null) {
+				buf.append(result[4]);
+			}
+		}
+
 		return buf.toString();
 	}
 
@@ -201,14 +257,12 @@ public class ReactionEncoder
 	 * by this class.
 	 * If rxnCoords are relative or null, and if ensureCoordinates==true
 	 * then all reactants and products are placed automatically along a
-	 * horizontal line. In this case providing a valid Graphics ensure a
-	 * more accurate molecule positioning.
+	 * horizontal line.
 	 *
 	 * @return Reaction
 	 */
 	public static Reaction decode(String rxnCode, String rxnMapping, String rxnCoords,
-								  String rxnObjects, boolean ensureCoordinates)
-	{
+								  String rxnObjects, String rxnCatalysts, boolean ensureCoordinates) {
 		if (rxnCode == null || rxnCode.length() == 0) {
 			return null;
 		}
@@ -288,6 +342,18 @@ public class ReactionEncoder
 			rxn.setDrawingObjects(new DrawingObjectList(rxnObjects));
 		}
 
+		if (rxnCatalysts != null && rxnCatalysts.length() != 0) {
+			IDCodeParser parser = new IDCodeParser(ensureCoordinates);
+			int index1 = 0;
+			int index2 = rxnCatalysts.indexOf(CATALYST_DELIMITER);
+			while (index2 != -1) {
+				rxn.addCatalyst(parser.getCompactMolecule(rxnCatalysts.substring(index1, index2)));
+				index1 = index2+1;
+				index2 = rxnCatalysts.indexOf(CATALYST_DELIMITER, index1);
+			}
+			rxn.addCatalyst(parser.getCompactMolecule(rxnCatalysts.substring(index1)));
+		}
+
 		rxn.setReactionLayoutRequired(reactionLayoutRequired);
 
 		return rxn;
@@ -300,17 +366,19 @@ public class ReactionEncoder
 	 * one string.
 	 * If rxnCoords are relative or null, and if ensureCoordinates==true
 	 * then all reactants and products are placed automatically along a
-	 * horizontal line. In this case providing a valid Graphics ensure a
-	 * more accurate molecule positioning.
+	 * horizontal line.
 	 *
 	 * @return Reaction
 	 */
-	public static Reaction decode(String s, boolean ensureCoordinates)
-	{
+	public static Reaction decode(String s, boolean ensureCoordinates) {
+		if (s == null)
+			return null;
+
 		String rxnCode = s;
 		String rxnMapping = null;
 		String rxnCoords = null;
 		String rxnObjects = null;
+		String rxnCatalysts = null;
 		int index1 = s.indexOf(OBJECT_DELIMITER);
 		if (index1 == -1) {
 			rxnCode = s;
@@ -326,21 +394,38 @@ public class ReactionEncoder
 					rxnCoords = s.substring(index2 + 1);
 				} else {
 					rxnCoords = s.substring(index2 + 1, index3);
-					rxnObjects = s.substring(index3 + 1);
+					int index4 = s.indexOf(OBJECT_DELIMITER, index3 + 1);
+					if (index4 == -1) {
+						rxnObjects = s.substring(index3 + 1);
+					} else {
+						rxnObjects = s.substring(index3 + 1, index4);
+						rxnCatalysts = s.substring(index4 + 1);
+					}
 				}
 			}
 		}
 
-		return decode(rxnCode, rxnMapping, rxnCoords, rxnObjects, ensureCoordinates);
+		return decode(rxnCode, rxnMapping, rxnCoords, rxnObjects, rxnCatalysts, ensureCoordinates);
 	}
 
 
-	public static Reaction decode(String s, int type)
-	{
+	/**
+	 * Creates a Reaction object by interpreting a reaction string encoded by this class.
+	 * Include options define whether mapping, coordinates, catalysts, and drawing objects
+	 # are included in the reaction object.
+	 * @param s
+	 * @param includeOptions
+	 * @return Reaction
+	 */
+	public static Reaction decode(String s, int includeOptions) {
+		if (s == null)
+			return null;
+
 		String rxnCode = s;
 		String rxnMapping = null;
 		String rxnCoords = null;
 		String rxnObjects = null;
+		String rxnCatalysts = null;
 		int index1 = s.indexOf(OBJECT_DELIMITER);
 		if (index1 == -1) {
 			rxnCode = s;
@@ -356,15 +441,68 @@ public class ReactionEncoder
 					rxnCoords = s.substring(index2 + 1);
 				} else {
 					rxnCoords = s.substring(index2 + 1, index3);
-					rxnObjects = s.substring(index3 + 1);
+					int index4 = s.indexOf(OBJECT_DELIMITER, index3 + 1);
+					if (index4 == -1) {
+						rxnObjects = s.substring(index3 + 1);
+					} else {
+						rxnObjects = s.substring(index3 + 1, index4);
+						rxnCatalysts = s.substring(index4 + 1);
+					}
 				}
 			}
 		}
 
 		return decode(rxnCode,
-			(type & INCLUDE_MAPPING) == INCLUDE_MAPPING ? rxnMapping : null,
-			(type & INCLUDE_COORDS) == INCLUDE_COORDS ? rxnCoords : null,
-			(type & INCLUDE_DRAWING_OBJECTS) == INCLUDE_DRAWING_OBJECTS ? rxnObjects : null,
+			(includeOptions & INCLUDE_MAPPING) != 0 ? rxnMapping : null,
+			(includeOptions & INCLUDE_COORDS) != 0 ? rxnCoords : null,
+			(includeOptions & INCLUDE_DRAWING_OBJECTS) != 0 ? rxnObjects : null,
+			(includeOptions & INCLUDE_CATALYSTS) != 0 ? rxnCatalysts : null,
 			false);
+	}
+
+	/**
+	 * Generates an array of all products of the encoded reaction string as bytes.
+	 * If the string includes atom coordinates, these are used.
+	 * @param rxnBytes
+	 * @return null or StereoMolecule array with at least one molecule
+	 */
+	public static StereoMolecule[] decodeProducts(byte[] rxnBytes) {
+		if (rxnBytes == null || rxnBytes.length == 0)
+			return null;
+
+		int productIndex = 1+ ArrayUtils.indexOf(rxnBytes, (byte)ReactionEncoder.PRODUCT_IDENTIFIER);
+		if (productIndex == 0)
+			return null;
+
+		int productEnd = ArrayUtils.indexOf(rxnBytes, (byte)ReactionEncoder.OBJECT_DELIMITER, productIndex);
+		if (productEnd == -1)
+			productEnd = rxnBytes.length;
+
+		if (productIndex == productEnd)
+			return null;
+
+		byte[] coords = null;
+		int coordsIndex = 1+ArrayUtils.indexOf(rxnBytes, (byte)ReactionEncoder.OBJECT_DELIMITER, productEnd+1);
+		if (coordsIndex != 0) {
+			int reactantIndex = 0;
+			while (reactantIndex < productIndex) {	// advance coordinate index one step for every reactant
+				reactantIndex = 1+ArrayUtils.indexOf(rxnBytes, (byte)ReactionEncoder.MOLECULE_DELIMITER, reactantIndex);
+				coordsIndex = 1+ArrayUtils.indexOf(rxnBytes, (byte)ReactionEncoder.MOLECULE_DELIMITER, coordsIndex);
+			}
+			coords = rxnBytes;
+		}
+
+
+		ArrayList<StereoMolecule> productList = new ArrayList<StereoMolecule>();
+		while (productIndex != -1 && productIndex < productEnd) {
+			StereoMolecule product = new IDCodeParser().getCompactMolecule(rxnBytes, coords, productIndex, coordsIndex);
+			if (product.getAllAtoms() != 0)
+				productList.add(product);
+
+			productIndex = 1+ArrayUtils.indexOf(rxnBytes, (byte)ReactionEncoder.MOLECULE_DELIMITER, productIndex);
+			coordsIndex = 1+ArrayUtils.indexOf(rxnBytes, (byte)ReactionEncoder.MOLECULE_DELIMITER, coordsIndex);
+		}
+
+		return productList.size() == 0 ? null : productList.toArray(new StereoMolecule[0]);
 	}
 }

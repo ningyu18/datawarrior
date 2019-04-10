@@ -30,6 +30,7 @@ public class Arc extends Shape {
 	
 	
 
+	@Override
 	public void paint(Canvas3D canvas3D, Graphics3D g) {
 		super.paint(canvas3D, g);
 		

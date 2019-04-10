@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -23,43 +23,41 @@ import com.actelion.research.chem.Coordinates;
 import com.actelion.research.chem.FFMolecule;
 import com.actelion.research.chem.calculator.StructureCalculator;
 import com.actelion.research.forcefield.AbstractTerm;
-import com.actelion.research.forcefield.FFParameters;
 import com.actelion.research.forcefield.FastMath;
 import com.actelion.research.forcefield.TermList;
+import com.actelion.research.forcefield.mm2.MM2Parameters.AngleParameters;
 
 /**
  * 
  */
 public final class AngleTerm extends AbstractTerm implements Cloneable {
 
-	private final static FFParameters parameters = MM2Parameters.getInstance();
+	private final static MM2Parameters parameters = MM2Parameters.getInstance();
 	
+	private static final double RADIAN = 180 / Math.PI;
 	private static final double ANGLE_UNIT = 0.02191418;
-	private FFParameters.AngleParameters params;
+	private AngleParameters params;
 	private double angle;
 	private double energy;	
 
 	
 	
-	private AngleTerm(FFMolecule mol, int[] atoms, FFParameters.AngleParameters p){
+	private AngleTerm(FFMolecule mol, int[] atoms, AngleParameters p){
 		super(mol, atoms);
 		params = p;
 	}
 	
-	protected static AngleTerm create(TermList tl, int atm1, int atm2, int atm3, boolean isInPlaneAngleEnabled) {
+	protected static AngleTerm create(TermList tl, int atm1, int atm2, int atm3) {
 		FFMolecule mol = tl.getMolecule();
-		int n1 = mol.getAtomMM2Class(atm1);
-		int n2 = mol.getAtomMM2Class(atm2);
-		int n3 = mol.getAtomMM2Class(atm3);
+		int n1 = mol.getMM2AtomType(atm1);
+		int n2 = mol.getMM2AtomType(atm2);
+		int n3 = mol.getMM2AtomType(atm3);
 		int[] atoms = new int[]{atm1, atm2, atm3};
 		int ringSize = mol.getRingSize(atoms);
-		if(isInPlaneAngleEnabled && mol.getAllConnAtoms(atm2)==3 && (parameters.getOutOfPlaneBendParameters(n1, n2)!=null || parameters.getOutOfPlaneBendParameters(n3, n2)!=null)) {
-			return null; //IN PLANE Angle
-		} 
 		int nHydro = StructureCalculator.getExplicitHydrogens(mol, atm2);
 		if(mol.getAtomicNo(atm1)==1) nHydro--;
 		if(mol.getAtomicNo(atm3)==1) nHydro--;
-		FFParameters.AngleParameters params = parameters.getAngleParameters(n1, n2, n3, nHydro, ringSize);
+		AngleParameters params = parameters.getAngleParameters(n1, n2, n3, nHydro, ringSize);
 		if(params==null) return null;			
 		return new AngleTerm(mol, atoms, params);		
 	}
@@ -80,7 +78,7 @@ public final class AngleTerm extends AbstractTerm implements Cloneable {
 		
 		if(rab2<0.2) rab2 = 0.2;
 		if(rcb2<0.2) rcb2 = 0.2;
-		double cosine = cab.dot(ccb) / Math.sqrt(rab2 * rcb2); //cos(BA, BC)
+		double cosine = cab.dot(ccb) / FastMath.sqrt(rab2 * rcb2); //cos(BA, BC)
 		angle = RADIAN * FastMath.acos(cosine);
 		double dt = angle - params.eq;				
 		double dt2 = dt * dt;
@@ -130,5 +128,10 @@ public final class AngleTerm extends AbstractTerm implements Cloneable {
 
 	public final boolean isUsed() {
 		return params!=null;
+	}
+	
+	@Override
+	public final boolean isBonded() {
+		return false;
 	}
 }

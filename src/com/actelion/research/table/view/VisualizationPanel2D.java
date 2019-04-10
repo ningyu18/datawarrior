@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,20 +18,89 @@
 
 package com.actelion.research.table.view;
 
-import java.awt.Frame;
-import java.awt.Rectangle;
+import java.awt.*;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
+import java.awt.event.MouseMotionAdapter;
 
-import com.actelion.research.table.CompoundListSelectionModel;
-import com.actelion.research.table.CompoundTableModel;
+import com.actelion.research.table.model.CompoundListSelectionModel;
+import com.actelion.research.table.model.CompoundTableModel;
+import com.actelion.research.util.CursorHelper;
 
 public class VisualizationPanel2D extends VisualizationPanel {
     private static final long serialVersionUID = 0x20060904;
+
+    private float mX1,mX2,mY1,mY2,mDX,mDY;
+	private Rectangle mGraphBounds;
+	private int mMouseX,mMouseY;
 
     public VisualizationPanel2D(Frame parent, CompoundTableModel tableModel,
 							    CompoundListSelectionModel selectionModel) {
         super(parent, tableModel);
 		mVisualization = new JVisualization2D(tableModel, selectionModel);
 		mDimensions = 2;
+
+		mVisualization.addMouseListener(new MouseAdapter() {
+			@Override
+			public void mousePressed(MouseEvent e) {
+				mGraphBounds = null;
+				if (e.isControlDown()) {
+					setCursor(Cursor.getPredefinedCursor(Cursor.MOVE_CURSOR));
+					mX1 = getActingPruningBar(0).getLowValue();
+					mX2 = getActingPruningBar(0).getHighValue();
+					mY1 = getActingPruningBar(1).getLowValue();
+					mY2 = getActingPruningBar(1).getHighValue();
+					mDX = 0;
+					mDY = 0;
+					mMouseX = e.getX();
+					mMouseY = e.getY();
+					mGraphBounds = ((JVisualization2D) mVisualization).getGraphBounds(mMouseX, mMouseY);
+					}
+				}
+			@Override
+			public void mouseReleased(MouseEvent e) {
+				if (mGraphBounds != null) {
+					setCursor(Cursor.getPredefinedCursor(Cursor.DEFAULT_CURSOR));
+					}
+				}
+			});
+		mVisualization.addMouseMotionListener(new MouseMotionAdapter() {
+			@Override
+			public void mouseDragged(MouseEvent e) {
+				if (mGraphBounds != null) {
+					float dx = (mX2 - mX1) * (float)(mMouseX - e.getX()) / (float)mGraphBounds.width;
+					float dy = (mY2 - mY1) * (float)(e.getY() - mMouseY) / (float)mGraphBounds.height;
+					if (dx < 0f) {
+						if (dx < -mX1)
+							dx = -mX1;
+						}
+					else {
+						if (dx > 1f-mX2)
+							dx = 1f-mX2;
+						}
+					if (dy < 0f) {
+						if (dy < -mY1)
+							dy = -mY1;
+						}
+					else {
+						if (dy > 1f-mY2)
+							dy = 1f-mY2;
+						}
+					if (mDX != dx || mDY != dy) {
+						mDX = dx;
+						mDY = dy;
+						float[] low = new float[2];
+						float[] high = new float[2];
+						low[0] = mX1 + dx;
+						low[1] = mY1 + dy;
+						high[0] = mX2 + dx;
+						high[1] = mY2 + dy;
+						setZoom(low, high, true);
+						}
+					}
+				}
+			});
+
 		initialize();
 		}
 

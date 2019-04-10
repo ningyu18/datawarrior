@@ -456,8 +456,25 @@ public class BoundingIntervalHierarchy implements AccelerationStructure {
         int stackPos = 0;
         int node = 0;
 
+		int count1 = 0;
         while (true) {
+			if (count1++ == 100) {  // added emergency exit; TLS 27-Sep-2016
+				System.out.println("emergency exit in BoundingIntervalHierarchy count1:" + count1);
+				return;
+			}
+
+	        int count2 = 0;
             pushloop: while (true) {
+	            if (count2++ == 100) {  // added emergency exit; TLS 27-Sep-2016
+		            System.out.println("emergency exit in BoundingIntervalHierarchy count2:" + count2);
+		            return;
+	            }
+
+                if (stackPos == stack.length) {  // added emergency exit; TLS 23-May-2016
+	                System.out.println("emergency exit in BoundingIntervalHierarchy, stacksize exceeded!");
+	                return;
+                }
+
                 int tn = tree[node];
                 int axis = tn & (7 << 29);
                 int offset = tn & ~(7 << 29);
@@ -599,6 +616,7 @@ public class BoundingIntervalHierarchy implements AccelerationStructure {
                 // stack is empty?
                 if (stackPos == 0)
                     return;
+
                 // move back up the stack
                 stackPos--;
                 intervalMin = stack[stackPos].near;

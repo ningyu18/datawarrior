@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,8 +18,8 @@
 
 package com.actelion.research.gui;
 
-import java.awt.*;
 import javax.swing.*;
+import java.awt.*;
 
 public class JComboBoxWithColor extends JComboBox {
     static final long serialVersionUID = 0x20070316;
@@ -27,7 +27,7 @@ public class JComboBoxWithColor extends JComboBox {
 	public JComboBoxWithColor() {
         setRenderer(new DefaultListCellRenderer() {
             static final long serialVersionUID = 0x20070316;
-            private Color mForeground = Color.black;
+            private Color mForeground = UIManager.getColor("ComboBox.foreground");
 
             public void paint(Graphics g) {
                 setForeground(mForeground);
@@ -52,7 +52,7 @@ public class JComboBoxWithColor extends JComboBox {
 		}
 
     public void addItem(String itemText) {
-        addItem(itemText, Color.BLACK);
+        addItem(itemText, UIManager.getColor("ComboBox.foreground"));
 		}
 
     public void addItem(String itemText, Color color) {

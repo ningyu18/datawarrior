@@ -90,4 +90,21 @@ public class IntegerDouble {
 		};
 	}
 	
+	public static Comparator<IntegerDouble> getComparatorInt(){
+
+		return new Comparator<IntegerDouble>() {
+
+			public int compare(IntegerDouble id1, IntegerDouble id2) {
+
+				if(id1.iv>id2.iv){
+					return 1;
+				}else if(id1.iv<id2.iv){
+					return -1;
+				}
+
+				return 0;
+			}
+		};
+	}
+
 }

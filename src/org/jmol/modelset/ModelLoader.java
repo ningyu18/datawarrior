@@ -1102,7 +1102,7 @@ public final class ModelLoader extends ModelSet {
     
     findElementsPresent();
 
-    // finalize all group business
+    // finalize all group simple
     if (isPDB)
       calculateStructuresAllExcept(structuresDefinedInFile, true);
 

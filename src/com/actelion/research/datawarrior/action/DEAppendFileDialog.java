@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -26,7 +26,8 @@ import java.util.*;
 import javax.swing.*;
 
 import com.actelion.research.chem.*;
-import com.actelion.research.table.*;
+import com.actelion.research.table.CompoundTableLoader;
+import com.actelion.research.table.model.CompoundTableModel;
 
 public class DEAppendFileDialog extends JDialog
                                 implements ActionListener,ItemListener,Runnable {
@@ -35,13 +36,13 @@ public class DEAppendFileDialog extends JDialog
     private static final int IS_NORMAL_DISPLAYABLE = 0;
 
     private Frame               mParentFrame;
-	private CompoundTableModel  mTableModel;
+	private CompoundTableModel mTableModel;
 	private JCheckBox			mCheckBoxNewColumn;
 	private JComboBox			mComboBoxNewColumn;
 	private JComboBox[]			mComboBoxList;
 	private JTextField			mTextFieldOldSetName,mTextFieldNewSetName;
 	private String				mOldSetName,mNewSetFileName;
-	private CompoundTableLoader	mLoader;
+	private CompoundTableLoader mLoader;
     private String[]            mVisibleFieldName,mTotalFieldName;
 
     public DEAppendFileDialog(Frame owner, CompoundTableModel tableModel,

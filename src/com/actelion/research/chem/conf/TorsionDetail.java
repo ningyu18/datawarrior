@@ -1,10 +1,17 @@
 /*
- * @(#)TorsionDetail.java
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
- * Copyright 2013 openmolecules.org, Inc. All Rights Reserved.
+ * This file is part of DataWarrior.
  *
- * This software is the proprietary information of openmolecules.org
- * Use is subject to license terms.
+ * DataWarrior is free software: you can redistribute it and/or modify it under the terms of the
+ * GNU General Public License as published by the Free Software Foundation, either version 3 of
+ * the License, or (at your option) any later version.
+ *
+ * DataWarrior is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+ * without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ * See the GNU General Public License for more details.
+ * You should have received a copy of the GNU General Public License along with DataWarrior.
+ * If not, see http://www.gnu.org/licenses/.
  *
  * @author Thomas Sander
  */
@@ -164,11 +171,11 @@ public class TorsionDetail {
 
         	// walk along sp-chains to first sp2 or sp3 atom
         	while (mol.getAtomPi(mCentralAtom[i]) == 2
-        		&& mol.getConnAtoms(mCentralAtom[i]) == 2
+        		&& mol.getNonHydrogenNeighbourCount(mCentralAtom[i]) == 2
         		&& mol.getAtomicNo(mCentralAtom[i]) < 10) {
-        		for (int j=0; j<2; j++) {
+        		for (int j=0; j<mol.getConnAtoms(mCentralAtom[i]); j++) {
         			int connAtom = mol.getConnAtom(mCentralAtom[i], j);
-        			if (connAtom != mRearAtom[i]) {
+        			if (connAtom != mRearAtom[i] && mol.getAtomicNo(connAtom) != 1) {
         				if (mol.getConnAtoms(connAtom) == 1
         				 || mAlkyneAtomCount == 2*MAX_TRIPLE_BONDS)
         					return false;
@@ -182,16 +189,21 @@ public class TorsionDetail {
         			}
         		}
 
-        	if (mol.getConnAtoms(mCentralAtom[i]) > 4
-             || mol.getConnAtoms(mCentralAtom[i]) == 1)
+	        int nonHNeighbours = mol.getNonHydrogenNeighbourCount(mCentralAtom[i]);
+	        if (nonHNeighbours > 4
+             || nonHNeighbours == 1)
         		return false;
 
         	atomMask[mCentralAtom[i]] = true;
         	}
 
-        for (int i=0; i<2; i++)
-        	for (int j=0; j<mol.getConnAtoms(mCentralAtom[i]); j++)
-        		atomMask[mol.getConnAtom(mCentralAtom[i], j)] = true;
+        for (int i=0; i<2; i++) {
+	        for (int j = 0; j<mol.getConnAtoms(mCentralAtom[i]); j++) {
+		        int connAtom = mol.getConnAtom(mCentralAtom[i], j);
+		        if (mol.getAtomicNo(connAtom) != 1)
+			        atomMask[connAtom] = true;
+	            }
+            }
 
         mToFragmentAtom = new int[mol.getAtoms()];
         mol.copyMoleculeByAtoms(mFragment, atomMask, true, mToFragmentAtom);
@@ -199,7 +211,7 @@ public class TorsionDetail {
         	if (mToFragmentAtom[i] != -1)
         		mToMoleculeAtom[mToFragmentAtom[i]] = i;
 
-        mFragment.setFragment(true);
+		mFragment.setFragment(true);
 
         if (isSmallRingBond) {    // set ringBond flag for all 6-or 7-membered rings
             int bondInFragment = mFragment.getBond(mToFragmentAtom[mCentralAtom[0]], mToFragmentAtom[mCentralAtom[1]]);
@@ -241,7 +253,7 @@ public class TorsionDetail {
             boolean delocalizedBondFound = false;
             for (int j=0; j<mol.getConnAtoms(mCentralAtom[i]); j++) {
 	            int connAtom = mol.getConnAtom(mCentralAtom[i], j);
-	            if (connAtom != mRearAtom[i]) {
+	            if (connAtom != mRearAtom[i] && mol.getAtomicNo(connAtom) != 1) {
 	            	int fragBond = mFragment.getBond(mToFragmentAtom[mCentralAtom[i]], mToFragmentAtom[connAtom]);
 	            	if (mFragment.getBondType(fragBond) == Molecule.cBondTypeDelocalized) {
 	            		delocalizedBondFound = true;
@@ -266,15 +278,10 @@ public class TorsionDetail {
 		            // account for allyl-1,3-strain
 		            if (mol.isAromaticBond(connBond)
 		             || mol.getConnBondOrder(mCentralAtom[i], j) == 2) {
-		            	boolean hasZ = (mol.getConnAtoms(connAtom) == 3);
-		            	if (!hasZ && mol.getConnAtoms(connAtom) == 2) {
-		            		int[] atomSequence = new int[4];
-		            		atomSequence[0] = mCentralAtom[1-i];
-		            		atomSequence[1] = mCentralAtom[i];
-		            		atomSequence[2] = connAtom;
-		            		atomSequence[3] = mol.getConnAtom(connAtom, (mol.getConnAtom(connAtom, 0) == mCentralAtom[i]) ? 1 : 0);
-		            		hasZ = (Math.abs(TorsionDB.calculateTorsion(mol, atomSequence)) < Math.PI / 2);
-		            		}
+			            int nonHNeighbours = mol.getNonHydrogenNeighbourCount(connAtom);
+		            	boolean hasZ = (nonHNeighbours == 3);
+		            	if (!hasZ && nonHNeighbours == 2 && !mol.isRingAtom(connAtom))
+		            		hasZ = (mol.getZNeighbour(mCentralAtom[1-i], connBond) != -1);
 		            	if (hasZ) {
 		            		// there is no query feature 'has-Z-neighbor', thus use 'has3neighbors'
 		                    int feature = (Molecule.cAtomQFNeighbours & ~Molecule.cAtomQFNot3Neighbours);
@@ -289,7 +296,7 @@ public class TorsionDetail {
 
 		            // account for gauche-pentane situations
 		            if (mol.getConnBondOrder(mCentralAtom[i], j) == 1) {
-		            	if (mol.getConnAtoms(connAtom) == 4) {
+		            	if (mol.getNonHydrogenNeighbourCount(connAtom) == 4) {
 		                    int feature = (Molecule.cAtomQFNeighbours & ~Molecule.cAtomQFNot4Neighbours);
 		                    mFragment.setAtomQueryFeature(mToFragmentAtom[connAtom], feature, true);
 			            	}
@@ -499,7 +506,7 @@ public class TorsionDetail {
      * HALF_SYMMETRY_D2: two symmetrical atoms at sp2 center.
      * The fragment's helper array level should be cHelperSymmetrySimple.
      * @param atom one of the bond atoms of the rotatable bond
-     * @param remoteBondAtom the remote atom of the rotatable bond
+     * @param rearAtom the remote atom of the rotatable bond
      * @return
      */
     private int getHalfSymmetry(int atom, int rearAtom) {

@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -29,11 +29,12 @@ import com.actelion.research.forcefield.transformation.*;
 
 /**
  * Transformation used to optimize the docking of the ligand inside a protein:
- * trans/rot/torsions (degrees of freedoms = 6 + nRotBonds)
+ * translation of center atom / rotation of center atom / torsions of rotational bonds
+ * (degrees of freedoms = 6 + nRotBonds)
  * 
  * @author freyssj
  */
-public class EvaluableDockFlex extends EvaluableTransformation {
+public class EvaluableDockFlex extends AbstractEvaluableTransformation {
 	
 	private EvaluableDockFlex(EvaluableDockFlex e) {
 		super(e.forcefield, (ChainOfTransformations) e.chain.clone(), e.initial);		
@@ -42,6 +43,7 @@ public class EvaluableDockFlex extends EvaluableTransformation {
 	public EvaluableDockFlex(ForceField forcefield) {
 		this(forcefield, false);
 	}
+	
 	public EvaluableDockFlex(ForceField forcefield, boolean considerHydrogens) {
 		super(forcefield);
 		forcefield.getMolecule().reorderAtoms();
@@ -58,17 +60,13 @@ public class EvaluableDockFlex extends EvaluableTransformation {
 			if(seed==0) comb.add(t);
 			comb.add(r);
 		}
-		ChainOfTransformations c = new ChainOfTransformations(comb.toArray(new AbstractTransform[]{}), forcefield.getMolecule());
 			
-		//TorsionTransform r = new TorsionTransform(forcefield.getMolecule(), 0, considerHydrogens);
-		//TransRotTransform t = new TransRotTransform(forcefield.getMolecule(), forcefield.getMolecule().getCoordinates(r.getAtomCenter()));
-		//ChainOfTransformations c = new ChainOfTransformations(new AbstractTransform[]{t, r}, forcefield.getMolecule());
-		setChain(c); 
+		setChain(new ChainOfTransformations(comb.toArray(new AbstractTransform[]{}), forcefield.getMolecule())); 
 	}
 	
 	
 	/**
-	 * @see com.actelion.research.forcefield.optimizer.IEvaluable#clone()
+	 * @see com.actelion.research.forcefield.optimizer.AbstractEvaluable#clone()
 	 */
 	@Override
 	public EvaluableDockFlex clone() {

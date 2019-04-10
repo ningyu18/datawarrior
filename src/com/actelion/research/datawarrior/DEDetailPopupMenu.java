@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,68 +18,41 @@
 
 package com.actelion.research.datawarrior;
 
-import java.awt.Component;
-import java.awt.Dimension;
-import java.awt.Toolkit;
+import com.actelion.research.chem.*;
+import com.actelion.research.chem.io.CompoundTableConstants;
+import com.actelion.research.chem.reaction.Reaction;
+import com.actelion.research.datawarrior.task.chem.DETaskSortStructuresBySimilarity;
+import com.actelion.research.datawarrior.task.view.*;
+import com.actelion.research.gui.JDrawDialog;
+import com.actelion.research.gui.JScrollableMenu;
+import com.actelion.research.gui.clipboard.ClipboardHandler;
+import com.actelion.research.gui.hidpi.HiDPIHelper;
+import com.actelion.research.table.filter.JMultiStructureFilterPanel;
+import com.actelion.research.table.model.CompoundRecord;
+import com.actelion.research.table.model.CompoundTableListHandler;
+import com.actelion.research.table.model.CompoundTableModel;
+import com.actelion.research.table.view.*;
+import com.actelion.research.util.BrowserControl;
+import com.actelion.research.util.Platform;
+
+import javax.swing.*;
+import java.awt.*;
 import java.awt.datatransfer.StringSelection;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.ItemEvent;
 import java.awt.event.ItemListener;
+import java.io.IOException;
+import java.io.UnsupportedEncodingException;
+import java.net.URLEncoder;
 import java.util.ArrayList;
 import java.util.TreeSet;
-
-import javax.swing.JCheckBoxMenuItem;
-import javax.swing.JMenu;
-import javax.swing.JMenuItem;
-import javax.swing.JOptionPane;
-import javax.swing.JPopupMenu;
-import javax.swing.JScrollPane;
-import javax.swing.JTextArea;
-
-import com.actelion.research.chem.ExtendedMolecule;
-import com.actelion.research.chem.IDCodeParser;
-import com.actelion.research.chem.SmilesCreator;
-import com.actelion.research.chem.StereoMolecule;
-import com.actelion.research.chem.io.CompoundTableConstants;
-import com.actelion.research.chem.reaction.Reaction;
-import com.actelion.research.datawarrior.task.view.DETaskSeparateCases;
-import com.actelion.research.datawarrior.task.view.DETaskSetBackgroundImage;
-import com.actelion.research.datawarrior.task.view.DETaskSetConnectionLines;
-import com.actelion.research.datawarrior.task.view.DETaskSetFocus;
-import com.actelion.research.datawarrior.task.view.DETaskSetGeneralViewProperties;
-import com.actelion.research.datawarrior.task.view.DETaskSetMarkerBackgroundColor;
-import com.actelion.research.datawarrior.task.view.DETaskSetMarkerColor;
-import com.actelion.research.datawarrior.task.view.DETaskSetMarkerJittering;
-import com.actelion.research.datawarrior.task.view.DETaskSetMarkerShape;
-import com.actelion.research.datawarrior.task.view.DETaskSetMarkerSize;
-import com.actelion.research.datawarrior.task.view.DETaskSetMarkerTransparency;
-import com.actelion.research.datawarrior.task.view.DETaskSetMultiValueMarker;
-import com.actelion.research.datawarrior.task.view.DETaskSetPreferredChartType;
-import com.actelion.research.datawarrior.task.view.DETaskSetStatisticalViewOptions;
-import com.actelion.research.datawarrior.task.view.DETaskShowLabels;
-import com.actelion.research.datawarrior.task.view.DETaskSplitView;
-import com.actelion.research.gui.JDrawDialog;
-import com.actelion.research.gui.clipboard.ClipboardHandler;
-import com.actelion.research.table.CompoundRecord;
-import com.actelion.research.table.CompoundTableHitlistHandler;
-import com.actelion.research.table.CompoundTableModel;
-import com.actelion.research.table.filter.JMultiStructureFilterPanel;
-import com.actelion.research.table.view.CompoundTableView;
-import com.actelion.research.table.view.FocusableView;
-import com.actelion.research.table.view.JStructureGrid;
-import com.actelion.research.table.view.JVisualization;
-import com.actelion.research.table.view.JVisualization3D;
-import com.actelion.research.table.view.VisualizationPanel;
-import com.actelion.research.table.view.VisualizationPanel2D;
-import com.actelion.research.table.view.VisualizationPanel3D;
-import com.actelion.research.util.BrowserControl;
 
 public class DEDetailPopupMenu extends JPopupMenu implements ActionListener,ItemListener {
 	private static final long serialVersionUID = 0x20060904;
 
 	private static final String TEXT_STRUCTURE_LABELS = "Show/Hide/Size Labels...";
-	private static final String TEXT_GENERAL_OPTIONS = "Set General View Options...";
+	private static final String TEXT_GENERAL_OPTIONS = "Set Graphical View Options...";
 	private static final String TEXT_STATISTICAL_OPTIONS = DETaskSetStatisticalViewOptions.TASK_NAME+"...";
 	private static final String TEXT_CHART_TYPE = DETaskSetPreferredChartType.TASK_NAME+"...";
 	private static final String TEXT_SPLIT_VIEW = DETaskSplitView.TASK_NAME+"...";
@@ -95,6 +68,7 @@ public class DEDetailPopupMenu extends JPopupMenu implements ActionListener,Item
 	private static final String TEXT_SEPARATE_CASES = DETaskSeparateCases.TASK_NAME+"...";
 	private static final String TEXT_FOCUS = DETaskSetFocus.TASK_NAME+"...";
 	private static final String TEXT_BACKGROUND_IMAGE = DETaskSetBackgroundImage.TASK_NAME+"...";
+	private static final String TEXT_HORIZ_STRUCTURE_COUNT = DETaskSetHorizontalStructureCount.TASK_NAME;
 
 	private static final String DELIMITER = "@";
 	private static final String COPY_STRUCTURE = "structure" + DELIMITER;
@@ -102,9 +76,11 @@ public class DEDetailPopupMenu extends JPopupMenu implements ActionListener,Item
 	private static final String COPY_SMILES = "smiles" + DELIMITER;
 	private static final String COPY_VALUE = "value" + DELIMITER;
 	protected static final String EDIT_VALUE = "edit" + DELIMITER;
+	private static final String SORT = "sort" + DELIMITER;
 	private static final String ADD_TO_LIST = "add" + DELIMITER;
 	private static final String REMOVE_FROM_LIST = "remove" + DELIMITER;
 	private static final String LOOKUP = "lookup" + DELIMITER;
+	private static final String LAUNCH = "launch" + DELIMITER;
 	private static final String CONFORMERS = "Explore conformers of '";
 	private static final String NEW_FILTER = "filter";
 	private static final String NEW_FILTER_THIS = "filterT" + DELIMITER;
@@ -120,7 +96,7 @@ public class DEDetailPopupMenu extends JPopupMenu implements ActionListener,Item
 
 	/**
 	 * Creates a context dependent popup menu presenting options for one record.
-	 * @param tableModel
+	 * @param mainPane
 	 * @param record
 	 * @param pruningPanel
 	 * @param source
@@ -151,11 +127,16 @@ public class DEDetailPopupMenu extends JPopupMenu implements ActionListener,Item
 				}
 
 			if (selectedColumn == -1) {
-				JMenu copyMenu = new JMenu("Copy");
+				JMenu copyMenu = new JScrollableMenu("Copy");
 				if (idcodeColumnList.size() > 0) {
 					for (int i=0; i<idcodeColumnList.size(); i++) {
 						JMenu copyStructureMenu = new JMenu(idcodeColumnList.get(i)+" as");
-						addSubmenuItem(copyStructureMenu, "Chemical Structure", COPY_STRUCTURE+idcodeColumnList.get(i));
+						addSubmenuItem(copyStructureMenu, "2D-Structure", COPY_STRUCTURE+idcodeColumnList.get(i));
+						int idcodeColumn = mTableModel.findColumn(idcodeColumnList.get(i));
+						for (int column=0; column<mTableModel.getTotalColumnCount(); column++)
+							if (CompoundTableModel.cColumnType3DCoordinates.equals(mTableModel.getColumnSpecialType(column))
+									&& mTableModel.getParentColumn(column) == idcodeColumn)
+								addSubmenuItem(copyStructureMenu, mTableModel.getColumnTitle(column), COPY_STRUCTURE+mTableModel.getColumnTitle(column));
 						addSubmenuItem(copyStructureMenu, "ID-Code", COPY_IDCODE+idcodeColumnList.get(i));
 						addSubmenuItem(copyStructureMenu, "SMILES Code", COPY_SMILES+idcodeColumnList.get(i));
 						copyMenu.add(copyStructureMenu);
@@ -170,7 +151,11 @@ public class DEDetailPopupMenu extends JPopupMenu implements ActionListener,Item
 			else {
 				if (CompoundTableModel.cColumnTypeIDCode.equals(mTableModel.getColumnSpecialType(selectedColumn))) {
 					JMenu copyMenu = new JMenu("Copy as");
-					addSubmenuItem(copyMenu, "Chemical Structure", COPY_STRUCTURE+mTableModel.getColumnTitle(selectedColumn));
+					addSubmenuItem(copyMenu, "2D-Structure", COPY_STRUCTURE+mTableModel.getColumnTitle(selectedColumn));
+					for (int column=0; column<mTableModel.getTotalColumnCount(); column++)
+						if (CompoundTableModel.cColumnType3DCoordinates.equals(mTableModel.getColumnSpecialType(column))
+						 && mTableModel.getParentColumn(column) == selectedColumn)
+							addSubmenuItem(copyMenu, mTableModel.getColumnTitle(column), COPY_STRUCTURE+mTableModel.getColumnTitle(column));
 					addSubmenuItem(copyMenu, "ID-Code", COPY_IDCODE+mTableModel.getColumnTitle(selectedColumn));
 					addSubmenuItem(copyMenu, "SMILES Code", COPY_SMILES+mTableModel.getColumnTitle(selectedColumn));
 					add(copyMenu);
@@ -183,7 +168,7 @@ public class DEDetailPopupMenu extends JPopupMenu implements ActionListener,Item
 
 			addSeparator();
 			if (selectedColumn == -1) {
-				JMenu editMenu = new JMenu("Edit");
+				JMenu editMenu = new JScrollableMenu("Edit");
 				for (int column=0; column<mTableModel.getTotalColumnCount(); column++)
 					if (mTableModel.isColumnDisplayable(column)) {
 						String columnType = mTableModel.getColumnSpecialType(column);
@@ -197,24 +182,40 @@ public class DEDetailPopupMenu extends JPopupMenu implements ActionListener,Item
 			else {
 				String columnType = mTableModel.getColumnSpecialType(selectedColumn);
 				if (columnType == null
-				 || columnType.equals(CompoundTableModel.cColumnTypeIDCode))
-					addMenuItem("Edit", EDIT_VALUE+mTableModel.getColumnTitleNoAlias(selectedColumn));
+						|| columnType.equals(CompoundTableModel.cColumnTypeIDCode))
+					addMenuItem("Edit", EDIT_VALUE + mTableModel.getColumnTitleNoAlias(selectedColumn));
 				}
 
-			CompoundTableHitlistHandler hh = mTableModel.getHitlistHandler();
-			if (hh.getHitlistCount() != 0) {
+			if ((selectedColumn != -1 && CompoundTableModel.cColumnTypeIDCode.equals(mTableModel.getColumnSpecialType(selectedColumn)))
+			 || source instanceof JStructureGrid) {
+				int idcodeColumn = (source instanceof JStructureGrid) ? ((JStructureGrid)source).getStructureColumn() : selectedColumn;
+				JMenu sortMenu = new JMenu("Sort by");
+				for (int column=0; column<mTableModel.getTotalColumnCount(); column++) {
+					if (mTableModel.getParentColumn(column) == idcodeColumn
+					 && mTableModel.isDescriptorColumn(column)
+					 && mTableModel.isDescriptorAvailable(column)) {
+						addSubmenuItem(sortMenu, mTableModel.getDescriptorHandler(column).getInfo().shortName,
+								SORT + mTableModel.getColumnTitleNoAlias(column));
+						}
+					}
+				addSeparator();
+				add(sortMenu);
+				}
+
+			CompoundTableListHandler hh = mTableModel.getListHandler();
+			if (hh.getListCount() != 0) {
 				DEScrollableMenu hitlistAddMenu = null;
 				DEScrollableMenu hitlistRemoveMenu = null;
-				for (int i=0; i<hh.getHitlistCount(); i++) {
-					if (record.isFlagSet(hh.getHitlistFlagNo(i))) {
+				for (int i = 0; i<hh.getListCount(); i++) {
+					if (record.isFlagSet(hh.getListFlagNo(i))) {
 						if (hitlistRemoveMenu == null)
 							hitlistRemoveMenu = new DEScrollableMenu("Remove Row From List");
-						addSubmenuItem(hitlistRemoveMenu, hh.getHitlistName(i), REMOVE_FROM_LIST+hh.getHitlistName(i));
+						addSubmenuItem(hitlistRemoveMenu, hh.getListName(i), REMOVE_FROM_LIST+hh.getListName(i));
 						}
 					else {
 						if (hitlistAddMenu == null)
 							hitlistAddMenu = new DEScrollableMenu("Add Row To List");
-						addSubmenuItem(hitlistAddMenu, hh.getHitlistName(i), ADD_TO_LIST+hh.getHitlistName(i));
+						addSubmenuItem(hitlistAddMenu, hh.getListName(i), ADD_TO_LIST+hh.getListName(i));
 						}
 					}
 				addSeparator();
@@ -240,14 +241,21 @@ public class DEDetailPopupMenu extends JPopupMenu implements ActionListener,Item
 					}
 				}
 
-			boolean lookupFound = false;
+			boolean lookupOrLaunchFound = false;
 			try {
 				for (int column=0; column<mTableModel.getTotalColumnCount(); column++) {
 					String lookupCount = mTableModel.getColumnProperty(column, CompoundTableModel.cColumnPropertyLookupCount);
-					if (lookupCount != null && Integer.parseInt(lookupCount) != 0)
-						lookupFound = true;
+					if (lookupCount != null && Integer.parseInt(lookupCount) != 0) {
+						lookupOrLaunchFound = true;
+						break;
+						}
+					String launchCount = mTableModel.getColumnProperty(column, CompoundTableModel.cColumnPropertyLaunchCount);
+					if (launchCount != null && Integer.parseInt(launchCount) != 0) {
+						lookupOrLaunchFound = true;
+						break;
 					}
-				if (lookupFound) {
+					}
+				if (lookupOrLaunchFound) {
 					if (getComponentCount() > 0)
 						addSeparator();
 
@@ -260,20 +268,58 @@ public class DEDetailPopupMenu extends JPopupMenu implements ActionListener,Item
 								if (key != null) {
 									String name = mTableModel.getColumnProperty(column, CompoundTableModel.cColumnPropertyLookupName+i);
 									String url = mTableModel.getColumnProperty(column, CompoundTableModel.cColumnPropertyLookupURL+i);
+									boolean encode = !"false".equalsIgnoreCase(mTableModel.getColumnProperty(column, CompoundTableModel.cColumnPropertyLookupEncode+i));
 									if (name != null && url != null) {	// just to make sure
 										if (key.length == 1) {
 											JMenuItem item = new JMenuItem("Open "+name+" of "+key[0]+" in Web-Browser");
 											item.addActionListener(this);
-											item.setActionCommand(LOOKUP+url.replace("%s", key[0].replace(' ', '_')));
-											add(item);
+//											item.setActionCommand(LOOKUP+url.replace("%s", key[0].replace(' ', '_')));
+											try {
+												item.setActionCommand(LOOKUP+url.replace("%s", encode ? encodeParams(key[0]) : key[0]));
+												add(item);
+												}
+											catch (UnsupportedEncodingException e) {}
 											}
 										else {
 											JMenu lookupMenu = new JMenu("Open "+name+" in Web-Browser");
-											for (int j=0; j<key.length; j++)
-												addSubmenuItem(lookupMenu, key[j], LOOKUP+url.replace("%s", key[j].replace(' ', '_')));
-											add(lookupMenu);
+											for (int j=0; j<key.length; j++) {
+//												addSubmenuItem(lookupMenu, key[j], LOOKUP+url.replace("%s", key[j].replace(' ', '_')));
+												try {
+													addSubmenuItem(lookupMenu, key[j], LOOKUP+url.replace("%s", encode ? encodeParams(key[j]) : key[0]));
+													}
+												catch (UnsupportedEncodingException e) {}
+												}
+											if (lookupMenu.getItemCount() != 0)
+												add(lookupMenu);
 											}
 										}
+									}
+								}
+							}
+						}
+
+					for (int column=0; column<mTableModel.getTotalColumnCount(); column++) {
+						String lauchCount = mTableModel.getColumnProperty(column, CompoundTableModel.cColumnPropertyLaunchCount);
+						if (lauchCount != null) {
+							int count = Integer.parseInt(lauchCount);
+							for (int i=0; i<count; i++) {
+								String[] key = mTableModel.separateUniqueEntries(mTableModel.encodeData(record, column));
+								if (key != null)
+									addLaunchItems(key, column, i, false);
+
+								boolean allowMultiple = "true".equals(mTableModel.getColumnProperty(column, CompoundTableModel.cColumnPropertyLaunchAllowMultiple+i));
+								if (allowMultiple) {
+									ArrayList<String> keyList = new ArrayList<String>();
+									for (int row=0; row<mTableModel.getRowCount(); row++) {
+										if (mTableModel.isSelected(row)) {
+											key = mTableModel.separateUniqueEntries(mTableModel.encodeData(mTableModel.getRecord(row), column));
+											if (key != null)
+												for (String k : key)
+													keyList.add(k);
+											}
+										}
+									if (keyList.size() != 0)
+										addLaunchItems(keyList.toArray(new String[0]), column, i,true);
 									}
 								}
 							}
@@ -283,7 +329,7 @@ public class DEDetailPopupMenu extends JPopupMenu implements ActionListener,Item
 			catch (NumberFormatException e) {}
 
 			if (idcodeColumnList.size() != 0 && mDatabaseActions != null) {
-				if (!lookupFound)
+				if (getComponentCount() > 0)
 					addSeparator();
 
 				mDatabaseActions.addActionItems(this, mRecord, idcodeColumnList);
@@ -300,9 +346,7 @@ public class DEDetailPopupMenu extends JPopupMenu implements ActionListener,Item
 			addSeparator();
 
 			addMenuItem(TEXT_GENERAL_OPTIONS);
-			if (source instanceof VisualizationPanel2D
-			 && chartType != JVisualization.cChartTypeBars
-			 && chartType != JVisualization.cChartTypePies)
+			if (source instanceof VisualizationPanel2D)
 				addMenuItem(TEXT_STATISTICAL_OPTIONS);
 
 			addSeparator();
@@ -395,19 +439,84 @@ public class DEDetailPopupMenu extends JPopupMenu implements ActionListener,Item
 		if (source instanceof JStructureGrid) {
 			if (getComponentCount() > 0)
 				addSeparator();
-			JMenu columnMenu = new JMenu("Set No Of Columns");
-			for (int i=1; i<=8; i++) {
-				JMenuItem menuItem = new JMenuItem(""+i);
-				menuItem.addActionListener(this);
-				columnMenu.add(menuItem);
-				}
-			for (int i=10; i<=16; i+=2) {
-				JMenuItem menuItem = new JMenuItem(""+i);
+			JMenu columnMenu = new JMenu(TEXT_HORIZ_STRUCTURE_COUNT);
+			for (String count: DETaskSetHorizontalStructureCount.COUNT_OPTIONS) {
+				JMenuItem menuItem = new JMenuItem(count);
 				menuItem.addActionListener(this);
 				columnMenu.add(menuItem);
 				}
 			add(columnMenu);
 			}
+		}
+
+	private void addLaunchItems(String[] key, int column, int launchItemNo, boolean isMultiple) {
+		String name = mTableModel.getColumnProperty(column, CompoundTableModel.cColumnPropertyLaunchName+launchItemNo);
+		String command = mTableModel.getColumnProperty(column, CompoundTableModel.cColumnPropertyLaunchCommand+launchItemNo);
+		String option = mTableModel.getColumnProperty(column, CompoundTableModel.cColumnPropertyLaunchOption+launchItemNo);
+		String decoration = mTableModel.getColumnProperty(column, CompoundTableModel.cColumnPropertyLaunchDecoration+launchItemNo);
+		String[] decorated = new String[key.length];
+		for (int i=0; i<key.length; i++)
+			decorated[i] = decorateKey(key[i], decoration);
+		if (name != null && command != null) {	// just to make sure
+			if (command.equals("mercury"))
+				truncateELNs(decorated);
+			if (command.equals("pymol")) {	// We might generalize the variable resolution
+				if (option != null && option.startsWith("-L "))
+					option = "-L\t"+DataWarrior.resolvePathVariables(option.substring(3));
+				for (int i=0; i<decorated.length; i++)
+					decorated[i] = DataWarrior.resolvePathVariables(decorated[i]);
+				}
+
+			option = (option == null) ? "" : option.concat("\t");
+
+			if (isMultiple) {
+				JMenuItem item = new JMenuItem("Open all selected "+mTableModel.getColumnTitle(column)+"s in "+name);
+				StringBuilder sb = new StringBuilder(decorated[0]);
+				for (int i=1; i<decorated.length; i++) {
+					sb.append("\t");
+					sb.append(decorated[i]);
+					}
+				item.addActionListener(this);
+				item.setActionCommand(LAUNCH+command+"\t"+option+sb.toString());
+				add(item);
+				}
+			else if (key.length == 1) {
+				JMenuItem item = new JMenuItem("Open "+mTableModel.getColumnTitle(column)+" "+key[0]+" in "+name);
+				item.addActionListener(this);
+				item.setActionCommand(LAUNCH+command+"\t"+option+decorated[0]);
+				add(item);
+				}
+			else {
+				JMenu launchMenu = new JMenu("Open "+mTableModel.getColumnTitle(column)+" in "+name);
+				for (int j=0; j<key.length; j++)
+					addSubmenuItem(launchMenu, key[j], LAUNCH+command+"\t"+option+decorated[j]);
+				if (launchMenu.getItemCount() != 0)
+					add(launchMenu);
+				}
+			}
+		}
+
+	private String decorateKey(String key, String decoration) {
+		if (decoration != null)
+			key = decoration.replace("%s", key);
+
+		return key.replace(' ', '_');
+		}
+
+	// Mecury requires ELN numbers without dot-extension
+	private void truncateELNs(String[] eln) {
+		for (int i=0; i<eln.length; i++) {
+			int index = eln[i].indexOf('.');
+			if (index != -1)
+				eln[i] = eln[i].substring(0, index);
+			}
+		}
+
+	public String encodeParams(String params) throws UnsupportedEncodingException {
+		// The URLEncoder replaces ' ' by a '+', which seems to be the old way of doing it,
+		// which is not compatible with wikipedia and molecule names that contain spaces.
+		// (Wikipedia detects "%20" and converts then into '_', which they use in their page names instead of spaces)
+		return URLEncoder.encode(params, "UTF-8").replace("+", "%20");
 		}
 
 	public void itemStateChanged(ItemEvent e) {
@@ -451,8 +560,8 @@ public class DEDetailPopupMenu extends JPopupMenu implements ActionListener,Item
 				int idcodeColumn = mTableModel.findColumn(getCommandColumn(actionCommand));
 				byte[] idcode = (byte[])mRecord.getData(idcodeColumn);
 				if (idcode != null) {
-					ExtendedMolecule mol = new IDCodeParser().getCompactMolecule(idcode);
-					smiles = new SmilesCreator().generateSmiles(mol);
+					StereoMolecule mol = new IDCodeParser().getCompactMolecule(idcode);
+					smiles = new IsomericSmilesCreator(mol).getSmiles();
 					}
 				}
 
@@ -484,7 +593,7 @@ public class DEDetailPopupMenu extends JPopupMenu implements ActionListener,Item
 
 				JTextArea textArea = new JTextArea(oldValue);
 				JScrollPane scrollPane = new JScrollPane(textArea, JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED, JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
-				scrollPane.setPreferredSize(new Dimension(320, 120));
+				scrollPane.setPreferredSize(new Dimension(HiDPIHelper.scale(320), HiDPIHelper.scale(120)));
 				if (JOptionPane.OK_OPTION == JOptionPane.showConfirmDialog(getParentFrame(), scrollPane, "Edit '"+mTableModel.getColumnTitle(valueColumn)+"'", JOptionPane.OK_CANCEL_OPTION, JOptionPane.QUESTION_MESSAGE)) {
 					if (mTableModel.isColumnTypeRangeCategory(valueColumn)
 					 && !mTableModel.getNativeCategoryList(valueColumn).containsString(textArea.getText())) {
@@ -516,15 +625,20 @@ public class DEDetailPopupMenu extends JPopupMenu implements ActionListener,Item
 					mTableModel.finalizeChangeCell(mRecord, valueColumn);
 				}
 			}
+		else if (actionCommand.startsWith(SORT)) {
+			int descriptorColumn = mTableModel.findColumn(getCommandColumn(actionCommand));
+			int idcodeColumn = mTableModel.getParentColumn(descriptorColumn);
+			new DETaskSortStructuresBySimilarity(getParentFrame(), descriptorColumn, mRecord).defineAndRun();
+			}
 		else if (actionCommand.startsWith(ADD_TO_LIST)) {
 			String hitlistName = getCommandColumn(actionCommand);
-			CompoundTableHitlistHandler hh = mTableModel.getHitlistHandler();
-			hh.addRecord(mRecord, hh.getHitlistIndex(hitlistName));
+			CompoundTableListHandler hh = mTableModel.getListHandler();
+			hh.addRecord(mRecord, hh.getListIndex(hitlistName));
 			}
 		else if (actionCommand.startsWith(REMOVE_FROM_LIST)) {
 			String hitlistName = getCommandColumn(actionCommand);
-			CompoundTableHitlistHandler hh = mTableModel.getHitlistHandler();
-			hh.removeRecord(mRecord, hh.getHitlistIndex(hitlistName));
+			CompoundTableListHandler hh = mTableModel.getListHandler();
+			hh.removeRecord(mRecord, hh.getListIndex(hitlistName));
 			}
 		else if (actionCommand.startsWith(NEW_FILTER)) {
 			String columnName = getCommandColumn(actionCommand);
@@ -574,17 +688,26 @@ public class DEDetailPopupMenu extends JPopupMenu implements ActionListener,Item
 			final int idcodeColumn = mTableModel.findColumn(actionCommand.substring(CONFORMERS.length(), index));
 			StereoMolecule mol = mTableModel.getChemicalStructure(mRecord, idcodeColumn, CompoundTableModel.ATOM_COLOR_MODE_NONE, null);
 			if (mol != null)
-				new DEConformerDialog(getParentFrame(), mol).generateConformers();
+//				new DEConformerDialog(getParentFrame(), mol).generateConformers();
+				new FXConformerDialog(getParentFrame(), mol).generateConformers();
 			}
 		else if (actionCommand.startsWith(LOOKUP)) {
 			BrowserControl.displayURL(getCommandColumn(actionCommand));
+			}
+		else if (actionCommand.startsWith(LAUNCH)) {
+			try {
+				Platform.execute(getCommandColumn(actionCommand).split("\\t"));
+				}
+			catch (IOException ioe) {
+				ioe.printStackTrace();
+				}
 			}
 		else if (actionCommand.equals(TEXT_CHART_TYPE)) {
 			new DETaskSetPreferredChartType(getParentFrame(), mMainPane, (VisualizationPanel)mSource).defineAndRun();
 			}
 		else if (actionCommand.equals(TEXT_STRUCTURE_LABELS)
 			  || actionCommand.equals(TEXT_MARKER_LABELS)) {
-			new DETaskShowLabels(getParentFrame(), mMainPane, mSource).defineAndRun();
+			new DETaskSetMarkerLabels(getParentFrame(), mMainPane, mSource).defineAndRun();
 			}
 		else if (actionCommand.equals(TEXT_MARKER_SIZE)) {
 			new DETaskSetMarkerSize(getParentFrame(), mMainPane, (VisualizationPanel)mSource).defineAndRun();
@@ -623,7 +746,7 @@ public class DEDetailPopupMenu extends JPopupMenu implements ActionListener,Item
 			new DETaskSetBackgroundImage(getParentFrame(), mMainPane, (VisualizationPanel2D)mSource).defineAndRun();
 			}
 		else if (actionCommand.equals(TEXT_GENERAL_OPTIONS)) {
-			new DETaskSetGeneralViewProperties(getParentFrame(), mMainPane, (VisualizationPanel)mSource).defineAndRun();
+			new DETaskSetGraphicalViewProperties(getParentFrame(), mMainPane, (VisualizationPanel)mSource).defineAndRun();
 			}
 		else if (actionCommand.equals(TEXT_STATISTICAL_OPTIONS)) {
 			new DETaskSetStatisticalViewOptions(getParentFrame(), mMainPane, (VisualizationPanel2D)mSource).defineAndRun();
@@ -631,7 +754,7 @@ public class DEDetailPopupMenu extends JPopupMenu implements ActionListener,Item
 		else {
 			try {
 				int columnCount = Integer.parseInt(e.getActionCommand());
-				((JStructureGrid)mSource).setColumnCount(columnCount);
+				new DETaskSetHorizontalStructureCount(getParentFrame(), mMainPane, (JStructureGrid)mSource, columnCount).defineAndRun();
 				}
 			catch (NumberFormatException nfe) {}
 			}
@@ -663,7 +786,6 @@ public class DEDetailPopupMenu extends JPopupMenu implements ActionListener,Item
 		add(item);
 		}
 
-	// TODO DEFrames are not known in applets. Update this stuff somewhere else to regain compatibility for the DataWarrior applet!
 	private DEFrame getParentFrame() {
 		Component c = (Component)mSource;
 		while (c != null && !(c instanceof DEFrame))

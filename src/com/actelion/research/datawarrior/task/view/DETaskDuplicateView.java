@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -25,12 +25,11 @@ import javax.swing.JComponent;
 
 import com.actelion.research.datawarrior.DEFrame;
 import com.actelion.research.datawarrior.DEMainPane;
+import com.actelion.research.datawarrior.task.AbstractViewTask;
 import com.actelion.research.table.view.CompoundTableView;
 
-public class DETaskDuplicateView extends DEAbstractViewTask {
+public class DETaskDuplicateView extends AbstractViewTask {
 	public static final String TASK_NAME = "Duplicate View";
-
-    private static Properties sRecentConfiguration;
 
 	private DEMainPane	mMainPane;
 
@@ -68,14 +67,4 @@ public class DETaskDuplicateView extends DEAbstractViewTask {
 	public DEFrame getNewFrontFrame() {
 		return null;
 		}
-
-	@Override
-	public Properties getRecentConfiguration() {
-    	return sRecentConfiguration;
-    	}
-
-	@Override
-	public void setRecentConfiguration(Properties configuration) {
-    	sRecentConfiguration = configuration;
-    	}
 	}

@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -40,7 +40,7 @@ import com.actelion.research.datawarrior.DEFrame;
 import com.actelion.research.datawarrior.task.ConfigurableTask;
 import com.actelion.research.datawarrior.task.file.JFilePathLabel;
 import com.actelion.research.gui.FileHelper;
-import com.actelion.research.table.CompoundTableModel;
+import com.actelion.research.table.model.CompoundTableModel;
 
 public class DETaskExportHitlist extends ConfigurableTask implements ActionListener {
 	private static final String PROPERTY_FILENAME = "fileName";
@@ -48,8 +48,6 @@ public class DETaskExportHitlist extends ConfigurableTask implements ActionListe
 	private static final String PROPERTY_KEY_COLUMN = "keyColumn";
 
 	public static final String TASK_NAME = "Export Row List";
-
-	private static Properties sRecentConfiguration;
 
 	private CompoundTableModel  mTableModel;
 	private JComboBox		   mComboBoxHitlist,mComboBoxKeyColumn;
@@ -62,17 +60,6 @@ public class DETaskExportHitlist extends ConfigurableTask implements ActionListe
 		mIsInteractive = isInteractive;
 		mCheckOverwrite = true;
 		}
-
-	@Override
-	public Properties getRecentConfiguration() {
-		return sRecentConfiguration;
-		}
-
-	@Override
-	public void setRecentConfiguration(Properties configuration) {
-		sRecentConfiguration = configuration;
-		}
-
 	@Override
 	public DEFrame getNewFrontFrame() {
 		return null;
@@ -85,11 +72,11 @@ public class DETaskExportHitlist extends ConfigurableTask implements ActionListe
 							{8, TableLayout.PREFERRED, 4, TableLayout.PREFERRED, 16, TableLayout.PREFERRED, 4, TableLayout.PREFERRED, 8} };
 		mp.setLayout(new TableLayout(size));
 
-		String[] hitlistNames = mTableModel.getHitlistHandler().getHitlistNames();
+		String[] hitlistNames = mTableModel.getListHandler().getListNames();
 
 		mComboBoxHitlist = (hitlistNames == null) ? new JComboBox() : new JComboBox(hitlistNames);
 		mComboBoxHitlist.setEditable(!mIsInteractive);
-		mp.add(new JLabel("Hitlist:"), "1,1");
+		mp.add(new JLabel("Row list:"), "1,1");
 		mp.add(mComboBoxHitlist, "3,1,5,1");
 
 		ArrayList<String> columnList = new ArrayList<String>();
@@ -100,7 +87,7 @@ public class DETaskExportHitlist extends ConfigurableTask implements ActionListe
 		Arrays.sort(columnName);
 		mComboBoxKeyColumn = new JComboBox(columnName);
 		mComboBoxKeyColumn.setEditable(!mIsInteractive);
-		mp.add(new JLabel("Key Column:"), "1,3");
+		mp.add(new JLabel("Key column:"), "1,3");
 		mp.add(mComboBoxKeyColumn, "3,3,5,3");
 
 		mp.add(new JLabel("File name:"), "1,5");
@@ -163,7 +150,7 @@ public class DETaskExportHitlist extends ConfigurableTask implements ActionListe
 
 	@Override
 	public boolean isConfigurable() {
-		if (mTableModel.getHitlistHandler().getHitlistCount() == 0) {
+		if (mTableModel.getListHandler().getListCount() == 0) {
 			showErrorMessage("No row list found.");
 			return false;
 			}
@@ -205,7 +192,7 @@ public class DETaskExportHitlist extends ConfigurableTask implements ActionListe
 		int column = mTableModel.findColumn(configuration.getProperty(PROPERTY_KEY_COLUMN));
 
 		TreeSet<String> keySet = new TreeSet<String>();
-		int flagNo = mTableModel.getHitlistHandler().getHitlistFlagNo(mTableModel.getHitlistHandler().getHitlistIndex(listName));
+		int flagNo = mTableModel.getListHandler().getListFlagNo(mTableModel.getListHandler().getListIndex(listName));
 		for (int row=0; row<mTableModel.getTotalRowCount(); row++) {
 			if (mTableModel.getTotalRecord(row).isFlagSet(flagNo)) {
 				String[] entry = mTableModel.separateEntries(mTableModel.getTotalValueAt(row, column));
@@ -215,7 +202,7 @@ public class DETaskExportHitlist extends ConfigurableTask implements ActionListe
 				}
 			}
 		try {
-			BufferedWriter theWriter = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(resolveVariables(fileName)) ,"UTF-8"));
+			BufferedWriter theWriter = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(resolvePathVariables(fileName)) ,"UTF-8"));
 			theWriter.write("<hitlistName=\""+listName+"\">");
 			theWriter.newLine();
 			theWriter.write("<keyColumn=\""+mTableModel.getColumnTitleNoAlias(column)+"\">");

@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -17,7 +17,6 @@
  */
 package com.actelion.research.chem.calculator;
 
-import java.util.Iterator;
 import java.util.Set;
 import java.util.TreeSet;
 
@@ -124,7 +123,7 @@ public class MoleculeGrid {
 						if(enforceDist) {
 							for(int elt: grid[i][j][k]) {
 								if(requiredFlags>=0 && !mol.isAtomFlag(elt, requiredFlags)) continue;
-								if(GeometryCalculator.getCoordinates(mol, elt).distSquareTo(c)>maxDist*maxDist ) continue;
+								if(mol.getCoordinates(elt).distSquareTo(c)>maxDist*maxDist ) continue;
 								res.add(elt);
 							}
 						} else {
@@ -146,11 +145,9 @@ public class MoleculeGrid {
 		for (int i = Math.max(0, x-radius); i<= Math.min(gridSize[0]-1, x+radius); i++) {
 			for (int j = Math.max(0, y-radius); j<= Math.min(gridSize[1]-1, y+radius); j++) {
 				for (int k = Math.max(0, z-radius); k<= Math.min(gridSize[2]-1, z+radius); k++) {
-					if(grid[i][j][k]!=null) {
-						
-						for (Iterator<Integer> iter = grid[i][j][k].iterator(); iter.hasNext();) {
-							Integer elt = iter.next();
-							if(GeometryCalculator.getCoordinates(mol, elt.intValue()).distSquareTo(c)<=maxDist*maxDist ) {
+					if(grid[i][j][k]!=null) {						
+						for(int a : grid[i][j][k]) {
+							if(mol.getCoordinates(a).distSquareTo(c)<=maxDist*maxDist ) {
 								return true;
 							}
 						}
@@ -212,7 +209,7 @@ public class MoleculeGrid {
 		int closest = -1;
 		double bestDist = maxDist;
 		for (int a : set) {
-			double d = GeometryCalculator.getCoordinates(mol, a).distanceSquared(c);
+			double d = mol.getCoordinates(a).distanceSquared(c);
 			if(d<bestDist) {
 				closest = a;
 				bestDist = d;

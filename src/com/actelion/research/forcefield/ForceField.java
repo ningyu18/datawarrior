@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,13 +18,18 @@
 package com.actelion.research.forcefield;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import com.actelion.research.chem.FFMolecule;
+import com.actelion.research.forcefield.FFConfig.Mode;
 import com.actelion.research.forcefield.mm2.MM2Config;
-import com.actelion.research.forcefield.mm2.MM2Parameters;
 import com.actelion.research.forcefield.mm2.MM2TermList;
-import com.actelion.research.util.PriorityQueue;
+import com.actelion.research.forcefield.mmff.MMFFConfig;
+import com.actelion.research.forcefield.mmff.MMFFTermList;
 
 /**
  * Generic Forcefield implementation, using MM2 by default, with its standard parameters 
@@ -33,62 +38,28 @@ import com.actelion.research.util.PriorityQueue;
 public class ForceField implements Cloneable {
 	
 
-	/** The MM2 parameters */
-	private static final FFParameters parameters = MM2Parameters.getInstance();
-		
-	private final FFConfig config;
+	private static boolean defaultMMFF = true; 
 	private FFMolecule mol;	
 	private TermList terms = null;
 
 	public ForceField(FFMolecule mol) {		
-		this(mol, new MM2Config());
+		this(mol, Mode.OPTIMIZATION);
 	}
+	
+	public ForceField(FFMolecule mol, Mode mode) {
+		this(mol, defaultMMFF? new MMFFConfig(mode):  new MM2Config(mode));
+	}
+	
 	public ForceField(FFMolecule mol, FFConfig config) {
-		this(mol, new MM2TermList(), config);
+		this(mol, (config instanceof MMFFConfig)? new MMFFTermList((MMFFConfig)config): new MM2TermList((MM2Config)config));
 	}
-	public ForceField(FFMolecule mol, TermList terms, FFConfig config) {
+	
+	public ForceField(FFMolecule mol, TermList terms) {
 		if(mol.getAllAtoms()>28000) throw new IllegalArgumentException("The molecule is too big: "+mol.getAllAtoms()+" atoms");
 		this.mol = mol;
 		this.terms = terms;
-		this.config = config;
-		terms.prepareMolecule(mol, config); 
+		terms.prepareMolecule(mol); 
 	}
-	
-//	public void init() {
-//		
-//		FFConfig config = getConfig();
-//		FFMolecule mol = getMolecule();
-//
-//		boolean changed = false;
-//		//Add the hydrogens (or remove), without placing them
-//		if(!(config instanceof FFConfig.PreoptimizeConfig)) {
-//			if(config.isAddHydrogens()) {
-//				changed = StructureCalculator.addHydrogens(mol, config.isUseHydrogenOnProtein()) || changed;
-//			} else {
-//				changed = StructureCalculator.deleteHydrogens(mol) || changed;
-//			}
-//		}
-//		
-//		//Set the MM2 atom classes
-//		MM2Parameters.getInstance().setAtomClassesForMolecule(mol);
-//
-//		//Add the lone pairs
-//		if(!(config instanceof FFConfig.PreoptimizeConfig)) {
-//			if(config.isAddHydrogens() && config.isAddLonePairs()) changed = getParameters().addLonePairs(mol) || changed;
-//		}
-//		
-//		//Set the interactions atom classes
-//		if(config.isUsePLInteractions()) config.getClassStatistics().setClassIdsForMolecule(mol);
-//		
-//		//Preoptimize the H
-//		if(changed &&  !(config instanceof FFConfig.PreoptimizeConfig)) {
-//			PreOptimizer.preOptimizeHydrogens(mol);
-//			
-//		}
-//
-//		terms.clear();	
-//
-//	}
 	
 	@Override
 	public String toString() {
@@ -130,16 +101,22 @@ public class ForceField implements Cloneable {
 		
 		StringBuffer sb = new StringBuffer();
 		
-		PriorityQueue<AbstractTerm> all = new PriorityQueue<AbstractTerm>();
+		final Map<AbstractTerm, Double> all = new HashMap<AbstractTerm, Double>();
 		for(int i=0; i<getTerms().size(); i++) {			
 			AbstractTerm t = getTerms().get(i);
 			if(!t.isExtraMolecular()) continue;
 			double v = t.getFGValue(null);
-			if(Math.abs(v)>1) all.add(t, -Math.abs(v));
+			if(Math.abs(v)>1) all.put(t, -Math.abs(v));
 		}
-
-		for(int i=0; i<all.size(); i++) {
-			AbstractTerm t = (AbstractTerm) all.get(i);
+		List<AbstractTerm> terms = new ArrayList<>();
+		Collections.sort(terms, new Comparator<AbstractTerm>() {
+			@Override
+			public int compare(AbstractTerm o1, AbstractTerm o2) {
+				return all.get(o1).compareTo(all.get(o2));
+			}
+		});
+		
+		for(AbstractTerm t: terms) {
 			sb.append(t+System.getProperty("line.separator"));
 		}
 		sb.append(System.getProperty("line.separator"));
@@ -148,7 +125,7 @@ public class ForceField implements Cloneable {
 	}	
 	
 	public void initTerms() {
-		terms.init(mol, config);
+		terms.init(mol);
 	}
 	
 	
@@ -169,16 +146,8 @@ public class ForceField implements Cloneable {
 	/**
 	 * @return
 	 */
-	public FFParameters getParameters() {
-		return parameters;
-	}
-
-
-	/**
-	 * @return
-	 */
 	public FFConfig getConfig() {
-		return config;
+		return terms.getConfig();
 	}
 
 //
@@ -239,7 +208,7 @@ public class ForceField implements Cloneable {
 		
 		try {
 			FFMolecule m = new FFMolecule(mol);
-			ForceField copy = new ForceField(m, config);
+			ForceField copy = new ForceField(m, terms);
 			if(terms!=null) {
 				copy.terms = terms.clone();
 				copy.terms.setMolecule(m);
@@ -259,5 +228,11 @@ public class ForceField implements Cloneable {
 		}*/
 	}
 
+	public static boolean isDefaultMMFF() {
+		return defaultMMFF;
+	}
+	public static void setDefaultMMFF(boolean defaultMMFF) {
+		ForceField.defaultMMFF = defaultMMFF;
+	}
 
 }

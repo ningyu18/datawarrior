@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -44,8 +44,8 @@ import com.actelion.research.chem.descriptor.DescriptorHelper;
 import com.actelion.research.datawarrior.DEFrame;
 import com.actelion.research.datawarrior.DEMainPane;
 import com.actelion.research.datawarrior.task.ConfigurableTask;
-import com.actelion.research.table.CompoundRecord;
-import com.actelion.research.table.CompoundTableModel;
+import com.actelion.research.table.model.CompoundRecord;
+import com.actelion.research.table.model.CompoundTableModel;
 import com.actelion.research.table.view.JVisualization;
 import com.actelion.research.table.view.JVisualization2D;
 import com.actelion.research.table.view.JVisualization3D;
@@ -63,8 +63,6 @@ public class DETaskPCA extends ConfigurableTask {
 	private static final String PROPERTY_COMPONENT_COUNT = "componentCount";
 	private static final String PROPERTY_CREATE_VIEWS = "createViews";
 
-    private static Properties sRecentConfiguration;
-
     private DEFrame				mParentFrame;
 	private CompoundTableModel  mTableModel;
 	private JComboBox			mComboBoxNoOfComponents;
@@ -81,16 +79,6 @@ public class DETaskPCA extends ConfigurableTask {
 		mIsInteractive = isInteractive;
 		mTableModel = parent.getTableModel();
 		}
-
-	@Override
-	public Properties getRecentConfiguration() {
-    	return sRecentConfiguration;
-    	}
-
-	@Override
-	public void setRecentConfiguration(Properties configuration) {
-    	sRecentConfiguration = configuration;
-    	}
 
 	@Override
 	public DEFrame getNewFrontFrame() {

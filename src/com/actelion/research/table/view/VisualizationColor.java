@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,19 +18,14 @@
 
 package com.actelion.research.table.view;
 
-import java.awt.Color;
-import java.util.TreeMap;
-
-import com.actelion.research.table.CompoundRecord;
-import com.actelion.research.table.CompoundTableEvent;
-import com.actelion.research.table.CompoundTableHitlistEvent;
-import com.actelion.research.table.CompoundTableHitlistHandler;
-import com.actelion.research.table.CompoundTableHitlistListener;
-import com.actelion.research.table.CompoundTableListener;
-import com.actelion.research.table.CompoundTableModel;
+import com.actelion.research.gui.LookAndFeelHelper;
+import com.actelion.research.table.model.*;
 import com.actelion.research.util.ColorHelper;
 
-public class VisualizationColor implements CompoundTableListener,CompoundTableHitlistListener {
+import java.awt.*;
+import java.util.TreeMap;
+
+public class VisualizationColor implements CompoundTableListener,CompoundTableListListener {
 	public static final int cColorListModeHSBShort = 0;
 	public static final int cColorListModeHSBLong = 1;
 	public static final int cColorListModeStraight = 2;
@@ -41,6 +36,7 @@ public class VisualizationColor implements CompoundTableListener,CompoundTableHi
 	public static final byte cWedgeColors = 64;
 
 	public static final Color cSelectedColor = new Color(0, 102, 102);
+	public static final Color cUseAsFilterColor = new Color(102, 0, 102);
 	public static final Color cDefaultDataColor = new Color(202, 202, 0);
 	public static final Color cMissingDataColor = Color.lightGray;
 
@@ -188,7 +184,7 @@ public class VisualizationColor implements CompoundTableListener,CompoundTableHi
 		}
 
 	public Color[] createDefaultCategoryColorList(int column) {
-		int categories = (CompoundTableHitlistHandler.isHitlistColumn(column)) ?
+		int categories = (CompoundTableListHandler.isListColumn(column)) ?
 							2 : mTableModel.getCategoryCount(column);
 		return createDiverseColorList(categories);
 		}
@@ -212,6 +208,13 @@ public class VisualizationColor implements CompoundTableListener,CompoundTableHi
 		return colorList;
 		}
 
+	/**
+	 * @return color count without special colors
+	 */
+	public int getColorCount() {
+		return mColorList.length - cSpecialColorCount;
+		}
+
 	public int getColorColumn() {
 		return mColorColumn;
 		}
@@ -222,20 +225,73 @@ public class VisualizationColor implements CompoundTableListener,CompoundTableHi
 	 * @return
 	 */
 	public Color getColor(int index) {
-		return mColorList[index+cSpecialColorCount];
+		return mColorColumn == -1 ? null : mColorList[index+cSpecialColorCount];
 		}
 
+	/**
+	 * Determines the color representing the value of <code>record</code> in
+	 * the column that is associated with this VisualisationColor.
+	 * If this VisualisationColor is associated with no column, then this method
+	 * returns null;
+	 */
 	public Color getColor(CompoundRecord record) {
-		return mColorList[getColorListIndex(record)];
+		return mColorColumn == -1 ? null : mColorList[getColorListIndex(record)];
 		}
 
-	public Color getLighterColor(CompoundRecord record) {
+	/**
+	 * Determines the color representing the value of <code>record</code> in
+	 * the column that is associated with this VisualisationColor.
+	 * If this VisualisationColor is associated with no column, then this method
+	 * returns null;
+	 * @param record
+	 * @return null or record's color adapted to be used as background
+	 */
+	public Color getColorForBackground(CompoundRecord record) {
 		Color c = getColor(record);
-		return new Color(c.getRed()/4+192, c.getGreen()/4+192, c.getBlue()/4+192);
+		return c == null ? null : LookAndFeelHelper.isDarkLookAndFeel() ?
+				new Color(c.getRed()/3, c.getGreen()/3, c.getBlue()/3)
+			  : new Color(c.getRed()/4+192, c.getGreen()/4+192, c.getBlue()/4+192);
 		}
 
-	public Color getDarkerColor(CompoundRecord record) {
-		return getColor(record).darker();
+	/**
+	 * Determines the color representing the value of <code>record</code> in
+	 * the column that is associated with this VisualisationColor.
+	 * If this VisualisationColor is associated with no column, then this method
+	 * returns null;
+	 * @param record
+	 * @return null or record's color adapted to be used as foreground
+	 */
+	public Color getColorForForeground(CompoundRecord record) {
+		Color c = getColor(record);
+		return c == null ? null : LookAndFeelHelper.isDarkLookAndFeel() ?
+				ColorHelper.createColor(c, 0.7f)
+			  : c.darker();
+		}
+
+	/**
+	 * Determines the color representing the value of <code>record</code> in
+	 * the column that is associated with this VisualisationColor.
+	 * If this VisualisationColor is associated with no column, then this method
+	 * returns null;
+	 * @param record
+	 * @return null or record's color adapted to be used as background when printing
+	 */
+	public Color getColorForPrintBackground(CompoundRecord record) {
+		Color c = getColor(record);
+		return c == null ? null : new Color(c.getRed()/4+192, c.getGreen()/4+192, c.getBlue()/4+192);
+		}
+
+	/**
+	 * Determines the color representing the value of <code>record</code> in
+	 * the column that is associated with this VisualisationColor.
+	 * If this VisualisationColor is associated with no column, then this method
+	 * returns null;
+	 * @param record
+	 * @return null or record's color adapted to be used as foreground when printing
+	 */
+	public Color getColorForPrintForeground(CompoundRecord record) {
+		Color c = getColor(record);
+		return c == null ? null : c.darker();
 		}
 
 	public void compoundTableChanged(CompoundTableEvent e) {
@@ -264,9 +320,10 @@ public class VisualizationColor implements CompoundTableListener,CompoundTableHi
 					}
 				}
 			}
-		else if (e.getType() == CompoundTableEvent.cDeleteRows) {
+		else if (e.getType() == CompoundTableEvent.cAddRows
+			  || e.getType() == CompoundTableEvent.cDeleteRows) {
 			if (mColorColumn != JVisualization.cColumnUnassigned
-			 && !CompoundTableHitlistHandler.isHitlistColumn(mColorColumn)) {
+			 && !CompoundTableListHandler.isListColumn(mColorColumn)) {
 				if (mColorListMode == VisualizationColor.cColorListModeCategories) {
 					if (mTableModel.isColumnTypeCategory(mColorColumn)) {	// if still multiple categories
 						setColorList(createUpdatedCategoryColorList());
@@ -296,20 +353,20 @@ public class VisualizationColor implements CompoundTableListener,CompoundTableHi
 			}
 		}
 
-	public void hitlistChanged(CompoundTableHitlistEvent e) {
-		if (e.getType() == CompoundTableHitlistEvent.cDelete) {
-			if (CompoundTableHitlistHandler.isHitlistColumn(mColorColumn)) {
-				int hitlistIndex = CompoundTableHitlistHandler.getHitlistFromColumn(mColorColumn);
-				if (e.getHitlistIndex() == hitlistIndex)
+	public void listChanged(CompoundTableListEvent e) {
+		if (e.getType() == CompoundTableListEvent.cDelete) {
+			if (CompoundTableListHandler.isListColumn(mColorColumn)) {
+				int hitlistIndex = CompoundTableListHandler.getListFromColumn(mColorColumn);
+				if (e.getListIndex() == hitlistIndex)
 					initialize();
-				else if (hitlistIndex > e.getHitlistIndex())
-					mColorColumn = CompoundTableHitlistHandler.getColumnFromHitlist(hitlistIndex-1);
+				else if (hitlistIndex > e.getListIndex())
+					mColorColumn = CompoundTableListHandler.getColumnFromList(hitlistIndex-1);
 				}
 			}
-		else if (e.getType() == CompoundTableHitlistEvent.cChange) {
-			if (CompoundTableHitlistHandler.isHitlistColumn(mColorColumn)) {
-				int hitlistIndex = CompoundTableHitlistHandler.getHitlistFromColumn(mColorColumn);
-				if (e.getHitlistIndex() == hitlistIndex)
+		else if (e.getType() == CompoundTableListEvent.cChange) {
+			if (CompoundTableListHandler.isListColumn(mColorColumn)) {
+				int hitlistIndex = CompoundTableListHandler.getListFromColumn(mColorColumn);
+				if (e.getListIndex() == hitlistIndex)
 					mColorListener.colorChanged(this);
 				}
 			}
@@ -320,7 +377,7 @@ public class VisualizationColor implements CompoundTableListener,CompoundTableHi
 	 * @return
 	 */
 	public Color[] getColorListWithoutDefaults() {
-		if (mColorList.length == cSpecialColorCount)
+		if (mColorColumn == -1 || mColorList.length == cSpecialColorCount)
 			return null;
 
 		// Determine the count of used colors; the size of mColorList may be larger and only partially used
@@ -336,7 +393,7 @@ public class VisualizationColor implements CompoundTableListener,CompoundTableHi
 	public int getColorListSizeWithoutDefaults() {
 		// Determine the count of used colors; the size of mColorList may be larger and only partially used
 		return (mColorListMode != cColorListModeCategories) ? mColorList.length - cSpecialColorCount
-				: (CompoundTableHitlistHandler.isHitlistColumn(mColorColumn)) ? 2
+				: (CompoundTableListHandler.isListColumn(mColorColumn)) ? 2
 				: mTableModel.getCategoryCount(mColorColumn);
 		}
 
@@ -355,9 +412,9 @@ public class VisualizationColor implements CompoundTableListener,CompoundTableHi
 	private int getColorListIndex(CompoundRecord record) {
 		if (mColorColumn == JVisualization.cColumnUnassigned)
 			return cDefaultDataColorIndex;
-		if (CompoundTableHitlistHandler.isHitlistColumn(mColorColumn)) {
-			int hitlistIndex = CompoundTableHitlistHandler.getHitlistFromColumn(mColorColumn);
-			int flagNo = mTableModel.getHitlistHandler().getHitlistFlagNo(hitlistIndex);
+		if (CompoundTableListHandler.isListColumn(mColorColumn)) {
+			int hitlistIndex = CompoundTableListHandler.getListFromColumn(mColorColumn);
+			int flagNo = mTableModel.getListHandler().getListFlagNo(hitlistIndex);
 			return record.isFlagSet(flagNo) ? cSpecialColorCount : cSpecialColorCount + 1;
 			}
 		if (mTableModel.isDescriptorColumn(mColorColumn))
@@ -480,7 +537,7 @@ public class VisualizationColor implements CompoundTableListener,CompoundTableHi
 	 */
 	public void setColor(int column) {
 		if (column != mColorColumn) {
-			if (CompoundTableHitlistHandler.isHitlistColumn(column))
+			if (CompoundTableListHandler.isListColumn(column))
    				setColor(column, createDefaultCategoryColorList(column), cColorListModeCategories);
 			else if (column == JVisualization.cColumnUnassigned
 			 || mTableModel.isColumnTypeDouble(column)
@@ -499,7 +556,7 @@ public class VisualizationColor implements CompoundTableListener,CompoundTableHi
 	 * @param mode one of the cColorListMode??? options
 	 */
 	public void setColor(int column, Color[] colorList, int mode) {
-		if (CompoundTableHitlistHandler.isHitlistColumn(column)) {
+		if (CompoundTableListHandler.isListColumn(column)) {
 			mode = cColorListModeCategories;
 			}
 		else if (mTableModel.isDescriptorColumn(column)) {
@@ -536,7 +593,7 @@ public class VisualizationColor implements CompoundTableListener,CompoundTableHi
 		if (mColorColumn != column && mColorListMode == cColorListModeCategories)
 			mCategoryColorMap = null;
 
-		if (!CompoundTableHitlistHandler.isHitlistColumn(column)
+		if (!CompoundTableListHandler.isListColumn(column)
 		 && mode == cColorListModeCategories
 		 && mTableModel.isColumnTypeCategory(column)
 		 && mTableModel.getCategoryCount(column) > colorList.length)
@@ -553,7 +610,7 @@ public class VisualizationColor implements CompoundTableListener,CompoundTableHi
 
 		if (mode == cColorListModeCategories
 		 && mTableModel.isColumnTypeCategory(column)
-		 && !CompoundTableHitlistHandler.isHitlistColumn(column))
+		 && !CompoundTableListHandler.isListColumn(column))
 			createCategoryColorMap(colorList);
 
 		mColorListener.colorChanged(this);

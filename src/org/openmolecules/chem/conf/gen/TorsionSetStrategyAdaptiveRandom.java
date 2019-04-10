@@ -17,7 +17,7 @@ package org.openmolecules.chem.conf.gen;
 import java.util.Arrays;
 
 public class TorsionSetStrategyAdaptiveRandom extends TorsionSetStrategyRandom {
-	private static final int MAX_TRIES_FOR_NEW = 16;
+	private static final int MAX_TRIES_FOR_NEW = 64;
 	private boolean mStartWithMostProbable;
 
 	/**
@@ -38,18 +38,18 @@ public class TorsionSetStrategyAdaptiveRandom extends TorsionSetStrategyRandom {
 		}
 
 	@Override
-	public TorsionSet getNextTorsionSet(TorsionSet previousTorsionSet) {
+	public TorsionSet createTorsionSet(TorsionSet previousTorsionSet) {
 		if (previousTorsionSet == null) {
 			if (mStartWithMostProbable)
 				return createTorsionSet(new int[mRotatableBond.length], new int[mRigidFragment.length]);
 			else
-				return super.getNextTorsionSet(null);
+				return super.createTorsionSet(null);
 			}
 
-		if (previousTorsionSet.getCollisionIntensitySum() == 0f)
-			return super.getNextTorsionSet(previousTorsionSet);
+		if (previousTorsionSet.getCollisionIntensitySum() == 0.0)
+			return super.createTorsionSet(previousTorsionSet);
 
-		float[] collisionIntensitySum = getBondAndFragmentCollisionIntensities(previousTorsionSet);
+		double[] collisionIntensitySum = getBondAndFragmentCollisionIntensities(previousTorsionSet);
 		int[] collidingTorsionIndex = previousTorsionSet.getTorsionIndexes();
 		int[] collidingConformerIndex = previousTorsionSet.getConformerIndexes();
 		boolean[] indexTried = new boolean[collisionIntensitySum.length];
@@ -57,7 +57,7 @@ public class TorsionSetStrategyAdaptiveRandom extends TorsionSetStrategyRandom {
 
 			// build a new weighted random scale not including already tried indexes
 			if (indexTried[0] || mRotatableBond[0].getTorsionCount() == 1)
-				collisionIntensitySum[0] = 0f;
+				collisionIntensitySum[0] = 0.0;
 			int index = 1;
 			for (int i=1; i<mRotatableBond.length; i++) {
 				if (indexTried[index] || mRotatableBond[i].getTorsionCount() == 1)
@@ -75,11 +75,11 @@ public class TorsionSetStrategyAdaptiveRandom extends TorsionSetStrategyRandom {
 				}
 
 			// if we cannot rotate any of the colliding bonds nor have alternative fragment conformers, then create a random new torsion set
-			if (collisionIntensitySum[collisionIntensitySum.length-1] == 0f)
-				return super.getNextTorsionSet(previousTorsionSet);
+			if (collisionIntensitySum[collisionIntensitySum.length-1] == 0.0)
+				return super.createTorsionSet(previousTorsionSet);
 
 			// find a bond or fragment
-			float random = getRandom().nextFloat() * collisionIntensitySum[collisionIntensitySum.length-1];
+			double random = getRandom().nextDouble() * collisionIntensitySum[collisionIntensitySum.length-1];
 			for (int i=0; i<collisionIntensitySum.length; i++) {
 				if (random < collisionIntensitySum[i]) {
 					int[] torsionIndex = Arrays.copyOf(collidingTorsionIndex, collidingTorsionIndex.length);
@@ -112,6 +112,6 @@ public class TorsionSetStrategyAdaptiveRandom extends TorsionSetStrategyRandom {
 				}
 			}
 
-		return super.getNextTorsionSet(previousTorsionSet);
+		return super.createTorsionSet(previousTorsionSet);
 		}
 	}

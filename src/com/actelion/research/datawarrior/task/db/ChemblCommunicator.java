@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,12 +18,11 @@
 
 package com.actelion.research.datawarrior.task.db;
 
-import java.util.TreeMap;
-
+import com.actelion.research.calc.ProgressController;
 import org.openmolecules.chembl.ChemblServerConstants;
 import org.openmolecules.comm.ClientCommunicator;
 
-import com.actelion.research.calc.ProgressController;
+import java.util.TreeMap;
 
 public class ChemblCommunicator extends ClientCommunicator implements ChemblServerConstants {
 	private ProgressController mProgressController;
@@ -34,8 +33,11 @@ public class ChemblCommunicator extends ClientCommunicator implements ChemblServ
 		mProgressController = task;
 		}
 
-	public byte[][][] getTargetTable() {
-		return (byte[][][])getResponse(REQUEST_GET_TARGET_LIST);
+	// TODO get rid of this with chembl21 on server
+	public byte[][][] getTargetTable() { return (byte[][][])getResponse(REQUEST_GET_TARGET_LIST); }
+
+	public Object[] getVersionAndTargetTable() {
+		return (Object[])getResponse(REQUEST_GET_VERSION_AND_TARGETS);
 		}
 
 	public byte[][][] getProteinClassDictionary() {

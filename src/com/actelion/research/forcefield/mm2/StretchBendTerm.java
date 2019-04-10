@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -24,14 +24,16 @@ import com.actelion.research.chem.Coordinates;
 import com.actelion.research.chem.FFMolecule;
 import com.actelion.research.chem.calculator.StructureCalculator;
 import com.actelion.research.forcefield.AbstractTerm;
-import com.actelion.research.forcefield.FFParameters;
 import com.actelion.research.forcefield.FastMath;
+import com.actelion.research.forcefield.mm2.MM2Parameters.AngleParameters;
 
 /**
  * 
  */
 public final class StretchBendTerm extends AbstractTerm {
-	private final static FFParameters parameters = MM2Parameters.getInstance();
+	private final static MM2Parameters parameters = MM2Parameters.getInstance();
+
+	private static final double RADIAN = 180 / Math.PI;
 
 	private final double eqAngle;
 	private final BondTerm t1, t2;
@@ -50,9 +52,9 @@ public final class StretchBendTerm extends AbstractTerm {
 	protected static StretchBendTerm create(MM2TermList tl, int a1, int a2, int a3, BondTerm t1, BondTerm t2) {
 		int[] atoms = new int[]{a1,a2,a3};
 		FFMolecule mol = tl.getMolecule();
-		int n1 = mol.getAtomMM2Class(a1);
-		int n2 = mol.getAtomMM2Class(a2);
-		int n3 = mol.getAtomMM2Class(a3);
+		int n1 = mol.getMM2AtomType(a1);
+		int n2 = mol.getMM2AtomType(a2);
+		int n3 = mol.getMM2AtomType(a3);
 		
 		int nH = 0;		
 		if(mol.getAtomicNo(a1)<=1) nH++;
@@ -64,7 +66,7 @@ public final class StretchBendTerm extends AbstractTerm {
 		if(mol.getAtomicNo(a3)==1) nHydro--;
 		int ringSize = mol.getRingSize(atoms);
 		
-		FFParameters.AngleParameters angleParams = parameters.getAngleParameters(n1, n2, n3, nHydro, ringSize);
+		AngleParameters angleParams = parameters.getAngleParameters(n1, n2, n3, nHydro, ringSize);
 		double eqAngle = angleParams!=null? angleParams.eq: 0; 
 		
 		
@@ -135,4 +137,9 @@ public final class StretchBendTerm extends AbstractTerm {
 		return Kbend!=0 && eqAngle>0 && t1.eq>0 && t2.eq>0;
 	}
 	
+	@Override
+	public final boolean isBonded() {
+		return false;
+	}
+
 }

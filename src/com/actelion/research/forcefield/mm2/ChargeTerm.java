@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -17,21 +17,20 @@
  */
 package com.actelion.research.forcefield.mm2;
 
-import com.actelion.research.chem.*;
+import com.actelion.research.chem.Coordinates;
+import com.actelion.research.chem.FFMolecule;
 import com.actelion.research.forcefield.AbstractTerm;
-import com.actelion.research.forcefield.FFParameters;
-import com.actelion.research.util.*;
+import com.actelion.research.util.MathUtils;
 
 /**
  * 
  */
 public final class ChargeTerm extends AbstractTerm {
-	private final static FFParameters parameters = MM2Parameters.getInstance();
+	private final static MM2Parameters parameters = MM2Parameters.getInstance();
 
 	private final static double CUTOFF = 9;
 	private final static double TAPER_CUTOFF = CUTOFF * .9;
 	private final static double TAPER_COEFFS[] = MathUtils.getTaperCoeffs(CUTOFF, TAPER_CUTOFF);
-	private final static double DIELECTRIC = DipoleTerm.DIELECTRIC;
 	
 	private final double product; 
 	private double energy;	
@@ -45,11 +44,11 @@ public final class ChargeTerm extends AbstractTerm {
 	protected static ChargeTerm create(MM2TermList tl, int a1, int a2) {
 		int[] atoms = new int[]{a1, a2};
 		
-		int n1 = tl.getMolecule().getAtomMM2Class(a1);
-		int n2 = tl.getMolecule().getAtomMM2Class(a2);
+		int n1 = tl.getMolecule().getMM2AtomType(a1);
+		int n2 = tl.getMolecule().getMM2AtomType(a2);
 		double charge1 = n1>=0? parameters.getAtomClass(n1).charge: 0; 
 		double charge2 = n2>=0? parameters.getAtomClass(n2).charge: 0;
-		double product = 332.05382 / DIELECTRIC * charge1 * charge2;
+		double product = 332.05382 / tl.getConfig().getDielectric() * charge1 * charge2;
 		
 		if(product!=0) {
 			return new ChargeTerm(tl.getMolecule(), atoms, product);

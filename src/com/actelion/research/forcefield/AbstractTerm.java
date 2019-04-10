@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -26,23 +26,20 @@ import com.actelion.research.chem.FFMolecule;
  */
 public abstract class AbstractTerm implements Cloneable {
 	
-	protected static final double RADIAN = 180 / Math.PI;
 	
 	protected FFMolecule mol;
 	protected int atoms[];	
 	
-	public final FFMolecule getMolecule() {
-		return mol;
-	}
-	
-	public AbstractTerm(FFMolecule mol) {
-		this.mol = mol;
-	}	
 	public AbstractTerm(FFMolecule mol, final int[] atoms) {
 		this.mol = mol;
 		this.atoms = atoms;
 	}	
+
+	public final FFMolecule getMolecule() {
+		return mol;
+	}
 	
+
 	/**
 	 * Computes the Force (energy) and Gradient of this term at the corresponding atoms
 	 * 
@@ -84,15 +81,13 @@ public abstract class AbstractTerm implements Cloneable {
 		return atoms;
 	}
 	
-
-	protected final static double sqrt(double d) {
-		return d<=0? 0: Math.sqrt(d);
+	/**
+	 * Return true if the force is between atoms separated more than 3 bonds 
+	 * @return
+	 */
+	public boolean isBonded() {
+		return true;
 	}
-
-
-	
-	
-	
 
 
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2015 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of ActelionMMFF94.
  * 
@@ -110,9 +110,9 @@ public final class Molecule {
     public int            getAllConnAtoms(int a)      { return mol.getAllConnAtoms(a); }
     public int            getAtomCharge(int a)        { return mol.getAtomCharge(a); }
     public String         getAtomLabel(int a)         { return mol.getAtomLabel(a); }
-    public float          getAtomX(int a)             { return mol.getAtomX(a); }
-    public float          getAtomY(int a)             { return mol.getAtomY(a); }
-    public float          getAtomZ(int a)             { return mol.getAtomZ(a); }
+    public double         getAtomX(int a)             { return mol.getAtomX(a); }
+    public double         getAtomY(int a)             { return mol.getAtomY(a); }
+    public double         getAtomZ(int a)             { return mol.getAtomZ(a); }
     public int            getAtomRingSize(int a)      { return mol.getAtomRingSize(a); }
     public int            getAtomicNo(int a)          { return mol.getAtomicNo(a); }
     public int            getBond(int a1, int a2)     { return mol.getBond(a1, a2); }

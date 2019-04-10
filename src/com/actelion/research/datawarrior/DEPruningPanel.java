@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,60 +18,31 @@
 
 package com.actelion.research.datawarrior;
 
-import java.awt.Color;
-import java.awt.Component;
-import java.awt.Dimension;
-import java.awt.Frame;
-import java.awt.Graphics;
-import java.awt.Rectangle;
-
-import javax.swing.BorderFactory;
-import javax.swing.JOptionPane;
-import javax.swing.JPanel;
-import javax.swing.JScrollPane;
-
 import com.actelion.research.chem.StereoMolecule;
 import com.actelion.research.chem.reaction.Reaction;
 import com.actelion.research.datawarrior.task.AbstractTask;
 import com.actelion.research.datawarrior.task.DEMacroRecorder;
-import com.actelion.research.datawarrior.task.filter.DETaskChangeCategoryBrowser;
-import com.actelion.research.datawarrior.task.filter.DETaskChangeCategoryFilter;
-import com.actelion.research.datawarrior.task.filter.DETaskChangeListFilter;
-import com.actelion.research.datawarrior.task.filter.DETaskChangeRangeFilter;
-import com.actelion.research.datawarrior.task.filter.DETaskChangeSimilarStructureListFilter;
-import com.actelion.research.datawarrior.task.filter.DETaskChangeStructureFilter;
-import com.actelion.research.datawarrior.task.filter.DETaskChangeSubstructureListFilter;
-import com.actelion.research.datawarrior.task.filter.DETaskChangeTextFilter;
-import com.actelion.research.datawarrior.task.filter.DETaskCloseFilter;
+import com.actelion.research.datawarrior.task.filter.*;
+import com.actelion.research.gui.LookAndFeelHelper;
 import com.actelion.research.gui.VerticalFlowLayout;
-import com.actelion.research.table.CompoundTableEvent;
-import com.actelion.research.table.CompoundTableHitlistEvent;
-import com.actelion.research.table.CompoundTableHitlistHandler;
-import com.actelion.research.table.CompoundTableHitlistListener;
-import com.actelion.research.table.CompoundTableListener;
-import com.actelion.research.table.CompoundTableModel;
-import com.actelion.research.table.RuntimePropertyEvent;
-import com.actelion.research.table.filter.FilterEvent;
-import com.actelion.research.table.filter.FilterListener;
-import com.actelion.research.table.filter.JCategoryBrowser;
-import com.actelion.research.table.filter.JCategoryFilterPanel;
-import com.actelion.research.table.filter.JDoubleFilterPanel;
-import com.actelion.research.table.filter.JFilterPanel;
-import com.actelion.research.table.filter.JHitlistFilterPanel;
-import com.actelion.research.table.filter.JMultiStructureFilterPanel;
-import com.actelion.research.table.filter.JReactionFilterPanel;
-import com.actelion.research.table.filter.JSingleStructureFilterPanel;
-import com.actelion.research.table.filter.JStringFilterPanel;
-import com.actelion.research.table.filter.JStructureFilterPanel;
+import com.actelion.research.table.*;
+import com.actelion.research.table.filter.*;
+import com.actelion.research.table.model.*;
+import com.actelion.research.util.ColorHelper;
+
+import javax.swing.*;
+import java.awt.*;
 
 public class DEPruningPanel extends JScrollPane
-                implements CompoundTableListener,CompoundTableHitlistListener,FilterListener {
+                implements CompoundTableListener,CompoundTableListListener,FilterListener {
     private static final long serialVersionUID = 0x20060904;
 
     private JPanel              mContent;
 	private Frame               mOwner;
 	private DEParentPane		mParentPane;
     private CompoundTableModel  mTableModel;
+	private String              mRecentErrorMessage;
+	private long                mRecentErrorMillis;
 
     public DEPruningPanel(Frame owner, DEParentPane parentPane, CompoundTableModel tableModel) {
 		mContent = new JPanel() {
@@ -81,8 +52,10 @@ public class DEPruningPanel extends JScrollPane
 		    public void paintComponent(Graphics g) {
 		    	super.paintComponent(g);
 
-		    	Rectangle r = new Rectangle();
-		    	g.setColor(Color.LIGHT_GRAY);
+			    Color color = LookAndFeelHelper.isDarkLookAndFeel() ?
+					    ColorHelper.brighter(getBackground(), 0.85f) : ColorHelper.darker(getBackground(), 0.85f);
+		    	g.setColor(color);
+			    Rectangle r = new Rectangle();
 		    	for (int i=1; i<getComponentCount(); i++) {
 		    		getComponent(i).getBounds(r);
 		    		g.drawLine(r.x+2, r.y-3, r.x+r.width-3, r.y-3);
@@ -108,7 +81,7 @@ public class DEPruningPanel extends JScrollPane
 		mParentPane = parentPane;
         mTableModel = tableModel;
         tableModel.addCompoundTableListener(this);
-        tableModel.getHitlistHandler().addCompoundTableHitlistListener(this);
+        tableModel.getListHandler().addCompoundTableListListener(this);
         }
 
     public DEParentPane getParentPane() {
@@ -131,7 +104,7 @@ public class DEPruningPanel extends JScrollPane
 			for (int i=0; i<mTableModel.getTotalColumnCount(); i++)
 				addDefaultFilter(i);
 
-			if (mTableModel.getHitlistHandler().getHitlistCount() > 0) {
+			if (mTableModel.getListHandler().getListCount() > 0) {
 				JFilterPanel filter = new JHitlistFilterPanel(mTableModel, allocateFilterFlag());
 				filter.addFilterListener(this);
 				mContent.add(filter);
@@ -141,12 +114,24 @@ public class DEPruningPanel extends JScrollPane
 			repaint();
 			}
 		catch (FilterException fpe) {
-			JOptionPane.showMessageDialog(mOwner, fpe.getMessage());
+			showErrorMessage(fpe.getMessage());
 			}
 		}
 
+	/**
+	 * We actually only show the message, if the same message has not been shown during the recent 5 seconds
+	 */
+	private void showErrorMessage(String message) {
+		if (System.currentTimeMillis() - mRecentErrorMillis > 5000
+		 || !message.equals(mRecentErrorMessage)) {
+			JOptionPane.showMessageDialog(mOwner, message);
+			mRecentErrorMessage = message;
+			}
+		mRecentErrorMillis = System.currentTimeMillis();
+		}
+
     private int allocateFilterFlag() throws FilterException {
-		int flag = mTableModel.getUnusedCompoundFlag(true);
+		int flag = mTableModel.getUnusedRowFlag(true);
 
 		if (flag == -1)
 			throw new FilterException("Maximum number of open filters reached.");
@@ -158,7 +143,7 @@ public class DEPruningPanel extends JScrollPane
 		if (mTableModel.isColumnTypeDouble(column)) {
 			if (mTableModel.isColumnDataComplete(column)
 			 && mTableModel.getMinimumValue(column) != mTableModel.getMaximumValue(column)) {
-				JFilterPanel filter = new JDoubleFilterPanel(mTableModel, column, allocateFilterFlag());
+				JFilterPanel filter = new JRangeFilterPanel(mTableModel, column, allocateFilterFlag());
 				filter.addFilterListener(this);
 				mContent.add(filter);
 				}
@@ -170,7 +155,7 @@ public class DEPruningPanel extends JScrollPane
 				mContent.add(filter);
 				}
 			else {
-				JFilterPanel filter = new JDoubleFilterPanel(mTableModel, column, allocateFilterFlag());
+				JFilterPanel filter = new JRangeFilterPanel(mTableModel, column, allocateFilterFlag());
 				filter.addFilterListener(this);
 				mContent.add(filter);
 				}
@@ -190,13 +175,13 @@ public class DEPruningPanel extends JScrollPane
 			}
         else if (CompoundTableModel.cColumnTypeRXNCode.equals(mTableModel.getColumnSpecialType(column))) {
             if (mTableModel.hasDescriptorColumn(column)) {
-                JReactionFilterPanel filter = new JReactionFilterPanel(mOwner, mTableModel, column, allocateFilterFlag(), null);
+				JSingleStructureFilterPanel filter = new JSingleStructureFilterPanel(mOwner, mTableModel, column, allocateFilterFlag(), null);
 				filter.addFilterListener(this);
                 mContent.add(filter);
                 }
             }
         else if (mTableModel.isColumnTypeString(column)) {
-            JFilterPanel filter = new JStringFilterPanel(mTableModel, column, allocateFilterFlag());
+            JFilterPanel filter = new JTextFilterPanel(mTableModel, column, allocateFilterFlag());
 			filter.addFilterListener(this);
             mContent.add(filter);
             }
@@ -212,7 +197,7 @@ public class DEPruningPanel extends JScrollPane
 				repaint();
         		}
     		catch (FilterException fpe) {
-    			JOptionPane.showMessageDialog(mOwner, fpe.getMessage());
+			    showErrorMessage(fpe.getMessage());
     			}
 
         	}
@@ -241,17 +226,17 @@ public class DEPruningPanel extends JScrollPane
 					addDefaultFilter(column);
 				}
 			catch (FilterException fpe) {
-				JOptionPane.showMessageDialog(mOwner, fpe.getMessage());
+				showErrorMessage(fpe.getMessage());
 				}
 			validate();
 			}
         }
 
-    public void hitlistChanged(CompoundTableHitlistEvent e) {
-        CompoundTableHitlistHandler hitlistHandler = mTableModel.getHitlistHandler();
+    public void listChanged(CompoundTableListEvent e) {
+        CompoundTableListHandler hitlistHandler = mTableModel.getListHandler();
 
-        if (e.getType() == CompoundTableHitlistEvent.cDelete) {
-            if (hitlistHandler.getHitlistCount() == 0) {
+        if (e.getType() == CompoundTableListEvent.cDelete) {
+            if (hitlistHandler.getListCount() == 0) {
                 Component[] filter = mContent.getComponents();
                 for (int i=0; i<filter.length; i++)
                     if (filter[i] instanceof JHitlistFilterPanel)
@@ -263,12 +248,12 @@ public class DEPruningPanel extends JScrollPane
         Component[] filter = mContent.getComponents();
         for (int i=0; i<filter.length; i++) {
             if (filter[i] instanceof JHitlistFilterPanel) {
-                ((JHitlistFilterPanel)filter[i]).hitlistChanged(e);
+                ((JHitlistFilterPanel)filter[i]).listChanged(e);
                 hitlistFiltersVisible = true;
                 }
             }
 
-        if (e.getType() == CompoundTableHitlistEvent.cAdd) {
+        if (e.getType() == CompoundTableListEvent.cAdd) {
             if (!hitlistFiltersVisible) {
                 try {
                 	JHitlistFilterPanel f = new JHitlistFilterPanel(mTableModel, allocateFilterFlag());
@@ -290,9 +275,9 @@ public class DEPruningPanel extends JScrollPane
         return filter;
         }
 
-    public JStringFilterPanel addStringFilter(CompoundTableModel tableModel, int column) throws FilterException {
-		if (tableModel.getColumnSpecialType(column) == null) {
-			JStringFilterPanel filter = new JStringFilterPanel(tableModel, column, allocateFilterFlag());
+    public JTextFilterPanel addTextFilter(CompoundTableModel tableModel, int column) throws FilterException {
+		if (column == JFilterPanel.PSEUDO_COLUMN_ALL_COLUMNS || tableModel.getColumnSpecialType(column) == null) {
+			JTextFilterPanel filter = new JTextFilterPanel(tableModel, column, allocateFilterFlag());
 			filter.addFilterListener(this);
 			mContent.add(filter);
 			validate();
@@ -302,9 +287,9 @@ public class DEPruningPanel extends JScrollPane
 		return null;
 		}
 
-	public JDoubleFilterPanel addDoubleFilter(CompoundTableModel tableModel, int column) throws FilterException {
+	public JRangeFilterPanel addDoubleFilter(CompoundTableModel tableModel, int column) throws FilterException {
 		if (tableModel.isColumnTypeDouble(column)) {
-			JDoubleFilterPanel filter = new JDoubleFilterPanel(tableModel, column, allocateFilterFlag());
+			JRangeFilterPanel filter = new JRangeFilterPanel(tableModel, column, allocateFilterFlag());
 			filter.addFilterListener(this);
 			mContent.add(filter);
 			validate();
@@ -407,13 +392,20 @@ public class DEPruningPanel extends JScrollPane
 		return index;
 		}
 
+	/**
+	 *
+	 * @param filterType
+	 * @param column -1 if this filter type doesn't need to match the column
+	 * @param duplicateIndex
+	 * @return
+	 */
 	public JFilterPanel getFilter(int filterType, int column, int duplicateIndex) {
 		int index = 0;
 		Component[] component = mContent.getComponents();
 		for (int i=0; i<component.length; i++) {
 			JFilterPanel filter = (JFilterPanel)component[i];
 			if (filterType == filter.getFilterType()
-			 && column == filter.getColumnIndex()) {
+			 && (column == -1 || column == filter.getColumnIndex())) {
 				if (index == duplicateIndex)
 					return filter;
 				index++;
@@ -452,7 +444,7 @@ public class DEPruningPanel extends JScrollPane
 				task = new DETaskChangeCategoryFilter(mOwner, this, filter);
 			else if (e.getSource() instanceof JHitlistFilterPanel)
 				task = new DETaskChangeListFilter(mOwner, this, filter);
-			else if (e.getSource() instanceof JDoubleFilterPanel)
+			else if (e.getSource() instanceof JRangeFilterPanel)
 				task = new DETaskChangeRangeFilter(mOwner, this, filter);
 			else if (e.getSource() instanceof JMultiStructureFilterPanel) {
 				if (((JMultiStructureFilterPanel)e.getSource()).supportsSSS())
@@ -462,7 +454,7 @@ public class DEPruningPanel extends JScrollPane
 				}
 			else if (e.getSource() instanceof JSingleStructureFilterPanel)
 				task = new DETaskChangeStructureFilter(mOwner, this, filter);
-			else if (e.getSource() instanceof JStringFilterPanel)
+			else if (e.getSource() instanceof JTextFilterPanel)
 				task = new DETaskChangeTextFilter(mOwner, this, filter);
 
 			if (task != null)

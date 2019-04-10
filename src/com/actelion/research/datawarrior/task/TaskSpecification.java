@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -27,10 +27,11 @@ public class TaskSpecification implements Comparable<TaskSpecification> {
 	public static final int CATEGORY_LIST = 4;
 	public static final int CATEGORY_DATABASE = 5;
 	public static final int CATEGORY_FILTER = 6;
-	public static final int CATEGORY_VIEW = 7;
-	public static final int CATEGORY_MACRO = 8;
-	public static final int CATEGORY_TEST = 9;
-	public static final String[] CATEGORY_NAME = { "File", "Edit", "Data", "Chemistry", "List", "Database", "Filter", "View", "Macro", "Test" };
+	public static final int CATEGORY_TABLE = 7;
+	public static final int CATEGORY_VIEW = 8;
+	public static final int CATEGORY_MACRO = 9;
+	public static final int CATEGORY_TEST = 10;
+	public static final String[] CATEGORY_NAME = { "File", "Edit", "Data", "Chemistry", "List", "Database", "Filter", "Table", "View", "Macro", "Test" };
 
 	private int mCategory;
 	private String mName;

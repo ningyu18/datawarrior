@@ -14,12 +14,12 @@
 
 package org.openmolecules.chem.conf.so;
 
-import java.util.ArrayList;
-
 import com.actelion.research.calc.SingularValueDecomposition;
 import com.actelion.research.chem.IDCodeParser;
 import com.actelion.research.chem.StereoMolecule;
 import com.actelion.research.chem.conf.Conformer;
+
+import java.util.ArrayList;
 
 public class StraightLineRule extends ConformationRule {
 
@@ -38,44 +38,45 @@ public class StraightLineRule extends ConformationRule {
 		StereoMolecule mol = new IDCodeParser(true).getCompactMolecule("fkA@@@DjYfYhIbnRtZjjjjjXAPbIbDUD@");
 		SelfOrganizedConformer conformer = new SelfOrganizedConformer(mol);
 		for (int i=0; i<LINE_ATOMS; i++) {	// straight line
-			conformer.x[FIRST_LINE_ATOM+i] = i;
-			conformer.y[FIRST_LINE_ATOM+i] = i;
-			conformer.z[FIRST_LINE_ATOM+i] = i;
+			conformer.setX(FIRST_LINE_ATOM+i, i);
+			conformer.setY(FIRST_LINE_ATOM+i, i);
+			conformer.setZ(FIRST_LINE_ATOM+i, i);
 			}
-		conformer.y[FIRST_LINE_ATOM+1] += 1;
-		conformer.y[FIRST_LINE_ATOM+2] -= 1;
-		conformer.y[FIRST_LINE_ATOM+4] -= 1;
-		conformer.y[FIRST_LINE_ATOM+5] += 1;
+		conformer.getCoordinates(FIRST_LINE_ATOM+1).y += 1;
+		conformer.getCoordinates(FIRST_LINE_ATOM+2).y -= 1;
+		conformer.getCoordinates(FIRST_LINE_ATOM+4).y -= 1;
+		conformer.getCoordinates(FIRST_LINE_ATOM+5).y += 1;
 
 		System.out.println("------------------- you may copy and paste to DataWarrior ---------------------");
 		System.out.println("p\tx\ty\tz\ttime");
 		for (int i=FIRST_LINE_ATOM; i<=LAST_LINE_ATOM; i++)
-			System.out.println("p"+i+"\t"+conformer.x[i]+"\t"+conformer.y[i]+"\t"+conformer.z[i]+"\tbefore");
+			System.out.println("p"+i+"\t"+conformer.getX(i)+"\t"+conformer.getY(i)+"\t"+conformer.getZ(i)+"\tbefore");
 		new StraightLineRule(atom).apply(conformer, 1f);
 		for (int i=FIRST_LINE_ATOM; i<=LAST_LINE_ATOM; i++)
-			System.out.println("p"+i+"\t"+conformer.x[i]+"\t"+conformer.y[i]+"\t"+conformer.z[i]+"\tafter");
+			System.out.println("p"+i+"\t"+conformer.getX(i)+"\t"+conformer.getY(i)+"\t"+conformer.getZ(i)+"\tafter");
 
 		for (int i=0; i<LINE_ATOMS; i++) {	// straight line
-			conformer.x[FIRST_LINE_ATOM+i] = i;
-			conformer.y[FIRST_LINE_ATOM+i] = 0;
-			conformer.z[FIRST_LINE_ATOM+i] = 0;
+			conformer.setX(FIRST_LINE_ATOM+i, i);
+			conformer.setY(FIRST_LINE_ATOM+i, 0);
+			conformer.setZ(FIRST_LINE_ATOM+i, 0);
 			}
-		conformer.y[FIRST_LINE_ATOM+1] -= 1;
-		conformer.y[FIRST_LINE_ATOM+2] += 1;
-		conformer.y[FIRST_LINE_ATOM+4] += 1;
-		conformer.y[FIRST_LINE_ATOM+5] -= 1;
-		conformer.z[FIRST_LINE_ATOM+0] -= 1;
-		conformer.z[FIRST_LINE_ATOM+2] += 1;
-		conformer.z[FIRST_LINE_ATOM+4] += 1;
-		conformer.z[FIRST_LINE_ATOM+6] -= 1;
+		conformer.getCoordinates(FIRST_LINE_ATOM+1).y -= 1;
+		conformer.getCoordinates(FIRST_LINE_ATOM+2).y += 1;
+		conformer.getCoordinates(FIRST_LINE_ATOM+4).y += 1;
+		conformer.getCoordinates(FIRST_LINE_ATOM+5).y -= 1;
+
+		conformer.getCoordinates(FIRST_LINE_ATOM+0).z -= 1;
+		conformer.getCoordinates(FIRST_LINE_ATOM+2).z += 1;
+		conformer.getCoordinates(FIRST_LINE_ATOM+4).z += 1;
+		conformer.getCoordinates(FIRST_LINE_ATOM+6).z -= 1;
 
 		System.out.println("------------------- you may copy and paste to DataWarrior ---------------------");
 		System.out.println("p\tx\ty\tz\ttime");
 		for (int i=FIRST_LINE_ATOM; i<=LAST_LINE_ATOM; i++)
-			System.out.println("p"+i+"\t"+conformer.x[i]+"\t"+conformer.y[i]+"\t"+conformer.z[i]+"\tbefore");
+			System.out.println("p"+i+"\t"+conformer.getX(i)+"\t"+conformer.getY(i)+"\t"+conformer.getZ(i)+"\tbefore");
 		new StraightLineRule(atom).apply(conformer, 1f);
 		for (int i=FIRST_LINE_ATOM; i<=LAST_LINE_ATOM; i++)
-			System.out.println("p"+i+"\t"+conformer.x[i]+"\t"+conformer.y[i]+"\t"+conformer.z[i]+"\tafter");
+			System.out.println("p"+i+"\t"+conformer.getX(i)+"\t"+conformer.getY(i)+"\t"+conformer.getZ(i)+"\tafter");
 		}
 
 	public StraightLineRule(int[] atom) {
@@ -99,7 +100,6 @@ public class StraightLineRule extends ConformationRule {
      * Compiles a list atom indexes of a straight line atom strand in strand order.
      * It also sets the atomHandled flags for all strand atoms.
      * @param seedAtom
-     * @param atomHandled
      * @param mol
      * @return
      */
@@ -139,21 +139,21 @@ public class StraightLineRule extends ConformationRule {
 		}
 
 	@Override
-	public boolean apply(Conformer conformer, float cycleFactor) {
-		float[] cog = new float[3];	// center of gravity
+	public boolean apply(Conformer conformer, double cycleFactor) {
+		double[] cog = new double[3];	// center of gravity
 		for (int i=0; i<mAtom.length; i++) {
-			cog[0] += conformer.x[mAtom[i]];
-			cog[1] += conformer.y[mAtom[i]];
-			cog[2] += conformer.z[mAtom[i]];
+			cog[0] += conformer.getX(mAtom[i]);
+			cog[1] += conformer.getY(mAtom[i]);
+			cog[2] += conformer.getZ(mAtom[i]);
 			}
 		for (int j=0; j<3; j++)
 			cog[j] /= mAtom.length;
 
-		float[][] A = new float[mAtom.length][3];
+		double[][] A = new double[mAtom.length][3];
 		for (int i=0; i<mAtom.length; i++) {
-			A[i][0] = conformer.x[mAtom[i]] - cog[0];
-			A[i][1] = conformer.y[mAtom[i]] - cog[1];
-			A[i][2] = conformer.z[mAtom[i]] - cog[2];
+			A[i][0] = conformer.getX(mAtom[i]) - cog[0];
+			A[i][1] = conformer.getY(mAtom[i]) - cog[1];
+			A[i][2] = conformer.getZ(mAtom[i]) - cog[2];
 			}
 
 		double[][] squareMatrix = new double[3][3];
@@ -170,11 +170,11 @@ public class StraightLineRule extends ConformationRule {
 				maxIndex = i;
 
 		double[][] U = svd.getU();
-		float[] n = new float[3];	// normal vector of fitted line
+		double[] n = new double[3];	// normal vector of fitted line
 		for (int i=0; i<3; i++)
-			n[i] = (float)U[i][maxIndex];
+			n[i] = U[i][maxIndex];
 
-		float[] lambda = new float[mAtom.length];
+		double[] lambda = new double[mAtom.length];
 		for (int i=0; i<mAtom.length; i++)
 			lambda[i] = n[0]*A[i][0]+n[1]*A[i][1]+n[2]*A[i][2];
 
@@ -194,10 +194,10 @@ public class StraightLineRule extends ConformationRule {
 /*	re-ordering atoms is problematic if we have multiple straight chains connecting in one point
  * 
  * 			if (isInconsistent) {	// re-arrange lambda values to get atoms back in order
-				float s1 = 0f;
-				float s2 = 0f;
-				float min = Float.MAX_VALUE;
-				float max = Float.MIN_VALUE;
+				double s1 = 0;
+				double s2 = 0;
+				double min = Double.MAX_VALUE;
+				double max = Double.MIN_VALUE;
 				for (int i=0; i<mAtom.length; i++) {
 					s1 += lambda[i] * (mAtom.length - 1 - i);
 					s2 += lambda[i] * i;
@@ -205,7 +205,7 @@ public class StraightLineRule extends ConformationRule {
 					max = Math.max(max, lambda[i]);
 					}
 				isIncreasing = (s2 > s1);
-				float delta = isIncreasing ? max-min : min-max;
+				double delta = isIncreasing ? max-min : min-max;
 				lambda[0] = isIncreasing ? min : max;
 				for (int i=1; i<mAtom.length; i++)
 					lambda[i] = lambda[i-1] + delta;
@@ -215,30 +215,30 @@ public class StraightLineRule extends ConformationRule {
 		// for a point P on the fitted line is: P = COG + lamda * N
 		for (int i=0; i<mAtom.length; i++) {
 				// calculate lambda that gives the closest point to current atom location
-			conformer.x[mAtom[i]] += cycleFactor*(lambda[i]*n[0]-A[i][0]);
-			conformer.y[mAtom[i]] += cycleFactor*(lambda[i]*n[1]-A[i][1]);
-			conformer.z[mAtom[i]] += cycleFactor*(lambda[i]*n[2]-A[i][2]);
+			conformer.getCoordinates(mAtom[i]).add(cycleFactor*(lambda[i]*n[0]-A[i][0]),
+												  cycleFactor*(lambda[i]*n[1]-A[i][1]),
+												  cycleFactor*(lambda[i]*n[2]-A[i][2]));
 			}
 
 		return true;
 		}
 
 	@Override
-	public float addStrain(Conformer conformer, float[] atomStrain) {
-		float[] cog = new float[3];	// center of gravity
+	public double addStrain(Conformer conformer, double[] atomStrain) {
+		double[] cog = new double[3];	// center of gravity
 		for (int i=0; i<mAtom.length; i++) {
-			cog[0] += conformer.x[mAtom[i]];
-			cog[1] += conformer.y[mAtom[i]];
-			cog[2] += conformer.z[mAtom[i]];
+			cog[0] += conformer.getX(mAtom[i]);
+			cog[1] += conformer.getY(mAtom[i]);
+			cog[2] += conformer.getZ(mAtom[i]);
 			}
 		for (int j=0; j<3; j++)
 			cog[j] /= mAtom.length;
 
-		float[][] A = new float[mAtom.length][3];
+		double[][] A = new double[mAtom.length][3];
 		for (int i=0; i<mAtom.length; i++) {
-			A[i][0] = conformer.x[mAtom[i]] - cog[0];
-			A[i][1] = conformer.y[mAtom[i]] - cog[1];
-			A[i][2] = conformer.z[mAtom[i]] - cog[2];
+			A[i][0] = conformer.getX(mAtom[i]) - cog[0];
+			A[i][1] = conformer.getY(mAtom[i]) - cog[1];
+			A[i][2] = conformer.getZ(mAtom[i]) - cog[2];
 			}
 
 		double[][] squareMatrix = new double[3][3];
@@ -255,18 +255,18 @@ public class StraightLineRule extends ConformationRule {
 				maxIndex = i;
 
 		double[][] U = svd.getU();
-		float[] n = new float[3];	// normal vector of fitted line
+		double[] n = new double[3];	// normal vector of fitted line
 		for (int i=0; i<3; i++)
-			n[i] = (float)U[i][maxIndex];
+			n[i] = U[i][maxIndex];
 
-		float totalStrain = 0;
+		double totalStrain = 0;
 		for (int i=0; i<mAtom.length; i++) {
 				// calculate lamda that gives the closest point to current atom location
-			float lamda = n[0]*A[i][0]+n[1]*A[i][1]+n[2]*A[i][2];
-			float dx = lamda*n[0]-A[i][0];
-			float dy = lamda*n[1]-A[i][1];
-			float dz = lamda*n[2]-A[i][2];
-			float panalty = dx*dx+dy*dy+dz*dz;
+			double lamda = n[0]*A[i][0]+n[1]*A[i][1]+n[2]*A[i][2];
+			double dx = lamda*n[0]-A[i][0];
+			double dy = lamda*n[1]-A[i][1];
+			double dz = lamda*n[2]-A[i][2];
+			double panalty = dx*dx+dy*dy+dz*dz;
 			atomStrain[mAtom[i]] += panalty;
 			totalStrain += panalty;
 			}

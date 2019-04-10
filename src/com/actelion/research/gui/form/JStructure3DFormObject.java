@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,11 +18,6 @@
 
 package com.actelion.research.gui.form;
 
-import java.awt.Color;
-import java.awt.Graphics2D;
-import java.awt.geom.AffineTransform;
-import java.awt.geom.Rectangle2D;
-
 import com.actelion.research.chem.ExtendedMolecule;
 import com.actelion.research.chem.FFMolecule;
 import com.actelion.research.chem.IDCodeParser;
@@ -31,24 +26,37 @@ import com.actelion.research.gui.viewer2d.ActionProvider;
 import com.actelion.research.gui.viewer2d.MoleculeCanvas;
 import com.actelion.research.gui.viewer2d.MoleculeViewer;
 
+import java.awt.*;
+import java.awt.geom.AffineTransform;
+import java.awt.geom.Rectangle2D;
+
 public class JStructure3DFormObject extends AbstractFormObject {
 	public static final String FORM_OBJECT_TYPE = "structure3D";
 
-	private static ActionProvider<MoleculeViewer> sActionProvider;
+	private static ActionProvider<MoleculeViewer> sCopyActionProvider,sRaytraceActionProvider;
 
-	public static ActionProvider<MoleculeViewer> getActionProvider() {
-		return sActionProvider;
+	public static ActionProvider<MoleculeViewer> getCopyActionProvider() {
+		return sCopyActionProvider;
 		}
 
-	public static void setActionProvider(ActionProvider<MoleculeViewer> ap) {
-		sActionProvider = ap;
+	public static ActionProvider<MoleculeViewer> getRaytraceActionProvider() {
+		return sRaytraceActionProvider;
+	}
+
+	public static void setCopyActionProvider(ActionProvider<MoleculeViewer> ap) {
+		sCopyActionProvider = ap;
 		}
+	public static void setRaytraceActionProvider(ActionProvider<MoleculeViewer> ap) {
+		sRaytraceActionProvider = ap;
+	}
 
 	public JStructure3DFormObject(String key, String type) {
 		super(key, type);
 		mComponent = new MoleculeViewer();
-		if (sActionProvider != null)
-			((MoleculeViewer)mComponent).addActionProvider(sActionProvider);
+		if (sCopyActionProvider != null)
+			((MoleculeViewer)mComponent).addActionProvider(sCopyActionProvider);
+		if (sRaytraceActionProvider != null)
+			((MoleculeViewer)mComponent).addActionProvider(sRaytraceActionProvider);
 		}
 
     @Override
@@ -82,7 +90,7 @@ public class JStructure3DFormObject extends AbstractFormObject {
 		}
 
     @Override
-	public void printContent(Graphics2D g2D, Rectangle2D.Float r, float scale, Object data) {
+	public void printContent(Graphics2D g2D, Rectangle2D.Double r, float scale, Object data, boolean isMultipleRows) {
 	    if (data != null && r.width > 1 && r.height > 1) {
 		    ExtendedMolecule mol = null;
 		    if (data instanceof ExtendedMolecule) {

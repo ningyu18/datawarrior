@@ -65,8 +65,13 @@ public class Matrix {
         this(ma.getArray());
     }
 
-    public Matrix(boolean bRow, double [] arr) {
-        if (bRow) {
+    /**
+     *
+     * @param row if true hte matrix has one row. If false the matrix has one comulmn.
+     * @param arr
+     */
+    public Matrix(boolean row, double [] arr) {
+        if (row) {
             data = new double[1][];
             data[0]=arr;
         }
@@ -78,8 +83,8 @@ public class Matrix {
         }
     }
     
-    public Matrix(boolean bRow, int [] dArray) {
-        if (bRow) {
+    public Matrix(boolean row, int [] dArray) {
+        if (row) {
             data = new double[1][dArray.length];
             for (int jj = 0; jj < getColDim(); jj++) {
                 data[0][jj] = dArray[jj];
@@ -167,6 +172,7 @@ public class Matrix {
             data[i] = arr;
         }
     }
+
     /**
      *
      * @param vecDoubleVec Vector with DoubleVec
@@ -386,6 +392,10 @@ public class Matrix {
         return arr;
     }
 
+    /**
+     *
+     * @return column wise centered matrix.
+     */
     public Matrix getCenteredMatrix() {
     	
     	final int cols = cols();
@@ -424,7 +434,7 @@ public class Matrix {
     public Matrix getCenteredMatrix(Matrix maMean) {
         Matrix ma = new Matrix(getRowDim(), getColDim());
         for (int i = 0; i < rows(); i++) {
-            for (int j = 0; j < getColDim(); j++) {
+            for (int j = 0; j < cols(); j++) {
                 ma.data[i][j] = data[i][j] - maMean.data[0][j];
             }
         }
@@ -791,12 +801,12 @@ public class Matrix {
 */
     /**
      * Householder reduction according num rec 11.2.
-     * Followed from an eigen value decomposition with the calculation of the
-     * eigen vectors according num rec 11.3.
-     * @param intercept input matrix
+     * Followed from an Eigen value decomposition with the calculation of the
+     * Eigen vectors according num rec 11.3.
+     * @param A input matrix
      * @param n number of considered eigen values
-     * @param d
-     * @param e
+     * @param D
+     * @param E
      */
 
     final public static void getEigenvector(Matrix A, int n, Matrix D, Matrix E) {
@@ -866,7 +876,7 @@ public class Matrix {
        d[0] = 0.0;
        e[0] = 0.0;
        
-       // Contents of this loop can be omitted if eigenvectors not
+       // Contents of this loop can be omitted if Eigen vectors not
        // wanted except for statement d[i]=a[i * cols + i]
        for (i = 0; i < n; i++) {
            l = i;
@@ -888,7 +898,7 @@ public class Matrix {
                a[j * cols + i] = a[i * cols + j] = 0.0;
        }
 
-       // Eigenvalues and Eigenvectors of a trigiagonal matrix
+       // Eigen values and Eigen vectors of a trigiagonal matrix
        // void tqli(float d[], float e[], int n, float **z)
 
         int m,iter;
@@ -1386,6 +1396,10 @@ public class Matrix {
         return maMaxMin;
     }
 
+    /**
+     *
+     * @return
+     */
     public double getMax() {
 
         int rows = getRowDim();
@@ -1399,6 +1413,11 @@ public class Matrix {
         return dMax;
     }
 
+    /**
+     * get max value for that col.
+     * @param col
+     * @return
+     */
     public double getMax(int col) {
 
         int iRows = getRowDim();
@@ -1701,6 +1720,34 @@ public class Matrix {
     }
 
     /**
+     * For a quadratic matrix only.
+     * @return
+     */
+    public double [] getUpperTriangle(){
+
+        int r = rows();
+        int c = cols();
+
+        if(r != c){
+            throw new RuntimeException("Not a quadratic matrix.");
+        }
+
+        int n = ((r * r) - r)/2;
+
+        double [] a = new double[n];
+
+        int cc = 0;
+        for (int i = 0; i < r; i++) {
+
+            for (int j = i+1; j < r; j++) {
+                a[cc++] = get(i,j);
+            }
+        }
+
+        return a;
+    }
+
+    /**
      *pythag computes sqrt(a^2 + b^2) without destructive underflow or overflow.
      * @param a length a
      * @param b length b
@@ -1976,7 +2023,7 @@ public class Matrix {
             int maCols = ma.cols();
             
             if (n != ma.rows()) {
-                throw new RuntimeException("Error in Routine SMatrix::Mult(). Attempt to calculate the product of two incompatible matrices. Do nothing and return.");
+                throw new RuntimeException("Error in Routine Matrix.multiply(...). Attempt to calculate the product of two incompatible matrices. Do nothing and return.");
             }
 
             maResult = new Matrix(rows(), ma.cols());
@@ -2599,6 +2646,10 @@ public class Matrix {
         return var;
     }
 
+    /**
+     * 
+     * @return row with variance
+     */
     public Matrix getVarianceCols() {
         Matrix ma = new Matrix(1, getColDim());
         Matrix maMean = getMeanCols();
@@ -3240,6 +3291,145 @@ public class Matrix {
 		}
     }
 
+    public String toStringWithColTags(List<String> liColTags, DecimalFormat nf, String separator) {
+    	    	
+    	if(cols()!=liColTags.size()){
+    		throw new RuntimeException("Number of cols and col tags differ.");
+    	}
+    	
+    	int [] arrWidth = new int [cols()];
+    	
+    	for (int i = 0; i < arrWidth.length; i++) {
+			
+    		arrWidth[i] = liColTags.get(i).length();
+    		
+		}
+    	
+    	for (int i = 0; i < arrWidth.length; i++) {
+    		
+    		for (int j = 0; j < rows(); j++) {
+    			arrWidth[i] = Math.max(arrWidth[i], nf.format(get(j,i)).length());
+			}
+    	}
+    	
+    	StringBuilder sbAll = new StringBuilder();
+    	
+    	for (int i = 0; i < arrWidth.length; i++) {
+    		
+    		int w = arrWidth[i];
+    		
+    		StringBuilder sb = new StringBuilder(liColTags.get(i));
+    		
+    		int l = w-sb.length();
+    		
+    		for (int j = 0; j < l; j++) {
+    			sb.append(" ");
+			}
+    		
+    		sbAll.append(sb.toString());
+    		sbAll.append(" ");
+    		
+    	}
+    	
+    	sbAll.append("\n");
+    	
+    	
+    	for (int i = 0; i < rows(); i++) {
+    		
+    		for (int j = 0; j < arrWidth.length; j++) {
+        		
+        		int w = arrWidth[j];
+        		
+        		StringBuilder sb = new StringBuilder(nf.format(get(i,j)));
+        		
+        		int l = w-sb.length();
+        		
+        		for (int k = 0; k < l; k++) {
+        			sb.append(" ");
+    			}
+        		
+        		sbAll.append(sb.toString());
+        		sbAll.append(" ");
+        		
+        	}
+    		
+    		sbAll.append("\n");
+		}
+    	
+    	return sbAll.toString();
+    }
+    
+    public String toStringWithRowTags(List<String> liRowTags, DecimalFormat nf, String separator) {
+    	
+    	if(rows()!=liRowTags.size()){
+    		throw new RuntimeException("Number of rows and row tags differ.");
+    	}
+    	
+    	int [] arrWidth = new int [cols()+1];
+    	
+    	for (int i = 0; i < liRowTags.size(); i++) {
+			
+    		arrWidth[0] = Math.max(arrWidth[0], liRowTags.get(i).length());
+    		
+		}
+    	
+    	for (int i = 0; i < cols(); i++) {
+    		
+    		for (int j = 0; j < rows(); j++) {
+    			arrWidth[i+1] = Math.max(arrWidth[i+1], nf.format(get(j,i)).length());
+			}
+    	}
+    	
+    	StringBuilder sbAll = new StringBuilder();
+    	
+    	for (int i = 0; i < arrWidth.length; i++) {
+    		
+    		int w = arrWidth[i];
+    		
+    		StringBuilder sb = new StringBuilder(liRowTags.get(i));
+    		
+    		int l = w-sb.length();
+    		
+    		for (int j = 0; j < l; j++) {
+    			sb.append(" ");
+			}
+    		
+    		sbAll.append(sb.toString());
+    		sbAll.append(" ");
+    		
+    	}
+    	
+    	sbAll.append("\n");
+    	
+    	
+    	for (int i = 0; i < rows(); i++) {
+    		
+    		for (int j = 0; j < arrWidth.length; j++) {
+        		
+        		int w = arrWidth[j];
+        		
+        		StringBuilder sb = new StringBuilder(nf.format(get(i,j)));
+        		
+        		int l = w-sb.length();
+        		
+        		for (int k = 0; k < l; k++) {
+        			sb.append(" ");
+    			}
+        		
+        		sbAll.append(sb.toString());
+        		sbAll.append(" ");
+        		
+        	}
+    		
+    		sbAll.append("\n");
+		}
+    	
+    	return sbAll.toString();
+    }
+
+    
+    
+    
 	public void writeSerialized(File fiOut) throws IOException {
 		FileOutputStream fos = new FileOutputStream(fiOut);
 		ObjectOutputStream oos = new ObjectOutputStream(fos);

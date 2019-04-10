@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -63,7 +63,7 @@ public abstract class DETaskAbstractSaveNativeFile extends DETaskAbstractSaveFil
 	@Override
 	public Properties getPredefinedConfiguration() {
 		Properties configuration = super.getPredefinedConfiguration();
-		if (configuration != null) {
+		if (configuration != null && isPredefinedStatusOK(configuration)) {
 			if (getTableModel().hasReferencedDetail()) {
 				int option = JOptionPane.showConfirmDialog(getParentFrame(),
 						"Your data includes references to external detail information e.g. images.\n"

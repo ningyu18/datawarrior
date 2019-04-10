@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,21 +18,18 @@
 
 package com.actelion.research.chem.io;
 
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.Reader;
+import com.actelion.research.chem.descriptor.DescriptorConstants;
+import com.actelion.research.chem.descriptor.DescriptorHandlerFFP512;
+import com.actelion.research.chem.descriptor.DescriptorHandlerStandard2DFactory;
+import com.actelion.research.chem.descriptor.DescriptorHelper;
+import com.actelion.research.io.BOMSkipper;
+import com.actelion.research.util.BinaryDecoder;
+
+import java.io.*;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Properties;
 import java.util.TreeMap;
-
-import com.actelion.research.chem.descriptor.DescriptorConstants;
-import com.actelion.research.chem.descriptor.DescriptorHandlerFFP512;
-import com.actelion.research.chem.descriptor.DescriptorHelper;
-import com.actelion.research.util.BinaryDecoder;
 
 public class DWARFileParser extends CompoundFileParser implements DescriptorConstants,CompoundTableConstants {
 
@@ -46,10 +43,11 @@ public class DWARFileParser extends CompoundFileParser implements DescriptorCons
 
 	private String[]		mFieldName;
 	private String[]		mFieldData;
-	private String			mLine;
+	private String			mLine,mCoordinate3DColumnName;
 	private int[]			mFieldIndex;
     private int             mRecordCount,mMode;
-	private int				mIDCodeColumn, mCoordinateColumn,mMoleculeNameColumn,mIndexColumn;
+	private int				mIDCodeColumn,mCoordinateColumn,mCoordinate2DColumn,mCoordinate3DColumn,
+							mMoleculeNameColumn,mFragFpColumn;
     private TreeMap<String,Properties> mColumnPropertyMap;
 	private TreeMap<String,SpecialField> mSpecialFieldMap;
 	private TreeMap<String,Integer> mDescriptorColumnMap;
@@ -63,6 +61,7 @@ public class DWARFileParser extends CompoundFileParser implements DescriptorCons
 	public DWARFileParser(String fileName) {
         try {
             mReader = new BufferedReader(new InputStreamReader(new FileInputStream(fileName), "UTF-8"));
+			BOMSkipper.skip(mReader);
             mMode = MODE_COORDINATES_PREFER_2D;
             init();
             }
@@ -78,6 +77,7 @@ public class DWARFileParser extends CompoundFileParser implements DescriptorCons
 	public DWARFileParser(File file) {
         try {
             mReader = new BufferedReader(new InputStreamReader(new FileInputStream(file), "UTF-8"));
+			BOMSkipper.skip(mReader);
             mMode = MODE_COORDINATES_PREFER_2D;
             init();
             }
@@ -109,6 +109,7 @@ public class DWARFileParser extends CompoundFileParser implements DescriptorCons
     public DWARFileParser(String fileName, int mode) {
         try {
             mReader = new BufferedReader(new InputStreamReader(new FileInputStream(fileName), "UTF-8"));
+			BOMSkipper.skip(mReader);
             mMode = mode;
             init();
             }
@@ -125,6 +126,7 @@ public class DWARFileParser extends CompoundFileParser implements DescriptorCons
     public DWARFileParser(File file, int mode) {
         try {
             mReader = new BufferedReader(new InputStreamReader(new FileInputStream(file), "UTF-8"));
+			BOMSkipper.skip(mReader);
             mMode = mode;
             init();
             }
@@ -157,6 +159,8 @@ public class DWARFileParser extends CompoundFileParser implements DescriptorCons
     	}
 
     private void init() throws IOException {
+	    setDescriptorHandlerFactory(DescriptorHandlerStandard2DFactory.getFactory());
+
     	if ((mMode & MODE_BUFFER_HEAD_AND_TAIL) != 0)
     		mHeadOrTailLineList = new ArrayList<String>();
 
@@ -174,8 +178,7 @@ public class DWARFileParser extends CompoundFileParser implements DescriptorCons
 
             if (line.startsWith("<"+cNativeFileVersion)) {
                 String version = extractValue(line);
-                if (!version.equals("3.0")
-                 && !version.equals("3.1")
+                if (!version.startsWith("3.")
                  && !version.equals(""))
                     throw new IOException("unsupported .dwar file version");
                 }
@@ -276,7 +279,7 @@ public class DWARFileParser extends CompoundFileParser implements DescriptorCons
 		mFieldName = new String[columnNameList.size()];
 		mFieldIndex = new int[columnNameList.size()];
 		for (int i=0; i<columnNameList.size(); i++) {
-			mFieldName[i] = (String)columnNameList.get(i);
+			mFieldName[i] = columnNameList.get(i);
 			mFieldIndex[i] = columnIndexList.get(i).intValue();
 			}
 
@@ -284,8 +287,10 @@ public class DWARFileParser extends CompoundFileParser implements DescriptorCons
 
         mIDCodeColumn = -1;
         mCoordinateColumn = -1;
+		mCoordinate2DColumn = -1;
+		mCoordinate3DColumn = -1;
         mMoleculeNameColumn = -1;
-        mIndexColumn = -1;
+        mFragFpColumn = -1;
         SpecialField idcodeColumn = mSpecialFieldMap.get("Structure");
         if (idcodeColumn == null
          || !idcodeColumn.type.equals(cColumnTypeIDCode)) {
@@ -311,25 +316,34 @@ public class DWARFileParser extends CompoundFileParser implements DescriptorCons
                 if (idcodeColumn.name.equals(specialColumn.parent)) {
                     if (DESCRIPTOR_FFP512.shortName.equals(specialColumn.type)
                      && DescriptorHandlerFFP512.VERSION.equals(specialColumn.version))
-                        mIndexColumn = specialColumn.fieldIndex;
-                    else if (cColumnType2DCoordinates.equals(specialColumn.type)
-                          && (coordinateMode == MODE_COORDINATES_REQUIRE_2D
-                           || coordinateMode == MODE_COORDINATES_PREFER_2D
-                           || (coordinateMode == MODE_COORDINATES_PREFER_3D && mCoordinateColumn == -1)))
-                        mCoordinateColumn = specialColumn.fieldIndex;
-                    else if (cColumnType3DCoordinates.equals(specialColumn.type)
-                          && (coordinateMode == MODE_COORDINATES_REQUIRE_3D
-                           || coordinateMode == MODE_COORDINATES_PREFER_3D
-                           || (coordinateMode == MODE_COORDINATES_PREFER_2D && mCoordinateColumn == -1)))
-                        mCoordinateColumn = specialColumn.fieldIndex;
+                        mFragFpColumn = specialColumn.fieldIndex;
+					else if (cColumnType2DCoordinates.equals(specialColumn.type))
+						mCoordinate2DColumn = specialColumn.fieldIndex;
+					else if (cColumnType3DCoordinates.equals(specialColumn.type)) {
+						mCoordinate3DColumn = specialColumn.fieldIndex;
+						mCoordinate3DColumnName = specialColumn.name;
+						}
 
-                    if (DescriptorHelper.isDescriptorShortName(specialColumn.type)) {
+                    if (DescriptorHelper.isDescriptorShortName(specialColumn.type)
+					 && DescriptorHelper.getDescriptorInfo(specialColumn.type).version.equals(specialColumn.version)) {
                         if (mDescriptorColumnMap == null)
                             mDescriptorColumnMap = new TreeMap<String,Integer>();
                         mDescriptorColumnMap.put(specialColumn.type, new Integer(specialColumn.fieldIndex));
                         }
                     }
                 }
+
+			if (mCoordinate2DColumn != -1
+			 && (coordinateMode == MODE_COORDINATES_REQUIRE_2D
+			  || coordinateMode == MODE_COORDINATES_PREFER_2D
+			  || (coordinateMode == MODE_COORDINATES_PREFER_3D && mCoordinate3DColumn == -1)))
+				mCoordinateColumn = mCoordinate2DColumn;
+
+			if (mCoordinate3DColumn != -1
+			 && (coordinateMode == MODE_COORDINATES_REQUIRE_3D
+			  || coordinateMode == MODE_COORDINATES_PREFER_3D
+			  || (coordinateMode == MODE_COORDINATES_PREFER_2D && mCoordinate2DColumn == -1)))
+				mCoordinateColumn = mCoordinate3DColumn;
             }
 	    }
 
@@ -349,7 +363,25 @@ public class DWARFileParser extends CompoundFileParser implements DescriptorCons
     	return (mCoordinateColumn != -1);
     	}
 
-    public String[] getFieldNames() {
+	/**
+	 * @return whether the file contains chemical structures with explicit atom coordinates
+	 */
+	public boolean hasStructureCoordinates2D() {
+		return (mCoordinate2DColumn != -1);
+		}
+
+	/**
+	 * @return whether the file contains chemical structures with explicit atom coordinates
+	 */
+	public boolean hasStructureCoordinates3D() {
+		return (mCoordinate3DColumn != -1);
+		}
+
+	public String getStructureCoordinates3DColumnName() {
+		return mCoordinate3DColumnName;
+		}
+
+	public String[] getFieldNames() {
 		return mFieldName;
 		}
 
@@ -398,7 +430,8 @@ public class DWARFileParser extends CompoundFileParser implements DescriptorCons
 			if (mLine == null
 			 || mLine.equals(cPropertiesStart)
 			 || mLine.equals(cHitlistDataStart)
-			 || mLine.equals(cDetailDataStart)) {
+			 || mLine.equals(cDetailDataStart)
+			 || mLine.startsWith(cDataDependentPropertiesStart)) {
 				if ((mMode & MODE_BUFFER_HEAD_AND_TAIL) != 0) {
 					mHeadOrTailLineList.clear();
 					mHeadOrTailLineList.add(mLine);
@@ -484,7 +517,21 @@ public class DWARFileParser extends CompoundFileParser implements DescriptorCons
 		return (s == null || s.length() == 0) ? null : s;
 		}
 
-    public String getMoleculeName() {
+	public String getCoordinates2D() {
+		if (mCoordinate2DColumn == -1)
+			return null;
+		String s = mFieldData[mCoordinate2DColumn];
+		return (s == null || s.length() == 0) ? null : s;
+		}
+
+	public String getCoordinates3D() {
+		if (mCoordinate3DColumn == -1)
+			return null;
+		String s = mFieldData[mCoordinate3DColumn];
+		return (s == null || s.length() == 0) ? null : s;
+		}
+
+	public String getMoleculeName() {
         if (mMoleculeNameColumn == -1)
             return null;
         String s = mFieldData[mMoleculeNameColumn];
@@ -503,9 +550,9 @@ public class DWARFileParser extends CompoundFileParser implements DescriptorCons
      * @return the String encoded FragFp descriptor of the first column containing chemical structures
      */
 	public String getIndex() {
-        if (mIndexColumn == -1)
+        if (mFragFpColumn == -1)
             return null;
-		String s = mFieldData[mIndexColumn];
+		String s = mFieldData[mFragFpColumn];
 		return (s == null || s.length() == 0) ? null : s;
 		}
 

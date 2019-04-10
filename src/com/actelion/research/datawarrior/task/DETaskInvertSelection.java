@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -21,9 +21,9 @@ package com.actelion.research.datawarrior.task;
 import java.util.Properties;
 
 import com.actelion.research.datawarrior.DEFrame;
-import com.actelion.research.table.CompoundTableModel;
+import com.actelion.research.table.model.CompoundTableModel;
 
-public class DETaskInvertSelection extends DETaskWithEmptyConfiguration {
+public class DETaskInvertSelection extends AbstractTaskWithoutConfiguration {
     public static final String TASK_NAME = "Invert Selection";
 
     CompoundTableModel mTableModel;

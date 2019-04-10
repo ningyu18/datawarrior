@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -72,14 +72,29 @@ public class ArrayUtils {
 		}
 		return -1;		
 	}
-	
+
 	public final static int indexOf(int[] array, int obj) {
-		for (int i = 0; i < array.length; i++) {
+		return indexOf(array, obj, 0);
+	}
+
+	public final static int indexOf(int[] array, int obj, int startIndex) {
+		for (int i = startIndex; i < array.length; i++) {
 			if(array[i] == obj) return i;
 		}
 		return -1;		
 	}
-	
+
+	public final static int indexOf(byte[] array, byte obj) {
+		return indexOf(array, obj, 0);
+	}
+
+	public final static int indexOf(byte[] array, byte obj, int startIndex) {
+		for (int i = startIndex; i < array.length; i++) {
+			if(array[i] == obj) return i;
+		}
+		return -1;
+	}
+
 	public final static int sum(int[] array) {
 		int res = 0;
 		for(int i=0; i<array.length; i++) {
@@ -113,7 +128,30 @@ public class ArrayUtils {
 		}
 		return res;
 	}
-	
+
+	public final static int max(int[] array) {
+		if(array.length==0) return 0;
+		int res = array[0];
+		for(int i=1; i<array.length; i++) {
+			res = Math.max(res, array[i]);
+		}
+		return res;
+	}
+
+	public final static float max(float [] array) {
+
+		if(array.length==0)
+			return 0;
+
+		float res = array[0];
+
+		for(int i=1; i<array.length; i++) {
+			res = Math.max(res, array[i]);
+		}
+
+		return res;
+	}
+
 	public final static String toString(int[] v) {
 		String res = "[";
 		for(int i=0; i<v.length; i++) {
@@ -172,5 +210,11 @@ public class ArrayUtils {
 			return true;
 		}		
 		return false;	
+	}
+
+	public static void set(boolean [] a, boolean v){
+		for (int i = 0; i < a.length; i++) {
+			a[i]=v;
+		}
 	}
 }

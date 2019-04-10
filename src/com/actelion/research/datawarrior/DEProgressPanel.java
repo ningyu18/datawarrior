@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,26 +18,16 @@
 
 package com.actelion.research.datawarrior;
 
+import com.actelion.research.calc.ProgressController;
+import com.actelion.research.gui.LookAndFeelHelper;
+import com.actelion.research.gui.hidpi.HiDPIHelper;
+import com.actelion.research.gui.hidpi.HiDPIIconButton;
 import info.clearthought.layout.TableLayout;
 
-import java.awt.Color;
-import java.awt.Component;
-import java.awt.Dimension;
-import java.awt.Font;
-import java.awt.Frame;
-import java.awt.Insets;
+import javax.swing.*;
+import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
-
-import javax.swing.ImageIcon;
-import javax.swing.JButton;
-import javax.swing.JLabel;
-import javax.swing.JOptionPane;
-import javax.swing.JPanel;
-import javax.swing.JProgressBar;
-import javax.swing.SwingUtilities;
-
-import com.actelion.research.calc.ProgressController;
 
 public class DEProgressPanel extends JPanel implements ActionListener,ProgressController {
 	private static final long serialVersionUID = 0x20140404;
@@ -47,23 +37,23 @@ public class DEProgressPanel extends JPanel implements ActionListener,ProgressCo
 	private static final int UPDATE_PROGRESS = 3;
 	private static final int STOP_PROGRESS = 4;
 
-	static private ImageIcon sIcon;
-
 	private JProgressBar mProgressBar = new JProgressBar();
 	private JLabel mProgressLabel = new JLabel();
 	private JButton mCancelButton;
 	private volatile boolean mCancelAction;
 
 	public DEProgressPanel(boolean showCancelButton) {
-		Font font = new Font("Helvetica", Font.BOLD, 12);
-
+		Font oldFont = UIManager.getFont("Label.font");
+		Font font = oldFont.deriveFont(Font.BOLD, 0.88f*oldFont.getSize());
+		mProgressLabel.setForeground(LookAndFeelHelper.isDarkLookAndFeel() ? Color.RED.brighter() : Color.RED.darker());
 		mProgressLabel.setFont(font);
 
+		Dimension dim = new Dimension(HiDPIHelper.scale(80), HiDPIHelper.scale(10));
 		mProgressBar.setVisible(false);
-		mProgressBar.setPreferredSize(new Dimension(80,8));
-		mProgressBar.setMaximumSize(new Dimension(80,8));
-		mProgressBar.setMinimumSize(new Dimension(80,8));
-		mProgressBar.setSize(new Dimension(80,8));
+		mProgressBar.setPreferredSize(dim);
+		mProgressBar.setMaximumSize(dim);
+		mProgressBar.setMinimumSize(dim);
+		mProgressBar.setSize(dim);
 
 		double[][] size = { {TableLayout.PREFERRED, 4, TableLayout.PREFERRED, 4, TableLayout.FILL},
 							{TableLayout.FILL, TableLayout.PREFERRED, TableLayout.FILL} };
@@ -73,29 +63,15 @@ public class DEProgressPanel extends JPanel implements ActionListener,ProgressCo
 		add(mProgressLabel, "4,0,4,2");
 
 		if (showCancelButton) {
-			if (sIcon == null)
-				sIcon = new ImageIcon(this.getClass().getResource("/images/closeButton.png"));
-			mCancelButton = createButton(sIcon, 14, 14, "close");
+			mCancelButton = new HiDPIIconButton("closeButton.png", null, "close");
 			mCancelButton.setVisible(false);
 			mCancelButton.addActionListener(this);
-			add(mCancelButton, "2,0,2,2");
+			double[][] bs = { {TableLayout.PREFERRED}, {TableLayout.FILL, TableLayout.PREFERRED, TableLayout.FILL} };
+			JPanel bp = new JPanel();
+			bp.setLayout(new TableLayout(bs));
+			bp.add(mCancelButton, "0,1");
+			add(bp, "2,0,2,2");
 			}
-		}
-
-	private JButton createButton(ImageIcon icon, int w, int h, String command) {
-		JButton button = new JButton(icon);
-		if ("quaqua".equals(System.getProperty("com.actelion.research.laf"))) {
-			w += 4;
-			h += 3;
-			button.putClientProperty("Quaqua.Component.visualMargin", new Insets(1,1,1,1));
-			button.putClientProperty("Quaqua.Button.style", "bevel");
-			}
-		button.setPreferredSize(new Dimension(w, h));
-		if (command != null) {
-			button.addActionListener(this);
-			button.setActionCommand(command);
-			}
-		return button;
 		}
 
 	@Override
@@ -104,6 +80,10 @@ public class DEProgressPanel extends JPanel implements ActionListener,ProgressCo
 			mCancelAction = true;
 			return;
 			}
+		}
+
+	public void cancel() {
+		mCancelAction = true;
 		}
 
 	/**
@@ -124,6 +104,11 @@ public class DEProgressPanel extends JPanel implements ActionListener,ProgressCo
 		}
 
 	@Override
+	public void updateProgress(int value, String message) {
+		doActionThreadSafe(UPDATE_PROGRESS, message, value, 0);
+		}
+
+	@Override
 	public void stopProgress() {
 		doActionThreadSafe(STOP_PROGRESS, null, 0, 0);
 		}
@@ -134,7 +119,6 @@ public class DEProgressPanel extends JPanel implements ActionListener,ProgressCo
 		}		
 
 	public void showMessage(final String message) {
-		mProgressLabel.setForeground(message.length() == 0 ? Color.BLACK : Color.RED);
 		mProgressLabel.setText(message);
 		}		
 
@@ -179,6 +163,8 @@ public class DEProgressPanel extends JPanel implements ActionListener,ProgressCo
 		case UPDATE_PROGRESS:
 			int value = (v1 >= 0) ? v1 : mProgressBar.getValue()-v1;
 			mProgressBar.setValue(value);
+			if (text != null)
+				mProgressLabel.setText(text);
 			break;
 		case STOP_PROGRESS:
 			mProgressLabel.setText("");

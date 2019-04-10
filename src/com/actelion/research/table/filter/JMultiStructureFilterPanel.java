@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,16 +18,6 @@
 
 package com.actelion.research.table.filter;
 
-import info.clearthought.layout.TableLayout;
-
-import java.awt.BorderLayout;
-import java.awt.Dimension;
-import java.awt.Frame;
-import java.awt.event.ItemEvent;
-
-import javax.swing.JComboBox;
-import javax.swing.JPanel;
-
 import com.actelion.research.chem.StereoMolecule;
 import com.actelion.research.chem.descriptor.DescriptorConstants;
 import com.actelion.research.gui.CompoundCollectionListener;
@@ -35,7 +25,13 @@ import com.actelion.research.gui.CompoundCollectionModel;
 import com.actelion.research.gui.CompoundCollectionPane;
 import com.actelion.research.gui.DefaultCompoundCollectionModel;
 import com.actelion.research.gui.clipboard.ClipboardHandler;
-import com.actelion.research.table.CompoundTableModel;
+import com.actelion.research.gui.hidpi.HiDPIHelper;
+import com.actelion.research.table.model.CompoundTableModel;
+import info.clearthought.layout.TableLayout;
+
+import javax.swing.*;
+import java.awt.*;
+import java.awt.event.ItemEvent;
 
 public class JMultiStructureFilterPanel extends JStructureFilterPanel 
 				implements CompoundCollectionListener,DescriptorConstants {
@@ -68,7 +64,7 @@ public class JMultiStructureFilterPanel extends JStructureFilterPanel
 			private static final long serialVersionUID = 0x20080611;
 			public Dimension getPreferredSize() {
 				Dimension size = super.getPreferredSize();
-				size.width = Math.min(72, size.width);
+				size.width = Math.min(HiDPIHelper.scale(72), size.width);
 				return size;
 				} 
 			};
@@ -81,7 +77,7 @@ public class JMultiStructureFilterPanel extends JStructureFilterPanel
 		mStructurePane = new CompoundCollectionPane<String>(new DefaultCompoundCollectionModel.IDCode(), false) {
 			private static final long serialVersionUID = 0x20110520;
 			public Dimension getPreferredSize() {
-				return new Dimension(100,80);
+				return new Dimension(HiDPIHelper.scale(100), HiDPIHelper.scale(80));
 				} 
 			};
 		mStructurePane.setCreateFragments(isSSS);
@@ -228,12 +224,14 @@ public class JMultiStructureFilterPanel extends JStructureFilterPanel
 	 * @param idcodeList TAB-delimited idcode list
 	 */
 	private void populateStructures(String idcodeList) {
-		CompoundCollectionModel<String> model = mStructurePane.getModel();
-		model.removeCompoundCollectionListener(this);
-		String[] idcode = idcodeList.split("\\t");
-		for (int i=0; i<idcode.length; i++)
-			model.addCompound(idcode[i]);
-		model.addCompoundCollectionListener(this);
+		if (idcodeList.length() != 0) {
+			CompoundCollectionModel<String> model = mStructurePane.getModel();
+			model.removeCompoundCollectionListener(this);
+			String[] idcode = idcodeList.split("\\t");
+			for (int i = 0; i < idcode.length; i++)
+				model.addCompound(idcode[i]);
+			model.addCompoundCollectionListener(this);
+			}
 		}
 
 	@Override

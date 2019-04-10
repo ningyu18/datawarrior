@@ -210,7 +210,7 @@ abstract public class ModelSet extends ModelCollection {
     // Recalculate critical points for cartoons and such
     // note that models[baseModel] and models[modelIndex]
     // point to the same model. So there is only one copy of 
-    // the shape business.
+    // the shape simple.
     recalculateLeadMidpointsAndWingVectors(baseModel);
     // Recalculate all measures that involve trajectories
     Integer Imodel = new Integer(baseModel);

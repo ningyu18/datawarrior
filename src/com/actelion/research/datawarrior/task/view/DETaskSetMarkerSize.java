@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,6 +18,7 @@
 
 package com.actelion.research.datawarrior.task.view;
 
+import com.actelion.research.table.model.CompoundTableListHandler;
 import info.clearthought.layout.TableLayout;
 
 import java.awt.Frame;
@@ -31,8 +32,7 @@ import javax.swing.JPanel;
 import javax.swing.JSlider;
 
 import com.actelion.research.datawarrior.DEMainPane;
-import com.actelion.research.table.CompoundTableHitlistHandler;
-import com.actelion.research.table.CompoundTableModel;
+import com.actelion.research.table.model.CompoundTableModel;
 import com.actelion.research.table.view.CompoundTableView;
 import com.actelion.research.table.view.JVisualization;
 import com.actelion.research.table.view.VisualizationPanel;
@@ -46,8 +46,6 @@ public class DETaskSetMarkerSize extends DETaskAbstractSetViewOptions {
 	private static final String PROPERTY_INVERSE = "inverse";
 	private static final String PROPERTY_ADAPTIVE = "adaptive";
 	private static final String PROPERTY_PROPORTIONAL = "proportional";
-
-    private static Properties sRecentConfiguration;
 
 	private JSlider         mSlider;
     private JComboBox		mComboBox;
@@ -82,7 +80,7 @@ public class DETaskSetMarkerSize extends DETaskAbstractSetViewOptions {
 
 		JPanel sp = new JPanel();
 		mSlider = new JSlider(JSlider.HORIZONTAL, 0, 100, 50);
-//		mSlider.setPreferredSize(new Dimension(100, 20));
+//		mSlider.setPreferredSize(new Dimension(HiDPIHelper.scale(120), HiDPIHelper.scale(20)));
 //		mSlider.setMinorTickSpacing(10);
 //		mSlider.setMajorTickSpacing(100);
 		mSlider.addChangeListener(this);
@@ -100,8 +98,8 @@ public class DETaskSetMarkerSize extends DETaskAbstractSetViewOptions {
 		for (int i=0; i<getTableModel().getTotalColumnCount(); i++)
 			if (getTableModel().isDescriptorColumn(i))
 				mComboBox.addItem(getTableModel().getColumnTitleExtended(i));
-		for (int i=0; i<getTableModel().getHitlistHandler().getHitlistCount(); i++)
-			mComboBox.addItem(getTableModel().getColumnTitleExtended(CompoundTableHitlistHandler.getColumnFromHitlist(i)));
+		for (int i = 0; i<getTableModel().getListHandler().getListCount(); i++)
+			mComboBox.addItem(getTableModel().getColumnTitleExtended(CompoundTableListHandler.getColumnFromList(i)));
         mComboBox.setEditable(!hasInteractiveView());
 		mComboBox.addItemListener(this);
 		if (hasInteractiveView()) {
@@ -167,11 +165,11 @@ public class DETaskSetMarkerSize extends DETaskAbstractSetViewOptions {
 
 	@Override
 	public void addViewConfiguration(Properties configuration) {
-		configuration.setProperty(PROPERTY_COLUMN, getTableModel().getColumnTitleNoAlias(getVisualization().getMarkerSizeColumn()));
-		configuration.setProperty(PROPERTY_SIZE, ""+getVisualization().getMarkerSize());
-		configuration.setProperty(PROPERTY_PROPORTIONAL, getVisualization().getMarkerSizeProportional() ? "true" : "false");
-		configuration.setProperty(PROPERTY_INVERSE, getVisualization().getMarkerSizeInversion() ? "true" : "false");
-		configuration.setProperty(PROPERTY_ADAPTIVE, getVisualization().isMarkerSizeZoomAdapted() ? "true" : "false");
+		configuration.setProperty(PROPERTY_COLUMN, getTableModel().getColumnTitleNoAlias(getInteractiveVisualization().getMarkerSizeColumn()));
+		configuration.setProperty(PROPERTY_SIZE, ""+ getInteractiveVisualization().getMarkerSize());
+		configuration.setProperty(PROPERTY_PROPORTIONAL, getInteractiveVisualization().getMarkerSizeProportional() ? "true" : "false");
+		configuration.setProperty(PROPERTY_INVERSE, getInteractiveVisualization().getMarkerSizeInversion() ? "true" : "false");
+		configuration.setProperty(PROPERTY_ADAPTIVE, getInteractiveVisualization().isMarkerSizeZoomAdapted() ? "true" : "false");
 		}
 
 	@Override
@@ -186,7 +184,7 @@ public class DETaskSetMarkerSize extends DETaskAbstractSetViewOptions {
 					}
 				if (!getTableModel().isColumnTypeDouble(column)
 				 && !getTableModel().isDescriptorColumn(column)
-				 && !CompoundTableHitlistHandler.isHitlistColumn(column)) {
+				 && !CompoundTableListHandler.isListColumn(column)) {
 					showErrorMessage("Column '"+columnName+"' does not contain numerical values.");
 					return false;
 					}
@@ -200,16 +198,6 @@ public class DETaskSetMarkerSize extends DETaskAbstractSetViewOptions {
 	public void enableItems() {
 		mCheckBoxProportional.setEnabled(mComboBox.getSelectedIndex() != 0);
 		mCheckBoxInverse.setEnabled(mComboBox.getSelectedIndex() != 0);
-		}
-
-	@Override
-	public Properties getRecentConfigurationLocal() {
-		return sRecentConfiguration;
-		}
-	
-	@Override
-	public void setRecentConfiguration(Properties configuration) {
-		sRecentConfiguration = configuration;
 		}
 
 	@Override

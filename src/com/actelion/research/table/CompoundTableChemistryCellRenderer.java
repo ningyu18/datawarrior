@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,23 +18,18 @@
 
 package com.actelion.research.table;
 
-import java.awt.Color;
-import java.awt.Component;
-import java.awt.Dimension;
-import java.awt.Font;
-import java.awt.Graphics;
-import java.awt.Rectangle;
-
-import javax.swing.JPanel;
-import javax.swing.JTable;
-import javax.swing.UIManager;
-
 import com.actelion.research.chem.IDCodeParser;
 import com.actelion.research.chem.StereoMolecule;
 import com.actelion.research.chem.reaction.ReactionEncoder;
+import com.actelion.research.gui.LookAndFeelHelper;
 import com.actelion.research.gui.table.ChemistryCellRenderer;
+import com.actelion.research.table.model.CompoundRecord;
+import com.actelion.research.table.model.CompoundTableModel;
 import com.actelion.research.table.view.JVisualization;
 import com.actelion.research.table.view.VisualizationColor;
+
+import javax.swing.*;
+import java.awt.*;
 
 public class CompoundTableChemistryCellRenderer extends ChemistryCellRenderer implements ColorizedCellRenderer {
 	public static final int ON_THE_FLY_COORD_MAX_ATOMS = 255;
@@ -56,7 +51,7 @@ public class CompoundTableChemistryCellRenderer extends ChemistryCellRenderer im
 				if (mIsReaction) {
 					value = ReactionEncoder.decode(s, true);
 					}
-				else if (s.indexOf(' ') == -1 && s.indexOf('\n') == -1) {
+				else if (s.indexOf('\n') == -1) {
 					CompoundTableModel tableModel = (CompoundTableModel)table.getModel();
 					int idcodeColumn = tableModel.convertFromDisplayableColumnIndex(table.convertColumnIndexToModel(col));
 					int coordsColumn = tableModel.getChildColumn(idcodeColumn, CompoundTableModel.cColumnType2DCoordinates);
@@ -82,16 +77,18 @@ public class CompoundTableChemistryCellRenderer extends ChemistryCellRenderer im
 		if (!isSelected) {
 			if (mForegroundColor != null && mForegroundColor.getColorColumn() != JVisualization.cColumnUnassigned) {
 				CompoundRecord record = ((CompoundTableModel)table.getModel()).getRecord(row);
-				renderPanel.setForeground(mForegroundColor.getDarkerColor(record));
+				renderPanel.setForeground(mForegroundColor.getColorForForeground(record));
 				}
 
 			// Quaqua does not use the defined background color if CellRenderer is translucent
-			if (UIManager.getLookAndFeel().getName().startsWith("Quaqua"))
+			if (LookAndFeelHelper.isQuaQua())
 				renderPanel.setOpaque(mBackgroundColor != null && mBackgroundColor.getColorColumn() != JVisualization.cColumnUnassigned);
+			else if (LookAndFeelHelper.isAqua())
+				renderPanel.setOpaque(true);
 
 			if (mBackgroundColor != null && mBackgroundColor.getColorColumn() != JVisualization.cColumnUnassigned) {
 				CompoundRecord record = ((CompoundTableModel)table.getModel()).getRecord(row);
-				renderPanel.setBackground(mBackgroundColor.getLighterColor(record));
+				renderPanel.setBackground(mBackgroundColor.getColorForBackground(record));
 				}
 			}
 
@@ -131,7 +128,7 @@ public class CompoundTableChemistryCellRenderer extends ChemistryCellRenderer im
 			int y = bounds.y + (bounds.height - d*(ON_THE_FLY_COORD_ERROR_MESSAGE.length-1))/2 + d/3;
 
 			if (od != d)
-				g.setFont(new Font("Helvetica", Font.PLAIN, d));
+				g.setFont(g.getFont().deriveFont(Font.PLAIN, d));
 
 			g.setColor(Color.RED);
 

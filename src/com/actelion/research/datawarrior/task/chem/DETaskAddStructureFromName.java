@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,38 +18,19 @@
 
 package com.actelion.research.datawarrior.task.chem;
 
-import java.io.ByteArrayInputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.StringWriter;
-import java.util.List;
 import java.util.Properties;
 
-import nu.xom.Document;
-import nu.xom.Element;
-import nu.xom.Node;
-
-import org.xmlcml.cml.base.CMLBuilder;
-import org.xmlcml.cml.base.CMLConstants;
-import org.xmlcml.cml.base.CMLException;
-import org.xmlcml.cml.base.CMLUtil;
-import org.xmlcml.cml.element.CMLMolecule;
-import org.xmlcml.cml.element.CMLScalar;
-import org.xmlcml.cml.legacy.molecule.MDLConverter;
-
+import com.actelion.research.datawarrior.task.AbstractTaskWithoutConfiguration;
 import uk.ac.cam.ch.wwmm.opsin.NameToStructure;
-import uk.ac.cam.ch.wwmm.opsin.NameToStructureConfig;
-import uk.ac.cam.ch.wwmm.opsin.OpsinResult;
 
 import com.actelion.research.chem.Canonizer;
-import com.actelion.research.chem.CoordinateInventor;
-import com.actelion.research.chem.MolfileParser;
+import com.actelion.research.chem.coords.CoordinateInventor;
+import com.actelion.research.chem.SmilesParser;
 import com.actelion.research.chem.StereoMolecule;
 import com.actelion.research.datawarrior.DEFrame;
-import com.actelion.research.datawarrior.task.DETaskWithEmptyConfiguration;
-import com.actelion.research.table.CompoundTableModel;
+import com.actelion.research.table.model.CompoundTableModel;
 
-public class DETaskAddStructureFromName extends DETaskWithEmptyConfiguration {
+public class DETaskAddStructureFromName extends AbstractTaskWithoutConfiguration {
 	public static final String TASK_NAME = "Add Structures From Name";
 
 	private static final String[] cSourceColumnName = { "substance name", "compound name", "iupac name" };
@@ -90,7 +71,7 @@ public class DETaskAddStructureFromName extends DETaskWithEmptyConfiguration {
         int coordsColumn = firstNewColumn+1;
         mTableModel.prepareStructureColumns(idcodeColumn, "Structure", true, true);
 
-		NameToStructureConfig opsinConfig = new NameToStructureConfig();
+//		NameToStructureConfig opsinConfig = new NameToStructureConfig();
 		NameToStructure opsinN2S = NameToStructure.getInstance();
 		StereoMolecule mol = new StereoMolecule();
 
@@ -100,18 +81,32 @@ public class DETaskAddStructureFromName extends DETaskWithEmptyConfiguration {
 
 			String name = mTableModel.getTotalValueAt(row, sourceColumn);
 			if (name.length() != 0) {
-				try {
+				String smiles = opsinN2S.parseToSmiles(name);
+				if (smiles != null) {
+					try {
+						mol.deleteMolecule();
+						new SmilesParser().parse(mol, smiles);
+						if (mol.getAllAtoms() != 0) {
+							mol.setFragment(false);
+							new CoordinateInventor().invent(mol);
+							Canonizer canonizer = new Canonizer(mol);
+							mTableModel.setTotalValueAt(canonizer.getIDCode(), row, idcodeColumn);
+							mTableModel.setTotalValueAt(canonizer.getEncodedCoordinates(), row, coordsColumn);
+							}
+						}
+					catch (Exception e) {
+						e.printStackTrace();
+						}
+					}
+
+/*				try {
 					OpsinResult result = opsinN2S.parseChemicalName(name, opsinConfig);
 
-					Element el = result.getCml();
-					if (el == null)
+					String cml = result..getCml();
+					if (cml == null)
 						continue;
 					
-					String xmlCML = el.toXML();
-					if (xmlCML == null)
-						continue;
-
-					String sdf = convertCML2SDF(xmlCML);
+					String sdf = convertCML2SDF(cml);
 					if (sdf == null)
 						continue;
 
@@ -127,7 +122,7 @@ public class DETaskAddStructureFromName extends DETaskWithEmptyConfiguration {
 					}
 				catch (Exception e) {
 					e.printStackTrace();
-					}
+					}	*/
 				}
 			}
 
@@ -139,7 +134,7 @@ public class DETaskAddStructureFromName extends DETaskWithEmptyConfiguration {
 		return null;
 		}
 
-	private String convertCML2SDF(String cml) throws CMLException, IOException{
+/*	private String convertCML2SDF(String cml) throws CMLException, IOException{
 		InputStream is = new ByteArrayInputStream(cml.getBytes());
   		Document document = null;
   		try {
@@ -162,5 +157,5 @@ public class DETaskAddStructureFromName extends DETaskWithEmptyConfiguration {
   		mdlConverter.writeMOL(writer, molecule);
   		writer.flush();
   		return writer.toString();
-		}
+		}	*/
 	}

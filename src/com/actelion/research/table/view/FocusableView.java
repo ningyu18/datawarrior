@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -19,10 +19,10 @@
 package com.actelion.research.table.view;
 
 public interface FocusableView extends CompoundTableView {
-	public static final int cHitlistUnassigned = -1;
+	public static final int cFocusNone = -1;
     public static final int cFocusOnSelection = -2;
 
-	public int getFocusHitlist();
+	public int getFocusList();
 
 	/**
 	 * Instructs the view to highlight all members of given hitlist,

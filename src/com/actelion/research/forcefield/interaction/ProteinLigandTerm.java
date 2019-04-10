@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -22,8 +22,7 @@ import java.text.DecimalFormat;
 import com.actelion.research.chem.Coordinates;
 import com.actelion.research.chem.FFMolecule;
 import com.actelion.research.forcefield.AbstractTerm;
-import com.actelion.research.forcefield.FFParameters;
-import com.actelion.research.forcefield.mm2.MM2Parameters;
+import com.actelion.research.forcefield.FFConfig;
 
 /**
  * ProteinLigandTerm is used to represent the energy between 2 atoms.
@@ -35,45 +34,27 @@ import com.actelion.research.forcefield.mm2.MM2Parameters;
  * 
  */
 public class ProteinLigandTerm extends AbstractTerm {
-	private final static FFParameters parameters = MM2Parameters.getInstance();
 
 	//Taper to the null function close to cutoff distance
 	private final static double CUTOFF = PLFunctionSplineCalculator.CUTOFF_STATS - PLFunctionSplineCalculator.DELTA_RADIUS;	
 	
 	public double rik2;
-	private double epsilon, radmin;
-	private double energy;	
+	private double energy;
+	private double factor;
 
 	//Statistics
 	private final PLFunction f; 
 	
-	private ProteinLigandTerm(FFMolecule mol, int[] atoms, PLFunction f) {
+	private ProteinLigandTerm(FFMolecule mol, int[] atoms, PLFunction f, double factor) {
 		super(mol, atoms);
-		this.f = f;
-		
-		if(f==null) {
-			//VDW from parameters	
-			int n1 = getMolecule().getAtomMM2Class(atoms[0]);
-			int n2 = getMolecule().getAtomMM2Class(atoms[1]);
-			FFParameters.VDWParameters paramPair = parameters.getVDWParameters(n1, n2);		
-			if(paramPair!=null) {
-				radmin = paramPair.radius;
-				epsilon = paramPair.esp;
-			}  else {					
-				FFParameters.SingleVDWParameters param1 = parameters.getSingleVDWParameters(n1);
-				FFParameters.SingleVDWParameters param2 = parameters.getSingleVDWParameters(n2);				
-				radmin = (param1.radius + param2.radius);			
-				epsilon = Math.sqrt(param1.epsilon * param2.epsilon);				
-			}	
-
-		}
-		
+		this.f = f;			
+		this.factor = factor;
 	}
 	
-	public static ProteinLigandTerm create(ClassInteractionStatistics stats, FFMolecule mol, int a1, int a2) {		
-		PLFunction f = stats.getFunction(mol.getAtomInteractionClass(a1), mol.getAtomInteractionClass(a2));
+	public static ProteinLigandTerm create(FFMolecule mol, int a1, int a2, FFConfig config) {		
+		PLFunction f = config.getClassStatistics().getFunction(mol.getAtomInteractionClass(a1), mol.getAtomInteractionClass(a2));
 		if(f==null) return null;
-		return new ProteinLigandTerm(mol, new int[]{a1, a2}, f);			
+		return new ProteinLigandTerm(mol, new int[]{a1, a2}, f, config.getProteinLigandFactor());			
 	}
 	
 	
@@ -83,35 +64,25 @@ public class ProteinLigandTerm extends AbstractTerm {
 		final Coordinates ck = getMolecule().getCoordinates(atoms[1]);				
 		final Coordinates cr = ci.subC(ck);
 		rik2 = cr.distSq();		
-		
+
 		if(rik2>CUTOFF*CUTOFF) {
 			energy = 0; 
 		} else {
 			double de=0;
 			double rik = Math.sqrt(rik2);
-			if(rik<1) rik = 1;
 
-			if(f!=null) {
-				double valDer[] = f.getFGValue(rik);			
-				energy = PLFunctionSplineCalculator.FACTOR * valDer[0];	 
-				if(gradient!=null) de = PLFunctionSplineCalculator.FACTOR * valDer[1];				
-			} else {
-				double p2 = radmin * radmin / rik2;
-				double p4 = p2 * p2;
-				double p8 = p4 * p4;			
-				double vdw = epsilon * (p8 - 2*p4);
-											
-				energy = vdw;	 
-				if(gradient!=null) {
-					double dvdw = epsilon / rik * -8 * (p8-p4);
-					de = dvdw;
-				}									
-			}
+			double grad[] = f.getFGValue(rik);			
+			
+			energy = factor * grad[0];	 
+			if(gradient!=null) de = factor * grad[1];				
+
 
 			if(gradient!=null) {
-				double deddt = de / rik;
-				if(atoms[0]<gradient.length) gradient[atoms[0]].add(cr.scaleC(deddt));
-				if(atoms[1]<gradient.length) gradient[atoms[1]].add(cr.scaleC(-deddt));
+			
+				double deddt = (rik<=1? -10 : de) / rik;
+				cr.scale(deddt);
+				if(atoms[0]<gradient.length) gradient[atoms[0]].add(cr);
+				if(atoms[1]<gradient.length) gradient[atoms[1]].sub(cr);
 			}					
 		}
 		

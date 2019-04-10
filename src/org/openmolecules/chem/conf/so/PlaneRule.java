@@ -14,11 +14,12 @@
 
 package org.openmolecules.chem.conf.so;
 
-import java.util.ArrayList;
-
 import com.actelion.research.calc.SingularValueDecomposition;
+import com.actelion.research.chem.RingCollection;
 import com.actelion.research.chem.StereoMolecule;
 import com.actelion.research.chem.conf.Conformer;
+
+import java.util.ArrayList;
 
 public class PlaneRule extends ConformationRule {
 	private int[] mPlaneAtom;	// these are the atoms that define the plane
@@ -48,13 +49,22 @@ public class PlaneRule extends ConformationRule {
 
     public static void calculateRules(ArrayList<ConformationRule> ruleList, StereoMolecule mol) {
 		boolean[] isFlatBond = new boolean[mol.getBonds()];
+
+		RingCollection ringSet = mol.getRingSet();
+		boolean[] isAromaticRing = new boolean[ringSet.getSize()];
+		ringSet.determineAromaticity(isAromaticRing, new boolean[ringSet.getSize()], new int[ringSet.getSize()], true);
+		for (int ring=0; ring<ringSet.getSize(); ring++)
+			if (isAromaticRing[ring])
+				for (int i=0; i<ringSet.getRingSize(ring); i++)
+					isFlatBond[ringSet.getRingBonds(ring)[i]] = true;
+
 		int[] atomicNo = new int[2];
 		for (int bond=0; bond<mol.getBonds(); bond++) {
 			int bondAtom1 = mol.getBondAtom(0, bond);
 			int bondAtom2 = mol.getBondAtom(1, bond);
 		    atomicNo[0] = mol.getAtomicNo(bondAtom1);
 		    atomicNo[1] = mol.getAtomicNo(bondAtom2);
-			isFlatBond[bond] = (mol.isAromaticBond(bond)
+			isFlatBond[bond] |= (mol.isAromaticBond(bond)
 							|| (mol.getBondOrder(bond) == 2
 							 && atomicNo[0] <= 8 && atomicNo[1] <= 8
 							 && mol.getAtomPi(bondAtom1) == 1
@@ -68,10 +78,14 @@ public class PlaneRule extends ConformationRule {
 						if ((atomicNo[i] == 7 || atomicNo[i] == 8) && atomicNo[1-i] == 6) {
 							int carbon = mol.getBondAtom(1-i, bond);
 							for (int j=0; j<mol.getConnAtoms(carbon); j++) {
-								if (mol.getConnBondOrder(carbon, j) == 2
-								 && mol.getAtomicNo(mol.getConnAtom(carbon, j)) == 8) {
-									isFlatBond[bond] = true;
-									break;
+								if (mol.getConnBondOrder(carbon, j) == 2) {
+									int connAtom = mol.getConnAtom(carbon, j);
+									if (mol.getAtomicNo(connAtom) == 7
+									 || mol.getAtomicNo(connAtom) == 8
+									 || mol.getAtomicNo(connAtom) == 16) {
+										isFlatBond[bond] = true;
+										break;
+										}
 									}
 								}
 							}
@@ -139,34 +153,36 @@ public class PlaneRule extends ConformationRule {
 	
 			// attach first sphere of atoms connected via non-flat bonds
 		for (int i=highest; i>=0; i--) {
-			for (int j=0; j<mol.getAllConnAtoms(fragmentAtom[i]); j++) {
-				int connAtom = mol.getConnAtom(fragmentAtom[i], j);
-				if (!isFragmentMember[connAtom]) {
-					fragmentAtom[++highest] = connAtom;
-					isFragmentMember[connAtom] = true;
+			if (mol.getAtomicNo(fragmentAtom[i]) <= 8) {
+				for (int j=0; j<mol.getAllConnAtoms(fragmentAtom[i]); j++) {
+					int connAtom = mol.getConnAtom(fragmentAtom[i], j);
+					if (!isFragmentMember[connAtom] && mol.getConnBondOrder(fragmentAtom[i], j) != 0) {
+						fragmentAtom[++highest] = connAtom;
+						isFragmentMember[connAtom] = true;
+						}
 					}
-				}	
+				}
 			}
 	
 		return highest+1;
 		}
 
 	@Override
-	public boolean apply(Conformer conformer, float cycleFactor) {
-		float[] cog = new float[3];	// center of gravity
+	public boolean apply(Conformer conformer, double cycleFactor) {
+		double[] cog = new double[3];	// center of gravity
 		for (int i=0; i<mPlaneAtom.length; i++) {
-			cog[0] += conformer.x[mPlaneAtom[i]];
-			cog[1] += conformer.y[mPlaneAtom[i]];
-			cog[2] += conformer.z[mPlaneAtom[i]];
+			cog[0] += conformer.getX(mPlaneAtom[i]);
+			cog[1] += conformer.getY(mPlaneAtom[i]);
+			cog[2] += conformer.getZ(mPlaneAtom[i]);
 			}
 		for (int j=0; j<3; j++)
 			cog[j] /= mPlaneAtom.length;
 
-		float[][] A = new float[mPlaneAtom.length][3];
+		double[][] A = new double[mPlaneAtom.length][3];
 		for (int i=0; i<mPlaneAtom.length; i++) {
-			A[i][0] = conformer.x[mPlaneAtom[i]] - cog[0];
-			A[i][1] = conformer.y[mPlaneAtom[i]] - cog[1];
-			A[i][2] = conformer.z[mPlaneAtom[i]] - cog[2];
+			A[i][0] = conformer.getX(mPlaneAtom[i]) - cog[0];
+			A[i][1] = conformer.getY(mPlaneAtom[i]) - cog[1];
+			A[i][2] = conformer.getZ(mPlaneAtom[i]) - cog[2];
 			}
 
 		double[][] squareMatrix = new double[3][3];
@@ -183,17 +199,17 @@ public class PlaneRule extends ConformationRule {
 				minIndex = i;
 
 		double[][] U = svd.getU();
-		float[] n = new float[3];	// normal vector of fitted plane
+		double[] n = new double[3];	// normal vector of fitted plane
 		for (int i=0; i<3; i++)
-			n[i] = (float)U[i][minIndex];
+			n[i] = U[i][minIndex];
 
 		for (int i=0; i<mAtom.length; i++) {
-			float distance = -(n[0]*(conformer.x[mAtom[i]] - cog[0])
-							 + n[1]*(conformer.y[mAtom[i]] - cog[1])
-							 + n[2]*(conformer.z[mAtom[i]] - cog[2]));
-			moveGroup(conformer, mAtom[i], mAtom, 0.5f*distance*cycleFactor*n[0],
-												  0.5f*distance*cycleFactor*n[1],
-												  0.5f*distance*cycleFactor*n[2]);
+			double distance = -(n[0]*(conformer.getX(mAtom[i]) - cog[0])
+							  + n[1]*(conformer.getY(mAtom[i]) - cog[1])
+							  + n[2]*(conformer.getZ(mAtom[i]) - cog[2]));
+			moveGroup(conformer, mAtom[i], mAtom, 0.5*distance*cycleFactor*n[0],
+												  0.5*distance*cycleFactor*n[1],
+												  0.5*distance*cycleFactor*n[2]);
 //			moveAtom(conformer, mAtom[i], 0.5f*distance*cycleFactor*n[0],
 //										  0.5f*distance*cycleFactor*n[1],
 //										  0.5f*distance*cycleFactor*n[2]);
@@ -203,21 +219,21 @@ public class PlaneRule extends ConformationRule {
 		}
 
 	@Override
-	public float addStrain(Conformer conformer, float[] atomStrain) {
-		float[] cog = new float[3];	// center of gravity
+	public double addStrain(Conformer conformer, double[] atomStrain) {
+		double[] cog = new double[3];	// center of gravity
 		for (int i=0; i<mAtom.length; i++) {
-			cog[0] += conformer.x[mAtom[i]];
-			cog[1] += conformer.y[mAtom[i]];
-			cog[2] += conformer.z[mAtom[i]];
+			cog[0] += conformer.getX(mAtom[i]);
+			cog[1] += conformer.getY(mAtom[i]);
+			cog[2] += conformer.getZ(mAtom[i]);
 			}
 		for (int j=0; j<3; j++)
 			cog[j] /= mAtom.length;
 
-		float[][] A = new float[mAtom.length][3];
+		double[][] A = new double[mAtom.length][3];
 		for (int i=0; i<mAtom.length; i++) {
-			A[i][0] = conformer.x[mAtom[i]] - cog[0];
-			A[i][1] = conformer.y[mAtom[i]] - cog[1];
-			A[i][2] = conformer.z[mAtom[i]] - cog[2];
+			A[i][0] = conformer.getX(mAtom[i]) - cog[0];
+			A[i][1] = conformer.getY(mAtom[i]) - cog[1];
+			A[i][2] = conformer.getZ(mAtom[i]) - cog[2];
 			}
 
 		double[][] squareMatrix = new double[3][3];
@@ -234,14 +250,14 @@ public class PlaneRule extends ConformationRule {
 				minIndex = i;
 
 		double[][] U = svd.getU();
-		float[] n = new float[3];	// normal vector of fitted plane
+		double[] n = new double[3];	// normal vector of fitted plane
 		for (int i=0; i<3; i++)
-			n[i] = (float)U[i][minIndex];
+			n[i] = U[i][minIndex];
 
-		float totalStrain = 0;
+		double totalStrain = 0;
 		for (int i=0; i<mAtom.length; i++) {
-			float distance = -(n[0]*A[i][0] + n[1]*A[i][1] + n[2]*A[i][2]);
-			float panalty = distance*distance;
+			double distance = -(n[0]*A[i][0] + n[1]*A[i][1] + n[2]*A[i][2]);
+			double panalty = distance*distance;
 			atomStrain[mAtom[i]] += panalty;
 			totalStrain += panalty;
 			}

@@ -13,8 +13,9 @@ import javax.swing.SwingUtilities;
 import com.actelion.research.calc.ProgressController;
 import com.actelion.research.calc.SelfOrganizedMap;
 import com.actelion.research.datawarrior.DEFrame;
+import com.actelion.research.datawarrior.DataWarrior;
 import com.actelion.research.gui.FileHelper;
-import com.actelion.research.table.CompoundTableModel;
+import com.actelion.research.table.model.CompoundTableModel;
 import com.actelion.research.table.CompoundTableSOM;
 import com.actelion.research.table.view.JVisualization;
 import com.actelion.research.table.view.JVisualization2D;
@@ -23,24 +24,13 @@ import com.actelion.research.table.view.VisualizationPanel2D;
 
 public class DETaskApplySOMFile extends DETaskAbstractOpenFile {
 	public static final String TASK_NAME = "Apply SOM-File";
-    private static Properties sRecentConfiguration;
 
     private DEFrame		mParentFrame;
 
-    public DETaskApplySOMFile(DEFrame parent) {
-		super(parent, "Open SOM-File And Calculate Positions", FileHelper.cFileTypeSOM);
-		mParentFrame = parent;
+    public DETaskApplySOMFile(DataWarrior application) {
+		super(application, "Open SOM-File And Calculate Positions", FileHelper.cFileTypeSOM);
+		mParentFrame = application.getActiveFrame();
 		}
-
-	@Override
-	public Properties getRecentConfiguration() {
-    	return sRecentConfiguration;
-    	}
-
-	@Override
-	public void setRecentConfiguration(Properties configuration) {
-    	sRecentConfiguration = configuration;
-    	}
 
 	@Override
 	public String getTaskName() {
@@ -79,8 +69,8 @@ e.printStackTrace();
 	                    vpanel1.getVisualization().getMarkerColor().setColor(somFitColumn, colorList, colorListMode);
 	                    if (background != null) {
 	                        ((JVisualization2D)vpanel1.getVisualization()).setBackgroundImage(background);
-	                        vpanel1.getVisualization().setScaleMode(JVisualization.cScaleModeHideAll);
-	                        vpanel1.getVisualization().setSuppressGrid(true);
+	                        vpanel1.getVisualization().setScaleMode(JVisualization.cScaleModeHidden);
+	                        vpanel1.getVisualization().setGridMode(JVisualization.cGridModeHidden);
 	                    	}
 	                    }
 	                }

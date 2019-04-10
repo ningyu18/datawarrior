@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -62,16 +62,12 @@ public class DETaskSetBackgroundImage extends DETaskAbstractSetViewOptions {
 	public static final String TASK_NAME = "Set Background Image";
 
 	private static final String PROPERTY_IMAGE_DATA = "imageData";
-	private static final String PROPERTY_HIDE_SCALE = "showScale";
+//	private static final String PROPERTY_HIDE_SCALE = "showScale";
+	private static final String PROPERTY_HIDE_SCALE = "hideScale";	// allowed: x,y,true,false
 
-	private static Properties sRecentConfiguration;
-
-	private Frame			mParentFrame;
 	private JCheckBox		mCheckboxHideScale;
 	private JPanel			mBackgroundImagePreview;
 	private BufferedImage	mBackgroundImage;
-	private boolean			mOriginalHideGrid;
-	private int				mOriginalScaleMode;
 
 	public DETaskSetBackgroundImage(Frame owner, DEMainPane mainPane, VisualizationPanel2D view) {
 		super(owner, mainPane, view);
@@ -149,7 +145,7 @@ public class DETaskSetBackgroundImage extends DETaskAbstractSetViewOptions {
 			JFileChooser fileChooser = new JFileChooser();
 			fileChooser.setCurrentDirectory(FileHelper.getCurrentDirectory());
 			fileChooser.setFileFilter(filter);
-			int option = fileChooser.showOpenDialog(mParentFrame);
+			int option = fileChooser.showOpenDialog(getParentFrame());
 			FileHelper.setCurrentDirectory(fileChooser.getCurrentDirectory());
 			if (option != JFileChooser.APPROVE_OPTION)
 				return;
@@ -159,7 +155,7 @@ public class DETaskSetBackgroundImage extends DETaskAbstractSetViewOptions {
 				long length = file.length();
 
 				if (length > 4000000) {
-					JOptionPane.showMessageDialog(mParentFrame, "Image file size exceeds limit.");
+					JOptionPane.showMessageDialog(getParentFrame(), "Image file size exceeds limit.");
 					is.close();
 					return;
 					}
@@ -174,7 +170,7 @@ public class DETaskSetBackgroundImage extends DETaskAbstractSetViewOptions {
 				is.close();
 			
 				if (offset < imageData.length) {
-					JOptionPane.showMessageDialog(mParentFrame, "Could not completely read file "+file.getName());
+					JOptionPane.showMessageDialog(getParentFrame(), "Could not completely read file "+file.getName());
 					return;
 					}
 
@@ -183,7 +179,7 @@ public class DETaskSetBackgroundImage extends DETaskAbstractSetViewOptions {
 				mCheckboxHideScale.setEnabled(true);
 				}
 			catch (IOException ioe) {
-				JOptionPane.showMessageDialog(mParentFrame, "Couldn't read file.");
+				JOptionPane.showMessageDialog(getParentFrame(), "Couldn't read file.");
 				return;
 				}
 			}
@@ -206,12 +202,12 @@ public class DETaskSetBackgroundImage extends DETaskAbstractSetViewOptions {
 	@Override
 	public void addViewConfiguration(Properties configuration) {
 		JVisualization2D visualization = (JVisualization2D)((VisualizationPanel2D)getInteractiveView()).getVisualization();
+
 		byte[] image = visualization.getBackgroundImageData();
-		if (image != null) {
+		if (image != null)
 			configuration.put(PROPERTY_IMAGE_DATA, BinaryEncoder.toString(image, 8));
-			configuration.put(PROPERTY_HIDE_SCALE, (visualization.getScaleMode() == JVisualization.cScaleModeHideAll
-												 && visualization.isGridSuppressed() ? "true" : "false"));
-			}
+
+		configuration.setProperty(PROPERTY_HIDE_SCALE, JVisualization.SCALE_MODE_CODE[getInteractiveVisualization().getScaleMode()]);
 		}
 
 	@Override
@@ -267,27 +263,15 @@ public class DETaskSetBackgroundImage extends DETaskAbstractSetViewOptions {
 	@Override
 	public void applyConfiguration(CompoundTableView view, Properties configuration, boolean isAdjusting) {
 		JVisualization2D visualization = (JVisualization2D)((VisualizationPanel2D)view).getVisualization();
+
 		String imageString = configuration.getProperty(PROPERTY_IMAGE_DATA);
-		if (imageString == null) {
+		if (imageString == null)
 			visualization.setBackgroundImageData(null);
-			visualization.setScaleMode(JVisualization.cScaleModeShowAll);
-			visualization.setSuppressGrid(false);
-			}
-		else {
+		else
 			visualization.setBackgroundImageData(BinaryDecoder.toBytes(imageString, 8));
-			boolean hideScale = "true".equals(configuration.getProperty(PROPERTY_HIDE_SCALE));
-			visualization.setScaleMode(hideScale ? JVisualization.cScaleModeHideAll : JVisualization.cScaleModeShowAll);
-			visualization.setSuppressGrid(hideScale);
-			}
-		}
-	
-	@Override
-	public Properties getRecentConfigurationLocal() {
-		return sRecentConfiguration;
-		}
-	
-	@Override
-	public void setRecentConfiguration(Properties configuration) {
-		sRecentConfiguration = configuration;
+
+		String hideScaleString = configuration.getProperty(PROPERTY_HIDE_SCALE);
+		if (hideScaleString != null)
+			visualization.setScaleMode(findListIndex(hideScaleString, JVisualization.SCALE_MODE_CODE, 0));
 		}
 	}

@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -25,21 +25,9 @@ import com.actelion.research.datawarrior.DEFrame;
 public class DETaskSaveFileAs extends DETaskAbstractSaveNativeFile {
     public static final String TASK_NAME = "Save File As";
 
-	private static Properties sRecentConfiguration;
-
 	public DETaskSaveFileAs(DEFrame parent) {
 		super(parent, "Save File As", false);
 		}
-
-	@Override
-	public Properties getRecentConfiguration() {
-    	return sRecentConfiguration;
-    	}
-
-	@Override
-	public void setRecentConfiguration(Properties configuration) {
-    	sRecentConfiguration = configuration;
-    	}
 
 	@Override
 	public String getTaskName() {

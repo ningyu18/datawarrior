@@ -14,36 +14,47 @@
 
 package org.openmolecules.chem.conf.so;
 
+import com.actelion.research.chem.Canonizer;
+import com.actelion.research.chem.Coordinates;
+import com.actelion.research.chem.Molecule;
+import com.actelion.research.chem.StereoMolecule;
+import com.actelion.research.chem.conf.BondAngleSet;
+import com.actelion.research.chem.conf.BondLengthSet;
+import com.actelion.research.chem.conf.Conformer;
+import com.actelion.research.chem.conf.TorsionDescriptor;
+import com.actelion.research.util.DoubleFormat;
+
 import java.io.BufferedWriter;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Random;
 
-import com.actelion.research.chem.Canonizer;
-import com.actelion.research.chem.Molecule;
-import com.actelion.research.chem.StereoMolecule;
-import com.actelion.research.chem.conf.Conformer;
-import com.actelion.research.chem.conf.TorsionDescriptor;
-
 public class ConformationSelfOrganizer {
 	private static final int    INITIAL_POOL_SIZE = 4;
-	private static final int    MAX_CONFORMER_TRIES = 5;
+	private static final int    MAX_CONFORMER_TRIES = 6;
 	private static final int    MAX_BREAKOUT_ROUNDS = 3;
 	private static final int    PREPARATION_CYCLES = 40;		// without ambiguous rules (i.e. torsion)
 	private static final int    PRE_OPTIMIZATION_CYCLES = 20;	// with ambiguous rules before breakout
 	private static final int    BREAKOUT_CYCLES = 20;
 	private static final int    OPTIMIZATION_CYCLES = 100;
 	private static final int    MINIMIZATION_CYCLES = 20;
-	private static final float	STANDARD_CYCLE_FACTOR = 1.0f;
-	private static final float	MINIMIZATION_REDUCTION = 20.0f;
-	private static final float	ATOM_BREAKOUT_STRAIN = 0.5f;
-	private static final float	BREAKOUT_DISTANCE = 5f;
+	private static final double	STANDARD_CYCLE_FACTOR = 1.0;
+	private static final double	MINIMIZATION_REDUCTION = 20.0;
+	private static final double ATOM_FLAT_RING_BREAKOUT_STRAIN = 0.25;
+	private static final double ATOM_CAGE_BREAKOUT_STRAIN = 2.0;
+	private static final double	BREAKOUT_DISTANCE = 8.0;
+	private static final double MAX_AVERAGE_ATOM_STRAIN = 0.025;
+	private static final double MAX_HIGHEST_ATOM_STRAIN = 0.05;
+	private static final double MAX_STRAIN_TOLERANCE = 1.5;
 
-private static final boolean WRITE_DW_FILE = false;
+public static boolean KEEP_INITIAL_COORDINATES = false;
+public static boolean WRITE_DW_FILE = false;
+private static final String DATAWARRIOR_DEBUG_FILE = "/home/thomas/data/debug/conformationSampler.dwar";
 private BufferedWriter mDWWriter;
+private Conformer mLastDWConformer;
 private int mDWCycle;
-private float[] mDWStrain; 	// TODO get rid of this
+private double[] mDWStrain; 	// TODO get rid of this
 
 	private StereoMolecule		mMol;
     private Random				mRandom;
@@ -51,6 +62,7 @@ private float[] mDWStrain; 	// TODO get rid of this
     private boolean				mPoolIsClosed;
 	private ArrayList<ConformationRule> mRuleList;
 	private ArrayList<SelfOrganizedConformer> mConformerList;
+	private double              mMinAverageAtomStrainInPool,mMinHighestAtomStrainInPool;
 	private int[]				mRuleCount;
 	private boolean[]			mSkipRule;
 	private int[]				mRotatableBondForDescriptor;
@@ -71,12 +83,12 @@ private float[] mDWStrain; 	// TODO get rid of this
 	public ConformationSelfOrganizer(final StereoMolecule mol, boolean keepHydrogen) {
 
 /*// winkel zwischen zwei vektoren:
-final float[] v1 = { Math.sqrt(3.0)/2.0, 0.5, 0 };
-final float[] v2 = { -1, 0, 1 };
-float cosa = (v1[0]*v2[0]+v1[1]*v2[1]+v1[2]*v2[2])
+final double[] v1 = { Math.sqrt(3.0)/2.0, 0.5, 0 };
+final double[] v2 = { -1, 0, 1 };
+double cosa = (v1[0]*v2[0]+v1[1]*v2[1]+v1[2]*v2[2])
 			/ (Math.sqrt(v1[0]*v1[0]+v1[1]*v1[1]+v1[2]*v1[2])
 			 * Math.sqrt(v2[0]*v2[0]+v2[1]*v2[1]+v2[2]*v2[2]));
-float a = Math.acos(cosa);
+double a = Math.acos(cosa);
 System.out.println("angle:"+a+"  in degrees:"+(a*180/Math.PI));
 */
 		mMol = mol;
@@ -110,6 +122,10 @@ System.out.println("angle:"+a+"  in degrees:"+(a*180/Math.PI));
 //		listRules();
 		}
 
+	public ArrayList<ConformationRule> getRuleList() {
+		return mRuleList;
+		}
+
 	/**
 	 * @return returns the molecule that was passed to the constructor.
 	 */
@@ -125,10 +141,14 @@ System.out.println("angle:"+a+"  in degrees:"+(a*180/Math.PI));
 				int connBond = mMol.getConnBond(i, j);
 				if (mMol.isAromaticBond(connBond))
 					System.out.print(" .");
+				else if (mMol.getBondOrder(connBond) == 0)
+					System.out.print(" ~");
 				else if (mMol.getBondOrder(connBond) == 1)
 					System.out.print(" -");
 				else if (mMol.getBondOrder(connBond) == 2)
 					System.out.print(" =");
+				else if (mMol.getBondOrder(connBond) == 3)
+					System.out.print(" #");
 				System.out.print(""+mMol.getConnAtom(i, j));
 				}
 			if (mMol.getAtomParity(i) != 0)
@@ -156,8 +176,8 @@ System.out.println("angle:"+a+"  in degrees:"+(a*180/Math.PI));
 
 		for (ConformationRule rule:mRuleList)
 			System.out.println(rule.toString());
-		}*/
-
+		}
+*/
 	/**
 	 * This convenience method returns the StereoMolecule that has been passed
 	 * to the constructor after modifying its atom coordinates
@@ -166,12 +186,7 @@ System.out.println("angle:"+a+"  in degrees:"+(a*180/Math.PI));
 	 */
 	public StereoMolecule generateOneConformerInPlace(long randomSeed) {
 		SelfOrganizedConformer conformer = generateOneConformer(randomSeed);
-		for (int atom=0; atom<mMol.getAllAtoms(); atom++) {
-			mMol.setAtomX(atom, conformer.x[atom]);
-			mMol.setAtomY(atom, conformer.y[atom]);
-			mMol.setAtomZ(atom, conformer.z[atom]);
-			}
-		return mMol;
+		return (conformer == null) ? null : conformer.toMolecule(mMol);
 		}
 
 	/**
@@ -179,7 +194,9 @@ System.out.println("angle:"+a+"  in degrees:"+(a*180/Math.PI));
 	 * This is done by trying MAX_CONFORMER_TRIES times to create a random
 	 * conformer that meets MAX_ATOM_STRAIN and MAX_TOTAL_STRAIN criteria.
 	 * If one is found it is returned. Otherwise the conformer with the lowest
-	 * total strain is returned.
+	 * total strain is returned.<br>
+	 * <b>Note:</b> If randomSeed is different from 0, then only one conformer
+	 * is done produced and returned, no matter whether it meets any strain criteria.
      * @param randomSeed 0 or specific seed
 	 */
 	public SelfOrganizedConformer generateOneConformer(long randomSeed) {
@@ -191,6 +208,7 @@ System.out.println("angle:"+a+"  in degrees:"+(a*180/Math.PI));
 			try {
 				writeDWFileStart();
 				mDWCycle = 0;
+				mLastDWConformer = null;
 				tryGenerateConformer(conformer);
 				writeDWFileEnd();
 				mDWWriter.close();
@@ -204,7 +222,7 @@ System.out.println("angle:"+a+"  in degrees:"+(a*180/Math.PI));
 
 		SelfOrganizedConformer bestConformer = null;
 		for (int i=0; i<MAX_CONFORMER_TRIES; i++) {
-			if (tryGenerateConformer(conformer))
+			if (tryGenerateConformer(conformer) || randomSeed != 0L)
 				return conformer;	// sufficiently low strain, we take this and don't try generating better ones
 
 			if (bestConformer == null) {
@@ -234,6 +252,8 @@ System.out.println("angle:"+a+"  in degrees:"+(a*180/Math.PI));
         mRandom = (randomSeed == 0) ? new Random() : new Random(randomSeed);
 
         mConformerList = new ArrayList<SelfOrganizedConformer>();
+		mMinHighestAtomStrainInPool = MAX_STRAIN_TOLERANCE * MAX_HIGHEST_ATOM_STRAIN;
+		mMinAverageAtomStrainInPool = MAX_STRAIN_TOLERANCE * MAX_AVERAGE_ATOM_STRAIN;
         mPoolIsClosed = false;
 
 		int freeBondCount = 0;
@@ -263,21 +283,15 @@ System.out.println("angle:"+a+"  in degrees:"+(a*180/Math.PI));
 			if (conformer == null)
 				conformer = new SelfOrganizedConformer(mMol);
 			if (tryGenerateConformer(conformer)) {
-				if (mRotatableBondForDescriptor == null)
-					mRotatableBondForDescriptor = TorsionDescriptor.getRotatableBonds(getMolecule());
-				conformer.calculateDescriptor(mRotatableBondForDescriptor);
-				boolean isNew = true;
-				for (SelfOrganizedConformer c:mConformerList) {
-					if (conformer.equals(c)) {
-						isNew = false;
-						break;
-						}
-					}
-				if (isNew)
-					mConformerList.add(conformer);
-				conformer = null;
+				if (addConformerIfNew(conformer))
+					conformer = null;
 				}
-			else if (mConformerList.isEmpty()) {
+			else if (conformer.getTotalStrain() / conformer.getSize() < MAX_STRAIN_TOLERANCE * mMinAverageAtomStrainInPool
+				  && conformer.getHighestAtomStrain() < MAX_STRAIN_TOLERANCE * mMinHighestAtomStrainInPool) {
+				if (addConformerIfNew(conformer))
+					conformer = null;
+				}
+			else {
 				if (bestRefusedConformer == null) {
 					bestRefusedConformer = conformer;
 					conformer = null;
@@ -289,11 +303,48 @@ System.out.println("angle:"+a+"  in degrees:"+(a*180/Math.PI));
 					}
 				}
 			}
-		if (mConformerList.isEmpty())
+		if (mConformerList.isEmpty() && bestRefusedConformer != null)
 			mConformerList.add(bestRefusedConformer);
 		if (mConformerList.size() < finalPoolSize
 		 || mConformerList.size() == mMaxConformers)
 			mPoolIsClosed = true;
+		}
+
+	private boolean addConformerIfNew(SelfOrganizedConformer conformer) {
+		if (mRotatableBondForDescriptor == null)
+			mRotatableBondForDescriptor = TorsionDescriptor.getRotatableBonds(getMolecule());
+
+		conformer.calculateDescriptor(mRotatableBondForDescriptor);
+		boolean isNew = true;
+		for (SelfOrganizedConformer c:mConformerList) {
+			if (conformer.equals(c)) {
+				isNew = false;
+				break;
+			}
+		}
+		if (!isNew)
+			return false;
+
+		mConformerList.add(conformer);
+
+		double averageStrain = conformer.getTotalStrain() / conformer.getSize();
+		double highestStrain = conformer.getHighestAtomStrain();
+		if ((mMinAverageAtomStrainInPool > averageStrain)
+		 || (mMinHighestAtomStrainInPool > highestStrain)) {
+			if (mMinAverageAtomStrainInPool > averageStrain)
+				mMinAverageAtomStrainInPool = averageStrain;
+			if (mMinHighestAtomStrainInPool > highestStrain)
+				mMinHighestAtomStrainInPool = highestStrain;
+			for (int j=mConformerList.size()-1; j>=0; j--) {
+				SelfOrganizedConformer soc = mConformerList.get(j);
+				if (!soc.isAcceptable(mRuleList)
+						&& (soc.getTotalStrain() / soc.getSize() > MAX_STRAIN_TOLERANCE * mMinAverageAtomStrainInPool
+						|| soc.getHighestAtomStrain() > MAX_STRAIN_TOLERANCE * mMinHighestAtomStrainInPool))
+					mConformerList.remove(j);
+				}
+			}
+
+		return true;
 		}
 
 	/**
@@ -329,7 +380,7 @@ System.out.println("angle:"+a+"  in degrees:"+(a*180/Math.PI));
 		}
 
 	private void writeDWFileStart() throws IOException {
-        mDWWriter = new BufferedWriter(new FileWriter("/home/thomas/data/ccdc/conformationSamplerDebug.dwar"));
+        mDWWriter = new BufferedWriter(new FileWriter(DATAWARRIOR_DEBUG_FILE));
         mDWWriter.write("<column properties>");
         mDWWriter.newLine();
         mDWWriter.write("<columnName=\"Structure\">");
@@ -353,7 +404,7 @@ System.out.println("angle:"+a+"  in degrees:"+(a*180/Math.PI));
         mDWWriter.write("Structure\tbefore\tafter\tcycle\truleName\truleAtoms\truleDetail");
         for (int i=0; i<ConformationRule.RULE_NAME.length; i++)
             mDWWriter.write("\t"+ConformationRule.RULE_NAME[i]);
-        mDWWriter.write("\ttotalStrain\tstrainGain");
+        mDWWriter.write("\ttotalStrain\tstrainGain\truleStrainBefore\truleStrainAfter\truleStrainGain");
         mDWWriter.newLine();
         }
 
@@ -427,35 +478,38 @@ System.out.println("angle:"+a+"  in degrees:"+(a*180/Math.PI));
 	 * Returns false, if after going though all phases still one of these two conditions
 	 * is not met.
 	 * @param conformer receives coordinates of the conformer
-	 * @param threadData carries all thread specific data
 	 * @return true if conformer with satisfactory low strain could be generated
 	 */
 	private boolean tryGenerateConformer(SelfOrganizedConformer conformer) {
 		if (mMol.getAllAtoms() < 2)
 			return true;
 
-		jumbleAtoms(conformer);
+		if (!KEEP_INITIAL_COORDINATES)
+			jumbleAtoms(conformer);
 
 		mSkipRule[ConformationRule.RULE_TYPE_TORSION] = true;
 
-		optimize(conformer, PREPARATION_CYCLES, STANDARD_CYCLE_FACTOR, 1f);
+		optimize(conformer, PREPARATION_CYCLES, STANDARD_CYCLE_FACTOR, 1.0);
 
 		boolean done = false;
 
 		if (mRuleCount[ConformationRule.RULE_TYPE_TORSION] != 0) {
 			mSkipRule[ConformationRule.RULE_TYPE_TORSION] = false;
-			done = optimize(conformer, PRE_OPTIMIZATION_CYCLES, STANDARD_CYCLE_FACTOR, 1f);
+			done = optimize(conformer, PRE_OPTIMIZATION_CYCLES, STANDARD_CYCLE_FACTOR, 1.0);
 			}
 
 		for (int i=0; !done && i<MAX_BREAKOUT_ROUNDS; i++) {
 			if (jumbleStrainedAtoms(conformer) == 0)
 				break;
 
-			done = optimize(conformer, BREAKOUT_CYCLES, STANDARD_CYCLE_FACTOR, 1f);
+			done = optimize(conformer, BREAKOUT_CYCLES, STANDARD_CYCLE_FACTOR, 1.0);
 			}
 
+//		if (!done && disableCollidingTorsionRules(conformer))
+//			done = optimize(conformer, OPTIMIZATION_CYCLES, STANDARD_CYCLE_FACTOR, 1.0);
+
 		if (!done)
-			done = optimize(conformer, OPTIMIZATION_CYCLES, STANDARD_CYCLE_FACTOR, 1f);
+			done = optimize(conformer, OPTIMIZATION_CYCLES, STANDARD_CYCLE_FACTOR, 1.0);
 
 		if (!done)
 			done = optimize(conformer, MINIMIZATION_CYCLES, STANDARD_CYCLE_FACTOR, MINIMIZATION_REDUCTION);
@@ -463,19 +517,32 @@ System.out.println("angle:"+a+"  in degrees:"+(a*180/Math.PI));
 		return done;
 		}
 
-	public boolean optimize(SelfOrganizedConformer conformer, int cycles, float startFactor, float factorReduction) {
+	public boolean optimize(SelfOrganizedConformer conformer, int cycles, double startFactor, double factorReduction) {
 		int atomsSquare = mMol.getAllAtoms() * mMol.getAllAtoms();
 
-		float k = (float)Math.log(factorReduction)/(float)cycles;
+		double k = Math.log(factorReduction)/cycles;
+//double[] dummy_ = new double[mMol.getAllAtoms()];
 
 		for (int outerCycle=0; outerCycle<cycles; outerCycle++) {
-			float cycleFactor = startFactor * (float)Math.exp(-k*outerCycle);
+			double cycleFactor = startFactor * Math.exp(-k*outerCycle);
 
 			for (int innerCycle=0; innerCycle<atomsSquare; innerCycle++) {
-				ConformationRule rule = mRuleList.get((int)(mRandom.nextFloat() * mRuleList.size()));
+				ConformationRule rule = mRuleList.get((int)(mRandom.nextDouble() * mRuleList.size()));
 
+/*				// Always use maximum strain constraint.
+				ConformationRule rule = null;
+				double maxStrain = -1;
+				for (ConformationRule r:mRuleList) {
+					if (r.isEnabled() && !mSkipRule[r.getRuleType()]) {
+						double strain = r.addStrain(conformer, dummy_) / r.getAtomList().length;
+						if (maxStrain < strain) {
+							maxStrain = strain;
+							rule = r;
+							}
+						}
+					}
+*/
 				if (rule.isEnabled() && !mSkipRule[rule.getRuleType()]) {
-Conformer oldConformer = (mDWWriter == null) ? null : new Conformer(conformer);
 
 //System.out.println("#1 rule:"+rule.toString());
 					boolean conformerChanged = rule.apply(conformer, cycleFactor);
@@ -487,7 +554,13 @@ Conformer oldConformer = (mDWWriter == null) ? null : new Conformer(conformer);
 					if (conformerChanged)
 						conformer.invalidateStrain();
 
-try { if (mDWWriter != null && conformerChanged) writeStrains(oldConformer, conformer, rule); } catch (Exception e) { e.printStackTrace(); }
+if (mDWWriter != null && conformerChanged) {
+ try {
+  double[] dummy = new double[mMol.getAllAtoms()];
+  double s1 = (mLastDWConformer == null) ? 0 : rule.addStrain(mLastDWConformer, dummy);
+  double s2 = rule.addStrain(conformer, dummy);
+  writeStrains(conformer, rule, null, s1, s2);
+ } catch (Exception e) { e.printStackTrace(); } }
 					}
 				}
 
@@ -498,21 +571,21 @@ try { if (mDWWriter != null && conformerChanged) writeStrains(oldConformer, conf
 		return false;
 		}
 
-	private void writeStrains(Conformer oldConformer, SelfOrganizedConformer newConformer, ConformationRule rule) throws Exception {
+	private void writeStrains(SelfOrganizedConformer newConformer, ConformationRule rule, String stepName, double strain1, double strain2) throws Exception {
 		newConformer.calculateStrain(mRuleList);
-		float[] strain = new float[ConformationRule.RULE_NAME.length];
-		float strainSum = 0f;
+		double[] strain = new double[ConformationRule.RULE_NAME.length];
+		double strainSum = 0f;
 		for (int i=0; i<ConformationRule.RULE_NAME.length; i++) {
 			strain[i] = newConformer.getRuleStrain(i);
 			strainSum += strain[i];
 			}
 
-		float oldStrainSum = 0f;
+		double oldStrainSum = 0f;
 		if (mDWStrain != null)
 			for (int i=0; i<mDWStrain.length; i++)
 				oldStrainSum += mDWStrain[i];
 
-        String ruleName = ConformationRule.RULE_NAME[rule.getRuleType()];
+        String ruleName = (rule != null) ? ConformationRule.RULE_NAME[rule.getRuleType()] : stepName;
 
 		StereoMolecule mol = mMol.getCompactCopy();
 		for (int atom=0; atom<mol.getAllAtoms(); atom++) {
@@ -531,38 +604,34 @@ try { if (mDWWriter != null && conformerChanged) writeStrains(oldConformer, conf
 	        	}
 	    	}
 
-		for (int atom=0; atom<mol.getAllAtoms(); atom++) {
-			mol.setAtomX(atom, oldConformer.x[atom]);
-			mol.setAtomY(atom, oldConformer.y[atom]);
-			mol.setAtomZ(atom, oldConformer.z[atom]);
-			}
-		Canonizer oldCanonizer = new Canonizer(mol);
-		String idcode = oldCanonizer.getIDCode();
-		String oldCoords = oldCanonizer.getEncodedCoordinates();
-
-		for (int atom=0; atom<mol.getAllAtoms(); atom++) {
-			mol.setAtomX(atom, newConformer.x[atom]);
-			mol.setAtomY(atom, newConformer.y[atom]);
-			mol.setAtomZ(atom, newConformer.z[atom]);
-			}
+		newConformer.toMolecule(mol);
 		Canonizer newCanonizer = new Canonizer(mol);
 		String newCoords = newCanonizer.getEncodedCoordinates();
 
-        mDWWriter.write(idcode+"\t"+oldCoords+"\t"+newCoords+"\t"+mDWCycle+"\t"+ruleName+"\t"+atoms+"\t"+rule.toString());
-        for (float s:strain)
-        	mDWWriter.write("\t"+s);
-        mDWWriter.write("\t"+strainSum+"\t"+(oldStrainSum-strainSum));
-        mDWWriter.newLine();
-	    mDWStrain = strain;
-	    mDWCycle++;
+		if (mLastDWConformer != null) {
+			mLastDWConformer.toMolecule(mol);
+			Canonizer oldCanonizer = new Canonizer(mol);
+			String idcode = oldCanonizer.getIDCode();
+			String oldCoords = oldCanonizer.getEncodedCoordinates();
+
+			mDWWriter.write(idcode + "\t" + oldCoords + "\t" + newCoords + "\t" + mDWCycle + "\t" + ruleName + "\t" + atoms + "\t" + (rule != null ? rule.toString() : stepName));
+			for (double s : strain)
+				mDWWriter.write("\t" + s);
+			mDWWriter.write("\t" + strainSum + "\t" + (oldStrainSum - strainSum) + "\t" + DoubleFormat.toString(strain1) + "\t" + DoubleFormat.toString(strain2) + "\t" + DoubleFormat.toString(strain1 - strain2));
+			mDWWriter.newLine();
+			mDWStrain = strain;
+			mDWCycle++;
+			}
+
+		mLastDWConformer = new Conformer(newConformer);
 	    }
 
 	private void jumbleAtoms(SelfOrganizedConformer conformer) {
-		float boxSize = 1.0f + 3.0f * (float)Math.sqrt(mMol.getAllAtoms());
+		double boxSize = 1.0 + 3.0 * Math.sqrt(mMol.getAllAtoms());
 		for (int atom=0; atom<mMol.getAllAtoms(); atom++) {
-			conformer.x[atom] = boxSize * mRandom.nextFloat() - boxSize / 2;
-			conformer.y[atom] = boxSize * mRandom.nextFloat() - boxSize / 2;
-			conformer.z[atom] = boxSize * mRandom.nextFloat() - boxSize / 2;
+			conformer.setX(atom, boxSize * mRandom.nextDouble() - boxSize / 2);
+			conformer.setY(atom, boxSize * mRandom.nextDouble() - boxSize / 2);
+			conformer.setZ(atom, boxSize * mRandom.nextDouble() - boxSize / 2);
 			}
 
 		conformer.invalidateStrain();
@@ -573,10 +642,25 @@ try { if (mDWWriter != null && conformerChanged) writeStrains(oldConformer, conf
 
 		int atomCount = 0;
 		for (int atom=0; atom<mMol.getAllAtoms(); atom++) {
-			if (conformer.getAtomStrain(atom) > ATOM_BREAKOUT_STRAIN) {
-				conformer.x[atom] += BREAKOUT_DISTANCE * mRandom.nextFloat() - BREAKOUT_DISTANCE / 2;
-				conformer.y[atom] += BREAKOUT_DISTANCE * mRandom.nextFloat() - BREAKOUT_DISTANCE / 2;
-				conformer.z[atom] += BREAKOUT_DISTANCE * mRandom.nextFloat() - BREAKOUT_DISTANCE / 2;
+			double atomStrain = conformer.getAtomStrain(atom);
+			if (atomStrain > ATOM_FLAT_RING_BREAKOUT_STRAIN) {
+				if (tryEscapeFromFlatRingTrap(conformer, atom)) {
+					atomCount++;
+					continue;
+					}
+				}
+			if (atomStrain > ATOM_CAGE_BREAKOUT_STRAIN) {
+				if (mDWWriter != null) {
+					try {
+						writeStrains(conformer, null, "escapeCage", atomStrain, Double.NaN);
+						}
+					catch (Exception e) { e.printStackTrace(); }
+					}
+
+				Coordinates c = conformer.getCoordinates(atom);
+				c.add(BREAKOUT_DISTANCE * mRandom.nextDouble() - BREAKOUT_DISTANCE / 2,
+					  BREAKOUT_DISTANCE * mRandom.nextDouble() - BREAKOUT_DISTANCE / 2,
+					  BREAKOUT_DISTANCE * mRandom.nextDouble() - BREAKOUT_DISTANCE / 2);
 				atomCount++;
 				}
 			}
@@ -585,6 +669,48 @@ try { if (mDWWriter != null && conformerChanged) writeStrains(oldConformer, conf
 			conformer.invalidateStrain();
 
 		return atomCount;
+		}
+
+	/**
+	 * Sometimes individual exocyclic atoms end up trapped inside a flat ring,
+	 * because a plane rule combined with a distance rule stabilize the situation.
+	 * This method checks, whether atom<br>
+	 *     - has only one neighbour<br>
+	 *     - is connected to a small ring atom<br>
+	 *     - all angles atom-neighbour-otherRingAtom are below 90 degrees<br>
+	 * If all conditions are true then atom is moved to the opposite side of the neighbour atom.
+	 * @param conformer
+	 * @param atom
+	 * @return whether atom was moved from trapped state
+	 */
+	private boolean tryEscapeFromFlatRingTrap(SelfOrganizedConformer conformer, int atom) {
+		if (mMol.getAllConnAtoms(atom) == 1) {
+			int connAtom = mMol.getConnAtom(atom, 0);
+			if (mMol.isSmallRingAtom(connAtom)) {
+				Coordinates ca = conformer.getCoordinates(atom);
+				Coordinates cc = conformer.getCoordinates(connAtom);
+				Coordinates va = cc.subC(ca);
+				for (int i=0; i<mMol.getConnAtoms(connAtom); i++) {
+					int ringAtom = mMol.getConnAtom(connAtom, i);
+					if (mMol.isRingAtom(ringAtom)) {
+						Coordinates vr = cc.subC(conformer.getCoordinates(ringAtom));
+						if (va.getAngle(vr) > Math.PI / 2)
+							return false;
+						}
+					}
+
+				ca.add(va).add(va);
+
+				if (mDWWriter != null) {
+					try {
+						writeStrains(conformer, null, "escapeFlatRing", conformer.getAtomStrain(atom), Double.NaN);
+						}
+					catch (Exception e) { e.printStackTrace(); }
+					}
+				return true;
+				}
+			}
+		return false;
 		}
 
 	public boolean disableCollidingTorsionRules(SelfOrganizedConformer conformer) {
@@ -607,15 +733,12 @@ try { if (mDWWriter != null && conformerChanged) writeStrains(oldConformer, conf
 					}
 				}
 			}
-		if (found) {
-			for (int atom=0; atom<mMol.getAllAtoms(); atom++) {
-				if (isInvolvedAtom[atom]) {
-					conformer.x[atom] += 0.6f * mRandom.nextFloat() - 0.3f;
-					conformer.y[atom] += 0.6f * mRandom.nextFloat() - 0.3f;
-					conformer.z[atom] += 0.6f * mRandom.nextFloat() - 0.3f;
-					}
-				}
-			}
+		if (found)
+			for (int atom=0; atom<mMol.getAllAtoms(); atom++)
+				if (isInvolvedAtom[atom])
+					conformer.getCoordinates(atom).add(0.6 * mRandom.nextDouble() - 0.3,
+													  0.6 * mRandom.nextDouble() - 0.3,
+													  0.6 * mRandom.nextDouble() - 0.3);
 		return found;
 		}
 

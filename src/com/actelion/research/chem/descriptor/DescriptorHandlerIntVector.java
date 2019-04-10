@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -58,7 +58,7 @@ public class DescriptorHandlerIntVector<U extends Object> implements DescriptorH
 
 	@Override
 	public String getVersion() {
-		return "1.0";
+		return DescriptorConstants.DESCRIPTOR_IntegerVector.version;
 		}
 
 	@Override
@@ -87,7 +87,7 @@ public class DescriptorHandlerIntVector<U extends Object> implements DescriptorH
 		}
 
 	@Override
-	public DescriptorHandler<int[], U> getDeepCopy() {
-		return new DescriptorHandlerIntVector<U>();
+	public DescriptorHandler<int[], U> getThreadSafeCopy() {
+		return this;
 		}
 	}

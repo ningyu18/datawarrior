@@ -23,18 +23,28 @@ import com.actelion.research.chem.descriptor.flexophore.PPNodeViz;
  * @author Modest von Korff
  * @version 1.0
  * 2004 MvK: Start implementation
+ * 02.03.2016 MvK: updates. the percentage of the distance distributions are calculated from the distance histograms.
+ * This percentage is taken for the MolDistHist.
+ * 29.06.2016 number of bins increase from 40 to 50, histogram range increased from 20 to 25 Angstroem.
+ * 11.08.2016 number of bins increase from 50 to 80, histogram range increased from 25 to 40 Angstroem.
+ * 29.05.2017 Added +0.5 in the percentage calculation of the histogram standartization.
  */
 public class CGMult {
 	
 	public static final String SEPERATOR_NO_ATOMS = ";";
-	private static final DecimalFormat FORMAT_DISTANES = new DecimalFormat("0.00000"); 
-	
-	public static final int BINS_HISTOGRAM = 40;
-	
+	private static final DecimalFormat FORMAT_DISTANES = new DecimalFormat("0.00000");
+
+	/**
+	 * Defines the resolution for the range.
+	 */
+	public static final int BINS_HISTOGRAM = 80;
+
 	/**
 	 * Range histogram in Angstrom.
 	 */
-	public static final int RANGE_HISTOGRAM = 20;
+	public static final int RANGE_HISTOGRAM = 40;
+
+	private static final int MAX_ALLOWED_DIFF_COUNT_DIST_HIST = 5;
 
 	
 	private List<PPNodeViz> liPPNode;
@@ -44,8 +54,8 @@ public class CGMult {
 	private FFMolecule ffMol;
 
 	/**
-	 * 
-	 * @param cg 
+	 * A deep copy from FFMolecule is taken.
+	 * @param cg the nodes are taken.
 	 * @param ff FFMolecule for visualization.
 	 */
 	public CGMult(CompleteGraph cg, FFMolecule ff) {
@@ -56,6 +66,7 @@ public class CGMult {
 		}
 		
 		liDistTable  = new ArrayList<double[][]>();
+
 		liDistTable.add(cg.getEdges());
 		
 		ffMol = new FFMolecule(ff);
@@ -89,20 +100,29 @@ public class CGMult {
 	 * The Alkane clusters are summarized.
 	 * The index tables are not created!
 	 * @return
+	 * @deprecated
 	 */
-	public MolDistHist getMolDistHist() {
+	public MolDistHist getMolDistHistWithSummarizeAlkaneClusters() {
 		
-		MolDistHistViz mdhv = getMolDistHistViz();
+		MolDistHistViz mdhv = getMolDistHistVizWithSummarizedAlkaneClusters();
 		
 		return mdhv.getMolDistHist();
 	}
-	
+
+	public MolDistHist getMolDistHist() {
+
+		MolDistHistViz mdhv = getMolDistHistViz();
+
+		return mdhv.getMolDistHist();
+	}
+
 	/**
-	 * the only difference to getMolDistHist() is the usage of PPNodeViz for the MolDistHist object.
+	 * the only difference to getMolDistHistWithSummarizeAlkaneClusters() is the usage of PPNodeViz for the MolDistHist object.
 	 * In contrary to getMolDistHistVizFineGranulated() alkene clusters are summarised.
 	 * @return
+	 * @deprecated
 	 */
-	public MolDistHistViz getMolDistHistViz() {
+	public MolDistHistViz getMolDistHistVizWithSummarizedAlkaneClusters() {
 		
 		MolDistHistViz mdhv = getMolDistHistVizFineGranulated();
 		
@@ -114,46 +134,99 @@ public class CGMult {
 		
 		return mdhv;
 	}
-	
+
+	public MolDistHistViz getMolDistHistViz() {
+
+		MolDistHistViz mdhv = getMolDistHistVizFineGranulated();
+
+		if(!mdhv.check()){
+			return null;
+		}
+
+		return mdhv;
+	}
+
+	/**
+	 * The distance histograms contain the percentage of the the input histograms. So, they are independent from the
+	 * number of conformations.
+	 * @return
+	 */
 	public MolDistHistViz getMolDistHistVizFineGranulated() {
-		
-		int numNodes = getAllNodes();
+
+		final int numNodes = getAllNodes();
+
 		MolDistHistViz mdhv = new MolDistHistViz(numNodes, ffMol);
 		
-		double min =0;
-		double max = RANGE_HISTOGRAM; 
-		int bins = BINS_HISTOGRAM;
+		final double minRangeDistanceHistogram =0;
+
+		final double maxRangeDistanceHistogram = RANGE_HISTOGRAM;
+
+		final int bins = BINS_HISTOGRAM;
 		
 		for (int i = 0; i < numNodes; i++) {
 			mdhv.addNode(getPPNode(i));
 		}
-		
+
+		int countValuesInHistogram0 = 0;
+
 		for (int indexNode1 = 0; indexNode1 < numNodes; indexNode1++) {
+
 			for (int indexNode2 = indexNode1+1; indexNode2 < numNodes; indexNode2++) {
-				double [] arrDists = new double [liDistTable.size()];
+
+				Matrix maDist = new Matrix(1, liDistTable.size());
+
 				int cc = 0;
 				
 				for (int i = 0; i < liDistTable.size(); i++) {
 					double[][] arrDistTbl = liDistTable.get(i);
-					arrDists[cc++]=arrDistTbl[indexNode1][indexNode2];
+
+					double dist = arrDistTbl[indexNode1][indexNode2];
+
+					if(dist >= maxRangeDistanceHistogram){
+
+						throw new RuntimeException("Distance between two pppoints higher than histogram limit of " + maxRangeDistanceHistogram + " Angstroem.");
+
+					}
+
+					maDist.set(0, cc++, dist);
 				}
-				
-				Matrix maDist = new Matrix(true, arrDists);
-				Matrix maBins = MatrixFunctions.getHistogramBins(min,max, bins);
+
+				Matrix maBins = MatrixFunctions.getHistogramBins(minRangeDistanceHistogram,maxRangeDistanceHistogram, bins);
+
 				Matrix maHist =  MatrixFunctions.getHistogram(maDist, maBins);
-				
-				byte [] arrHist = new byte [maHist.getColDim()];
-				for (int k = 0; k < arrHist.length; k++) {
-					arrHist[k]= (byte)maHist.get(2,k);
+
+				double [] arrHist = maHist.getRow(2);
+
+				int countValuesInHistogram = 0;
+
+				for (int i = 0; i < arrHist.length; i++) {
+					countValuesInHistogram += arrHist[i];
 				}
-				mdhv.setDistHist(indexNode1,indexNode2,arrHist);
+
+				if(countValuesInHistogram0==0){
+
+					countValuesInHistogram0 = countValuesInHistogram;
+
+				} else if(Math.abs(countValuesInHistogram0 - countValuesInHistogram) > MAX_ALLOWED_DIFF_COUNT_DIST_HIST) {
+
+					throw new RuntimeException("Flexophore distance histogram counts differ.");
+
+				}
+
+				// Here, the percentage values for the histograms are calculated.
+				byte [] arrHistPercent = new byte [maHist.getColDim()];
+
+				for (int i = 0; i < arrHist.length; i++) {
+
+					arrHistPercent[i]= (byte)  (((arrHist[i] / countValuesInHistogram) * 100.0) + 0.5);
+				}
+
+				mdhv.setDistHist(indexNode1, indexNode2, arrHistPercent);
 			}
 		}
 		
 		mdhv.setDistanceTables(liDistTable);
-		
-		// mdhv.blurrSingleBinHistograms();
-		
+
 		mdhv.realize();
 		
 		if(!mdhv.check()){

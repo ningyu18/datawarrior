@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,14 +18,14 @@
 
 package com.actelion.research.chem.descriptor;
 
-import java.util.Arrays;
-
 import com.actelion.research.chem.Canonizer;
 import com.actelion.research.chem.Molecule;
 import com.actelion.research.chem.SSSearcherWithIndex;
 import com.actelion.research.chem.StereoMolecule;
 import com.actelion.research.util.BurtleHasher;
 import com.actelion.research.util.datamodel.IntVec;
+
+import java.util.Arrays;
 
 public class DescriptorHandlerHashedCFp extends AbstractDescriptorHandlerFP<StereoMolecule> {
     private static final double CORRECTION_FACTOR = 0.6;
@@ -51,7 +51,7 @@ public class DescriptorHandlerHashedCFp extends AbstractDescriptorHandlerFP<Ster
     }
 
     public String getVersion() {
-        return "2.1";
+        return DescriptorConstants.DESCRIPTOR_HashedCFp.version;
     }
 
     /**
@@ -61,6 +61,9 @@ public class DescriptorHandlerHashedCFp extends AbstractDescriptorHandlerFP<Ster
      * the respective option.
      */
     public int[] createDescriptor(StereoMolecule mol) {
+        if (mol ==null)
+            return null;
+
         mol.ensureHelperArrays(Molecule.cHelperRings);
         StereoMolecule fragment = new StereoMolecule(mol.getAtoms(), mol.getBonds());
 
@@ -127,8 +130,8 @@ public class DescriptorHandlerHashedCFp extends AbstractDescriptorHandlerFP<Ster
 			 : (float)(1.0-Math.pow(1-Math.pow(value, CORRECTION_FACTOR) ,1.0/CORRECTION_FACTOR));
 	}
 
-    public DescriptorHandler<int[], StereoMolecule> getDeepCopy() {
-    	return new DescriptorHandlerHashedCFp();
+    public DescriptorHandler<int[], StereoMolecule> getThreadSafeCopy() {
+    	return this;
     }
 
 }

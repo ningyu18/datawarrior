@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -41,7 +41,6 @@ public class PISCF {
 		this.mol = tl.getMolecule();
 	}
 	
-	@SuppressWarnings("null")
 	protected final void updateTerms() {
 		if(!ENABLED_BONDS && !ENABLED_TORSION) return;
 		
@@ -51,7 +50,7 @@ public class PISCF {
 		//0. Count the number of orbits
 		int norbit = 0;
 		for(int i=0; i<mol.getAllAtoms(); i++) {
-			double[] p = parameters.getPiAtom(mol.getAtomMM2Class(i));
+			double[] p = parameters.getPiAtom(mol.getMM2AtomType(i));
 			if(p!=null && !mol.isAtomFlag(i, FFMolecule.RIGID)) {
 				pi[i]=true;
 				norbit++;			
@@ -69,7 +68,7 @@ public class PISCF {
 		int piperp[][] = new int[norbit][3];
 		norbit=0;
 		for(int i=0; i<mol.getAllAtoms(); i++) {
-			double[] p = parameters.getPiAtom(mol.getAtomMM2Class(i));
+			double[] p = parameters.getPiAtom(mol.getMM2AtomType(i));
 			if(p==null || mol.isAtomFlag(i, FFMolecule.RIGID)) continue;
 			
 			iorbit[norbit] = i;
@@ -221,7 +220,8 @@ public class PISCF {
 			int iorb = iorbit[i];
 			int jorb = iorbit[j];
 			double gll = 0.5 * (gamma[i][i] + gamma[j][j]);
-			double rij = Math.sqrt(mol.getCoordinates(iorb).distSquareTo(mol.getCoordinates(jorb)));
+			double rij = mol.getCoordinates(iorb).distance(mol.getCoordinates(jorb));
+			assert !Double.isNaN(rij): mol.getCoordinates(iorb)+" "+mol.getCoordinates(jorb);
 			double rijsq = rij*rij/(0.5291772083*0.5291772083);
 			
 			//Bond energy using Morse Potential
@@ -320,14 +320,14 @@ public class PISCF {
 					    	if(a1.distSq()==0) a1 = r2.cross(new Coordinates(0,1,0));
 					    	if(a1.distSq()==0) continue;
 				    	}
-			            a1 = a1.unit();
+			            a1 = a1.unitC();
 
 			            //now find vector parallel to the second p-orbital,
 				    	r2 = r[6].subC(r[5]);
 				    	r3 = r[7].subC(r[5]);
 				    	Coordinates a2 = r2.cross(r3);
 				    	if(a2.distSq()==0) continue;
-			            a2 = a2.unit();
+			            a2 = a2.unitC();
 			            a2.x = -a2.x;
 
 			            //compute the cosine of the angle between p-orbitals;
@@ -495,7 +495,7 @@ public class PISCF {
 						int a1 = iorbit[piBonds[i][1]];
 						int a2 = iorbit[piBonds[i][2]];
 						if(t.getAtoms()[0]==a1 && t.getAtoms()[1]==a2) {
-							double[] par = parameters.getPiBond(mol.getAtomMM2Class(a1), mol.getAtomMM2Class(a2));
+							double[] par = parameters.getPiBond(mol.getMM2AtomType(a1), mol.getMM2AtomType(a2));
 							if(par==null) {
 								//System.err.println("Undefined Pi Bond for "+a1+"-"+a2);
 								continue;
@@ -697,7 +697,7 @@ public class PISCF {
 	    for(int i=2; i<5; i++) {
 	    	if (list[i] != list[0]) {
 	    		if(xr[i].distSq()==0) return;
-	    		xr[i] = xr[i].unit();
+	    		xr[i] = xr[i].unitC();
 	    		
 	    	}
 	    }
@@ -714,6 +714,8 @@ public class PISCF {
 	}
 
 	private static double overlap(int atmnum1, int atmnum2, double rang) {
+		
+		
 		final double bohr = 0.5291772083;
 		final double[] zeta =  new double[] {1.000, 1.700, 0.650, 0.975, 1.300, 1.625,
 			     1.950, 2.275, 2.600, 2.925, 0.733, 0.950,
@@ -764,7 +766,7 @@ public class PISCF {
 	        return s[1];
 	    }
 	    
-	    //compute overlap integrals for general case	    
+	    //compute overlap integrals for general case
 	    final double[] a = aset(.5*r * (za+zb), na+nb);
 	    final double[] b = bset(.5*r * (za-zb), na+nb);
 	    final int max = na - la + nb - lb + 1;
@@ -866,6 +868,7 @@ public class PISCF {
 	}
 
 	private static double[] bset(double beta, int n) {
+		assert !Double.isNaN(beta);
 		double[] b = new double[n+1];
 		
 		if(Math.abs(beta)<0.000001) {
@@ -910,7 +913,7 @@ public class PISCF {
 	    }
 	      
 	    double term = sum;
-	    while (true) {
+	    for (int i = 0; i < 500; i++) {
 	    	double bot = top + 2.0;
 	        term = term * b * top / (fi*(fi-1)*bot);
 	        sum = sum + term;

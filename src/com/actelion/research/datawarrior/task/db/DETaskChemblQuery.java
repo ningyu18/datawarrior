@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,43 +18,27 @@
 
 package com.actelion.research.datawarrior.task.db;
 
-import info.clearthought.layout.TableLayout;
-
-import java.awt.Point;
-import java.awt.event.ItemEvent;
-import java.awt.event.ItemListener;
-import java.awt.event.KeyEvent;
-import java.awt.event.KeyListener;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Properties;
-import java.util.TreeMap;
-import java.util.TreeSet;
-
-import javax.swing.BorderFactory;
-import javax.swing.JCheckBox;
-import javax.swing.JComboBox;
-import javax.swing.JLabel;
-import javax.swing.JList;
-import javax.swing.JPanel;
-import javax.swing.JScrollPane;
-import javax.swing.JTable;
-import javax.swing.JTextArea;
-import javax.swing.JTextField;
-import javax.swing.SwingConstants;
-import javax.swing.event.ListSelectionEvent;
-import javax.swing.event.ListSelectionListener;
-
-import org.openmolecules.chembl.ChemblServerConstants;
-
 import com.actelion.research.chem.StructureSearchSpecification;
+import com.actelion.research.chem.descriptor.DescriptorConstants;
 import com.actelion.research.chem.descriptor.DescriptorHandlerFFP512;
 import com.actelion.research.datawarrior.DEFrame;
 import com.actelion.research.datawarrior.DELogWriter;
 import com.actelion.research.datawarrior.DataWarrior;
-import com.actelion.research.table.CompoundTableDetailHandler;
-import com.actelion.research.table.CompoundTableModel;
+import com.actelion.research.gui.hidpi.HiDPIHelper;
+import com.actelion.research.table.model.CompoundTableDetailHandler;
+import com.actelion.research.table.model.CompoundTableModel;
 import com.actelion.research.util.ByteArrayComparator;
+import info.clearthought.layout.TableLayout;
+import org.openmolecules.chembl.ChemblServerConstants;
+
+import javax.swing.*;
+import javax.swing.event.ListSelectionEvent;
+import javax.swing.event.ListSelectionListener;
+import java.awt.event.ItemEvent;
+import java.awt.event.ItemListener;
+import java.awt.event.KeyEvent;
+import java.awt.event.KeyListener;
+import java.util.*;
 
 public class DETaskChemblQuery extends DETaskStructureQuery implements ChemblServerConstants,ItemListener,KeyListener,ListSelectionListener {
 	static final long serialVersionUID = 0x20061004;
@@ -73,9 +57,9 @@ public class DETaskChemblQuery extends DETaskStructureQuery implements ChemblSer
 
 	private static final int[] GROUP_COLUMNS = { RESULT_COLUMN_ACTIVITY_TYPE, RESULT_COLUMN_TARGET_ID };
 
-	private static Properties		sRecentConfiguration;
 	private static Target[]			sTarget;
 	private static ProteinClass[]	sProteinClass;
+	private static String           sDBVersion = "ChEMBL ??";
 
 	private JTextField				mTextFieldFilter,mTextFieldDocIDs;
 	private JList					mListTarget;
@@ -102,7 +86,7 @@ public class DETaskChemblQuery extends DETaskStructureQuery implements ChemblSer
 			}
 
 		JPanel panel = new JPanel();
-		double[][] size = { {8, TableLayout.PREFERRED, 8, TableLayout.PREFERRED, 16, 512, 8},
+		double[][] size = { {8, TableLayout.PREFERRED, 8, TableLayout.PREFERRED, 16, HiDPIHelper.scale(512), 8},
 							{8, TableLayout.PREFERRED, 8, TableLayout.PREFERRED, 32, TableLayout.PREFERRED,
 							 8, TableLayout.PREFERRED, 24, TableLayout.PREFERRED, 24, TableLayout.PREFERRED, 8} };
 		panel.setLayout(new TableLayout(size));
@@ -153,22 +137,18 @@ public class DETaskChemblQuery extends DETaskStructureQuery implements ChemblSer
 		panel.add(mTextFieldDocIDs, "3,9,5,9");
 
 		mCheckBoxGroupByStructure = new JCheckBox("Group results with same compound, target, and result type");
-		mCheckBoxGroupByStructure.setHorizontalAlignment(SwingConstants.CENTER); 
-		panel.add(mCheckBoxGroupByStructure, "1,11,5,11");
+		mCheckBoxGroupByStructure.setHorizontalAlignment(SwingConstants.CENTER);
+
+		JPanel bottomPanel = new JPanel();
+		double[][] bs = { {TableLayout.FILL, TableLayout.PREFERRED}, {TableLayout.PREFERRED} };
+		bottomPanel.setLayout(new TableLayout(bs));
+		bottomPanel.add(mCheckBoxGroupByStructure, "0,0");
+		bottomPanel.add(new JLabel("Database Version:".concat(sDBVersion)), "1,0");
+		panel.add(bottomPanel, "1,11,5,11");
 
 		updateTargetList();
 
 		return panel;
-		}
-
-	@Override
-	public Properties getRecentConfiguration() {
-		return sRecentConfiguration;
-		}
-
-	@Override
-	public void setRecentConfiguration(Properties configuration) {
-		sRecentConfiguration = configuration;
 		}
 
 	@Override
@@ -193,7 +173,14 @@ public class DETaskChemblQuery extends DETaskStructureQuery implements ChemblSer
 		if (sTarget == null) {
 			ArrayList<Target> targetList = new ArrayList<Target>();
 
-			byte[][][] targetTable = new ChemblCommunicator(this).getTargetTable();
+			Object[] versionAndTargets = new ChemblCommunicator(this).getVersionAndTargetTable();
+			if (versionAndTargets != null)
+				sDBVersion = (String)versionAndTargets[0];
+			byte[][][] targetTable = (versionAndTargets != null) ? (byte[][][])versionAndTargets[1] : null;
+
+//			if (targetTable == null)	// was used before chembl21 on server
+//				targetTable = new ChemblCommunicator(this).getTargetTable();
+
 			if (targetTable != null) {
 				for (byte[][] targetRow:targetTable)
 					if (targetRow[TARGET_COLUMN_NAME] != null)
@@ -217,6 +204,24 @@ public class DETaskChemblQuery extends DETaskStructureQuery implements ChemblSer
 		for (int i=3; i<COLUMN_NAME.length; i++)
 			name[i-3] = COLUMN_NAME[i];
 		return name;
+		}
+
+	/**
+	 * Creates a valid StructureSearchSpecification from the configuration
+	 * of the currently executing task, provided that the configuration
+	 * contains the necessary information.
+	 * @return valid SSSpec or null
+	 */
+	protected StructureSearchSpecification getStructureSearchSpecification(Properties configuration) {
+		StructureSearchSpecification ssSpec = super.getStructureSearchSpecification(configuration);
+
+		if (ssSpec != null
+		 && !DescriptorConstants.DESCRIPTOR_FFP512.shortName.equals(getDescriptorShortName(configuration))) {
+			ssSpec.setLargestFragmentOnly(true);
+			ssSpec.removeDescriptors();
+			}
+
+		return ssSpec;
 		}
 
 	@Override
@@ -387,27 +392,29 @@ public class DETaskChemblQuery extends DETaskStructureQuery implements ChemblSer
 				if (nameFilter != null) {
 					for (String filter:nameFilter) {
 						if (filter.length() != 0) {
-							if (!t.name.toLowerCase().contains(filter)
-							 && !t.type.toLowerCase().contains(filter)
-		//					 && !t.synonyms.toLowerCase().contains(filter)
-							 && !t.organism.toLowerCase().contains(filter)
-							 && !t.accession.toLowerCase().contains(filter))
-								violatesFilter = true;
-		
-							if (violatesFilter) {	// check if we have a match in the protein class names
+							boolean matchFound =
+								t.name.toLowerCase().contains(filter)
+							 || t.type.toLowerCase().contains(filter)
+		//					 || t.synonyms.toLowerCase().contains(filter)
+							 || t.organism.toLowerCase().contains(filter)
+							 || t.accession.toLowerCase().contains(filter);
+
+							if (!matchFound) {	// check if we have a match in the protein class names
 								for (int level=0; level<PROTEIN_CLASS_LEVELS; level++) {
 									if (targetClassIndex[level] != null) {
 										for (int i=0; i<targetClassIndex[level].length; i++) {
 											if (sProteinClass[targetClassIndex[level][i]].name.toLowerCase().contains(filter)) {
-												violatesFilter = false;
+												matchFound = true;
 												break;
 												}
 											}
 										}
-									if (!violatesFilter)
+									if (matchFound)
 										break;
 									}
 								}
+							if (!matchFound)
+								violatesFilter = true;
 							}
 						}
 					}
@@ -619,12 +626,14 @@ public class DETaskChemblQuery extends DETaskStructureQuery implements ChemblSer
 		byte[][][] detailTable = new ChemblCommunicator(this).getAssayDetailTable(assaySet.toArray(new byte[0][]));
 
 		mAssayDetails = new HashMap<String,byte[]>();
-		for (byte[][] detailRow:detailTable) {
-			String assayID = new String(detailRow[0]);
-			byte[] detail = detailRow[1];
-			if (detail == null)
-				detail = "NULL".getBytes();
-			mAssayDetails.put(assayID, detail);
+		if (detailTable != null) {
+			for (byte[][] detailRow:detailTable) {
+				String assayID = new String(detailRow[0]);
+				byte[] detail = detailRow[1];
+				if (detail == null)
+					detail = "NULL".getBytes();
+				mAssayDetails.put(assayID, detail);
+				}
 			}
 		}
 

@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -17,12 +17,9 @@
  */
 package com.actelion.research.chem.calculator;
 
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Set;
 
 import com.actelion.research.chem.Coordinates;
 import com.actelion.research.chem.FFMolecule;
@@ -49,39 +46,6 @@ public class SurfaceCalculator {
 		int[] complexedState = calculateSurface(mol, true);
 		int vol = complexedState[complexedState.length-1];				
 		return vol;
-	}
-
-	/**
-	 * Returns the ligand hydrophobic SAS from the given complex (mol+protein) in dots
-	 * @param mol
-	 * @return
-	 */
-	public static int getLigandHydrophobicSAS(FFMolecule mol) {
-		int[] complexedState = calculateSurface(mol, true);		
-		int total = 0;
-		for (int i = 0; i < complexedState.length-1; i++) {
-			if(mol.isAtomFlag(i, FFMolecule.LIGAND) && mol.getAtomicNo(i)==6) {
-				total += complexedState[i];
-			}
-		}
-		return total;
-	}
-	
-	/**
-	 * Returns how much of the ligand is buried within the protein (in dots)
-	 * @param mol
-	 * @return
-	 */
-	public static int getLigandBuried(FFMolecule mol) {
-		int[] complexedState = calculateSurface(mol, true);		
-		int[] solvatedState = calculateSurface(mol, false);		
-		int total = 0;
-		for (int i = 0; i < complexedState.length-1; i++) {
-			if(mol.isAtomFlag(i, FFMolecule.LIGAND)) {
-				total += solvatedState[i] - complexedState[i];
-			}
-		}
-		return total;
 	}
 
 	/**
@@ -248,62 +212,6 @@ public class SurfaceCalculator {
 	}
 	
 	/**
-	 * Estimates the cavitation effect (i.e. the empty space that cannot be occupied by water)
-	 * We suppose that water occupies a sphere of 1.4A of radius
-	 * @param mol
-	 * @return
-	 */
-	public static double calculateCavitation(FFMolecule mol, List<Coordinates> probes) {
-
-		int Nlig = mol.getNMovables();
-		if(probes==null) probes = new ArrayList<Coordinates>();
-		if(Nlig<0) return 0;		
-
-		Coordinates[] bounds = StructureCalculator.getLigandBounds(mol);
-		double sx = bounds[0].x - offset;
-		double sy = bounds[0].y - offset;
-		double sz = bounds[0].z - offset;
-
-		final double vol = STEP*STEP;
-		int[][][] occupancy = calculateOccupancy(mol, true, 1.4, STEP); 
-		
-		double total = 0;
-		for (int x = 1; x < occupancy.length-1; x++) {
-			for (int y = 1; y < occupancy[x].length-1; y++) {
-				for (int z = 1; z < occupancy[x][y].length-1; z++) {
-					if(occupancy[x][y][z]!=-1) continue;
-					if( (occupancy[x-1][y][z]>=Nlig || occupancy[x-1][y][z]<0) && 
-						(occupancy[x][y-1][z]>=Nlig || occupancy[x][y-1][z]<0) && 
-						(occupancy[x][y][z-1]>=Nlig || occupancy[x][y][z-1]<0) &&
-						(occupancy[x+1][y][z]>=Nlig || occupancy[x+1][y][z]<0) && 
-						(occupancy[x][y+1][z]>=Nlig || occupancy[x][y+1][z]<0) && 
-						(occupancy[x][y][z+1]>=Nlig || occupancy[x][y][z+1]<0)) continue;
-					Object[] o = fill(occupancy, x, y, z, -2);
-					int size = (Integer)o[0];
-					boolean reachBorder = (Boolean)o[1];
-					if(!reachBorder) {
-						if(size>0 && size<15) total+=vol;
-					} else {
-						fill(occupancy, x, y, z, 0);
-					}
-					
-					
-				}
-			}
-		}
-		for (int x = 1; x < occupancy.length-1; x++) {
-			for (int y = 1; y < occupancy[x].length-1; y++) {
-				for (int z = 1; z < occupancy[x][y].length-1; z++) {
-					if(occupancy[x][y][z]==-2) probes.add(new Coordinates(x*STEP+sx, y*STEP+sy, z*STEP+sz));
-				}
-			}
-		}
-		
-		return total;
-					
-	}
-	
-	/**
 	 * Estimates the hydrophobic effect in A^2 (i.e. the empty space that cannot be occupied by water)
 	 * We suppose that water occupies a sphere of 1.4A of radius
 	 * @param mol
@@ -348,7 +256,7 @@ public class SurfaceCalculator {
 	}
 	
 	private static boolean isHydrophobic(FFMolecule mol, int a) {
-		return mol.getAtomicNo(a)==6 && !mol.isAromatic(a);
+		return mol.getAtomicNo(a)==6 && !mol.isAromaticAtom(a);
 	}
 
 	/**
@@ -424,61 +332,6 @@ public class SurfaceCalculator {
 		
 		return total;					
 	}
-
-	public static int[] calculateSurfaceByAtom(FFMolecule mol, boolean complexedState) {
-		int N = mol.getAllAtoms();
-		if(N<0) return new int[]{0,0};		
-
-		int[][][] occupancy = calculateOccupancy(mol, complexedState, 1.4, STEP); 
-		
-		int[] res = new int[N];
-		for (int x = 1; x < occupancy.length-1; x++) {
-			for (int y = 1; y < occupancy[x].length-1; y++) {
-				for (int z = 1; z < occupancy[x][y].length-1; z++) {
-					if(occupancy[x][y][z]!=-1) continue;
-					
-					
-					if(occupancy[x-1][y][z]>=0 && occupancy[x-1][y][z]<N && mol.isAtomFlag(occupancy[x-1][y][z], FFMolecule.LIGAND)) res[occupancy[x-1][y][z]]++;
-					else if(occupancy[x+1][y][z]>=0 && occupancy[x+1][y][z]<N && mol.isAtomFlag(occupancy[x+1][y][z], FFMolecule.LIGAND) ) res[occupancy[x+1][y][z]]++;
-					else if(occupancy[x][y-1][z]>=0 && occupancy[x][y-1][z]<N && mol.isAtomFlag(occupancy[x][y-1][z], FFMolecule.LIGAND) ) res[occupancy[x][y-1][z]]++;
-					else if(occupancy[x][y+1][z]>=0 && occupancy[x][y+1][z]<N && mol.isAtomFlag(occupancy[x][y+1][z], FFMolecule.LIGAND) ) res[occupancy[x][y+1][z]]++;
-					else if(occupancy[x][y][z-1]>=0 && occupancy[x][y][z-1]<N && mol.isAtomFlag(occupancy[x][y][z-1], FFMolecule.LIGAND) ) res[occupancy[x][y][z-1]]++;
-					else if(occupancy[x][y][z+1]>=0 && occupancy[x][y][z+1]<N && mol.isAtomFlag(occupancy[x][y][z+1], FFMolecule.LIGAND) ) res[occupancy[x][y][z+1]]++;
-				}
-			}
-		}
-		
-		return res;
-		
-	}
-
-
-	public static double getVolume(FFMolecule mol) {		
-		Coordinates[] bounds = StructureCalculator.getLigandBounds(mol);
-		if(bounds==null) return 0;
-		MoleculeGrid grid = new MoleculeGrid(mol);
-		double vol = 0;
-		for (double x = bounds[0].x; x <= bounds[1].x; x+=.5) {
-			for (double y = bounds[0].y; y <= bounds[1].y; y+=.5) {
-				loop: for (double z = bounds[0].z; z <= bounds[1].z; z+=.5) {
-					Coordinates c = new Coordinates(x,y,z);
-					Set<Integer> neighbours = grid.getNeighbours(c, 1.4);
-	 				for (Iterator<Integer> iter = neighbours.iterator(); iter.hasNext();) {
-						int a = iter.next().intValue();
-						if(mol.getAtomicNo(a)>=VDWRadii.VDW_RADIUS.length) continue;
-						double R = VDWRadii.VDW_RADIUS[mol.getAtomicNo(a)] + 0.9;
-						if(mol.isAtomFlag(a, FFMolecule.LIGAND) && mol.getCoordinates(a).distSquareTo(c)<R*R) {
-							vol += .5*.5*.5;
-							continue loop;
-						} 						
-					}
-				}
-			}
-		}
-		return vol;
-		
-	}
-	
 	
 	private final static boolean free(int[][][] occ, int x, int y, int z) {
 		return x>=0 && y>=0 && z>=0 && x<occ.length && y<occ[x].length  && z<occ[x][y].length && occ[x][y][z]<0;

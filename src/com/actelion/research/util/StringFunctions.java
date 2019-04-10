@@ -1,24 +1,8 @@
-/*
- * Project: DD_core
- * @(#)StringFunctions.java
- *
- * Copyright (c) 1997- 2015
- * Actelion Pharmaceuticals Ltd.
- * Gewerbestrasse 16
- * CH-4123 Allschwil, Switzerland
- *
- * All Rights Reserved.
- *
- * This software is the proprietary information of Actelion Pharmaceuticals, Ltd.
- * Use is subject to license terms.
- *
- * Author: MvK
- */
-
 package com.actelion.research.util;
 
 import java.awt.Point;
 import java.text.DecimalFormat;
+import java.text.NumberFormat;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -30,10 +14,60 @@ import java.util.regex.MatchResult;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+/*
+ * Project: DD_core
+ * @(#)StringFunctions.java
+ *
+ * Copyright (c) 1997- 2017
+ * Actelion Pharmaceuticals Ltd.
+ * Gewerbestrasse 16
+ * CH-4123 Allschwil, Switzerland
+ *
+ * All Rights Reserved.
+ *
+ * This software is the proprietary information of Actelion Pharmaceuticals, Ltd.
+ * Use is subject to license terms.
+ *
+ * Author: MvK
+ */
 public class StringFunctions {
-	
+
+    // http://stackoverflow.com/questions/4731055/whitespace-matching-regex-java
+	public static final String PAT_WHITESPACE = "[\\s\\u0085\\p{Z}]";
+
+    // http://stackoverflow.com/questions/1805518/replacing-all-non-alphanumeric-characters-with-empty-strings
+	public static final String PAT_NOT_ALPHANUMERIC = "[^\\p{IsAlphabetic}^\\p{IsDigit}]";
+
+
 	public static final String [] REGEX_META_CHARACTERS = {"*","%","@","&","+", "(", ")"};
-	
+
+
+
+	public static boolean equal(byte [] b1, byte [] b2) {
+
+		if(b1 == null && b2==null) {
+			return true;
+		}
+
+		if(b1 != null && b2==null) {
+			return false;
+		}
+
+		if(b1 == null && b2!=null) {
+			return false;
+		}
+
+		String s1 = new String(b1);
+		String s2 = new String(b2);
+
+		if(!s1.equals(s2)) {
+			return false;
+		}
+
+		return true;
+	}
+
+
 	public static String encodeHTML(String txt) {
 		
 	    StringBuilder sb = new StringBuilder();
@@ -51,7 +85,9 @@ public class StringFunctions {
 	    
 	    return sb.toString();
 	}
-	
+
+
+
 	public static DecimalFormat getDecimalFormat(int precision){
 		
 		StringBuilder sbFormPat = new StringBuilder("0");
@@ -466,23 +502,20 @@ public class StringFunctions {
     	Matcher ma = pa.matcher(str);
     	
     	if(ma.find()) {
-			
+
 			MatchResult mr = ma.toMatchResult();
-					
+
 			int start = mr.start();
-			
+
 			int end = mr.end();
-			
+
 			String rest1 = str.substring(0, start);
-			
+
 			String rest2 = str.substring(end);
-			
+
 			substring = rest1 + rest2;
-    	}
-    	
-    	
-    	
-    	
+		}
+
     	return substring;
 	}
 
@@ -700,7 +733,51 @@ public class StringFunctions {
 		 System.out.println(str);
 		 */
 	}
-	
+
+	public static String toString(double [] arr, NumberFormat nf){
+
+		StringBuilder sb = new  StringBuilder();
+
+
+		for (int i = 0; i < arr.length; i++) {
+
+			sb.append(nf.format(arr[i]));
+
+			if(i < arr.length-1){
+				sb.append(ConstantsDWAR.SEP_VALUE);
+			}
+
+		}
+
+		return sb.toString();
+	}
+
+    public static String toString(List<Double> li, NumberFormat nf){
+
+        StringBuilder sb = new  StringBuilder();
+
+
+        for (int i = 0; i < li.size(); i++) {
+
+            sb.append(nf.format(li.get(i)));
+
+            if(i < li.size()-1){
+                sb.append(ConstantsDWAR.SEP_VALUE);
+            }
+
+        }
+
+        return sb.toString();
+    }
+
+	public static String toString(double [] arr){
+
+        NumberFormat nf = new DecimalFormat("0.000");
+
+		return toString(arr, nf);
+	}
+
+
 	public static String toString(int [][] arr, String seperator){
 		
 		StringBuilder sb = new  StringBuilder();
@@ -723,7 +800,52 @@ public class StringFunctions {
 		
 		return sb.toString();
 	}
-    
+
+	public static String toString(int [] arr, String seperator){
+
+		StringBuilder sb = new  StringBuilder();
+
+		for (int i = 0; i < arr.length; i++) {
+
+			if(sb.length()>0)
+				sb.append(seperator);
+
+			sb.append(Integer.toString(arr[i]));
+
+		}
+
+		return sb.toString();
+	}
+
+	/**
+	 * Elements are separated by tabs and rows are separated by newline.
+	 * @param arr
+	 * @return
+	 */
+	public static String toStringTabNL(String [][] arr){
+
+		StringBuilder sb = new  StringBuilder();
+
+		for (int i = 0; i < arr.length; i++) {
+
+
+			for (int j = 0; j < arr[i].length; j++) {
+				sb.append(arr[i][j]);
+
+				if(j <arr [i].length-1){
+					sb.append("\t");
+				}
+			}
+
+			if(i < arr.length-1){
+				sb.append("\n");
+			}
+
+		}
+
+		return sb.toString();
+	}
+
 
 	public static String toString(List<String> li) {
 		return toString(li, " ");
@@ -829,7 +951,7 @@ public class StringFunctions {
 	/**
 	 * finds the next balanced closing bracket "]" to the first open bracket
 	 * "[" in the string.
-	 * @param sLine String
+	 * @param txt String
 	 * @param iIndexStart start index
 	 * @return index of the next corresponding bracket
 	 */
@@ -960,7 +1082,43 @@ public class StringFunctions {
 	    
 	    return true;
 	}
-	
+
+	public static boolean isAllLowerCase(String s) {
+
+	    for(char c : s.toCharArray()) {
+
+	       if(Character.isLetter(c) && Character.isUpperCase(c)) {
+	           return false;
+	        }
+	    }
+
+	    return true;
+	}
+
+	public static boolean containsUpperCase(String s) {
+
+		for(char c : s.toCharArray()) {
+
+			if(Character.isLetter(c) && Character.isUpperCase(c)) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	public static boolean containsLowerCase(String s) {
+
+		for(char c : s.toCharArray()) {
+
+			if(Character.isLetter(c) && Character.isLowerCase(c)) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
 	/**
 	 * 
 	 * @param s

@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -28,24 +28,58 @@ import com.actelion.research.chem.StereoMolecule;
 import com.actelion.research.chem.descriptor.DescriptorHandler;
 import com.actelion.research.chem.reaction.Reaction;
 import com.actelion.research.chem.reaction.ReactionEncoder;
-import com.actelion.research.table.CompoundTableModel;
+import com.actelion.research.table.model.CompoundTableModel;
 
 /**
- * An Actelion custom function class for JEP * to calculate structural similarity to a given compound * applying a specified descriptor */
+ * An Actelion custom function class for JEP
+ * to calculate structural similarity to a given compound
+ * applying a specified descriptor
+ */
+
 
 public class JEPChemSimilarityFunction extends PostfixMathCommand {
 	public static final String FUNCTION_NAME = "chemsim";
 
-	private CompoundTableModel mTableModel;    private String mPreviousChemCode;    private Object mDescriptor;
-    /**	 * Constructor	 */
-	public JEPChemSimilarityFunction(CompoundTableModel tableModel) {        super();        mTableModel = tableModel;		numberOfParameters = 2;	    }
-	/**	 * Runs the operation on the inStack. The parameters are popped	 * off the <code>inStack</code>, and the square root of it's value is 	 * pushed back to the top of <code>inStack</code>.	 */
+	private CompoundTableModel mTableModel;
+    private String mPreviousChemCode;
+    private Object mDescriptor;
+
+    /**
+	 * Constructor
+	 */
+
+	public JEPChemSimilarityFunction(CompoundTableModel tableModel) {
+        super();
+        mTableModel = tableModel;
+		numberOfParameters = 2;
+	    }
+
+	/**
+	 * Runs the operation on the inStack. The parameters are popped
+	 * off the <code>inStack</code>, and the square root of it's value is 
+	 * pushed back to the top of <code>inStack</code>.
+	 */
+
 	@Override
-	public void run(Stack inStack) throws ParseException {		// check the stack		checkStack(inStack);
-		// get the parameters from the stack        Object param2 = inStack.pop();		Object param1 = inStack.pop();
-		// check whether the argument is of the right type
-		if (param1 instanceof JEPParameter         && (param2 instanceof JEPParameter || param2 instanceof String)) {
-            // calculate the result            JEPParameter jepParam1 = (JEPParameter)param1;            DescriptorHandler handler1 = mTableModel.getDescriptorHandler(jepParam1.column);            if (handler1 == null)                throw new ParseException("1st parameter of chemsim() is not a descriptor column.");
+	public void run(Stack inStack) throws ParseException {
+		// check the stack
+		checkStack(inStack);
+
+		// get the parameters from the stack
+        Object param2 = inStack.pop();
+		Object param1 = inStack.pop();
+
+		// check whether the argument is of the right type
+
+		if (param1 instanceof JEPParameter
+         && (param2 instanceof JEPParameter || param2 instanceof String)) {
+
+            // calculate the result
+            JEPParameter jepParam1 = (JEPParameter)param1;
+            DescriptorHandler handler1 = mTableModel.getDescriptorHandler(jepParam1.column);
+            if (handler1 == null)
+                throw new ParseException("1st parameter of chemsim() is not a descriptor column.");
+
             Object value1 = (jepParam1 == null) ? null : jepParam1.record.getData(jepParam1.column);
             Object value2 = null;
 
@@ -53,12 +87,18 @@ public class JEPChemSimilarityFunction extends PostfixMathCommand {
                 throw new ParseException("1st parameter of chemsim() is empty");
 
             if (param2 instanceof JEPParameter) {
-                JEPParameter jepParam2 = (JEPParameter)param2;
+                JEPParameter jepParam2 = (JEPParameter)param2;
+
                 if (jepParam2.record.getData(jepParam2.column) == null)
                     throw new ParseException("2nd parameter of chemsim() is empty");
 
-                if (mTableModel.isDescriptorColumn(jepParam2.column)) {	                DescriptorHandler handler2 = mTableModel.getDescriptorHandler(jepParam2.column);	                if (!handler1.getInfo().shortName.equals(handler2.getInfo().shortName))	                    throw new ParseException("1st and 2nd parameters of chemsim() are incompatible descriptors.");	                value2 = (jepParam2 == null) ? null : jepParam2.record.getData(jepParam2.column);
-	                }	            else if (CompoundTableModel.cColumnTypeIDCode.equals(mTableModel.getColumnSpecialType(jepParam2.column))) {
+                if (mTableModel.isDescriptorColumn(jepParam2.column)) {
+	                DescriptorHandler handler2 = mTableModel.getDescriptorHandler(jepParam2.column);
+	                if (!handler1.getInfo().shortName.equals(handler2.getInfo().shortName))
+	                    throw new ParseException("1st and 2nd parameters of chemsim() are incompatible descriptors.");
+	                value2 = (jepParam2 == null) ? null : jepParam2.record.getData(jepParam2.column);
+	                }
+	            else if (CompoundTableModel.cColumnTypeIDCode.equals(mTableModel.getColumnSpecialType(jepParam2.column))) {
 	            	if (!CompoundTableModel.cColumnTypeIDCode.equals(mTableModel.getColumnSpecialType(mTableModel.getParentColumn(jepParam1.column))))
 		                throw new ParseException("2st parameter of chemsim() refers to reactions while the 1st doesn't.");
                     Object chemObject = mTableModel.getChemicalStructure(jepParam2.record, jepParam2.column, CompoundTableModel.ATOM_COLOR_MODE_NONE, null);
@@ -80,12 +120,12 @@ public class JEPChemSimilarityFunction extends PostfixMathCommand {
                     try {
     	            	if (CompoundTableModel.cColumnTypeIDCode.equals(mTableModel.getColumnSpecialType(mTableModel.getParentColumn(jepParam1.column)))) {
     	            		mPreviousChemCode = (String)param2;
-    	            		StereoMolecule mol = new IDCodeParser(false).getCompactMolecule(mPreviousChemCode);
+    	            		StereoMolecule mol = new IDCodeParser(handler1.getInfo().needsCoordinates).getCompactMolecule(mPreviousChemCode);
                             mDescriptor = handler1.createDescriptor(mol);
     	            		}
     	            	else if (CompoundTableModel.cColumnTypeRXNCode.equals(mTableModel.getColumnSpecialType(mTableModel.getParentColumn(jepParam1.column)))) {
     	            		mPreviousChemCode = (String)param2;
-    	            		Reaction rxn = ReactionEncoder.decode(mPreviousChemCode, false);
+    	            		Reaction rxn = ReactionEncoder.decode(mPreviousChemCode, handler1.getInfo().needsCoordinates);
                             mDescriptor = handler1.createDescriptor(rxn);
     	            		}
                         }
@@ -96,5 +136,11 @@ public class JEPChemSimilarityFunction extends PostfixMathCommand {
             	value2 = mDescriptor;
             	}
 
-            double similarity = handler1.getSimilarity(value1, value2);            inStack.push(new Double(similarity));
-		    }        else {            throw new ParseException("Invalid parameter type");    		}    	}    }
+            double similarity = handler1.getSimilarity(value1, value2);
+            inStack.push(new Double(similarity));
+		    }
+        else {
+            throw new ParseException("Invalid parameter type");
+    		}
+    	}
+    }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -20,8 +20,8 @@ package com.actelion.research.table.view;
 
 import java.awt.Frame;
 
-import com.actelion.research.table.CompoundListSelectionModel;
-import com.actelion.research.table.CompoundTableModel;
+import com.actelion.research.table.model.CompoundListSelectionModel;
+import com.actelion.research.table.model.CompoundTableModel;
 
 public class VisualizationPanel3D extends VisualizationPanel implements RotationListener {
     private static final long serialVersionUID = 0x20060904;
@@ -44,6 +44,8 @@ public class VisualizationPanel3D extends VisualizationPanel implements Rotation
 			for (VisualizationPanel child:getSynchronizationChildList())
 				if (child.getDimensionCount() == 3 && child.getVisualization() != source)
 					((JVisualization3D)child.getVisualization()).rotationChanged(source, rotation);
+
+		fireVisualizationChanged(VisualizationEvent.TYPE.ROTATION);
 		}
 
 	@Override
@@ -56,14 +58,14 @@ public class VisualizationPanel3D extends VisualizationPanel implements Rotation
 	@Override
     public void zoom(int sx, int sy, int steps) {
 		final float MIN_ZOOM = 0.0001f;
-		float[] c = ((JVisualization3D)mVisualization).getMetaFromScreenCoordinates(sx, sy);
+		float[] c = ((JVisualization3D)mVisualization).getMetaFromScreenCoordinates(sx, sy, 0);
 		float f = (float)Math.exp(steps / 20.0);
 		float[] low = new float[3];
 		float[] high = new float[3];
 		boolean zoom = false;
 		for (int i=0; i<3; i++) {
-			low[i] = (float)getActingPruningBar(i).getLowValue();
-			high[i] = (float)getActingPruningBar(i).getHighValue();
+			low[i] = getActingPruningBar(i).getLowValue();
+			high[i] = getActingPruningBar(i).getHighValue();
 			if ((steps < 0 && high[i]-low[i] > MIN_ZOOM) || (steps > 0 && high[i]-low[i] < 1.0)) {
 	    		float p = low[i] + (1f+c[i]) * (high[i]-low[i]) / 2f;
 	    		low[i] = Math.max(0, p-f*(p-low[i]));

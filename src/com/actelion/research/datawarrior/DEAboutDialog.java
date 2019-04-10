@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -20,17 +20,23 @@ package com.actelion.research.datawarrior;
 
 import java.awt.*;
 import java.awt.event.*;
+import java.io.File;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import javax.swing.JDialog;
+
+import com.actelion.research.datawarrior.task.file.DETaskAbstractOpenFile;
 import com.actelion.research.gui.*;
+import com.actelion.research.util.Platform;
 
 public class DEAboutDialog extends JDialog implements MouseListener,Runnable {
 	private static final long serialVersionUID = 20140219L;
 	private int mMillis;
 
-    public DEAboutDialog(Frame owner) {
+    public DEAboutDialog(DEFrame owner) {
 		super(owner, "About OSIRIS DataWarrior", true);
 
-		getContentPane().add(new JImagePanelFixedSize("/images/about.jpg"));
+		getContentPane().add(createImagePanel(owner.getApplication().isIdorsia()));
 
 		addMouseListener(this);
 
@@ -39,10 +45,10 @@ public class DEAboutDialog extends JDialog implements MouseListener,Runnable {
 		setVisible(true);
 		}
 
-    public DEAboutDialog(Frame owner, int millis) {
+    public DEAboutDialog(DEFrame owner, int millis) {
 		super(owner, "About OSIRIS DataWarrior", true);
 
-		getContentPane().add(new JImagePanelFixedSize("/images/about.jpg"));
+		getContentPane().add(createImagePanel(owner.getApplication().isIdorsia()));
 
 		pack();
 		setLocationRelativeTo(owner);
@@ -51,6 +57,29 @@ public class DEAboutDialog extends JDialog implements MouseListener,Runnable {
 		new Thread(this).start();
 
 		setVisible(true);
+		}
+
+	private JImagePanelFixedSize createImagePanel(boolean showDate) {
+    	if (!showDate)
+			return new JImagePanelFixedSize("/images/about.jpg");
+
+    	return new JImagePanelFixedSize("/images/about.jpg") {
+			@Override public void paintComponent(Graphics g) {
+				super.paintComponent(g);
+				File installDir = DataWarrior.resolveResourcePath("");
+				File jarFile = installDir == null ? null : new File(installDir.getPath()
+						+File.separator+(Platform.isWindows() ? "x64\\DataWarrior64.exe" : "datawarrior.jar"));
+				((Graphics2D)g).setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+				g.setFont(g.getFont().deriveFont(Font.BOLD, 10f));
+				g.setColor(Color.BLUE);
+				String dateString = jarFile == null ? "development" : dateString(jarFile.lastModified());
+				g.drawString(dateString, 430, 10);
+				}
+			};
+		}
+
+	public String dateString(long millis) {
+		return new SimpleDateFormat("dd-MMM-yyyy").format(new Date(millis));
 		}
 
 	public void run() {

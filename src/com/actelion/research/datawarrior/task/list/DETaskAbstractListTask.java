@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -29,7 +29,7 @@ import javax.swing.JPanel;
 
 import com.actelion.research.datawarrior.DEFrame;
 import com.actelion.research.datawarrior.task.ConfigurableTask;
-import com.actelion.research.table.CompoundTableModel;
+import com.actelion.research.table.model.CompoundTableModel;
 
 public abstract class DETaskAbstractListTask extends ConfigurableTask {
 	private static final String PROPERTY_HITLIST_NAME = "listName";
@@ -43,7 +43,7 @@ public abstract class DETaskAbstractListTask extends ConfigurableTask {
      * If listIndex is preconfigured (i.e. != -1) and defineAndRun() is called, then
      * this task will immediately run without showing a configuration dialog.
      * @param parent
-     * @param initialMode -1 or list index
+     * @param listIndex -1 or list index
      */
     public DETaskAbstractListTask(DEFrame parent, int listIndex) {
 		super(parent, true);
@@ -55,7 +55,7 @@ public abstract class DETaskAbstractListTask extends ConfigurableTask {
 	public Properties getPredefinedConfiguration() {
     	if (mListIndex != -1) {
 	    	Properties configuration = new Properties();
-			configuration.setProperty(PROPERTY_HITLIST_NAME, mTableModel.getHitlistHandler().getHitlistName(mListIndex));
+			configuration.setProperty(PROPERTY_HITLIST_NAME, mTableModel.getListHandler().getListName(mListIndex));
 	        return configuration;
     		}
 
@@ -68,7 +68,7 @@ public abstract class DETaskAbstractListTask extends ConfigurableTask {
 			showErrorMessage("No rows found");
 			return false;
 			}
-		if (mTableModel.getHitlistHandler().getHitlistCount() == 0) {
+		if (mTableModel.getListHandler().getListCount() == 0) {
 			showErrorMessage("No row lists found");
 			return false;
 			}
@@ -83,7 +83,7 @@ public abstract class DETaskAbstractListTask extends ConfigurableTask {
         sp.setLayout(new TableLayout(size));
 
         sp.add(new JLabel("Row list name:"), "1,1");
-        String[] listNames = mTableModel.getHitlistHandler().getHitlistNames();
+        String[] listNames = mTableModel.getListHandler().getListNames();
         if (listNames != null)
         	mComboBoxListName = new JComboBox(listNames);
         else
@@ -108,8 +108,8 @@ public abstract class DETaskAbstractListTask extends ConfigurableTask {
 
 	@Override
 	public void setDialogConfigurationToDefault() {
-		String listName = (mTableModel.getHitlistHandler().getHitlistCount() == 0) ? ""
-						: mTableModel.getHitlistHandler().getHitlistName(0);
+		String listName = (mTableModel.getListHandler().getListCount() == 0) ? ""
+						: mTableModel.getListHandler().getListName(0);
 		mComboBoxListName.setSelectedItem(listName);
 		}
 
@@ -121,7 +121,7 @@ public abstract class DETaskAbstractListTask extends ConfigurableTask {
 			return false;
 			}
 		if (isLive) {
-			if (mTableModel.getHitlistHandler().getHitlistIndex(listName) == -1) {
+			if (mTableModel.getListHandler().getListIndex(listName) == -1) {
 				showErrorMessage("Row list '"+listName+"' not found.");
 				return false;
 				}
@@ -130,19 +130,14 @@ public abstract class DETaskAbstractListTask extends ConfigurableTask {
 		return true;
 		}
 
-	@Override
-	public DEFrame getNewFrontFrame() {
-		return null;
-		}
-
 	public String getListName(Properties configuration) {
-		return (mListIndex != -1) ? mTableModel.getHitlistHandler().getHitlistName(mListIndex)
+		return (mListIndex != -1) ? mTableModel.getListHandler().getListName(mListIndex)
 				: configuration.getProperty(PROPERTY_HITLIST_NAME);
 		}
 
 	public int getListIndex(Properties configuration) {
 		return (mListIndex != -1) ? mListIndex
-				: mTableModel.getHitlistHandler().getHitlistIndex(configuration.getProperty(PROPERTY_HITLIST_NAME));
+				: mTableModel.getListHandler().getListIndex(configuration.getProperty(PROPERTY_HITLIST_NAME));
 		}
 
 	public CompoundTableModel getTableModel() {

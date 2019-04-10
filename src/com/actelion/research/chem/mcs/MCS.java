@@ -16,6 +16,7 @@ import java.util.*;
  * @author Modest von Korff
  * @version 1.0
  * May 30, 2011 MvK: Start implementation
+ * May 12, 2016 MvK: If the given fragment contains more than one molecule only the largest one is considered.
  */
 public class MCS
 {
@@ -85,16 +86,40 @@ public class MCS
         this.sss  = sss;
     }
 
+	/**
+	 * mol should contain equal or more bonds than frag.
+	 * @param mol
+	 * @param frag
+	 */
     public void set(StereoMolecule mol, StereoMolecule frag)
     {
         set(mol,frag,null);
 	}
 
+	/**
+	 * mol should contain equal or more bonds than frag.
+	 * If frag contains more than one molecule only the biggest one is considered.
+	 * @param mol
+	 * @param frag
+	 * @param excluded
+	 */
     public void set(StereoMolecule mol, StereoMolecule frag, boolean excluded[])
     {
-        this.mol = mol;
-        this.frag = frag;
+
+		StereoMolecule fragBiggestSub = new StereoMolecule(frag);
+
+		fragBiggestSub.ensureHelperArrays(Molecule.cHelperRings);
+
+		fragBiggestSub.stripSmallFragments();
+
+		fragBiggestSub.ensureHelperArrays(Molecule.cHelperRings);
+
+		this.mol = mol;
+
+        this.frag = fragBiggestSub;
+
 		this.excluded = excluded;
+
         init();
     }
 
@@ -189,13 +214,13 @@ public class MCS
 				molMCS = frag;
 				List<IntVec> liIndexFragCandidates = new ArrayList<IntVec>(hsIndexFragCandidates);
                 if (liIndexFragCandidates != null && !liIndexFragCandidates.isEmpty()) {
-				IntVec iv = liIndexFragCandidates.get(0);
-				iv.setBits(0, iv.sizeBits());
-				iv.calculateHashCode();
-				List<IntVec> li = new ArrayList<IntVec>();
-				li.add(iv);
-				return li;
-			}
+					IntVec iv = liIndexFragCandidates.get(0);
+					iv.setBits(0, iv.sizeBits());
+					iv.calculateHashCode();
+					List<IntVec> li = new ArrayList<IntVec>();
+					li.add(iv);
+					return li;
+				}
             }
 		} catch (Exception e) {
 			// TODO Auto-generated catch block

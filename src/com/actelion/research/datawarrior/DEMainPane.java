@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,12 +18,22 @@
 
 package com.actelion.research.datawarrior;
 
-import java.awt.Color;
-import java.awt.Component;
-import java.awt.Dimension;
-import java.awt.FontMetrics;
-import java.awt.Frame;
-import java.awt.Graphics;
+import com.actelion.research.datawarrior.task.AbstractTask;
+import com.actelion.research.datawarrior.task.DEMacroRecorder;
+import com.actelion.research.datawarrior.task.table.DETaskSetFontSize;
+import com.actelion.research.datawarrior.task.view.*;
+import com.actelion.research.gui.dock.Dockable;
+import com.actelion.research.gui.dock.JDockingPanel;
+import com.actelion.research.gui.dock.PopupProvider;
+import com.actelion.research.table.*;
+import com.actelion.research.table.model.*;
+import com.actelion.research.table.view.*;
+import com.hexidec.ekit.Ekit;
+
+import javax.swing.*;
+import javax.swing.event.ListSelectionEvent;
+import javax.swing.event.ListSelectionListener;
+import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
@@ -31,52 +41,8 @@ import java.awt.event.WindowEvent;
 import java.util.ArrayList;
 import java.util.Set;
 
-import javax.swing.BorderFactory;
-import javax.swing.ButtonGroup;
-import javax.swing.JCheckBoxMenuItem;
-import javax.swing.JMenu;
-import javax.swing.JMenuItem;
-import javax.swing.JOptionPane;
-import javax.swing.JPanel;
-import javax.swing.JPopupMenu;
-import javax.swing.JRadioButtonMenuItem;
-import javax.swing.event.ListSelectionEvent;
-import javax.swing.event.ListSelectionListener;
-
-import com.actelion.research.datawarrior.task.DEMacroRecorder;
-import com.actelion.research.datawarrior.task.view.DETaskAssignOrZoomAxes;
-import com.actelion.research.datawarrior.task.view.DETaskCloseView;
-import com.actelion.research.datawarrior.task.view.DETaskCopyStatisticalValues;
-import com.actelion.research.datawarrior.task.view.DETaskCopyView;
-import com.actelion.research.datawarrior.task.view.DETaskDuplicateView;
-import com.actelion.research.datawarrior.task.view.DETaskNewView;
-import com.actelion.research.datawarrior.task.view.DETaskRelocateView;
-import com.actelion.research.datawarrior.task.view.DETaskRenameView;
-import com.actelion.research.datawarrior.task.view.DETaskSelectView;
-import com.actelion.research.datawarrior.task.view.DETaskSynchronizeView;
-import com.actelion.research.gui.dock.Dockable;
-import com.actelion.research.gui.dock.JDockingPanel;
-import com.actelion.research.gui.dock.PopupProvider;
-import com.actelion.research.table.CompoundListSelectionModel;
-import com.actelion.research.table.CompoundTableColorHandler;
-import com.actelion.research.table.CompoundTableEvent;
-import com.actelion.research.table.CompoundTableHitlistEvent;
-import com.actelion.research.table.CompoundTableHitlistListener;
-import com.actelion.research.table.CompoundTableListener;
-import com.actelion.research.table.CompoundTableModel;
-import com.actelion.research.table.RuntimePropertyEvent;
-import com.actelion.research.table.view.CompoundTableView;
-import com.actelion.research.table.view.ExplanationView;
-import com.actelion.research.table.view.JStructureGrid;
-import com.actelion.research.table.view.VisualizationEvent;
-import com.actelion.research.table.view.VisualizationListener;
-import com.actelion.research.table.view.VisualizationPanel;
-import com.actelion.research.table.view.VisualizationPanel2D;
-import com.actelion.research.table.view.VisualizationPanel3D;
-import com.hexidec.ekit.Ekit;
-
 public class DEMainPane extends JDockingPanel
-		implements CompoundTableListener,CompoundTableHitlistListener,PopupProvider,ListSelectionListener,VisualizationListener {
+		implements CompoundTableListener,CompoundTableListListener,PopupProvider,ListSelectionListener,VisualizationListener {
 	private static final long serialVersionUID = 0x20060904;
 
 	public static final String[] VIEW_TYPE_ITEM = {"2D-View", "3D-View", "Structure View", "Form View", "Text View", "Macro Editor"};
@@ -94,13 +60,15 @@ public class DEMainPane extends JDockingPanel
 	private static final String COMMAND_RENAME = "rename_";
 	private static final String COMMAND_COPY_VIEW = "copyView_";
 	private static final String COMMAND_COPY_STATISTICS = "copyStat_";
+	private static final String COMMAND_SET_FONT_SIZE = "setFontSize_";
+	private static final String COMMAND_USE_AS_FILTER = "useAsFilter_";
 	private static final String ITEM_NEW_MACRO_EDITOR = "New Macro Editor";
 	private static final String ITEM_NEW_EXPLANATION_VIEW = "New Explanation View";
 
 	private Frame						mParentFrame;
 	private ApplicationViewFactory		mAppViewFactory;	// creates views that are not supported by the DataWarriorApplet
 	private DECompoundTableModel		mTableModel;
-	private CompoundListSelectionModel	mListSelectionModel;
+	private CompoundListSelectionModel mListSelectionModel;
 	private DEParentPane				mParentPane;
 	private DEDetailPane				mDetailPane;
 	private DEStatusPanel				mStatusPanel;
@@ -114,7 +82,7 @@ public class DEMainPane extends JDockingPanel
 		mParentFrame = parent;
 		mTableModel = tableModel;
 		mTableModel.addCompoundTableListener(this);
-		mTableModel.getHitlistHandler().addCompoundTableHitlistListener(this);
+		mTableModel.getListHandler().addCompoundTableListListener(this);
 		mDetailPane = detailPane;
 		mStatusPanel = statusPanel;
 		mParentPane = mainFrame;
@@ -225,9 +193,11 @@ if (selectionModel.getMinSelectionIndex() != selectionModel.getMaxSelectionIndex
 			ArrayList<Dockable> removalList = new ArrayList<Dockable>();
 			for (Dockable dockable:getDockables()) {
 				CompoundTableView view = (CompoundTableView)dockable.getContent();
-				if (view instanceof JStructureGrid
-				 && columnMap[((JStructureGrid)view).getStructureColumn()] == -1)
-					removalList.add(dockable);
+				if (view instanceof JStructureGrid) {
+					int column = ((JStructureGrid)view).getStructureColumn();
+					if (column != -1 && columnMap[column] == -1)
+						removalList.add(dockable);
+					}
 				}
 			for (Dockable dockable:removalList)
 				removeView(dockable);
@@ -257,9 +227,9 @@ if (selectionModel.getMinSelectionIndex() != selectionModel.getMaxSelectionIndex
 		updateStatusPanel();
 		}
 
-	public void hitlistChanged(CompoundTableHitlistEvent e) {
+	public void listChanged(CompoundTableListEvent e) {
 		for (Dockable dockable:getDockables())
-			((CompoundTableView)dockable.getContent()).hitlistChanged(e);
+			((CompoundTableView)dockable.getContent()).listChanged(e);
 
 		mColorHandler.hitlistChanged(e);
 		}
@@ -267,9 +237,40 @@ if (selectionModel.getMinSelectionIndex() != selectionModel.getMaxSelectionIndex
 	@Override
 	public void visualizationChanged(VisualizationEvent e) {
 		if (DEMacroRecorder.getInstance().isRecording()) {
-			DETaskAssignOrZoomAxes task = new DETaskAssignOrZoomAxes(mParentFrame, this, e.getSource());
+			AbstractTask task = null;
+			switch (e.getType()) {
+			case AXIS:
+				task = new DETaskAssignOrZoomAxes(mParentFrame, this, e.getSource());
+				break;
+			case ROTATION:
+				printEulerAngles((VisualizationPanel3D)e.getSource());
+				task = new DETaskSetRotation(mParentFrame, this, (VisualizationPanel3D)e.getSource());
+				break;
+				}
 			DEMacroRecorder.record(task, task.getRecentConfiguration() /* this is the view configuration */);
 			}
+		}
+
+	private void printEulerAngles(VisualizationPanel3D vp) {	// TODO remove this
+		float[][] m = ((JVisualization3D)vp.getVisualization()).getRotationMatrix();
+		double[] angle = new double[3];
+	    // Assuming the angles are in radians.
+		if (m[1][0] > 0.998) { // singularity at north pole
+			angle[0] = Math.atan2(m[0][2],m[2][2]);
+			angle[1] = Math.PI/2;
+			angle[2] = 0;
+			}
+		else if (m[1][0] < -0.998) { // singularity at south pole
+			angle[0] = Math.atan2(m[0][2],m[2][2]);
+			angle[1] = -Math.PI/2;
+			angle[2] = 0;
+			}
+		else {
+			angle[0] = Math.atan2(-m[2][0],m[0][0]);
+			angle[1] = Math.atan2(-m[1][2],m[1][1]);
+			angle[2] = Math.asin(m[1][0]);
+			}
+		System.out.println(angle[0]+" "+angle[1]+" "+angle[2]);
 		}
 
 	public DEProgressPanel getMacroProgressPanel() {
@@ -327,6 +328,13 @@ if (selectionModel.getMinSelectionIndex() != selectionModel.getMaxSelectionIndex
 			addPopupItem(popup, "Copy Statistical Values", COMMAND_COPY_STATISTICS+title);
 
 			VisualizationPanel thisVP = (VisualizationPanel)thisDockable.getContent();
+
+			popup.addSeparator();
+			JCheckBoxMenuItem item = new JCheckBoxMenuItem("Use View As Explicit Filter", thisVP.getVisualization().isUsedAsFilter());
+			item.setActionCommand(COMMAND_USE_AS_FILTER+title);
+			item.addActionListener(this);
+			popup.add(item);
+
 			JMenu menuSynchronize = null;
 			ButtonGroup groupSynchronize = null;
 			for (Dockable dockable:getDockables()) {
@@ -347,10 +355,8 @@ if (selectionModel.getMinSelectionIndex() != selectionModel.getMaxSelectionIndex
 						}
 					}
 				}
-			if (menuSynchronize != null) {
-				popup.addSeparator();
+			if (menuSynchronize != null)
 				popup.add(menuSynchronize);
-				}
 			}
 
 		if (thisDockable.getContent() instanceof JStructureGrid) {
@@ -380,6 +386,13 @@ if (selectionModel.getMinSelectionIndex() != selectionModel.getMaxSelectionIndex
 
 			addPopupItem(popup, "Edit...", "edit");
 			}
+
+		if (thisDockable.getContent() instanceof DETableView
+		 || thisDockable.getContent() instanceof DEFormView) {
+			popup.addSeparator();
+			addPopupItem(popup, "Set Font Size...", COMMAND_SET_FONT_SIZE+title);
+			}
+
 
 		return popup;
 		}
@@ -452,8 +465,14 @@ if (selectionModel.getMinSelectionIndex() != selectionModel.getMaxSelectionIndex
 		else if (command.startsWith(COMMAND_COPY_VIEW)) {
 			new DETaskCopyView(mParentFrame, this, view).defineAndRun();
 			}
+		else if (command.startsWith(COMMAND_SET_FONT_SIZE)) {
+			new DETaskSetFontSize(mParentFrame, this, view).defineAndRun();
+			}
 		else if (command.startsWith(COMMAND_COPY_STATISTICS)) {
 			new DETaskCopyStatisticalValues(mParentFrame, this, view).defineAndRun();
+			}
+		else if (command.startsWith(COMMAND_USE_AS_FILTER)) {
+			new DETaskUseAsFilter(mParentFrame, this, view).defineAndRun();
 			}
 		else if (command.equals("synchronizeToNone")) {
 			new DETaskSynchronizeView(mParentFrame, this, getSelectedDockable().getTitle(), null).defineAndRun();
@@ -629,7 +648,14 @@ if (selectionModel.getMinSelectionIndex() != selectionModel.getMaxSelectionIndex
 		else if (view instanceof JStructureGrid)
 			newView = addStructureView(newTitle, title+"\tcenter", ((JStructureGrid)view).getStructureColumn());
 		properties.applyViewProperties(newView, "_"+title);
-	
+
+		if (view instanceof VisualizationPanel2D
+		 || view instanceof VisualizationPanel3D) {
+			VisualizationPanel masterView = ((VisualizationPanel) view).getSynchronizationMaster();
+			if (masterView != null)
+				((VisualizationPanel) newView).setSynchronizationMaster(masterView);
+			}
+
 		mParentPane.fireRuntimePropertyChanged(
 				new RuntimePropertyEvent(this, RuntimePropertyEvent.TYPE_ADD_VIEW, -1));
 		}
@@ -650,6 +676,12 @@ if (selectionModel.getMinSelectionIndex() != selectionModel.getMaxSelectionIndex
 		menu.add(item);
 		}
 
+	/**
+	 * Adds a new table view at the given position defined by dockInfo
+	 * @param title
+	 * @param dockInfo "root" or "title[\tposition[\tdividerlocation]]" e.g. "2D-view\tbottom\t0.4"
+	 * @return new view
+	 */
 	public DETableView addTableView(String title, String dockInfo) {
 		DETableView tableView = new DETableView(mParentFrame, mParentPane, mTableModel, mColorHandler, mListSelectionModel);
 		tableView.setDetailPopupProvider(mParentPane);
@@ -660,6 +692,12 @@ if (selectionModel.getMinSelectionIndex() != selectionModel.getMaxSelectionIndex
 		return tableView;
 		}
 
+	/**
+	 * Adds a new structure view at the given position defined by dockInfo
+	 * @param title
+	 * @param dockInfo "root" or "title[\tposition[\tdividerlocation]]" e.g. "2D-view\tbottom\t0.4"
+	 * @return new view
+	 */
 	public JStructureGrid addStructureView(String title, String dockInfo, int column) {
 		JStructureGrid structureGrid = new JStructureGrid(mParentFrame, mTableModel, mColorHandler, mListSelectionModel, column, 6);
 		structureGrid.setDetailPopupProvider(mParentPane);
@@ -671,10 +709,10 @@ if (selectionModel.getMinSelectionIndex() != selectionModel.getMaxSelectionIndex
 		}
 
 	/**
-	 * Adds a view of a type that is not known to DEMainPane, e.g. if it is not supported in applets.
+	 * Adds a new view of a type that is not known to DEMainPane, e.g. if it is not supported in applets.
 	 * @param type e.g. VIEW_TYPE_MACRO_EDITOR
 	 * @param title
-	 * @param dockInfo
+	 * @param dockInfo "root" or "title[\tposition[\tdividerlocation]]" e.g. "2D-view\tbottom\t0.4"
 	 * @return requested view or minimum view showing error message
 	 */
 	public CompoundTableView addApplicationView(int type, String title, String dockInfo) {
@@ -689,6 +727,12 @@ if (selectionModel.getMinSelectionIndex() != selectionModel.getMaxSelectionIndex
 		return view;
 		}
 
+	/**
+	 * Adds a new explanation view at the given position defined by dockInfo
+	 * @param title
+	 * @param dockInfo "root" or "title[\tposition[\tdividerlocation]]" e.g. "2D-view\tbottom\t0.4"
+	 * @return new view
+	 */
 	public ExplanationView addExplanationView(String title, String dockInfo) {
 		ExplanationView view = new ExplanationView(mTableModel);
 		Dockable dockable = new Dockable(this, view, validateTitle(title), this, true);
@@ -698,6 +742,12 @@ if (selectionModel.getMinSelectionIndex() != selectionModel.getMaxSelectionIndex
 		return view;
 		}
 
+	/**
+	 * Adds a new 2D-view at the given position defined by dockInfo
+	 * @param title
+	 * @param dockInfo "root" or "title[\tposition[\tdividerlocation]]" e.g. "2D-view\tbottom\t0.4"
+	 * @return new view
+	 */
 	public VisualizationPanel2D add2DView(String title, String dockInfo) {
 		try {
 			VisualizationPanel2D panel2D = new VisualizationPanel2D(mParentFrame, mTableModel, mListSelectionModel);
@@ -716,6 +766,12 @@ if (selectionModel.getMinSelectionIndex() != selectionModel.getMaxSelectionIndex
 		return null;
 		}
 
+	/**
+	 * Adds a new 3D-view at the given position defined by dockInfo
+	 * @param title
+	 * @param dockInfo "root" or "title[\tposition[\tdividerlocation]]" e.g. "2D-view\tbottom\t0.4"
+	 * @return new view
+	 */
 	public VisualizationPanel3D add3DView(String title, String dockInfo) {
 		VisualizationPanel3D panel3D = new VisualizationPanel3D(mParentFrame, mTableModel, mListSelectionModel);
 		panel3D.getVisualization().setDetailPopupProvider(mParentPane);
@@ -727,6 +783,12 @@ if (selectionModel.getMinSelectionIndex() != selectionModel.getMaxSelectionIndex
 		return panel3D;
 		}
 
+	/**
+	 * Adds a new form view at the given position defined by dockInfo
+	 * @param title
+	 * @param dockInfo "root" or "title[\tposition[\tdividerlocation]]" e.g. "2D-view\tbottom\t0.4"
+	 * @return new view
+	 */
 	public DEFormView addFormView(String title, String dockInfo, boolean createDefaultLayout) {
 		DEFormView form = new DEFormView(mParentFrame, mTableModel, mColorHandler);
 		form.setDetailPopupProvider(mParentPane);
@@ -771,7 +833,8 @@ if (selectionModel.getMinSelectionIndex() != selectionModel.getMaxSelectionIndex
 		}
 
 	public String getSelectedViewTitle() {
-		return getSelectedDockable().getTitle();
+		Dockable selected = getSelectedDockable();
+		return selected == null ? null : getSelectedDockable().getTitle();
 		}
 
 	public CompoundTableView getSelectedView() {
@@ -870,7 +933,7 @@ class ErrorView extends JPanel implements CompoundTableView {
 		}
 
 	@Override
-	public void hitlistChanged(CompoundTableHitlistEvent e) {
+	public void listChanged(CompoundTableListEvent e) {
 		}
 
 	@Override

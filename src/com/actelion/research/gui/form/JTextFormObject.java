@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,71 +18,76 @@
 
 package com.actelion.research.gui.form;
 
-import java.awt.*;
-import java.awt.event.*;
-import java.awt.geom.Rectangle2D;
-
 import javax.swing.*;
 import javax.swing.border.Border;
-import javax.swing.text.JTextComponent;
+import java.awt.*;
+import java.awt.event.FocusEvent;
+import java.awt.event.FocusListener;
+import java.awt.geom.Rectangle2D;
 
 public class JTextFormObject extends AbstractFormObject implements FocusListener {
 	private String mCurrentText;
+	private JTextArea mTextArea;
 
 	public JTextFormObject(String key, String type) {
 		super(key, type);
-		mComponent = new JTextArea() {
+		
+		mTextArea = new JTextArea() {
 			private static final long serialVersionUID = 0x20070509;
 			public void setBorder(Border border) {
 				if (border instanceof FormObjectBorder)
 					super.setBorder(border);
 				}
 			};
-		mComponent.addFocusListener(this);
-		((JTextArea)mComponent).setFont(FormObjectBorder.FONT);
-		((JTextArea)mComponent).setEditable(false);
-		if (type.equals(FormObjectFactory.TYPE_MULTI_LINE_TEXT))
-			((JTextArea)mComponent).setLineWrap(true);
+		mTextArea.addFocusListener(this);
+		mTextArea.setEditable(false);
+		mTextArea.setLineWrap(true);
 
 		// set back to default behaviour, which is "TAB advances to next focusable item"
-		mComponent.setFocusTraversalKeys(KeyboardFocusManager.FORWARD_TRAVERSAL_KEYS, null);
-		mComponent.setFocusTraversalKeys(KeyboardFocusManager.BACKWARD_TRAVERSAL_KEYS, null);
+		mTextArea.setFocusTraversalKeys(KeyboardFocusManager.FORWARD_TRAVERSAL_KEYS, null);
+		mTextArea.setFocusTraversalKeys(KeyboardFocusManager.BACKWARD_TRAVERSAL_KEYS, null);
+		mComponent = new JScrollPane(mTextArea, JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED, JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
 		}
 
 	public void focusGained(FocusEvent e) {
-		mCurrentText = ((JTextArea)mComponent).getText();
+		mCurrentText = mTextArea.getText();
 		}
 
 	public void focusLost(FocusEvent e) {
-		if (!((JTextArea)mComponent).getText().equals(mCurrentText))
+		if (!mTextArea.getText().equals(mCurrentText))
 			fireDataChanged();
 		}
 	
 	public Object getData() {
-		return ((JTextComponent)mComponent).getText();
+		return mTextArea.getText();
 		}
 
 	public void setData(Object data) {
-		((JTextComponent)mComponent).setText((String)data);
+		mTextArea.setText((String)data);
 		}
 
 	public void setEditable(boolean b) {
 		super.setEditable(b);
-		((JTextComponent)mComponent).setEditable(b);
+		mTextArea.setEditable(b);
 		}
 
 	public int getRelativeHeight() {
 		return (mType.equals(FormObjectFactory.TYPE_MULTI_LINE_TEXT)) ? 2 : 1;
 		}
 
-	public void printContent(Graphics2D g2D, Rectangle2D.Float r, float scale, Object data) {
+	public void setFont(Font font) {
+		super.setFont(font);
+		mTextArea.setFont(font);
+		}
+
+	public void printContent(Graphics2D g2D, Rectangle2D.Double r, float scale, Object data, boolean isMultipleRows) {
 		if (data != null) {
 			if (mPrintBackground != null) {
 				g2D.setColor(mPrintBackground);
 				g2D.fill(r);
 				}
 			g2D.setColor(mPrintForeground != null ? mPrintForeground : Color.BLACK);
-			g2D.setFont(new Font("Helvetica", Font.PLAIN, (int)(9*scale+0.5)));
+			g2D.setFont(g2D.getFont().deriveFont(Font.PLAIN, (int)(mTextArea.getFont().getSize2D()*scale+0.5)));
 			FontMetrics metrics = g2D.getFontMetrics();
 			double height = metrics.getHeight();
 			double border = metrics.getStringBounds(" ", g2D).getWidth();

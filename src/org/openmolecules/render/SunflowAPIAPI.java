@@ -1,15 +1,17 @@
 package org.openmolecules.render;
-import java.awt.Color;
-import java.awt.image.BufferedImage;
 
 import org.sunflow.SunflowAPI;
 import org.sunflow.core.Display;
 import org.sunflow.core.display.FileDisplay;
+import org.sunflow.core.shader.*;
 import org.sunflow.image.ColorFactory;
 import org.sunflow.image.ColorFactory.ColorSpecificationException;
 import org.sunflow.math.Matrix4;
 import org.sunflow.math.Point3;
 import org.sunflow.math.Vector3;
+
+import java.awt.*;
+import java.awt.image.BufferedImage;
 
 public class SunflowAPIAPI {
 	private String currShader;
@@ -42,6 +44,11 @@ public class SunflowAPIAPI {
 	public final String SHADER_WARD = "ward";
 	public final String SHADER_TEXTURED_WARD = "textured_ward";
 	public final String SHADER_WIREFRAME = "wireframe";
+	public final String SHADER_MYGLASS = "myglass";
+	public final String SHADER_MYDIFFUSE = "mydiffuse";
+	public final String SHADER_MYWIREFRAME = "mywireframe";
+	public final String SHADER_MYTRANSPARENCY = "mytransparency";
+	public final String SHADER_MYSHINY_DIFFUSE = "myshiny_diffuse";
 
 	public final String COLORSPACE_SRGB_NONLINEAR = "sRGB nonlinear";
 	public final String COLORSPACE_SRGB_LINEAR = "sRGB linear";
@@ -241,18 +248,34 @@ public class SunflowAPIAPI {
 	/**
 	 * sets sunsky light
 	 * @param name Individual name
+	 * @param brightness usually 1f or less
+	 */
+	public void setSunSkyLight(String name, float brightness) {
+		sunflow.parameter( "up", new Vector3( 0, 0, 1 ) );
+		sunflow.parameter( "east", new Vector3( 0, 1, 0 ) );
+		sunflow.parameter( "sundir", new Vector3( 1, -1, 0.31f ) );
+		sunflow.parameter( "brightness", brightness );
+		sunflow.parameter( "turbidity", 2f );
+		sunflow.parameter( "samples", 16 );
+		sunflow.light( name, this.LIGHT_SUNSKY );
+	}
+	/**
+	 * sets sunsky light
+	 * @param name Individual name
 	 * @param up ? direction
 	 * @param east ? direction
 	 * @param direction light direction
 	 * @param ground ground color
 	 * @param samples Detail
-	 * @param turbidity ?
+	 * @param brightness usually 1f or less
+	 * @param turbidity usually 2f or more
 	 * @param groundExtendSky if true the sky is extending into the ground and ground color is not used
 	 */
-	public void setSunSkyLight(String name, Vector3 up, Vector3 east, Vector3 direction, Color ground, int samples, float turbidity, boolean groundExtendSky) {
+	public void setSunSkyLight(String name, Vector3 up, Vector3 east, Vector3 direction, Color ground, int samples, float brightness, float turbidity, boolean groundExtendSky) {
 		sunflow.parameter("up", up);
 		sunflow.parameter("east", east);
 		sunflow.parameter("sundir", direction);
+		sunflow.parameter("brightness", brightness);
 		sunflow.parameter("ground.color", colorSpace, ground.getRed()/(float)255, ground.getGreen()/(float)255, ground.getBlue()/(float)255);
 		sunflow.parameter("samples", samples);
 		sunflow.parameter("turbidity", turbidity);
@@ -484,6 +507,7 @@ public class SunflowAPIAPI {
 //		set shader
 		sunflow.shader(currShader, SHADER_TEXTURED_PHONG);
 	}
+
 	/**
 	 * Sets Shiny Diffuse Shader
 	 * @param name Individual Name
@@ -501,6 +525,7 @@ public class SunflowAPIAPI {
 //		set shader
 		sunflow.shader(currShader, SHADER_SHINY_DIFFUSE);
 	}
+
 	/**
 	 * Sets Shiny Diffuse Shader
 	 * @param name Individual Name
@@ -621,6 +646,99 @@ public class SunflowAPIAPI {
 		sunflow.shader(currShader, SHADER_WIREFRAME);
 	}
 
+	/**
+	 * Sets Diffuse Shader
+	 * @param name Individial Name
+	 * @param color Color
+	 */
+	public void setMyDiffuseShader(String name, Color color, ColorProvider cp) {
+//		save name for use with primitives
+		currShader = name;
+
+//		set parameter
+		sunflow.parameter("diffuse", colorSpace, color.getRed()/(float)255, color.getGreen()/(float)255, color.getBlue()/(float)255);
+
+//		set shader
+		sunflow.shader(currShader, SHADER_MYDIFFUSE);
+		((MyDiffuseShader)sunflow.lookupShader(currShader)).setColorProvider(cp);
+	}
+
+
+	/**
+	 * Sets MyWireframe Shader, which has not an opaque fill color, but lets the light shine through.
+	 * @param name Individual Name
+	 * @param lineColor line color
+	 * @param width stroke width ?
+	 */
+	public void setMyWireframeShader(String name, Color lineColor, float width, ColorProvider cp) {
+//		save name for use with primitives
+		currShader = name;
+
+//		set parameter
+		sunflow.parameter("line", colorSpace, lineColor.getRed()/(float)255, lineColor.getGreen()/(float)255, lineColor.getBlue()/(float)255);
+		sunflow.parameter("width", width);
+
+//		set shader
+		sunflow.shader(currShader, SHADER_MYWIREFRAME);
+		((MyWireframeShader)sunflow.lookupShader(currShader)).setColorProvider(cp);
+	}
+
+	/**
+	 * Sets Shiny Diffuse Shader
+	 * @param name Individual Name
+	 * @param color Color
+	 * @param shiny shinyness, the bigger the more
+	 */
+	public void setMyShinyDiffuseShader(String name, Color color, float shiny, ColorProvider cp) {
+//		save name for use with primitives
+		currShader = name;
+
+//		set parameter
+		sunflow.parameter("diffuse", colorSpace, color.getRed()/(float)255, color.getGreen()/(float)255, color.getBlue()/(float)255);
+		sunflow.parameter("shiny", shiny);
+
+//		set shader
+		sunflow.shader(currShader, SHADER_MYSHINY_DIFFUSE);
+		((MyShinyDiffuseShader)sunflow.lookupShader(currShader)).setColorProvider(cp);
+	}
+
+	/**
+	 * Sets MyTransparency Shader
+	 * @param name Individual Name
+	 * @param color line color
+	 */
+	public void setMyTransparencyShader(String name, Color color, float transparency, ColorProvider cp) {
+//		save name for use with primitives
+		currShader = name;
+
+//		set parameter
+		sunflow.parameter("color", colorSpace, color.getRed()/(float)255, color.getGreen()/(float)255, color.getBlue()/(float)255);
+		sunflow.parameter("transparency", transparency);
+
+//		set shader
+		sunflow.shader(currShader, SHADER_MYTRANSPARENCY);
+		((MyTransparencyShader)sunflow.lookupShader(currShader)).setColorProvider(cp);
+	}
+
+	/**
+	 * Sets Glass Shader - simple version TLS 20130518
+	 * @param name Individual Name
+	 * @param color Color
+	 * @param eta ?
+	 */
+	public void setMyGlassShader(String name, Color color, float eta, ColorProvider cp) {
+//		save name for use with primitives
+		currShader = name;
+
+//		set parameter
+		sunflow.parameter("color", colorSpace, color.getRed()/(float)255, color.getGreen()/(float)255, color.getBlue()/(float)255);
+		sunflow.parameter("eta", eta);
+
+//		set shader
+		sunflow.shader(currShader, SHADER_MYGLASS);
+		((MyGlassShader)sunflow.lookupShader(currShader)).setColorProvider(cp);
+	}
+
 	/*
 	 * END OF SHADER
 	 * --------------------------------------------------------------------------------------
@@ -661,8 +779,21 @@ public class SunflowAPIAPI {
 	 * @param triangles int array connecting the vertices (like [0,1,2])
 	 */
 	public void drawMesh(String name, float[] vertices, int[] triangles) {
+		drawMesh(name, vertices, triangles, null);
+	}
+
+		/**
+		 * draws a mesh primitive with vertex normals
+		 * @param name individual name of primitive
+		 * @param vertices Float array with coordinates (like [x0,y0,z0,x1,y1,z1,x2,y2,z2])
+		 * @param triangles int array connecting the vertices (like [0,1,2])
+		 * @param normals Float array with normal (like [nx0,ny0,nz0,nx1,ny1,nz1,nx2,ny2,nz2])
+		 */
+	public void drawMesh(String name, float[] vertices, int[] triangles, float[] normals) {
 		sunflow.parameter("points", "point", "vertex", vertices); 
 		sunflow.parameter("triangles", triangles);
+		if (normals != null)
+			sunflow.parameter("normals", "vector", "vertex", normals);
 
 		sunflow.geometry( name, "triangle_mesh" );
 		sunflow.parameter( "shaders", currShader);
@@ -1033,9 +1164,9 @@ public class SunflowAPIAPI {
 	 * @param xRotation x rotation
 	 * @param yRotation y rotation
 	 * @param zRotation z rotation
-	 * @param float[] q = four quaternization variables
-	 * @param int iterations = level of detail
-	 * @param float epsilon = level of accuracy
+	 * @param q = four quaternization variables
+	 * @param iterations = level of detail
+	 * @param epsilon = level of accuracy
 	 */
 	public void drawJulia(String name, float x, float y, float z, float size, float xRotation, float yRotation, float zRotation, float[] q, int iterations, float epsilon) {
 
@@ -1250,10 +1381,10 @@ public class SunflowAPIAPI {
     /**
      * draws a rectangle
      * @name individual name
-     * @param first corner
-     * @param second corner
-     * @param third corner
-     * @param fourth corner
+     * @param corner0
+     * @param corner1
+     * @param corner2
+     * @param corner3
      */
     public void rect(String name, Point3 corner0, Point3 corner1, Point3 corner2, Point3 corner3) {
     	// define vertices
@@ -1598,6 +1729,14 @@ public class SunflowAPIAPI {
 	}
 	public void removeBackground() {
 		if(sunflow.lookupGeometry("internal_background") != null) sunflow.remove("internal_background");
+	}
+
+	/**
+	 * Defines the display, which is used in render() and render(boolean).
+	 * @param display
+	 */
+	public void setDisplay(Display display) {
+		windowDisplay = display;
 	}
 	public void render(){
 //		rendering options

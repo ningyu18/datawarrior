@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -27,25 +27,19 @@ import com.actelion.research.datawarrior.DEFrame;
 
 public class DETaskAddCIPInfo extends DETaskAbstractAddChemProperty implements Runnable {
 	public static final String TASK_NAME = "Add CIP Info";
-    private static Properties sRecentConfiguration;
 
 	public DETaskAddCIPInfo(DEFrame parent, boolean isInteractive) {
 		super(parent, DESCRIPTOR_NONE, true, true);
 		}
 
 	@Override
-	public Properties getRecentConfiguration() {
-    	return sRecentConfiguration;
-    	}
-
-	@Override
-	public void setRecentConfiguration(Properties configuration) {
-    	sRecentConfiguration = configuration;
-    	}
-
-	@Override
 	public String getTaskName() {
 		return TASK_NAME;
+		}
+
+	@Override
+	public boolean hasExtendedDialogContent() {
+		return false;
 		}
 
 	@Override

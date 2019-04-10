@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,30 +18,22 @@
 
 package com.actelion.research.table.filter;
 
+import com.actelion.research.chem.io.CompoundTableConstants;
+import com.actelion.research.gui.JStructureView;
+import com.actelion.research.gui.clipboard.ClipboardHandler;
+import com.actelion.research.gui.hidpi.HiDPIHelper;
+import com.actelion.research.table.model.CompoundTableEvent;
+import com.actelion.research.table.model.CompoundTableListener;
+import com.actelion.research.table.model.CompoundTableModel;
 import info.clearthought.layout.TableLayout;
 
-import java.awt.BorderLayout;
-import java.awt.Dimension;
+import javax.swing.*;
+import java.awt.*;
 import java.awt.dnd.DnDConstants;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseListener;
-
-import javax.swing.JCheckBox;
-import javax.swing.JLabel;
-import javax.swing.JMenuItem;
-import javax.swing.JPanel;
-import javax.swing.JPopupMenu;
-import javax.swing.JScrollPane;
-import javax.swing.JTextArea;
-
-import com.actelion.research.chem.io.CompoundTableConstants;
-import com.actelion.research.gui.JStructureView;
-import com.actelion.research.gui.clipboard.ClipboardHandler;
-import com.actelion.research.table.CompoundTableEvent;
-import com.actelion.research.table.CompoundTableListener;
-import com.actelion.research.table.CompoundTableModel;
 
 public class JCategoryFilterPanel extends JFilterPanel
 				implements ActionListener,CompoundTableListener,MouseListener {
@@ -99,11 +91,11 @@ public class JCategoryFilterPanel extends JFilterPanel
 
 		double[] sizeV = new double[mCategoryList.length+1];
 		for (int i=0; i<mCategoryList.length; i++)
-			sizeV[i] = (isIDCode && !CompoundTableConstants.cTextMultipleCategories.equals(mCategoryList[i])) ?
-					Math.max(36, Math.min(100, (int)Math.sqrt(200*mCategoryList[i].length()))) : 18;
+			sizeV[i] = HiDPIHelper.scale(isIDCode && !CompoundTableConstants.cTextMultipleCategories.equals(mCategoryList[i]) ?
+					Math.max(36, Math.min(100, (int)Math.sqrt(200*mCategoryList[i].length()))) : 18);
 		sizeV[mCategoryList.length] = 4;
 		double[] sizeH = isIDCode ? new double[2] : new double[1];
-		sizeH[0] = isIDCode ? 24 : TableLayout.PREFERRED;
+		sizeH[0] = isIDCode ? HiDPIHelper.scale(24) : TableLayout.PREFERRED;
 		if (isIDCode)
 			sizeH[1] = TableLayout.PREFERRED;
 		double[][] size = { sizeH, sizeV };
@@ -122,7 +114,7 @@ public class JCategoryFilterPanel extends JFilterPanel
 				String idcode = mCategoryList[i];
 				if (idcode != null && idcode.length() != 0) {
 					if (idcode.equals(CompoundTableConstants.cTextMultipleCategories)) {
-						mCategoryOptionPanel.add(new JLabel("multiple ring systems"), "1,"+i);
+						mCategoryOptionPanel.add(new JLabel("multiple structures"), "1,"+i);
 						}
 					else {
 						int index = idcode.indexOf(' ');
@@ -132,7 +124,7 @@ public class JCategoryFilterPanel extends JFilterPanel
 							view.setIDCode(idcode);
 						else
 							view.setIDCode(idcode.substring(0, index), idcode.substring(index+1));
-						view.setPreferredSize(new Dimension(120, 48));
+						view.setPreferredSize(new Dimension(HiDPIHelper.scale(120), HiDPIHelper.scale(48)));
 						mCategoryOptionPanel.add(view, "1, "+i);
 						}
 					}
@@ -327,7 +319,7 @@ public class JCategoryFilterPanel extends JFilterPanel
 					}
 				}
 			if (found)
-				mTableModel.clearCompoundFlag(mExclusionFlag);
+				mTableModel.clearRowFlag(mExclusionFlag);
 			}
 		else {
 			mTextArea.setText("");

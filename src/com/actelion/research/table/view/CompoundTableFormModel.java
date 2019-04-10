@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -25,8 +25,8 @@ import com.actelion.research.gui.form.FormObjectFactory;
 import com.actelion.research.gui.form.JHTMLDetailView;
 import com.actelion.research.gui.form.JImageDetailView;
 import com.actelion.research.gui.form.JStructure3DFormObject;
-import com.actelion.research.table.CompoundRecord;
-import com.actelion.research.table.CompoundTableModel;
+import com.actelion.research.table.model.CompoundRecord;
+import com.actelion.research.table.model.CompoundTableModel;
 
 public class CompoundTableFormModel implements FormModel {
 	protected static final String KEY_DETAIL_SEPARATOR = "#D#:";
@@ -123,7 +123,7 @@ public class CompoundTableFormModel implements FormModel {
 
 			try {
 				int detail = Integer.parseInt(key.substring(index+KEY_DETAIL_SEPARATOR.length()));
-				return mTableModel.getColumnDetailName(column, detail);
+				return mTableModel.getColumnDetailName(column, detail) + " ("+mTableModel.getColumnTitle(column)+")";
 				}
 			catch (NumberFormatException nfe) {
 				return null;

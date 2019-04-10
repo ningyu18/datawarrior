@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -42,8 +42,6 @@ public class DETaskSetPreferredChartType extends DETaskAbstractSetViewOptions {
 	private static final String PROPERTY_MODE = "mode";
 	private static final String PROPERTY_COLUMN = "column";
 	
-	private static Properties sRecentConfiguration;
-
 	private JComboBox	mComboBoxType,mComboBoxColumn,mComboBoxMode;
 	private JLabel		mLabelSizeBy,mLabelColumn;
 	
@@ -76,7 +74,7 @@ public class DETaskSetPreferredChartType extends DETaskAbstractSetViewOptions {
 		p1.add(new JLabel("Preferred Chart Type:"), "1,1");
 		mComboBoxType = new JComboBox();
 		if (hasInteractiveView())
-			for (int type:getVisualization().getSupportedChartTypes())
+			for (int type: getInteractiveVisualization().getSupportedChartTypes())
 				mComboBoxType.addItem(JVisualization.CHART_TYPE_NAME[type]);
 		else
 			for (String name:JVisualization.CHART_TYPE_NAME)
@@ -146,13 +144,13 @@ public class DETaskSetPreferredChartType extends DETaskAbstractSetViewOptions {
 
 	@Override
 	public void addViewConfiguration(Properties configuration) {
-		int type = getVisualization().getPreferredChartType();
+		int type = getInteractiveVisualization().getPreferredChartType();
 		configuration.setProperty(PROPERTY_TYPE, JVisualization.CHART_TYPE_CODE[type]);
 		if (type == JVisualization.cChartTypeBars || type == JVisualization.cChartTypePies) {
-			int mode = getVisualization().getPreferredChartMode();
+			int mode = getInteractiveVisualization().getPreferredChartMode();
 			configuration.setProperty(PROPERTY_MODE, JVisualization.CHART_MODE_CODE[mode]);
 			if (mode != JVisualization.cChartModeCount && mode != JVisualization.cChartModePercent)
-				configuration.setProperty(PROPERTY_COLUMN, ""+getTableModel().getColumnTitleNoAlias(getVisualization().getPreferredChartColumn()));
+				configuration.setProperty(PROPERTY_COLUMN, ""+getTableModel().getColumnTitleNoAlias(getInteractiveVisualization().getPreferredChartColumn()));
 			}
 		}
 
@@ -193,16 +191,6 @@ public class DETaskSetPreferredChartType extends DETaskAbstractSetViewOptions {
 		mComboBoxMode.setEnabled(isBarsOrPies);
 		mLabelColumn.setEnabled(columnEnabled);
 		mComboBoxColumn.setEnabled(columnEnabled);
-		}
-
-	@Override
-	public Properties getRecentConfigurationLocal() {
-		return sRecentConfiguration;
-		}
-	
-	@Override
-	public void setRecentConfiguration(Properties configuration) {
-		sRecentConfiguration = configuration;
 		}
 
 	@Override

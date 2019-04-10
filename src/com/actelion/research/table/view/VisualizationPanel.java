@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,39 +18,21 @@
 
 package com.actelion.research.table.view;
 
+import com.actelion.research.calc.CorrelationCalculator;
+import com.actelion.research.gui.*;
+import com.actelion.research.gui.hidpi.HiDPIHelper;
+import com.actelion.research.table.model.CompoundTableEvent;
+import com.actelion.research.table.model.CompoundTableListEvent;
+import com.actelion.research.table.model.CompoundTableModel;
+import com.actelion.research.table.model.NumericalCompoundTableColumn;
 import info.clearthought.layout.TableLayout;
 
-import java.awt.BorderLayout;
-import java.awt.Color;
-import java.awt.Dimension;
-import java.awt.Frame;
-import java.awt.Graphics;
-import java.awt.Point;
-import java.awt.event.ComponentEvent;
-import java.awt.event.ComponentListener;
-import java.awt.event.ItemEvent;
-import java.awt.event.ItemListener;
-import java.awt.event.MouseWheelEvent;
-import java.awt.event.MouseWheelListener;
+import javax.swing.*;
+import java.awt.*;
+import java.awt.event.*;
 import java.awt.print.PageFormat;
 import java.awt.print.Printable;
 import java.util.ArrayList;
-
-import javax.swing.JComboBox;
-import javax.swing.JLabel;
-import javax.swing.JPanel;
-import javax.swing.JWindow;
-
-import com.actelion.research.calc.CorrelationCalculator;
-import com.actelion.research.gui.ComboBoxColorItem;
-import com.actelion.research.gui.JComboBoxWithColor;
-import com.actelion.research.gui.JPruningBar;
-import com.actelion.research.gui.PruningBarEvent;
-import com.actelion.research.gui.PruningBarListener;
-import com.actelion.research.table.CompoundTableEvent;
-import com.actelion.research.table.CompoundTableHitlistEvent;
-import com.actelion.research.table.CompoundTableModel;
-import com.actelion.research.table.NumericalCompoundTableColumn;
 
 public abstract class VisualizationPanel extends JPanel
 				implements ComponentListener,ItemListener,CompoundTableView,FocusableView,MouseWheelListener,Printable,PruningBarListener {
@@ -80,6 +62,16 @@ public abstract class VisualizationPanel extends JPanel
 		mTableModel = tableModel;
 		mMasterPanel = this;
 		addMouseWheelListener(this);
+		}
+
+	@Override
+	public void updateUI() {
+		super.updateUI();
+
+		if (mControls != null)
+			SwingUtilities.updateComponentTreeUI(mControls);
+		if (mMessagePopup != null)
+			SwingUtilities.updateComponentTreeUI(mMessagePopup);
 		}
 
 	@Override
@@ -179,6 +171,7 @@ public abstract class VisualizationPanel extends JPanel
 
 		for (int axis=0; axis<mDimensions; axis++) {
 			mComboBoxColumn[axis] = new JComboBoxWithColor();
+			mComboBoxColumn[axis].setMaximumRowCount(24);
 			mComboBoxColumn[axis].addItemListener(this);
 			}
 
@@ -201,7 +194,9 @@ public abstract class VisualizationPanel extends JPanel
 		mMessagePopup.add(new JLabel("This view is controlled by another view."));
 		mVisiblePopup = null;
 
-		mVisualization.initializeDataPoints();
+		mVisualization.initializeDataPoints(false, false);
+		if (mTableModel.getTotalRowCount() > 50000)
+			mVisualization.setFastRendering(true);
 
 		mSynchronizationChildList = new ArrayList<VisualizationPanel>();
 		mSynchronizationChildList.add(this);
@@ -316,6 +311,31 @@ public abstract class VisualizationPanel extends JPanel
 		return new Dimension(64, 64);
 		}
 
+	/**
+	 * Sets a visible range for the given axis
+	 * @param axis
+	 * @param low NaN if there is no low limit
+	 * @param high NaN if there is no high limit
+	 */
+	public void setVisibleRange(int axis, float low, float high) {
+		int column = mVisualization.getColumnIndex(axis);
+		if (column != -1) {
+			float limit1 = 0f;
+			float limit2 = 1f;
+			float min = mTableModel.getMinimumValue(column);
+			float max = mTableModel.getMaximumValue(column);
+			if (min < max) {
+				if (!Float.isNaN(low) && low > min)
+					limit1 = (low >= max) ? 1f : (low - min) / (max - min);
+				if (!Float.isNaN(high) && high < max)
+					limit2 = (high <= min) ? 0f : (high - min) / (max - min);
+				if (limit1 > limit2)
+					limit1 = limit2;
+				}
+			getPruningBar(axis).setLowAndHigh(limit1, limit2, false);
+			}
+		}
+
 	@Override
 	public void mouseWheelMoved(MouseWheelEvent e) {
 		zoom(e.getX()-mVisualization.getX(), e.getY()-mVisualization.getY(), e.getWheelRotation());
@@ -350,7 +370,7 @@ public abstract class VisualizationPanel extends JPanel
 				child.getVisualization().updateVisibleRange(i, low[i], high[i], isAdjusting);
 
 		if (!isAdjusting)
-			fireVisualizationChanged();
+			fireVisualizationChanged(VisualizationEvent.TYPE.AXIS);
 		}
 
 	@Override
@@ -359,7 +379,7 @@ public abstract class VisualizationPanel extends JPanel
 			child.getVisualization().updateVisibleRange(e.getID(), e.getLowValue(), e.getHighValue(), e.isAdjusting());
 
 		if (!e.isAdjusting())
-			fireVisualizationChanged();
+			fireVisualizationChanged(VisualizationEvent.TYPE.AXIS);
 		}
 
 	@Override
@@ -372,17 +392,17 @@ public abstract class VisualizationPanel extends JPanel
 						for (VisualizationPanel child:getSynchronizationChildList())
 							child.setColumnIndex(axis, mQualifyingColumn[index]);
 
-						fireVisualizationChanged();
+						fireVisualizationChanged(VisualizationEvent.TYPE.AXIS);
 						}
 					}
 				}
 			}
 		}
 
-	private void fireVisualizationChanged() {
+	protected void fireVisualizationChanged(VisualizationEvent.TYPE type) {
 		if (!mIsProgrammaticChange)
 			for (VisualizationListener vl:mListenerList)
-				vl.visualizationChanged(new VisualizationEvent(this));
+				vl.visualizationChanged(new VisualizationEvent(this, type));
 		}
 
 	private void setColumnIndex(int axis, int column) {
@@ -409,8 +429,8 @@ public abstract class VisualizationPanel extends JPanel
 		return mComboBoxColumn[i].getSelectedIndex();
 		}
 
-	public int getFocusHitlist() {
-		return mVisualization.getFocusHitlist();
+	public int getFocusList() {
+		return mVisualization.getFocusList();
 		}
 
 	public void setFocusHitlist(int no) {
@@ -421,7 +441,7 @@ public abstract class VisualizationPanel extends JPanel
 	public void compoundTableChanged(CompoundTableEvent e) {
 		// don't make mVisualization a direct listener because in case of
 		// a table structure change the pruning panel needs to be updated first
-		boolean updatePruningBar = false;
+		float[][] oldPruningBarRange = new float[mDimensions][];
 		if (e.getType() == CompoundTableEvent.cAddRows
 		 || e.getType() == CompoundTableEvent.cDeleteRows
 		 || e.getType() == CompoundTableEvent.cChangeColumnData) {
@@ -441,7 +461,11 @@ public abstract class VisualizationPanel extends JPanel
 							mDisableEvents = true;
 							setComboBox(axis, j);
 							mDisableEvents = false;
-							updatePruningBar = true;
+							oldPruningBarRange[axis] = new float[2];
+							oldPruningBarRange[axis][0] = (mPruningBar[axis].getLowValue() == 0.0) ?
+									0f : mVisualization.getPruningBarLow(axis);
+							oldPruningBarRange[axis][1] = (mPruningBar[axis].getHighValue() == 1.0) ?
+									1f : mVisualization.getPruningBarHigh(axis);
 							found = true;
 							break;
 							}
@@ -499,10 +523,10 @@ public abstract class VisualizationPanel extends JPanel
 		for (VisualizationPanel vp:mSynchronizationChildList)
 			vp.getVisualization().compoundTableChanged(e);
 
-		if (updatePruningBar) {
-			for (int axis=0; axis<mDimensions; axis++) {
-				mPruningBar[axis].setLowAndHigh(mVisualization.getPruningBarLow(axis),
-												mVisualization.getPruningBarHigh(axis), false);
+		for (int axis=0; axis<mDimensions; axis++) {
+			if (oldPruningBarRange[axis] != null) {
+				mPruningBar[axis].setLowAndHigh(oldPruningBarRange[axis][0],
+												oldPruningBarRange[axis][1], false);
 				int column = mVisualization.getColumnIndex(axis);
 				mPruningBar[axis].setUseRedColor(column != JVisualization.cColumnUnassigned
 											  && !mTableModel.isColumnDataComplete(column)
@@ -512,8 +536,8 @@ public abstract class VisualizationPanel extends JPanel
 		}
 
 	@Override
-	public void hitlistChanged(CompoundTableHitlistEvent e) {
-		mVisualization.hitlistChanged(e);
+	public void listChanged(CompoundTableListEvent e) {
+		mVisualization.listChanged(e);
 		}
 
 	@Override
@@ -596,9 +620,22 @@ public abstract class VisualizationPanel extends JPanel
 	 * @param axis
 	 * @param index
 	 */
-	private void setComboBox(int axis, int index) {
+	private void setComboBox(final int axis, final int index) {
 		mIsProgrammaticChange = true;
-		mComboBoxColumn[axis].setSelectedIndex(index);
+		if (SwingUtilities.isEventDispatchThread()) {
+			mComboBoxColumn[axis].setSelectedIndex(index);
+			}
+		else {
+			try {
+				SwingUtilities.invokeAndWait(new Runnable() {
+					@Override
+					public void run() {
+						mComboBoxColumn[axis].setSelectedIndex(index);
+					}
+				});
+			}
+			catch (Exception e) {}
+		}
 		mIsProgrammaticChange = false;
 		}
 
@@ -715,18 +752,19 @@ public abstract class VisualizationPanel extends JPanel
 		mDisableEvents = true;
 		mIsProgrammaticChange = true;
 
+		Color defaultColor = UIManager.getColor("ComboBox.foreground");
 		choice.removeAllItems();
 		for (int j=0; j<mFirstChoiceColumns; j++) {
 			Color color = (mTableModel.isColumnTypeCategory(mQualifyingColumn[j])
 					   && !mTableModel.isColumnTypeDouble(mQualifyingColumn[j])) ?
-					   			Color.blue : Color.black;
+					(LookAndFeelHelper.isDarkLookAndFeel() ? Color.CYAN : Color.BLUE) : defaultColor;
 			choice.addItem(new ComboBoxColorItem(mVisualization.getAxisTitle(mQualifyingColumn[j]), color));
 			}
 		for (int j=mFirstChoiceColumns; j<mSecondChoiceColumns; j++) {
-			Color color = (mTableModel.isDescriptorColumn(j) && mTableModel.isColumnDataComplete(j)) ? Color.BLACK : Color.RED;
+			Color color = (mTableModel.isDescriptorColumn(j) && mTableModel.isColumnDataComplete(j)) ? defaultColor : Color.RED;
 			choice.addItem(new ComboBoxColorItem(mVisualization.getAxisTitle(mQualifyingColumn[j]), color));
 			}
-		choice.addItem(new ComboBoxColorItem(UNASSIGNED_TEXT, Color.black));
+		choice.addItem(new ComboBoxColorItem(UNASSIGNED_TEXT, defaultColor));
 
 		for (int j=0; j<=mSecondChoiceColumns; j++) {
 			if (column == mQualifyingColumn[j]) {

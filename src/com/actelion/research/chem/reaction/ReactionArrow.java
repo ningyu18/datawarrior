@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,12 +18,15 @@
 
 package com.actelion.research.chem.reaction;
 
-import java.awt.*;
-import java.awt.geom.*;
-
 import com.actelion.research.chem.AbstractDrawingObject;
 import com.actelion.research.chem.DepictorTransformation;
 import com.actelion.research.chem.Molecule;
+import com.actelion.research.util.ColorHelper;
+
+import javax.swing.*;
+import java.awt.*;
+import java.awt.geom.Point2D;
+import java.awt.geom.Rectangle2D;
 
 public class ReactionArrow extends AbstractDrawingObject {
 	public static final String TYPE_STRING = "arrow";
@@ -36,9 +39,9 @@ public class ReactionArrow extends AbstractDrawingObject {
 	int		mHiliteStatus;
 
 	public ReactionArrow() {
-		mPoint = new Point2D.Float[2];
-		mPoint[0] = new Point2D.Float();
-		mPoint[1] = new Point2D.Float();
+		mPoint = new Point2D.Double[2];
+		mPoint[0] = new Point2D.Double();
+		mPoint[1] = new Point2D.Double();
 		mHiliteStatus = PART_NONE;
 		}
 
@@ -96,14 +99,14 @@ public class ReactionArrow extends AbstractDrawingObject {
 		return (float)Math.sqrt(dx*dx+dy*dy);
 		}
 
-	public void setCoordinates(float x1, float y1, float x2, float y2) {
+	public void setCoordinates(double x1, double y1, double x2, double y2) {
 		mPoint[0].x = x1;
 		mPoint[0].y = y1;
 		mPoint[1].x = x2;
 		mPoint[1].y = y2;
 		}
 
-	public void translate(float x, float y) {
+	public void translate(double x, double y) {
 		switch (mHiliteStatus) {
 		case PART_ARROW_START:
 			mPoint[0].x = mTransformationValue1[0] + x - mTransformationReferenceX;
@@ -120,11 +123,12 @@ public class ReactionArrow extends AbstractDrawingObject {
 		}
 
 	public void draw(Graphics g, DepictorTransformation t) {
-		g.setColor(mIsSelected ? Color.red : Color.black);
-		float x1 = (t == null) ? mPoint[0].x : t.transformX(mPoint[0].x);
-		float y1 = (t == null) ? mPoint[0].y : t.transformY(mPoint[0].y);
-		float x2 = (t == null) ? mPoint[1].x : t.transformX(mPoint[1].x);
-		float y2 = (t == null) ? mPoint[1].y : t.transformY(mPoint[1].y);
+		g.setColor(mIsSelected ? ColorHelper.getContrastColor(Color.red, UIManager.getColor("TextArea.background"))
+							   : UIManager.getColor("TextArea.foreground"));
+		double x1 = (t == null) ? mPoint[0].x : t.transformX(mPoint[0].x);
+		double y1 = (t == null) ? mPoint[0].y : t.transformY(mPoint[0].y);
+		double x2 = (t == null) ? mPoint[1].x : t.transformX(mPoint[1].x);
+		double y2 = (t == null) ? mPoint[1].y : t.transformY(mPoint[1].y);
 		g.drawLine((int)x1, (int)y1, (int)x2, (int)y2);
 		int dx = (int)(x2 - x1);
 		int dy = (int)(y2 - y1);
@@ -151,9 +155,9 @@ public class ReactionArrow extends AbstractDrawingObject {
 			g.fillOval((int)mPoint[1].x-8, (int)mPoint[1].y-8, 16, 16);
 			break;
 		case PART_ARROW:
-			float length = getLength();
-			float f = Math.max(length/8.0f, 3.0f);
-			float angle = Molecule.getAngle(mPoint[0].x, mPoint[0].y, mPoint[1].x, mPoint[1].y);
+			double length = getLength();
+			double f = Math.max(length/8.0f, 3.0f);
+			double angle = Molecule.getAngle(mPoint[0].x, mPoint[0].y, mPoint[1].x, mPoint[1].y);
 			int dx = (int)(f * Math.cos(angle));
 			int dy = -(int)(f * Math.sin(angle));
 			int x[] = new int[4];
@@ -175,11 +179,11 @@ public class ReactionArrow extends AbstractDrawingObject {
 		draw(g, t);
 		}
 
-	public boolean contains(float x, float y) {
+	public boolean contains(double x, double y) {
 		return (findPart(x, y) != PART_NONE);
 		}
 
-	public boolean checkHiliting(float x, float y) {
+	public boolean checkHiliting(double x, double y) {
 		mHiliteStatus = findPart(x, y);
 		return (mHiliteStatus != PART_NONE);
 		}
@@ -188,30 +192,30 @@ public class ReactionArrow extends AbstractDrawingObject {
 		mHiliteStatus = PART_NONE;
 		}
 
-	private int findPart(float x, float y) {
-		float distanceToStart = (float)Math.sqrt((mPoint[0].x-x)*(mPoint[0].x-x)+(mPoint[0].y-y)*(mPoint[0].y-y));
+	private int findPart(double x, double y) {
+		double distanceToStart = Math.sqrt((mPoint[0].x-x)*(mPoint[0].x-x)+(mPoint[0].y-y)*(mPoint[0].y-y));
 		if (distanceToStart < 8.0)
 			return PART_ARROW_START;
 
-		float distanceToEnd = (float)Math.sqrt((mPoint[1].x-x)*(mPoint[1].x-x)+(mPoint[1].y-y)*(mPoint[1].y-y));
+		double distanceToEnd = Math.sqrt((mPoint[1].x-x)*(mPoint[1].x-x)+(mPoint[1].y-y)*(mPoint[1].y-y));
 		if (distanceToEnd < 8.0)
 			return PART_ARROW_END;
 
-		float arrowLength = (float)Math.sqrt((mPoint[1].x-mPoint[0].x)*(mPoint[1].x-mPoint[0].x)+(mPoint[1].y-mPoint[0].y)*(mPoint[1].y-mPoint[0].y));
+		double arrowLength = Math.sqrt((mPoint[1].x-mPoint[0].x)*(mPoint[1].x-mPoint[0].x)+(mPoint[1].y-mPoint[0].y)*(mPoint[1].y-mPoint[0].y));
 		if (distanceToStart + distanceToEnd < arrowLength + 5)
 			return PART_ARROW;
 
 		return PART_NONE;
 		}
 
-	public Rectangle2D.Float getBoundingRect() {
-		float length = getLength();
-		float f = Math.max(length/8.0f, 3.0f);
-		float angle = Molecule.getAngle(mPoint[0].x, mPoint[0].y, mPoint[1].x, mPoint[1].y);
-		float dx = Math.abs(f * (float)Math.cos(angle));
-		float dy = Math.abs(f * (float)Math.sin(angle));
+	public Rectangle2D.Double getBoundingRect() {
+		double length = getLength();
+		double f = Math.max(length/8.0, 3.0);
+		double angle = Molecule.getAngle(mPoint[0].x, mPoint[0].y, mPoint[1].x, mPoint[1].y);
+		double dx = Math.abs(f * Math.cos(angle));
+		double dy = Math.abs(f * Math.sin(angle));
 
-		Rectangle2D.Float bounds = new Rectangle2D.Float();
+		Rectangle2D.Double bounds = new Rectangle2D.Double();
 		if (mPoint[0].x < mPoint[1].x) {
 			bounds.x = mPoint[0].x - dx;
 			bounds.width = mPoint[1].x - mPoint[0].x + 2*dx;
@@ -232,11 +236,11 @@ public class ReactionArrow extends AbstractDrawingObject {
 		return bounds;
 		}
 
-	public boolean isOnProductSide(float x, float y) {
-		float dx = mPoint[1].x - mPoint[0].x;
-		float dy = mPoint[1].y - mPoint[0].y;
-		float mx = (mPoint[0].x + mPoint[1].x) / 2.0f;
-		float my = (mPoint[0].y + mPoint[1].y) / 2.0f;
+	public boolean isOnProductSide(double x, double y) {
+		double dx = mPoint[1].x - mPoint[0].x;
+		double dy = mPoint[1].y - mPoint[0].y;
+		double mx = (mPoint[0].x + mPoint[1].x) / 2.0;
+		double my = (mPoint[0].y + mPoint[1].y) / 2.0;
 
 		if (dx == 0.0)
 			return (dy < 0.0) ^ (y > my);
@@ -244,9 +248,9 @@ public class ReactionArrow extends AbstractDrawingObject {
 		if (dy == 0.0)
 			return (dx < 0.0) ^ (x > mx);
 
-		float m = -dx/dy;	// m of orthogonal line through S
+		double m = -dx/dy;	// m of orthogonal line through S
 
-		float sx = (mPoint[0].x + m*m*x - m*y + m*mPoint[0].y) / (1 + m*m);
+		double sx = (mPoint[0].x + m*m*x - m*y + m*mPoint[0].y) / (1 + m*m);
 		return (dx < 0.0) ^ (sx > mx);
 		}
 	}

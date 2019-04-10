@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -19,12 +19,22 @@
 package com.actelion.research.util;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 
 
 public class SortedList<T extends Comparable<? super T>> {
-    static final long serialVersionUID = 0x20060720;
+    static final long serialVersionUID = 0x20160626;
 
     private ArrayList<T> mList = new ArrayList<T>();
+	private Comparator mComparator;
+
+	public SortedList() {
+		this(null);
+		}
+
+	public SortedList(Comparator comparator) {
+		mComparator = comparator;
+		}
 
 	public boolean contains(T object) {
 		return getIndex(object) != -1;
@@ -34,9 +44,16 @@ public class SortedList<T extends Comparable<? super T>> {
 		if (mList.size() != s.mList.size())
 			return false;
 
-		for (int i=0; i<mList.size(); i++)
-			if (!mList.get(i).equals(s.mList.get(i)))
-				return false;
+		if (mComparator != null) {
+			for (int i=0; i<mList.size(); i++)
+				if (mComparator.compare(mList.get(i), s.mList.get(i)) != 0)
+					return false;
+			}
+		else {
+			for (int i=0; i<mList.size(); i++)
+				if (!mList.get(i).equals(s.mList.get(i)))
+					return false;
+			}
 
 		return true;
 		}
@@ -80,7 +97,7 @@ public class SortedList<T extends Comparable<? super T>> {
 				continue;
 				}
 
-			int comparison = object.compareTo(mList.get(index));
+			int comparison = compare(object, mList.get(index));
 			if (comparison == 0)
 				return index;
 
@@ -96,10 +113,14 @@ public class SortedList<T extends Comparable<? super T>> {
 			}
 
 		if ((index < vectorSize)
-	     && (object.compareTo(mList.get(index)) > 0))
+	     && (compare(object, mList.get(index)) > 0))
 			index++;
 
 		return -(index+1);
+		}
+
+	private int compare(T o1, T o2) {
+		return (mComparator != null) ? mComparator.compare(o1, o2) : o1.compareTo(o2);
 		}
 
 	/**

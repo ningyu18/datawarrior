@@ -1,20 +1,28 @@
 package com.actelion.research.gui.table;
 
-import java.awt.*;
-import java.awt.event.*;
-import java.util.*;
+import com.actelion.research.gui.LookAndFeelHelper;
+import com.actelion.research.util.ColorHelper;
+
 import javax.swing.*;
-import javax.swing.event.*;
+import javax.swing.event.ListSelectionEvent;
+import javax.swing.event.ListSelectionListener;
+import javax.swing.event.TableModelEvent;
+import javax.swing.event.TableModelListener;
 import javax.swing.table.*;
+import java.awt.*;
+import java.awt.event.MouseEvent;
+import java.awt.event.MouseListener;
+import java.awt.event.MouseMotionListener;
+import java.util.Vector;
 
 public class JTableWithRowNumbers extends JTable implements TableModelListener {
     private static final long serialVersionUID = 0x20060906;
 
-    private RowNumberTable	mRowNumberTable = null;
+	private RowNumberTable	mRowNumberTable = null;
 	private JScrollPane		mScrollPane = null;
 	private Cursor			mResizeCursor,mDefaultCursor;
 	private boolean			mIsResizing;
-	private int				mResizingRowY,mResizingRowHeight;
+	private int				mRowHeaderMinWidth,mResizingRowY,mResizingRowHeight;
 
 	public JTableWithRowNumbers() {
 		super();
@@ -55,34 +63,69 @@ public class JTableWithRowNumbers extends JTable implements TableModelListener {
 
 	private void initialize() {
 		mRowNumberTable = new RowNumberTable();
+		mRowNumberTable.setRowHeight(getRowHeight());
 		setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
 		mDefaultCursor = Cursor.getPredefinedCursor(Cursor.DEFAULT_CURSOR);
 		mResizeCursor = Cursor.getPredefinedCursor(Cursor.S_RESIZE_CURSOR);
 		}
 
-	public void paint(Graphics g) {
-		super.paint(g);
+	public JTable getRowNumberTable() {
+		return mRowNumberTable;
+		}
+
+	@Override
+	public void paintComponent(Graphics g) {
+		super.paintComponent(g);
 
 		if (mIsResizing) {
 			int tableWidth = getWidth();
-			g.setColor(Color.black);
+			g.setColor(LookAndFeelHelper.isDarkLookAndFeel() ? Color.WHITE : Color.BLACK);
 			g.drawLine(0, mResizingRowY, tableWidth, mResizingRowY);
 			g.drawLine(0, mResizingRowY+mResizingRowHeight, tableWidth, mResizingRowY+mResizingRowHeight);
 			}
 		}
 
+	/**
+	 * @return font size of parent table devided by UI scaling factor
+	 */
+	public int getFontSize() {
+		return getFont().getSize();
+		}
+
+	/**
+	 * @param fontSize
+	 */
+	public void setFontSize(int fontSize) {
+		Font font = getFont().deriveFont((float)fontSize);
+		super.setFont(font);
+		if (mRowNumberTable != null) {
+			mRowNumberTable.setFont(font);
+			validateRowNumberColumnWidth();
+			}
+		}
+
+	/**
+	 * @param height
+	 */
+	@Override
 	public void setRowHeight(int height) {
 		super.setRowHeight(height);
 		if (mRowNumberTable != null)
 			mRowNumberTable.setRowHeight(height);
 		}
 
+	/**
+	 * @param row
+	 * @param height
+	 */
+	@Override
 	public void setRowHeight(int row, int height) {
 		super.setRowHeight(row, height);
 		if (mRowNumberTable != null)
 			mRowNumberTable.setRowHeight(row, height);
 		}
 
+	@Override
 	public void addNotify() {
 		super.addNotify();
 
@@ -90,7 +133,7 @@ public class JTableWithRowNumbers extends JTable implements TableModelListener {
 			mScrollPane = (JScrollPane) getParent().getParent();
 			mScrollPane.setRowHeaderView(mRowNumberTable);
 
-			optimizeColumnWidth();
+			validateRowNumberColumnWidth();
 
 	// make the background of the scrollpane match that of the table.
 //			pane.getViewport().setBackground(getBackground());
@@ -99,20 +142,26 @@ public class JTableWithRowNumbers extends JTable implements TableModelListener {
 			}
 		}
 
-	private void optimizeColumnWidth() {
+	public void setRowHeaderMinWidth(int width) {
+		mRowHeaderMinWidth = width;
+		validateRowNumberColumnWidth();
+		}
+
+	private void validateRowNumberColumnWidth() {
 		if (mScrollPane != null) {
 			JViewport viewport = mScrollPane.getRowHeader();
 			Dimension size = viewport.getPreferredSize();
-			size.width = 8 + 7 * Integer.toString(getRowCount()).length();
+			size.width = (int)Math.max(mRowHeaderMinWidth, 0.65f*getFont().getSize()*(0.5f+Integer.toString(getRowCount()).length()));
 			viewport.setPreferredSize(size);
 			}
 		}
 
+	@Override
 	public void tableChanged(TableModelEvent e) {
 		super.tableChanged(e);
 
 		if (mRowNumberTable != null) {
-			optimizeColumnWidth();
+			validateRowNumberColumnWidth();
 			mRowNumberTable.invalidate();
 			mRowNumberTable.repaint();
 			}
@@ -153,7 +202,6 @@ public class JTableWithRowNumbers extends JTable implements TableModelListener {
 			column.setCellRenderer(new RowNumberRenderer());
 			addColumn(column);
 
-			setBackground(Color.lightGray);
 			addMouseListener(this);
 			addMouseMotionListener(this);
 			}
@@ -261,23 +309,31 @@ public class JTableWithRowNumbers extends JTable implements TableModelListener {
         private static final long serialVersionUID = 0x20060906;
 
         private String mRowHeader;
+		private Font mFont;
 
 		public RowNumberRenderer() {
 			super();
 			}
 
-		public void paint(Graphics g) {
+		public void paintComponent(Graphics g) {
+			super.paintComponent(g);
+
+			Color bg = ColorHelper.darker(UIManager.getColor("Table.background"), 0.75f);
+			Color fg = LookAndFeelHelper.isDarkLookAndFeel() ?
+					  ColorHelper.darker(UIManager.getColor("Table.foreground"), 0.8f)
+					: ColorHelper.brighter(UIManager.getColor("Table.foreground"), 0.6f);
 			Dimension size = getSize();
-			g.setColor(Color.lightGray.brighter());
-			g.drawLine(0, 0, size.width, 0);
-			g.drawLine(0, 0, 0, size.height);
-			g.setColor(Color.black);
-			g.drawString(mRowHeader, 4, size.height/2+5);
+			g.setColor(bg);
+			g.fillRect(0, 0, size.width, size.height);
+			g.setColor(fg);
+			g.setFont(mFont);
+			g.drawString(mRowHeader, Math.round(0.25f*mFont.getSize()), (size.height+mFont.getSize())/2);
 			}
 
 		public Component getTableCellRendererComponent(JTable table, Object value,
 								boolean isSelected, boolean hasFocus, int row, int col) {
-			mRowHeader = ""+(row+1);
+			mRowHeader = Integer.toString(row+1);
+			mFont = table.getFont().deriveFont(Font.BOLD);
 			return this;
 			}
 		}

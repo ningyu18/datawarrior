@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,12 +18,6 @@
 
 package com.actelion.research.gui.form;
 
-import java.awt.Color;
-import java.awt.Graphics2D;
-import java.awt.geom.Rectangle2D;
-
-import javax.swing.border.Border;
-
 import com.actelion.research.chem.AbstractDepictor;
 import com.actelion.research.chem.Depictor2D;
 import com.actelion.research.chem.IDCodeParser;
@@ -32,6 +26,10 @@ import com.actelion.research.gui.JEditableStructureView;
 import com.actelion.research.gui.JStructureView;
 import com.actelion.research.gui.StructureListener;
 import com.actelion.research.gui.clipboard.ClipboardHandler;
+
+import javax.swing.border.Border;
+import java.awt.*;
+import java.awt.geom.Rectangle2D;
 
 public class JStructureFormObject extends AbstractFormObject implements StructureListener {
 	public JStructureFormObject(String key, String type) {
@@ -43,8 +41,6 @@ public class JStructureFormObject extends AbstractFormObject implements Structur
                     super.setBorder(border);
                 }
             };
-		mComponent.setBackground(Color.white);
-        mComponent.setOpaque(true);
         ((JEditableStructureView)mComponent).setEditable(false);
 		((JEditableStructureView)mComponent).setClipboardHandler(new ClipboardHandler());
         ((JEditableStructureView)mComponent).addStructureListener(this);
@@ -84,7 +80,7 @@ public class JStructureFormObject extends AbstractFormObject implements Structur
 	    fireDataChanged();
 	    }
 
-	public void printContent(Graphics2D g2D, Rectangle2D.Float r, float scale, Object data) {
+	public void printContent(Graphics2D g2D, Rectangle2D.Double r, float scale, Object data, boolean isMultipleRows) {
         if (data != null) {
 	        StereoMolecule mol = null;
 			if (data instanceof StereoMolecule) {

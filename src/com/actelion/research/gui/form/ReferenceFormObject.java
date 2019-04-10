@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -58,10 +58,10 @@ public abstract class ReferenceFormObject extends AbstractFormObject {
 		((JResultDetailView)mComponent).setDetailSource(referenceSource);
 		}
 
-	public void printContent(Graphics2D g2D, Rectangle2D.Float r, float scale, Object data) {
+	public void printContent(Graphics2D g2D, Rectangle2D.Double r, float scale, Object data, boolean isMultipleRows) {
         if (mReferenceResolver == null)
 		    ((JResultDetailView)mComponent).print(g2D, r, scale, data);
 		else
-		    ((JResultDetailView)mComponent).printReferences(g2D, r, scale, (String[])data);
+		    ((JResultDetailView)mComponent).printReferences(g2D, r, scale, (String[])data, isMultipleRows);
 		}
 	}

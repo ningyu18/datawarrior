@@ -19,11 +19,11 @@ import com.actelion.research.chem.StereoMolecule;
 import com.actelion.research.datawarrior.DEFrame;
 import com.actelion.research.datawarrior.DEPruningPanel.FilterException;
 import com.actelion.research.datawarrior.DataWarrior;
-import com.actelion.research.datawarrior.task.DETaskWithEmptyConfiguration;
-import com.actelion.research.table.CompoundTableEvent;
-import com.actelion.research.table.CompoundTableModel;
+import com.actelion.research.datawarrior.task.AbstractTaskWithoutConfiguration;
+import com.actelion.research.table.model.CompoundTableEvent;
+import com.actelion.research.table.model.CompoundTableModel;
 
-public class DETaskRetrieveWikipediaCompounds extends DETaskWithEmptyConfiguration {
+public class DETaskRetrieveWikipediaCompounds extends AbstractTaskWithoutConfiguration {
 	public static final String TASK_NAME = "Retrieve Wikipedia Compounds";
 	private static final String RAW_DATA_URL = "http://www.cheminfo.org/wikipedia/idcode.txt";
 	private static final String[] COLUMN_NAME = {"Compound Name", "Formula", "Molweight"};
@@ -43,12 +43,10 @@ public class DETaskRetrieveWikipediaCompounds extends DETaskWithEmptyConfigurati
 
 	private DataWarrior	mApplication;
 	private DEFrame		mTargetFrame;
-	private boolean		mIsInteractive;
 
-	public DETaskRetrieveWikipediaCompounds(Frame parent, DataWarrior application, boolean isInteractive) {
+	public DETaskRetrieveWikipediaCompounds(Frame parent, DataWarrior application) {
 		super(parent, true);
 		mApplication = application;
-		mIsInteractive = isInteractive;
 		}
 
 	@Override
@@ -59,6 +57,11 @@ public class DETaskRetrieveWikipediaCompounds extends DETaskWithEmptyConfigurati
 	@Override
 	public String getTaskName() {
 		return TASK_NAME;
+		}
+
+	@Override
+	public String getHelpURL() {
+		return "/html/help/databases.html#Wikipedia";
 		}
 
 	@Override
@@ -94,7 +97,7 @@ public class DETaskRetrieveWikipediaCompounds extends DETaskWithEmptyConfigurati
 				}
 			}
 		catch (Exception e) {
-			if (mIsInteractive) {
+			if (isInteractive()) {
 				JOptionPane.showMessageDialog(getParentFrame(), "Communication error:"+e.getMessage()
 						+"\nA firewall or local security software or settings may prevent contacting the server.");
 				}
@@ -149,7 +152,7 @@ public class DETaskRetrieveWikipediaCompounds extends DETaskWithEmptyConfigurati
 
 			try {
 				mTargetFrame.getMainFrame().getPruningPanel().addStructureFilter(tableModel, 0, null);
-				mTargetFrame.getMainFrame().getPruningPanel().addStringFilter(tableModel, 3);
+				mTargetFrame.getMainFrame().getPruningPanel().addTextFilter(tableModel, 3);
 				}
 			catch (FilterException fe) {}
 			}

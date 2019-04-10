@@ -10,19 +10,19 @@
 package com.actelion.research.gui.clipboard;
 
 import com.actelion.research.chem.*;
-import com.actelion.research.chem.AbstractDepictor;import com.actelion.research.chem.CoordinateInventor;import com.actelion.research.chem.Depictor;import com.actelion.research.chem.ExtendedMolecule;import com.actelion.research.chem.Molecule;import com.actelion.research.chem.MolfileParser;import com.actelion.research.chem.StereoMolecule;import com.actelion.research.chem.io.RXNFileCreator;
+import com.actelion.research.chem.coords.CoordinateInventor;
+import com.actelion.research.chem.io.RXNFileCreator;
 import com.actelion.research.chem.io.RXNFileParser;
+import com.actelion.research.chem.name.INameResolver;
 import com.actelion.research.chem.reaction.Reaction;
-import com.actelion.research.gui.ReactionDepictor;
-import com.actelion.research.gui.clipboard.IClipboardHandler;import com.actelion.research.gui.clipboard.ImageClipboardHandler;import com.actelion.research.gui.clipboard.NativeClipboardHandler;import com.actelion.research.gui.wmf.WMF;
+import com.actelion.research.gui.clipboard.external.ChemDrawCDX;
+import com.actelion.research.gui.wmf.WMF;
 import com.actelion.research.gui.wmf.WMFGraphics2D;
-import com.actelion.research.share.gui.AbstractReactionDepictor;
-import com.actelion.research.swing.gui.GraphicsContext;
 import com.actelion.research.util.Sketch;
 
 import java.awt.*;
-import java.awt.Color;import java.awt.Image;import java.awt.geom.Rectangle2D;
-import java.io.*;import java.io.ByteArrayInputStream;import java.io.ByteArrayOutputStream;import java.io.File;import java.io.FileOutputStream;import java.io.IOException;import java.io.ObjectInputStream;import java.io.ObjectOutputStream;import java.io.OutputStream;import java.lang.Exception;import java.lang.Object;import java.lang.String;import java.lang.System;
+import java.awt.geom.Rectangle2D;
+import java.io.*;
 
 /**
  * <p>Title: Actelion Library</p>
@@ -37,12 +37,37 @@ public class ClipboardHandler implements IClipboardHandler
 {
     private static final byte MDLSK[] = {(byte) 'M', (byte) 'D', (byte) 'L', (byte) 'S', (byte) 'K', 0, 0};
 
+	private static INameResolver sStructureNameResolver;
+
+	/**
+	 * If a structure name resolver is defined by this method, then any pasteMolecule() call that
+	 * does not succeed in creating a molecule from any of the clipboard flavors passes afterwards
+	 * the stringFlavor (if found in the clipboard) to the resolver in order to interpret
+	 * smiles, iupac name, corporate identifiers, etc. to generate a chemical structure from those.
+	 * @param resolver
+	 */
+	public static void setStructureNameResolver(INameResolver resolver) {
+		sStructureNameResolver = resolver;
+	}
+
     /**
      * Get a Molecule from the Clipboard. The supported formats are: MDLSK,MDLCT,MDL_MOL,CF_ENHMETAFILE with embedded sketch
+     * If the clipboard molecule has 3D coordinates, then new 2D-coords are invented and used instead.
      *
      * @return Molecule found or null if no molecule present on the clipboard
      */
     public StereoMolecule pasteMolecule()
+    {
+        return pasteMolecule(true);
+    }
+
+        /**
+		 * Get a Molecule from the Clipboard. The supported formats are: MDLSK,MDLCT,MDL_MOL,CF_ENHMETAFILE with embedded sketch
+		 *
+         * @param prefer2D if true and if the clipboard molecule has 3D coordinates, then new 2D-coords are invented
+		 * @return Molecule found or null if no molecule present on the clipboard
+		 */
+    public StereoMolecule pasteMolecule(boolean prefer2D)
     {
         byte[] buffer = null;
         StereoMolecule mol = null;
@@ -86,7 +111,25 @@ public class ClipboardHandler implements IClipboardHandler
                 }
             }
         }
-        if (mol != null && is3DMolecule(mol)) {
+        if (mol == null) {
+            if ((buffer = NativeClipboardHandler.getClipboardData(NativeClipboardHandler.NC_IDCODE)) != null) {
+				String s = new String(buffer);
+                try {
+                    mol = new StereoMolecule();
+                    IDCodeParser parser = new IDCodeParser(prefer2D);
+                    System.out.printf("Pasted string '%s'\n",s);
+                    parser.parse(mol,buffer);
+                    if (mol.getAllAtoms() == 0)
+                    	mol = null;
+                } catch (Exception e) {
+                    mol = null;
+                    System.out.println("NativeClipboardAccessor.pasteMolecule(): Exception " + e);
+                }
+                if (mol == null && sStructureNameResolver != null)
+                	mol = sStructureNameResolver.resolveName(s);
+            }
+        }
+        if (prefer2D && mol != null && is3DMolecule(mol)) {
             mol.ensureHelperArrays(Molecule.cHelperParities);    // to ensure stereo parities
             new CoordinateInventor().invent(mol);
             mol.setStereoBondsFromParity();
@@ -181,7 +224,12 @@ public class ClipboardHandler implements IClipboardHandler
 
                 ByteArrayOutputStream bos = new ByteArrayOutputStream();
                 ObjectOutputStream out = new ObjectOutputStream(bos);
-                out.writeObject(m);
+
+	            // Changed from m to mol, because writeMol2Metafile() may have scaled xy-coords of m,
+	            // which is unacceptable for 3D molecules.
+	            // If an application needs coordinate scaling, then this should be done after pasting. TLS 07Feb2016
+                out.writeObject(mol);
+
                 out.close();
                 bos.close();
 //				ok = NativeClipboardHandler.copyMoleculeToClipboard(temp.getAbsolutePath(),buffer,bos.toByteArray());
@@ -252,8 +300,10 @@ public class ClipboardHandler implements IClipboardHandler
         byte buffer[] = Sketch.createSketchFromReaction(m);
         File temp = File.createTempFile("actnca", ".wmf");
         temp.deleteOnExit();
-        if (writeRXN2Metafile(temp, buffer, m)) {
-            com.actelion.research.gui.clipboard.external.ChemDrawCDX cdx = new com.actelion.research.gui.clipboard.external.ChemDrawCDX();
+        // This is currently not used
+        //if (writeRXN2Metafile(temp, buffer, m))
+        {
+            ChemDrawCDX cdx = new com.actelion.research.gui.clipboard.external.ChemDrawCDX();
             byte[] cdbuffer = cdx.getChemDrawBuffer(m);
             ByteArrayOutputStream bos = new ByteArrayOutputStream();
             ObjectOutputStream out = new ObjectOutputStream(bos);
@@ -291,7 +341,7 @@ public class ClipboardHandler implements IClipboardHandler
         WMFGraphics2D g = new WMFGraphics2D(wmf, w, h, Color.black, Color.white);
 
         Depictor d = new Depictor(m);
-        d.updateCoords(g, new Rectangle2D.Float(0, 0, w, h), AbstractDepictor.cModeInflateToMaxAVBL);
+        d.updateCoords(g, new Rectangle2D.Double(0, 0, w, h), AbstractDepictor.cModeInflateToMaxAVBL);
         d.paint(g);
 
         if (sketch != null) {
@@ -306,6 +356,8 @@ public class ClipboardHandler implements IClipboardHandler
         return true;
     }
 
+/*
+
     private boolean writeRXN2Metafile(File temp, byte sketch[], Reaction m)
     {
         try {
@@ -316,7 +368,9 @@ public class ClipboardHandler implements IClipboardHandler
             return false;
         }
     }
+*/
 
+/*
     private boolean writeRXN2Metafile(OutputStream out, byte sketch[], Reaction m) throws IOException
     {
         int w = 400;
@@ -337,6 +391,7 @@ public class ClipboardHandler implements IClipboardHandler
         out.close();
         return true;
     }
+*/
 
 
     /**

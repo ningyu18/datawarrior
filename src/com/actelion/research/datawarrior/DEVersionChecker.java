@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,11 +18,11 @@
 
 package com.actelion.research.datawarrior;
 
+import com.actelion.research.util.BrowserControl;
 import info.clearthought.layout.TableLayout;
 
-import java.awt.Dimension;
-import java.awt.Frame;
-import java.awt.Toolkit;
+import javax.swing.*;
+import java.awt.*;
 import java.awt.datatransfer.StringSelection;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
@@ -35,20 +35,9 @@ import java.net.URL;
 import java.net.URLEncoder;
 import java.util.prefs.Preferences;
 
-import javax.swing.JButton;
-import javax.swing.JDialog;
-import javax.swing.JEditorPane;
-import javax.swing.JLabel;
-import javax.swing.JOptionPane;
-import javax.swing.JPanel;
-import javax.swing.JScrollPane;
-import javax.swing.SwingUtilities;
-
-import com.actelion.research.util.BrowserControl;
-
 public class DEVersionChecker extends JDialog implements ActionListener {
 	private static final long serialVersionUID = 20140209;
-	private static final String DATAWARRIOR_VERSION = "v04.02.02";	// format v00.00.00[_beta]
+	private static final String DATAWARRIOR_VERSION = "v04.07.02";	// format v00.00.00[_beta]
 	public static void checkVersion(final Frame parent, final boolean showUpToDateMessage) {
 		new Thread(new Runnable() {
 			public void run() {
@@ -94,23 +83,27 @@ public class DEVersionChecker extends JDialog implements ActionListener {
 					}
 				catch (MalformedURLException mue) {}
 				catch (Exception e) {
-					final String error = e.toString();
-					SwingUtilities.invokeLater(new Runnable() {
-						@Override
-						public void run() {
-							int answer = JOptionPane.showConfirmDialog(parent,
-									"DataWarrior could not check whether you have the latest version.\n"
-								  + "A firewall, local security software, or settings may prevent contacting the server.\n"
-								  + "Do you want DataWarrior to open your web browser for checking?",
-								  	"DataWarrior Update Check in Web-Browser", JOptionPane.OK_CANCEL_OPTION);
-							if (answer == JOptionPane.OK_OPTION) {
-								try {
-									BrowserControl.displayURL(url+"&error="+URLEncoder.encode(error, "UTF-8"));
+					long lastErrorMillis = prefs.getLong(DataWarrior.PREFERENCES_KEY_LAST_VERSION_ERROR, 0L);
+					if (System.currentTimeMillis() > lastErrorMillis + 86400L) {
+						prefs.putLong(DataWarrior.PREFERENCES_KEY_LAST_VERSION_ERROR, System.currentTimeMillis());
+						final String error = e.toString();
+						SwingUtilities.invokeLater(new Runnable() {
+							@Override
+							public void run() {
+								int answer = JOptionPane.showConfirmDialog(parent,
+										"DataWarrior could not check whether you have the latest version.\n"
+									  + "A firewall, local security software, or settings may prevent contacting the server.\n"
+									  + "Do you want DataWarrior to open your web browser for checking?",
+										"DataWarrior Update Check in Web-Browser", JOptionPane.OK_CANCEL_OPTION);
+								if (answer == JOptionPane.OK_OPTION) {
+									try {
+										BrowserControl.displayURL(url+"&error="+URLEncoder.encode(error, "UTF-8"));
+										}
+									catch (UnsupportedEncodingException uee) {}
 									}
-								catch (UnsupportedEncodingException uee) {}
 								}
-							}
-						});
+							});
+						}
 					}
 				}
 			}).start();

@@ -1,7 +1,5 @@
 package org.sunflow.core.display;
 
-import java.io.IOException;
-
 import org.sunflow.PluginRegistry;
 import org.sunflow.core.Display;
 import org.sunflow.image.BitmapWriter;
@@ -9,6 +7,8 @@ import org.sunflow.image.Color;
 import org.sunflow.system.FileUtils;
 import org.sunflow.system.UI;
 import org.sunflow.system.UI.Module;
+
+import java.io.IOException;
 
 public class FileDisplay implements Display {
     private BitmapWriter writer;
@@ -69,5 +69,10 @@ public class FileDisplay implements Display {
         } catch (IOException e) {
             UI.printError(Module.IMG, "I/O error occured while closing the display: %s", e.getMessage());
         }
+    }
+
+    @Override
+    public boolean imageCancelled() {
+	    return false;   // return true to stop all rendering threads
     }
 }

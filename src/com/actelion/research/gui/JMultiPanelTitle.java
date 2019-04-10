@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,26 +18,29 @@
 
 package com.actelion.research.gui;
 
-import java.awt.*;
-import java.awt.event.*;
+import com.actelion.research.gui.hidpi.HiDPIHelper;
+
 import javax.swing.*;
+import java.awt.*;
+import java.awt.event.MouseEvent;
+import java.awt.event.MouseListener;
+import java.awt.event.MouseMotionListener;
 
 public class JMultiPanelTitle extends JComponent implements MouseListener,MouseMotionListener {
     private static final long serialVersionUID = 0x20100813;
 
-    public static final int HEIGHT = 10;
-	public static final int TEXT_HEIGHT = 9;
-
-	/*	don't use Metal L&F anymore
-	private static final Color cThumbColor          = new Color(153, 153, 204);
-	private static final Color cThumbShadowColor    = new Color(102, 102, 153);
-	private static final Color cThumbHighlightColor = new Color(204, 204, 255);
-	private static final Color cTextColor			= new Color( 70,  71, 110);
-	*/
+    private static final int HEIGHT = 10;
 
 	private MultiPanelDragListener	mDragListener;
 	private String					mTitle;
 	private boolean					mDragEnabled;
+
+	/**
+	 * @return default title panel height potentially adapted for HiDPI devices
+	 */
+	public static int height() {
+		return HiDPIHelper.scale(HEIGHT);
+		}
 
 	public JMultiPanelTitle(MultiPanelDragListener parent, String title) {
 		mDragListener = parent;
@@ -51,7 +54,14 @@ public class JMultiPanelTitle extends JComponent implements MouseListener,MouseM
 		mDragEnabled = b;
 		}
 
+	public void setTitle(String title) {
+		mTitle = title;
+		repaint();
+		}
+
 	public void paintComponent(Graphics g) {
+		((Graphics2D)g).setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
 		Dimension size = getSize();
 
         Graphics2D g2 = (Graphics2D) g;
@@ -62,52 +72,11 @@ public class JMultiPanelTitle extends JComponent implements MouseListener,MouseM
 
         g2.setPaint(storedPaint);
 
-		g.setColor(Color.BLACK);
-		g.setFont(new Font("Helvetica", Font.PLAIN, TEXT_HEIGHT));
+		g.setColor(UIManager.getColor("Label.foreground"));
+		g.setFont(UIManager.getFont("Label.font").deriveFont(Font.PLAIN, height()-1));
 		int stringWidth = (int)g.getFontMetrics().getStringBounds(mTitle, g).getWidth();
-		g.drawString(mTitle, (size.width-stringWidth)/2, HEIGHT-2);
-
-		/*	don't use Metal L&F anymore
-		g.setColor(cThumbHighlightColor);
-		g.drawLine(0, 0, size.width-1, 0);
-		g.drawLine(0, 0, 0, size.height-1);
-
-		g.setColor(cThumbShadowColor);
-		g.drawLine(size.width-1, 1, size.width-1, size.height-1);
-		g.drawLine(1, size.height-1, size.width-1, size.height-1);
-
-		g.setColor(cThumbColor);
-		g.fillRect(1, 1, size.width-2, size.height-2);
-
-		g.setColor(cTextColor);
-		g.setFont(new Font("Helvetica", Font.PLAIN, TEXT_HEIGHT));
-		int stringWidth = (int)g.getFontMetrics().getStringBounds(mTitle, g).getWidth();
-		g.drawString(mTitle, (size.width-stringWidth)/2, HEIGHT-2);
-
-		drawPattern(g, size.width, stringWidth);
-		*/
+		g.drawString(mTitle, (size.width-stringWidth)/2, height()-2);
 		}
-
-	/*	don't use Metal L&F anymore
-	private void drawPattern(Graphics g, int totalWidth, int stringWidth) {
-		int cycles = (0xFFFE & ((totalWidth - stringWidth - 16) / 4)) - 1;
-
-		g.setColor(cThumbHighlightColor);
-		drawDotSet(g, 3, 2, cycles);
-		drawDotSet(g, totalWidth-2*cycles-3, 2, cycles);
-
-		g.setColor(cThumbShadowColor);
-		drawDotSet(g, 4, 3, cycles);
-		drawDotSet(g, totalWidth-2*cycles-2, 3, cycles);
-		}
-
-	private void drawDotSet(Graphics g, int x, int y, int cycles) {
-		for (int i=0; i<cycles; i++)
-			for (int j=0; j<3; j++)
-				if (((i + j) & 1) == 0)
-					g.drawLine(x+i*2, y+j*2, x+i*2, y+j*2);
-		}
-	*/
 
 	public void mouseClicked(MouseEvent e) {}
 

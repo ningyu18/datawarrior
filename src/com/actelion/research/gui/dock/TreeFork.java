@@ -1,8 +1,8 @@
 package com.actelion.research.gui.dock;
 
+import javax.swing.*;
 import java.awt.*;
 import java.util.ArrayList;
-import javax.swing.*;
 
 public class TreeFork extends TreeContainer {
 	private TreeElement mLeftChildElement;
@@ -160,6 +160,7 @@ class MySplitPane extends JSplitPane {
 		super(newOrientation, true, newLeftComponent, newRightComponent);
 		setDividerLocation(proportionalLocation);
 		setResizeWeight(proportionalLocation);
+		setBorder(null);
 		mProportionalLocation = proportionalLocation;
 		}
 

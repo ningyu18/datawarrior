@@ -22,8 +22,8 @@ import com.actelion.research.chem.calculator.StructureCalculator;
 import com.actelion.research.chem.mcs.ListWithIntVec;
 import com.actelion.research.forcefield.ForceField;
 import com.actelion.research.forcefield.mm2.MM2Config;
-import com.actelion.research.forcefield.optimizer.AlgoConjugateGradient;
-import com.actelion.research.forcefield.optimizer.AlgoLBFGS;
+import com.actelion.research.forcefield.optimizer.OptimizerConjugateGradient;
+import com.actelion.research.forcefield.optimizer.OptimizerLBFGS;
 import com.actelion.research.forcefield.optimizer.EvaluableForceField;
 import com.actelion.research.forcefield.optimizer.PreOptimizer;
 import com.actelion.research.util.datamodel.IntegerDouble;
@@ -77,7 +77,7 @@ public class FFMoleculeFunctions {
 		
 		StructureCalculator.deleteHydrogens(ff);
 		
-		new AlgoLBFGS().optimize(new EvaluableForceField(new ForceField(ff)));
+		new OptimizerLBFGS().optimize(new EvaluableForceField(new ForceField(ff)));
 		
 		StructureCalculator.vibrateLigand(ff, 0.1);
 
@@ -114,13 +114,13 @@ public class FFMoleculeFunctions {
 		
 		StructureCalculator.addHydrogens(ffConf);
 		
-		AlgoConjugateGradient algoConjugateGradient = new AlgoConjugateGradient();
+		OptimizerConjugateGradient algoConjugateGradient = new OptimizerConjugateGradient();
 		
 		algoConjugateGradient.optimize(new EvaluableForceField(new ForceField(ffConf)));
 		
 		AdvancedTools.optimizeByVibrating(ffConf);
 		
-		AlgoLBFGS algo = new AlgoLBFGS();
+		OptimizerLBFGS algo = new OptimizerLBFGS();
 		
 		algo.setMinRMS(1);
 		MM2Config conf = new MM2Config();
@@ -608,7 +608,7 @@ public class FFMoleculeFunctions {
 	/**
 	 * Protonates or deprotonates the specified atom, if necessary and possible, to neutralize a charge.
 	 * @param ff
-	 * @param indexAtomBasic
+	 * @param
 	 * @return
 	 */
 	public static FFMolecule getNeutralized(FFMolecule ff, int indexAtomReactiveCenter) {
@@ -644,7 +644,7 @@ public class FFMoleculeFunctions {
 
 		// Optimize the mol
 		PreOptimizer.preOptimize(mol);
-		new AlgoLBFGS().optimize(new EvaluableForceField(new ForceField(mol)));
+		new OptimizerLBFGS().optimize(new EvaluableForceField(new ForceField(mol)));
 
 		FFMoleculeFunctions.removeHydrogensAndElectronPairs(mol);
 		
@@ -722,7 +722,7 @@ public class FFMoleculeFunctions {
 
 		// Optimize the mol
 		PreOptimizer.preOptimize(mol);
-		new AlgoLBFGS().optimize(new EvaluableForceField(new ForceField(mol)));
+		new OptimizerLBFGS().optimize(new EvaluableForceField(new ForceField(mol)));
 		// FFViewer.viewMolecule(mol);
 
 		return mol;
@@ -736,7 +736,7 @@ public class FFMoleculeFunctions {
 
 		// Optimize the mol
 		PreOptimizer.preOptimize(mol);
-		new AlgoLBFGS().optimize(new EvaluableForceField(new ForceField(mol)));
+		new OptimizerLBFGS().optimize(new EvaluableForceField(new ForceField(mol)));
 		// FFViewer.viewMolecule(mol);
 
 		return mol;
@@ -1044,7 +1044,7 @@ public class FFMoleculeFunctions {
 
 	public static void removeNonAromaticC(FFMolecule mol) {
 		for (int i = mol.getAllAtoms() - 1; i >= 0; i--) {
-			if (mol.getAtomicNo(i) == 6 && !mol.isAromatic(i)
+			if (mol.getAtomicNo(i) == 6 && !mol.isAromaticAtom(i)
 					&& !mol.isAtomFlag(i, FLAG_CENTER_ATOM))
 				mol.deleteAtom(i);
 		}
@@ -1084,7 +1084,7 @@ public class FFMoleculeFunctions {
 		for (int i = 0; i < mol.getAllAtoms(); i++) {
 			for (int j = 0; j < mol.getAllConnAtoms(i); j++) {
 				int atConn = mol.getConnAtom(i,j);
-				int bondIndex = mol.getBondBetween(i, atConn);
+				int bondIndex = mol.getBond(i, atConn);
 				int bondOrder = mol.getBondOrder(bondIndex);
 				arrConnTable[i][atConn] = bondOrder;
 				arrConnTable[atConn][i] = bondOrder;
@@ -1298,14 +1298,14 @@ public class FFMoleculeFunctions {
 				int iInteractionType = mol.getAtomInteractionClass(arrIndices[at]);
 				String sDescription = mol.getAtomDescription(arrIndices[at]);
 				// Major MM2 interaction type
-				int iMM2Type = mol.getAtomMM2Class(arrIndices[at]);
+				int iMM2Type = mol.getMM2AtomType(arrIndices[at]);
 
 				int index = mol.getAllAtoms();
 				
 				
 				mol.addAtom(6);
 				mol.setAtomInteractionClass(index, iInteractionType);
-				mol.setAtomMM2Class(index, iMM2Type);
+				mol.setMM2AtomType(index, iMM2Type);
 				
 				String sOrigIndex = Integer.toString(arrIndices[at]);
 				mol.setAtomChainId(index, sOrigIndex);
@@ -1517,7 +1517,7 @@ public class FFMoleculeFunctions {
 
 	/**
 	 * Topological centaer atoms are the atoms with the lowest squared sum of topological distances to all atoms.
-	 * @param ff
+	 * @param
 	 * @return
 	 */
 	public final static List<Integer> getTopologicalCenter(int [][] arrTopoDist) {
@@ -1581,7 +1581,7 @@ public class FFMoleculeFunctions {
 
 	/**
 	 * Gets the points with the maximum sum of squared topological distances to all atoms.
-	 * @param ff
+
 	 * @param arrTopoDist
 	 * @return
 	 */
@@ -1771,10 +1771,10 @@ public class FFMoleculeFunctions {
 		
 		DefaultMutableTreeNode root = getTreeFromBroadFirstSearch(ff, indexAt1);
 		
-		Enumeration<DefaultMutableTreeNode> en = root.breadthFirstEnumeration();
+		Enumeration<TreeNode> en = root.breadthFirstEnumeration();
 		
 		for(;en.hasMoreElements();){
-			DefaultMutableTreeNode node = en.nextElement();
+			DefaultMutableTreeNode node = (DefaultMutableTreeNode)en.nextElement();
 			
 			int indexAtomNode = (Integer)node.getUserObject();
 			
@@ -1805,7 +1805,7 @@ public class FFMoleculeFunctions {
 		
 		DefaultMutableTreeNode root = FFMoleculeFunctions.getTreeFromBroadFirstSearch(ff, indexAtomStart);
 		
-		Enumeration<DefaultMutableTreeNode> en = (Enumeration<DefaultMutableTreeNode>)root.breadthFirstEnumeration();
+		Enumeration<TreeNode> en = root.breadthFirstEnumeration();
 		
 		List<List<Integer>> liliIndexAtomLayer = new ArrayList<List<Integer>>();
 		
@@ -1813,7 +1813,7 @@ public class FFMoleculeFunctions {
 		
 		int level = 0;
 		while(en.hasMoreElements()){
-			DefaultMutableTreeNode node = en.nextElement();
+			DefaultMutableTreeNode node = (DefaultMutableTreeNode)en.nextElement();
 			
 			if(node.getLevel()>level){
 				liliIndexAtomLayer.add(liIndexAtomLayer);
@@ -1951,7 +1951,7 @@ public class FFMoleculeFunctions {
 	/**
 	 * Protonates and increases charge by 1.
 	 * @param ff
-	 * @param indexAtomBase
+	 * @param
 	 * @return
 	 */
 	public static FFMolecule getProtonated(FFMolecule ff, int indexAtomReactiveCenter){

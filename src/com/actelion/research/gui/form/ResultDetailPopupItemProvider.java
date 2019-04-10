@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,9 +18,8 @@
 
 package com.actelion.research.gui.form;
 
+import javax.swing.*;
 import java.util.ArrayList;
-
-import javax.swing.JMenuItem;
 
 public interface ResultDetailPopupItemProvider {
 	/**
@@ -28,7 +27,6 @@ public interface ResultDetailPopupItemProvider {
 	 * JResultDetailView's rendering component. Items may be specific for a particular source,
 	 * e.g. an item to launch an associated application.
 	 * @param source
-	 * @param mimetype
 	 * @param reference
 	 * @return
 	 */

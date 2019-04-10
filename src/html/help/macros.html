@@ -119,11 +119,12 @@ submenu for immediate execution.
 
 <h3><a name="GlobalMacros"></a>Global and User Macros</h3>
 <p>
-When <span class="keyword">DataWarrior</span> is launched, it checks various predefined directory paths whether these exist
-and whether these directories contain any macro files with the extention <i>.dwam</i>. For any found macro file
-it adds the name of the macro, which doesn't necessarily correspond to the file name, to the <span class="menu">Run Macro</span>
-submenu of the <span class="menu">Macro</span> menu. If any of these menu items is selected, then the corresponding
-macro is executed on the active window's dataset. Specifically, <span class="keyword">DataWarrior</span> checkes these paths:<br>
+When <span class="keyword">DataWarrior</span> is launched, it searches some predefined directory paths for macro files, i.e. for
+files with the extention <i>.dwam</i>. From any found macro file it reads the contained macro's name and adds it to the
+<span class="menu">Run Macro</span> submenu of the <span class="menu">Macro</span> menu. Note that a macro name may be different
+from the name of the file that contains the macro. When any of the <span class="menu">Run Macro</span> submenu's items is selected,
+then the corresponding macro is executed on the active window's dataset. When assembling the macro list
+<span class="keyword">DataWarrior</span> searches these paths:<br>
 <li>The <i>macro</i> folder directly in the <span class="keyword">DataWarrior</span> installation directory. This is <i>/opt/datawarrior/macro</i>,
 <i>/Applications/DataWarrior.app/macro</i>, or <i>C:\Program Files\DataWarrior\macro</i> for Linux, Macintosh or Windows (64-bit),
 respectively. Any macro files in these directories are visible to all users.</li>
@@ -131,7 +132,7 @@ respectively. Any macro files in these directories are visible to all users.</li
 <i>/Users/&lt;username&gt;/datawarrior/macro</i> for Linux and Macintosh, respectively. On Windows the home folder location depends on
 the version of Windows, the version of Java and other settings. Often it is the user's <i>Desktop</i> folder.
 Therefore, <span class="keyword">DataWarrior</span> supports an additional path on Windows:
-<i>C:\\Users\&lt;username&gt;\AppData\Roaming\DataWarrior\Macro</i>. Of course, any macro files in these directories
+<i>C:\\Users\&lt;username&gt;\AppData\Roaming\DataWarrior\Macro</i>. Any macro files in these directories
 are visible to one user only.</li>
 <li>Another option is to define one or more custom macro folders by setting the Java system property <i>macropath</i> when launching
 <span class="keyword">DataWarrior</span> as e.g.: <i>-Dmacropath=/home/thomas/datawarrior/macros:/home/thomas/datawarrior/test/macros</i>
@@ -140,6 +141,25 @@ On OSX one needs to change <i>Info.plist</i> in the DataWarrior.app folder. On W
 One needs to pass the -D option to the executable when that is launched. One option is to create a shortcut and add the option to it.
 However, this approach only works, if DataWarrior is launched from the shortcut. If you know what you are doing, you may also
 edit the registry's shell/open/commands for the file extentions "dwar", "dwam", "sdf".</li>
+</p>
+<br>
+
+<h3><a name="CommandLine"></a>Running Macros from the Command Line</h3>
+<p>
+One way of using macros is to launch <span class="keyword">DataWarrior</span> from the command line or from within a shell
+script and passing a macro file name as the only parameter. This causes <span class="keyword">DataWarrior</span> to execute
+the macro. If the macro's last task is <span class="menu">Exit Program</span>, then <span class="keyword">DataWarrior</span>
+would close after the work is done letting the shell script continue with whatever is supposed to follow.<br>
+If configured from the macro editor, the <span class="menu">Exit Program</span> task allows to select, how open files with
+unsaved content shall be treated when the program closes. The options are not to save anything, to ask, which windows to save,
+or to save all Windows with unsaved changes automatically without asking interactive questions.
+In the latter case <span class="keyword">DataWarrior</span> handles Windows differently depending on whether they already
+have an existing file association. If a Window was earlier opened by reading a <span class="keyword">DataWarrior</span> file
+or if the Window's content was saved earlier into a <span class="keyword">DataWarrior</span> file, then changes would be
+written into that file effectively overwriting the previous content. If, however, there is no file association, because the
+Window's data was retrieved from a database or e.g. created as a combinatorial library, then
+<span class="keyword">DataWarrior</span> would save a new file under a unique name in the user's home directory making sure
+that no existing file is overwritten.
 </p>
 <br>
 

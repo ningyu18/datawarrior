@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -17,9 +17,15 @@
  */
 package com.actelion.research.chem.calculator;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.TreeMap;
 
-import javax.vecmath.*;
+import javax.vecmath.Matrix3d;
+import javax.vecmath.Matrix4d;
+import javax.vecmath.Point3d;
+import javax.vecmath.Vector4d;
 
 import com.actelion.research.chem.Coordinates;
 import com.actelion.research.chem.FFMolecule;
@@ -73,13 +79,56 @@ public class SuperposeCalculator {
 	 * @param M
 	 * @return
 	 */
-	public static double superpose(final Coordinates[] model,	final Coordinates[] c2, final Matrix4d M) {
+	public static double superpose(final Coordinates[] model, final Coordinates[] c2, final Matrix4d M) {
 		return superpose(model, c2, M, null, -1);
 	}
 
-	public static double superpose(final Coordinates[] model,	final Coordinates[] c2, final Matrix4d M, final double[] w) {
+	public static double superpose(final Coordinates[] model, final Coordinates[] c2, final Matrix4d M, final double[] w) {
 		return superpose(model, c2, M, w, -1);
 	}
+
+	/**
+	 * Shortcut for superposing 2 molecules. 
+	 * Equivalent to 
+	 * <pre>
+	 * 	SuperposeCalculator sup = new SuperposeCalculator(ALGO_LIGAND_MATCHING);
+	 *	return sup.superposeProteins(m1, m2, new Matrix4d(), -1);
+	 * </pre>
+	 * 	
+	 * @param m1
+	 * @param m2
+	 * @param algo
+	 * @return
+	 */
+	public static double superpose(FFMolecule m1, FFMolecule m2, int algo) {
+		SuperposeCalculator sup = new SuperposeCalculator(ALGO_LIGAND_MATCHING);
+		return sup.superposeProteins(m1, m2, new Matrix4d(), .5);		
+	}
+	
+	public static double superposeHeavyAtoms(FFMolecule m1, FFMolecule m2) {
+		m1.reorderAtoms();
+		m2.reorderAtoms();
+		assert m1.getAtoms()==m2.getAtoms();
+		
+		Coordinates[] model = new Coordinates[m1.getAtoms()];
+		for (int i = 0; i < model.length; i++) model[i] = m1.getCoordinates(i);
+
+		Coordinates[] cs = new Coordinates[m1.getAtoms()];
+		for (int i = 0; i < model.length; i++) cs[i] = new Coordinates(m2.getCoordinates(i));
+		
+		Matrix4d m = new Matrix4d();
+		double res = SuperposeCalculator.superpose(model, cs, m);
+		
+		for (int i = 0; i < m2.getAllAtoms(); i++) {
+			Point3d p = new Point3d(m2.getAtomX(i), m2.getAtomY(i), m2.getAtomZ(i));
+			m.transform(p);
+			m2.setAtomX(i, p.x);
+			m2.setAtomY(i, p.y);
+			m2.setAtomZ(i, p.z);
+		}
+		return res;
+	}
+
 
 	/**
 	 * Superpose c2 onto c1
@@ -89,7 +138,7 @@ public class SuperposeCalculator {
 	 */
 	public static double superpose(Coordinates[] model, Coordinates[] c2, final Matrix4d M, final double[] w, double treshHold) {
 		int len = model.length;
-		if (model.length != c2.length) throw new IllegalArgumentException("superpose: c1 and c2 do not have the same length");
+		if (model.length > c2.length) throw new IllegalArgumentException("superpose: c1 and c2 do not have the same length (" + model.length  +"<>" + c2.length + ")");
 		if (w!=null && model.length != w.length) throw new IllegalArgumentException("superpose: c1 and w do not have the same length");
 		
 		//Apply transformation for the weight
@@ -656,9 +705,9 @@ public class SuperposeCalculator {
 		List<Coordinates> c2 = new ArrayList<Coordinates>(); 
 		
 		for (int i = 0; i < m1.getAllAtoms(); i++) {
-			if(m1.getAtomicNo(i)<=1 || !m1.isAtomFlag(i, FFMolecule.LIGAND)) continue;
+			if(!m1.isAtomFlag(i, FFMolecule.LIGAND)) continue;
 			for (int j = 0; j < m2.getAllAtoms(); j++) {
-				if(m2.getAtomicNo(j)<=1 || !m2.isAtomFlag(j, FFMolecule.LIGAND)) continue;
+				if(!m2.isAtomFlag(j, FFMolecule.LIGAND)) continue;
 
 				if(getAtomHashkey(m1,i)!=getAtomHashkey(m2,j)) continue;
 				
@@ -867,14 +916,12 @@ public class SuperposeCalculator {
 	/**
 	 * Superpose 2 proteins
 	 * 
-	 * @param m1
-	 *            the model (coordinates not changed)
-	 * @param m2
-	 *            the molecule to be superposed (coordinates changed)
+	 * @param m1  the model (coordinates not changed)
+	 * @param m2  the molecule to be superposed (coordinates changed)
+	 * 
 	 * @return
 	 */
-	public double superposeProteins(FFMolecule m1, FFMolecule m2, Matrix4d M,
-			double treshold) {
+	public double superposeProteins(FFMolecule m1, FFMolecule m2, Matrix4d M, double treshold) {
 
 		// Gets the transformation matrix
 

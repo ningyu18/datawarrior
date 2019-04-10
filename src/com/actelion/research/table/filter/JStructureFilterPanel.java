@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,30 +18,28 @@
 
 package com.actelion.research.table.filter;
 
-import java.awt.Dimension;
-import java.awt.Frame;
+import com.actelion.research.chem.Canonizer;
+import com.actelion.research.chem.StereoMolecule;
+import com.actelion.research.chem.descriptor.DescriptorConstants;
+import com.actelion.research.chem.io.CompoundTableConstants;
+import com.actelion.research.gui.JProgressDialog;
+import com.actelion.research.gui.hidpi.HiDPIHelper;
+import com.actelion.research.table.model.CompoundTableEvent;
+import com.actelion.research.table.model.CompoundTableModel;
+
+import javax.swing.*;
+import javax.swing.event.ChangeEvent;
+import javax.swing.event.ChangeListener;
+import java.awt.*;
 import java.awt.event.ItemEvent;
 import java.awt.event.ItemListener;
 import java.util.Hashtable;
 
-import javax.swing.JComboBox;
-import javax.swing.JLabel;
-import javax.swing.JOptionPane;
-import javax.swing.JSlider;
-import javax.swing.SwingUtilities;
-import javax.swing.event.ChangeEvent;
-import javax.swing.event.ChangeListener;
-
-import com.actelion.research.chem.Canonizer;
-import com.actelion.research.chem.StereoMolecule;
-import com.actelion.research.chem.descriptor.DescriptorConstants;
-import com.actelion.research.gui.JProgressDialog;
-import com.actelion.research.table.CompoundTableEvent;
-import com.actelion.research.table.CompoundTableModel;
-
 public abstract class JStructureFilterPanel extends JFilterPanel 
 				implements ChangeListener,DescriptorConstants,ItemListener {
 	private static final long serialVersionUID = 0x20060925;
+
+	public static final String RXN_PRODUCT_TEXT = "Product of ";	// not used in files, used in GUI only
 
 	protected static final String cFilterBySubstructure = "#substructure#";
 	protected static final String cFilterBySimilarity = "#similarity#";
@@ -76,16 +74,25 @@ public abstract class JStructureFilterPanel extends JFilterPanel
 			mSimilaritySlider.setLabelTable(labels);
 			mSimilaritySlider.setPaintLabels(true);
 			mSimilaritySlider.setPaintTicks(true);
-			mSimilaritySlider.setPreferredSize(new Dimension(42, 100));
+			mSimilaritySlider.setPreferredSize(new Dimension(HiDPIHelper.scale(50), HiDPIHelper.scale(100)));
 			mSimilaritySlider.addChangeListener(this);
 			}
 		return mSimilaritySlider;
 		}
 
 	@Override
-	public boolean canEnable() {
+	public String getTitle() {
+		String title = mTableModel.getColumnTitle(mColumnIndex);
+		if (CompoundTableConstants.cColumnTypeRXNCode.equalsIgnoreCase(mTableModel.getColumnSpecialType(mColumnIndex)))
+			title = "Product of ".concat(title);
+		return title;
+		}
+
+	@Override
+	public boolean canEnable(boolean suppressErrorMessages) {
 		if (isActive() && mComboBox.getItemCount() == 0) {
-			JOptionPane.showMessageDialog(mParentFrame, "This structure filter cannot be enabled, because\n" +
+			if (!suppressErrorMessages)
+				JOptionPane.showMessageDialog(mParentFrame, "This structure filter cannot be enabled, because\n" +
 					"'"+mTableModel.getColumnTitle(mColumnIndex)+"' has no descriptor columns.");
 			return false;
 			}
@@ -204,12 +211,14 @@ public abstract class JStructureFilterPanel extends JFilterPanel
 			}
 
 		boolean found = false;
-		for (int i=0; i<mComboBox.getItemCount(); i++) {
-			String item = (String)mComboBox.getItemAt(i);
-			if (item.startsWith(selectedItem)) {
-				mComboBox.setSelectedIndex(i);
-				found = true;
-				break;
+		if (selectedItem != null) {
+			for (int i=0; i<mComboBox.getItemCount(); i++) {
+				String item = (String)mComboBox.getItemAt(i);
+				if (item.startsWith(selectedItem)) {
+					mComboBox.setSelectedIndex(i);
+					found = true;
+					break;
+					}
 				}
 			}
 
@@ -240,7 +249,7 @@ public abstract class JStructureFilterPanel extends JFilterPanel
 			}
 
 		if (getStructureCount() == 0)
-			mTableModel.clearCompoundFlag(mExclusionFlag);
+			mTableModel.clearRowFlag(mExclusionFlag);
 		else {
 			if (((String)mComboBox.getSelectedItem()).equals(cItemContains)) {
 				mTableModel.setSubStructureExclusion(mExclusionFlag, mColumnIndex, getStructures(), isInverse());
@@ -287,7 +296,7 @@ public abstract class JStructureFilterPanel extends JFilterPanel
 			createSimilarityListSMP(mol, descriptorColumn)
 
 			// else calculate similarity list in event dispatcher thread
-			: mTableModel.createSimilarityList(mol, descriptorColumn);
+			: mTableModel.createSimilarityList(mol, null, descriptorColumn);
 		}
 
 	protected abstract boolean supportsSSS();
@@ -316,7 +325,7 @@ public abstract class JStructureFilterPanel extends JFilterPanel
 				}
 			};
 
-	   	mTableModel.createSimilarityListSMP(chemObject, null, null, descriptorColumn, progressDialog);
+	   	mTableModel.createSimilarityListSMP(chemObject, null, null, descriptorColumn, progressDialog, false);
 
 	   	progressDialog.setVisible(true);
 		similarity = mTableModel.getSimilarityListSMP();

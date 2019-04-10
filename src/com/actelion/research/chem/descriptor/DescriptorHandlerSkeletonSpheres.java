@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,12 +18,12 @@
 
 package com.actelion.research.chem.descriptor;
 
-import java.util.Arrays;
-
 import com.actelion.research.chem.Canonizer;
 import com.actelion.research.chem.Molecule;
 import com.actelion.research.chem.StereoMolecule;
 import com.actelion.research.util.BurtleHasher;
+
+import java.util.Arrays;
 
 public class DescriptorHandlerSkeletonSpheres implements DescriptorHandler<byte[], StereoMolecule> {
     private static final double CORRECTION_FACTOR = 0.7;
@@ -58,6 +58,9 @@ public class DescriptorHandlerSkeletonSpheres implements DescriptorHandler<byte[
      * the respective option.
      */
     public byte[] createDescriptor(StereoMolecule mol) {
+	    if (mol == null)
+		    return null;
+
         mol.ensureHelperArrays(Molecule.cHelperRings);
         StereoMolecule fragment = new StereoMolecule(mol.getAtoms(), mol.getBonds());
 
@@ -146,18 +149,22 @@ public class DescriptorHandlerSkeletonSpheres implements DescriptorHandler<byte[
         }
 
     public String getVersion() {
-        return "1.1";
+        return DescriptorConstants.DESCRIPTOR_SkeletonSpheres.version;
         }
 
-    public float getSimilarity(byte[] d1, byte[] d2) {
+    public float getSimilarity(final byte[] d1, final byte[] d2) {
         if (d1 == null || d2 == null)
             return Float.NaN;
 
         int total = 0;
         int matching = 0;
         for (int i=0; i<d1.length; i++) {
-            total += Math.max(d1[i], d2[i]);
-            matching += Math.min(d1[i], d2[i]);
+
+            final byte i1 = d1[i];
+            final byte i2 = d2[i];
+
+            total += Math.max(i1, i2);
+            matching += Math.min(i1, i2);
             }
 /*
 if (((double)matching/(double)total) > 0.8) {
@@ -181,13 +188,13 @@ if (((double)matching/(double)total) > 0.8) {
         return normalizeValue((double)matching/(double)total);
         }
 
-	private float normalizeValue(double value) {
+	public float normalizeValue(double value) {
 		return value <= 0.0f ? 0.0f
 			 : value >= 1.0f ? 1.0f
 			 : (float)(1.0-Math.pow(1-Math.pow(value, CORRECTION_FACTOR) ,1.0/CORRECTION_FACTOR));
 		}
 
-    public DescriptorHandler<byte[], StereoMolecule> getDeepCopy() {
-		return new DescriptorHandlerSkeletonSpheres();
+    public DescriptorHandler<byte[], StereoMolecule> getThreadSafeCopy() {
+		return this;
     	}
 	}

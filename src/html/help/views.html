@@ -169,13 +169,14 @@ a right mouse click anywhere in the view (2D-view) or over any marker (3D-view).
 
 <p>Since the graphical views support multiple fundamentally different chart/view types,
 often the first thing to do after creating a new view is defining, which view type to show.
-This is achieved by choosing <span class="menu">Set Preferred Chart Type...</span>
-and configuring the options in the upcoming dialog. If the column data, which is assigned
-to the axes, is compatible with the preferred chart type, then your wish
-is granted and a chart of the chosen type is shown. Otherwise <span class="keyword">DataWarrior</span> 
-shows a scatterplot, because scatterplots are compatible with any column to axis assignment.
-Being presented with an unwanted scatterplot, one may still change the axis assignment to make
-the preferred chart possible.</p>
+This is done by choosing <span class="menu">Set Preferred Chart Type...</span>
+and configuring the options in the upcoming dialog. If the columns, which are assigned
+to the axes, contain data that is incompatible with the preferred chart type, then
+<span class="keyword">DataWarrior</span> shows a scatterplot instead, because scatterplots
+are compatible with any data type. Bar and pie charts require one or more category columns
+while box and whisker plots need one numerical and one category column.
+Being presented with an unintended scatterplot, one may still change the axis assignment
+to make the preferred chart possible.</p>
 
 <p>Markers and their corresponding data rows can be selected by dragging the mouse
 pointer around markers. If you press the <span class="menu">Alt</span> 
@@ -184,9 +185,12 @@ Pressing the <span class="menu">Shift</span> key causes any new selection to be 
 previous selection. The effects of the <span class="menu">Alt</span> and <span class="menu">Shift</span>
 keys can be combined.</p>
 
-<p>The 3D-View can be rotated by dragging the mouse with the <b>right mouse button</b>.
-The drag should start above empty space within the view. Otherwise, you will endup with
-a popup menu rather than being able to rotate the view.</p>
+<p>The 3D-View can be rotated by pressing and immediately dragging the mouse with the
+<b>right mouse button</b>. If the <b>Shift</b> key is kept pressed while the view is
+rotated, then the rotation is restricted to a pure horizontal or vertical rotation.
+Note that in 3D-views the right mouse button is used to rotate views as well as to
+show a popup menu to configure view details. If you press and drag, then the view rotates.
+If you press and release or wait for 800 ms then the popup appears.</p>
 
 <p>To visualize more dimensions than already given by the 2D- or 3D-coordinate systems,
 marker colors, sizes or shapes can be associated to data columns to reflect numerical
@@ -201,8 +205,9 @@ a smooth colorful property landscape, where areas with similar colors visualize 
 of similar properties. Consequently, background coloring is particularly useful 
 if the property associated to it correlates to some extend with the column values that
 are assigned to the x- and y-axis. In other words background colors are used best,
-if close markers have similar properties. The background color dialog is accessible from
-the <span class="menu">Set Marker Background Color...</span> item from the view popup menu.</p>
+if close markers have similar properties, e.g. in a chemical space visualization.
+The background color dialog is accessible from the <span class="menu">Set Marker
+Background Color...</span> item from the view popup menu.</p>
 
 <p align="center"><img src="help/img/views/bgColorDialog.jpeg"></p>
 
@@ -214,14 +219,26 @@ of the list members only, even if the markers of these list members are not visi
 This way a view's background may visualize some property space, while an independent set
 of visible rows is shown on top of it.</p>
 
-<p><span class="menu">Set Marker Labels...</span> offers decorating markers by resizeable
-text labels at eight positions around the marker. These labels may show alphanumerical
-column content or even chemical structures. A label may also be shown instead of the marker.</p>
+<p><span class="menu">Set Marker Labels...</span> offers decorating markers with resizeable
+labels at up to eight positions around the marker. A label may even be shown instead of the
+marker. Labels show the content of an associated column, which may be alphanumerical or a
+chemical structure. Labels may be shown for all markers or only for a subset of markers.
+In the latter case one needs to define a row list containing the rows to be decorated with
+labels. This list then needs to be selected from the <span class="menu">Show labels on</span> choices.
+An alternative way of restricting labels to a subset of all rows would be setting the view's
+<span class="keyword">focus</span> on a data subset (see below).</p>
+
+<p align="center"><img src="help/img/views/labels.jpeg"></p>
+
+<p>The view above shows airplane names for some of the markers. Notice, that the labels were
+manually moved to less populated locations to avoid label collisions with data and other labels.
+In <span class="keyword">DataWarrior</span> labels may simply be dragged from their default locations
+to other locations using the mouse.</p>
 
 <p>The <span class="menu">Set Focus To Row List...</span> option puts a visual focus on a 
 certain group of markers. The markers in focus are drawn on top of the remaining markers,
-while the remaining ones are drawn in a dimmed way. If marker labels are shown, then
-these are suppressed on row markers that are not in the focus. This lets 
+while the remaining ones are drawn in a dimmed way. If marker labels are set to be shown, then
+only those row markers are decorated with labels, which are in the focus. This lets 
 you show a certain group of rows in the context of a bigger group. The rows in the focus
 are either those rows that belong to a row list or all selected rows are considered to be in the focus.
 In the latter case the focus is changing, whenever the selection changes.</p>

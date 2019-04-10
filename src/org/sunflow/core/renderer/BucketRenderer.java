@@ -196,6 +196,8 @@ public class BucketRenderer implements ImageSampler {
                 renderBucket(display, bx, by, threadID, istate);
                 if (UI.taskCanceled())
                     return;
+                if (display.imageCancelled())
+                    return;
             }
         }
 

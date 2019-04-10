@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -52,7 +52,7 @@ import com.actelion.research.datawarrior.DEFrame;
 import com.actelion.research.datawarrior.task.ConfigurableTask;
 import com.actelion.research.datawarrior.task.file.JFilePathLabel;
 import com.actelion.research.gui.FileHelper;
-import com.actelion.research.table.CompoundTableModel;
+import com.actelion.research.table.model.CompoundTableModel;
 import com.actelion.research.table.CompoundTableSOM;
 import com.actelion.research.table.MarkerLabelDisplayer;
 import com.actelion.research.table.view.JVisualization;
@@ -79,8 +79,6 @@ public class DETaskCalculateSOM extends ConfigurableTask implements ActionListen
 	private static final String[] FUNCTION_OPTIONS = {"Gaussean", "Mexican Hat", "Linear"};
 	private static final String[] FUNCTION_CODE = {"gaussean", "mexicanHat", "linear"};
 
-    private static Properties sRecentConfiguration;
-
 	private DEFrame				mParentFrame;
     private CompoundTableModel  mTableModel;
 	private JComboBox			mComboBoxMapSize,mComboBoxFunction,
@@ -94,30 +92,19 @@ public class DETaskCalculateSOM extends ConfigurableTask implements ActionListen
 	private CompoundTableSOM	mSOM;
 	private BufferedImage       mBackgroundImage;
     private JFilePathLabel		mLabelFileName;
-	private boolean				mIsInteractive,mCheckOverwrite;
+	private boolean				mCheckOverwrite;
 
-    public DETaskCalculateSOM(DEFrame parent, boolean isInteractive) {
+    public DETaskCalculateSOM(DEFrame parent, boolean checkOverride) {
 		super(parent, true);
 		mParentFrame = parent;
 		mTableModel = parent.getTableModel();
-		mIsInteractive = isInteractive;
-		mCheckOverwrite = mIsInteractive;
+		mCheckOverwrite = checkOverride;
     	}
 
 	@Override
 	public DEFrame getNewFrontFrame() {
 		return null;
 		}
-
-	@Override
-	public Properties getRecentConfiguration() {
-    	return sRecentConfiguration;
-    	}
-
-	@Override
-	public void setRecentConfiguration(Properties configuration) {
-    	sRecentConfiguration = configuration;
-    	}
 
 	@Override
 	public boolean isConfigurable() {
@@ -195,7 +182,7 @@ public class DETaskCalculateSOM extends ConfigurableTask implements ActionListen
 
         optionPanel.add(new JLabel("Parameters used:"), "1,1");
         JScrollPane scrollPane = null;
-		if (mIsInteractive) {
+		if (isInteractive()) {
 	        mListColumns = new JList(columnList);
 			scrollPane = new JScrollPane(mListColumns);
 			}
@@ -228,11 +215,11 @@ public class DETaskCalculateSOM extends ConfigurableTask implements ActionListen
         optionPanel.add(new JLabel("Split data by:", JLabel.RIGHT), "3,16");
         mComboBoxPivotGroupColumn = new JComboBox(categoryColumns);
         mComboBoxPivotGroupColumn.setEnabled(false);
-        mComboBoxPivotGroupColumn.setEditable(!mIsInteractive);
+        mComboBoxPivotGroupColumn.setEditable(!isInteractive());
         optionPanel.add(mComboBoxPivotGroupColumn, "5,14,7,14");
         mComboBoxPivotDataColumn = new JComboBox(categoryColumns);
         mComboBoxPivotDataColumn.setEnabled(false);
-        mComboBoxPivotDataColumn.setEditable(!mIsInteractive);
+        mComboBoxPivotDataColumn.setEditable(!isInteractive());
         optionPanel.add(mComboBoxPivotDataColumn, "5,16,7,16");
 
         mCheckBoxSaveMap = new JCheckBox("Save file with SOM vectors", false);
@@ -243,7 +230,7 @@ public class DETaskCalculateSOM extends ConfigurableTask implements ActionListen
 		JPanel ep = new JPanel();
 		ep.add(mButtonEdit);
 		optionPanel.add(ep, "7,18");
-		mLabelFileName = new JFilePathLabel(!mIsInteractive);
+		mLabelFileName = new JFilePathLabel(!isInteractive());
 		optionPanel.add(mLabelFileName, "3,20,7,20");
 
         return optionPanel;
@@ -258,7 +245,7 @@ public class DETaskCalculateSOM extends ConfigurableTask implements ActionListen
 	public Properties getDialogConfiguration() {
 		Properties configuration = new Properties();
 
-		String columnNames = mIsInteractive ?
+		String columnNames = isInteractive() ?
 				  getSelectedColumnsFromList(mListColumns, mTableModel)
 				: mTextArea.getText().replace('\n', '\t');
 		if (columnNames != null && columnNames.length() != 0)
@@ -285,7 +272,7 @@ public class DETaskCalculateSOM extends ConfigurableTask implements ActionListen
 	@Override
 	public void setDialogConfiguration(Properties configuration) {
 		String columnNames = configuration.getProperty(PROPERTY_COLUMN_LIST, "");
-		if (mIsInteractive)
+		if (isInteractive())
 			selectColumnsInList(mListColumns, columnNames, mTableModel);
 		else
 			mTextArea.setText(columnNames.replace('\t', '\n'));
@@ -313,7 +300,7 @@ public class DETaskCalculateSOM extends ConfigurableTask implements ActionListen
 
 	@Override
 	public void setDialogConfigurationToDefault() {
-		if (mIsInteractive)
+		if (isInteractive())
 			mListColumns.clearSelection();
 		else
 			mTextArea.setText("");
@@ -432,7 +419,7 @@ public class DETaskCalculateSOM extends ConfigurableTask implements ActionListen
         	}
 		if (e.getActionCommand().equals(JFilePathLabel.BUTTON_TEXT)
 		 || (e.getSource() == mCheckBoxSaveMap && mCheckBoxSaveMap.isSelected() && mLabelFileName.getPath() == null)) {
-			String filename = resolveVariables(mLabelFileName.getPath());
+			String filename = resolvePathVariables(mLabelFileName.getPath());
 			if (filename == null)
 				filename = mParentFrame.getSuggestedFileName();
 			filename = new FileHelper(getParentFrame()).selectFileToSave(
@@ -492,7 +479,7 @@ public class DETaskCalculateSOM extends ConfigurableTask implements ActionListen
 
         String fileName = configuration.getProperty(PROPERTY_FILENAME);
 		if (fileName != null)
-			writeSOM(new File(resolveVariables(fileName)));
+			writeSOM(new File(resolvePathVariables(fileName)));
 
 		SwingUtilities.invokeLater(new Runnable() {
 			public void run() {
@@ -515,8 +502,8 @@ public class DETaskCalculateSOM extends ConfigurableTask implements ActionListen
                     	}
                     if (mBackgroundImage != null) {
                         ((JVisualization2D)vpanel1.getVisualization()).setBackgroundImage(mBackgroundImage);
-                        vpanel1.getVisualization().setScaleMode(JVisualization.cScaleModeHideAll);
-                        vpanel1.getVisualization().setSuppressGrid(true);
+                        vpanel1.getVisualization().setScaleMode(JVisualization.cScaleModeHidden);
+                        vpanel1.getVisualization().setGridMode(JVisualization.cGridModeHidden);
                     	}
                     }
                 }

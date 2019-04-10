@@ -11,9 +11,9 @@
 <h2><a name="GeneralConcepts"></a>General Concepts</h2>
 
 <hr align="left" size="2" width="550">
-<p><span class="keyword">DataWarrior</span> is a multi-purpose data analysis tool.
-It works on any kind of tabular data assuming rows to contain objects or cases and
-columns to contain associated properties and values.
+<p><span class="keyword">DataWarrior</span> is an interactive, chemistry-aware
+multi-purpose data visualization and analysis program. It works on any kind of tabular data
+assuming rows to contain objects or cases and columns to contain associated properties and values.
 <span class="keyword">DataWarrior</span> provides interactive views to visualize data,
 to discover correlations and to extract hidden knowledge from large data sets.
 Data filters allow focusing on specific data subsets in a dynamic way.
@@ -24,8 +24,10 @@ specialized cheminformatics methods explore the relationship between chemical st
 and measured properties.
 <span class="keyword">DataWarrior</span> supports multiple files types and allows
 merging data from files with data from the clipboard or from databases.
-<span class="keyword">DataWarrior</span> is freely available for Linux, Macintosh and Windows.<br>
-This section explains general concepts and defines important keywords.</p>
+<span class="keyword">DataWarrior</span> is freely available for Linux, Macintosh and Windows
+and its complete source code is downloadable under the
+<span class="keyword">GNU Public License</span>.<br>
+This section explains general concepts and explains important keywords.</p>
 <br>
 <h3><a name="MainAndDetailViews"></a>Main View Area and Detail Area</h3>
 <p>The <span class="keyword">Main View Area</span> shows one or multiple
@@ -96,16 +98,20 @@ displays a small number in a colored square indicating that more information is 
 <p>
 Filters may hide rows from main views to temporarily focus on the remaining visible rows.
 Various filter kinds are available, but they all share certain characteristics.
-Filters always apply to all views, i.e. remove the same rows from all views at the same time.
-Filters can be inverted by selecting the inversion button. If a row is excluded by one or
-more filters, then is is not visible in any view.
+Filters always apply to all views, i.e. hide the same rows from all views at the same time.
+If a row is excluded by one or more filters, then it is not visible in any view.
+Usually, a filter is associated with one column of the data and the kind of data within a
+column determines, which filter types can be created and used for this column.
+The effect of a filter can be inverted by selecting the <span class="menu">Invert</span> button.
+A <span class="menu">Disable</span> button allows to temporarily switch off the filtering effect
+without removing the filter's settings.
 The status panel displays the number of visible rows, of the selected rows, and of all rows.
 </p>
-<p>The available filter types are:</p>
+<p>Available filter types are:</p>
 <table class="wspace">
   <tbody>
     <tr>
-      <td class="wspace"><p><img src="help/img/basics/sliders.jpeg"></p></td>
+      <td class="wspace"><p><img src="help/img/basics/sliders.png"></p></td>
       <td class="wspace"><span class="keyword">Sliders</span> filter rows based on numerical 
       or date values. They define an allowed or forbidden data range by defining 
       minimum and maximum values. Pressing the <span class="menu">Ctrl</span> 
@@ -113,14 +119,14 @@ The status panel displays the number of visible rows, of the selected rows, and 
       to allow fine-tuning.</td>
     </tr>
     <tr>
-      <td class="wspace"><p><img src="help/img/basics/textFilter.jpeg"></p></td>
-      <td class="wspace"><span class="keyword">Text filters</span> may be used to hide rows which match or don't match 
-      a query string in a definable way. For advanced text pattern matching one 
-      may define a <a class="links" href="help/regex.html">regular expression</a> with 
-      the <span class="menu">matches regex</span> option.</td>
+      <td class="wspace"><p><img src="help/img/basics/textFilter.png"></p></td>
+      <td class="wspace"><span class="keyword">Text filters</span> may be used to hide rows, which match
+      or don't match a query in a certain way. This includes a sub-string search, an exact match, or a
+      <a class="links" href="help/regex.html">regular expression</a> search. If multiple comma separated
+      text snippets are given, then all rows are hidden, which match none of the individual query strings.</td>
     </tr>
     <tr>
-      <td class="wspace"><p><img src="help/img/basics/categories.jpeg"></p></td>
+      <td class="wspace"><p><img src="help/img/basics/categories.png"></p></td>
       <td class="wspace"><span class="keyword">Category filters</span> hide certain categories of the data. Rows are 
       hidden if they don't belong to any of the checked categories. If some rows 
       belong to multiple categories at the same time, then a &lt;multiple categories&gt; 
@@ -128,39 +134,64 @@ The status panel displays the number of visible rows, of the selected rows, and 
       categories are kept from hiding.</td>
     </tr>
     <tr>
-      <td class="wspace"><p><img src="help/img/basics/categoryBrowser.jpeg"></p></td>
+      <td class="wspace"><p><img src="help/img/basics/categoryBrowser.png"></p></td>
       <td class="wspace">A <span class="keyword">Category Browser</span> allows to quickly browse
       through the different categories within a dataset. This can be done stepwise
       through clicking the 'previous' and 'next' buttons or more rapidly by dragging the slider.
+      Using the <span class="menu">Animate</span> button <span class="keyword">Category Browsers</span>
+      can be configured to automatically cycle through all categories one by one.
 	</td>
     </tr>
     <tr>
-      <td class="wspace"><p><img src="help/img/basics/listFilter.jpeg"></p></td>
+      <td class="wspace"><p><img src="help/img/basics/listFilter.png"></p></td>
       <td class="wspace"><span class="keyword">Row list filters</span> are used to hide all
       members of a
       selected hitlist or all rows that do not belong to that hitlist.</td>
     </tr>
     <tr>
-      <td class="wspace"><p><img src="help/img/basics/structureFilter.jpeg"></p></td>
+      <td class="wspace"><p><img src="help/img/basics/structureFilter.png"></p></td>
       <td class="wspace">Chemical <span class="keyword">structure filters</span> may be used to 
       show or hide compounds with a given substructure or that are similar to a 
       given molecule. <a href="help/chemistry.html#StructureFilter">More...</a><br>
       </td>
     </tr>
     <tr>
-      <td class="wspace"><p><img src="help/img/basics/sssList.jpeg"></p></td>
+      <td class="wspace"><p><img src="help/img/basics/sssList.png"></p></td>
       <td class="wspace">Two specialized filters allow an immediate filtering based on multiple
-      structures at once. The <span class="keyword">SSS list filters</span> run a parallel
+      structures at once. The <span class="keyword">SSS list filter</span> run a parallel
       sub-structure-search on multiple query structures and hides rows, whose molecules
       don't contain any of the listed query fragments. Fragment lists can be
       loaded from file, edited manually or combined by drag and drop.
       </td>
     </tr>
     <tr>
-      <td class="wspace"><p><img src="help/img/basics/simList.jpeg"></p></td>
-      <td class="wspace"><span class="keyword">Similarity structure list filters</span> may be used to 
+      <td class="wspace"><p><img src="help/img/basics/simList.png"></p></td>
+      <td class="wspace">A <span class="keyword">Similarity structure list filter</span> may be used to 
       hide rows, whose molecules are not similar to any of the listed structures.
       Any currently available descriptor may serve as similarity criterion.
+      </td>
+    </tr>
+    <tr>
+      <td class="wspace"><p><img src="help/img/basics/implicitViewFilter.jpeg"></p></td>
+      <td class="wspace">Per default any visible graphical view also serves as implicit filter.
+      When the <span class="menu">xyz</span> button is clicked, then a popup appears
+      that allows assigning data columns to view axes and zooming into particular
+      axes. When individual row markers are zoomed out of the view, they disappear
+      also from other views. This visibility influence on other views can be changed
+      in the view's <span class="keyword">General View Options</span>. When a graphical
+      view gets hidden behind other views, then its filtering effect is disabled until
+      the view gets visible again.
+      </td>
+    </tr>
+    <tr>
+      <td class="wspace"><p><img src="help/img/basics/explicitViewFilter.jpeg"></p></td>
+      <td class="wspace">One graphical view may also be defined to serve as an
+      explicit filter, which changes its row selection behaviour. If rows are chosen
+      in an explicitly filtering view, the global row selection is not changed.
+      Instead, all rows not chosen are hidden from all other views. This way one
+      may quickly restrict the row visibility in other views to a chosen custom set.
+      The chosen rows are drawn in <b><font color="#660066">purple</font></b>, while globally selected rows are still
+      drawn in the usual <b><font color="#006666">grayish blue</font></b>.
       </td>
     </tr>
   </tbody>

@@ -17,7 +17,7 @@ public abstract class AMemorizedObject {
 	
 	/**
 	 * Has to be a deep copy
-	 * @param t
+	 * @param m
 	 */
 	abstract public void copyIntoThis(AMemorizedObject m);
 	

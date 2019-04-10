@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -35,14 +35,12 @@ import javax.swing.JPanel;
 import com.actelion.research.chem.io.CompoundFileHelper;
 import com.actelion.research.datawarrior.DEFrame;
 import com.actelion.research.datawarrior.task.DEMacro;
-import com.actelion.research.table.CompoundTableModel;
+import com.actelion.research.table.model.CompoundTableModel;
 
 public class DETaskExportMacro extends DETaskAbstractSaveFile {
     public static final String TASK_NAME = "Export Macro";
 
     private static final String PROPERTY_MACRO_NAME = "macroName";
-
-	private static Properties sRecentConfiguration;
 
 	private String mMacroName;
 	private JComboBox mComboBoxMacroName;
@@ -51,16 +49,6 @@ public class DETaskExportMacro extends DETaskAbstractSaveFile {
 		super(parent, "");
 		mMacroName = macroName;
 		}
-
-	@Override
-	public Properties getRecentConfiguration() {
-    	return sRecentConfiguration;
-    	}
-
-	@Override
-	public void setRecentConfiguration(Properties configuration) {
-    	sRecentConfiguration = configuration;
-    	}
 
 	@Override
 	public String getTaskName() {

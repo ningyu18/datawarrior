@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,19 +18,14 @@
 
 package com.actelion.research.datawarrior.task.list;
 
-import info.clearthought.layout.TableLayout;
-
-import java.util.Properties;
-
-import javax.swing.JComboBox;
-import javax.swing.JComponent;
-import javax.swing.JLabel;
-import javax.swing.JPanel;
-import javax.swing.JTextField;
-
 import com.actelion.research.datawarrior.DEFrame;
 import com.actelion.research.datawarrior.task.ConfigurableTask;
-import com.actelion.research.table.CompoundTableHitlistHandler;
+import com.actelion.research.table.model.CompoundTableListHandler;
+import com.actelion.research.table.model.CompoundTableModel;
+import info.clearthought.layout.TableLayout;
+
+import javax.swing.*;
+import java.util.Properties;
 
 
 public class DETaskCombineTwoRowLists extends ConfigurableTask {
@@ -43,25 +38,27 @@ public class DETaskCombineTwoRowLists extends ConfigurableTask {
 
 	private static final String DEFAULT_LIST_NAME = "Unnamed List";
 
-    private static Properties sRecentConfiguration;
-
-	private CompoundTableHitlistHandler	mHitlistHandler;
+    private CompoundTableModel			mTableModel;
+	private CompoundTableListHandler mHitlistHandler;
 	private JComboBox					mComboBoxHitlist1,mComboBoxHitlist2,mComboBoxOperation;
 	private JTextField					mTextFieldName;
-	private boolean						mIsInteractive;
 
-    public DETaskCombineTwoRowLists(DEFrame parent, boolean isInteractive) {
+    public DETaskCombineTwoRowLists(DEFrame parent) {
 		super(parent, true);
-		mIsInteractive = isInteractive;
-		mHitlistHandler = parent.getTableModel().getHitlistHandler();
+		mTableModel = parent.getTableModel();
+		mHitlistHandler = parent.getTableModel().getListHandler();
 	    }
 
 	@Override
 	public boolean isConfigurable() {
-		String[] names = mHitlistHandler.getHitlistNames();
+		String[] names = mHitlistHandler.getListNames();
 		if (names == null || names.length < 2) {
 			showErrorMessage("Less than two row lists found.");
 			return false;
+			}
+		if (mTableModel.getUnusedRowFlagCount() == 0) {
+			showErrorMessage("Cannot create a new row list, because the\n"
+					+"maximum number of filters/lists is reached.");
 			}
 		return true;
 		}
@@ -78,7 +75,7 @@ public class DETaskCombineTwoRowLists extends ConfigurableTask {
 							{8, TableLayout.PREFERRED, 16, TableLayout.PREFERRED, 4, TableLayout.PREFERRED, 16, TableLayout.PREFERRED, 8} };
 		mp.setLayout(new TableLayout(size));
 
-		String[] hitlistNames = mHitlistHandler.getHitlistNames();
+		String[] hitlistNames = mHitlistHandler.getListNames();
 		if (hitlistNames == null) {
 			hitlistNames = new String[1];
 			hitlistNames[0] = "";
@@ -91,12 +88,12 @@ public class DETaskCombineTwoRowLists extends ConfigurableTask {
 		mComboBoxHitlist1 = new JComboBox(hitlistNames);
 		mp.add(new JLabel("1st list:"), "1, 3");
 		mp.add(mComboBoxHitlist1, "3, 3");
-		mComboBoxHitlist1.setEditable(!mIsInteractive);
+		mComboBoxHitlist1.setEditable(!isInteractive());
 
 		mComboBoxHitlist2 = new JComboBox(hitlistNames);
 		mp.add(new JLabel("2nd list:"), "1, 5");
 		mp.add(mComboBoxHitlist2, "3, 5");
-		mComboBoxHitlist2.setEditable(!mIsInteractive);
+		mComboBoxHitlist2.setEditable(!isInteractive());
 
 		mComboBoxOperation = new JComboBox(HitlistOptionRenderer.OPERATION_TEXT);
 		mComboBoxOperation.setRenderer(new HitlistOptionRenderer());
@@ -119,9 +116,9 @@ public class DETaskCombineTwoRowLists extends ConfigurableTask {
 	@Override
 	public void setDialogConfiguration(Properties configuration) {
 		mTextFieldName.setText(configuration.getProperty(PROPERTY_NEW_HITLIST, ""));
-		if (mIsInteractive) {
-			int hitlist1 = mHitlistHandler.getHitlistIndex(configuration.getProperty(PROPERTY_HITLIST_1, ""));
-			int hitlist2 = mHitlistHandler.getHitlistIndex(configuration.getProperty(PROPERTY_HITLIST_2, ""));
+		if (isInteractive()) {
+			int hitlist1 = mHitlistHandler.getListIndex(configuration.getProperty(PROPERTY_HITLIST_1, ""));
+			int hitlist2 = mHitlistHandler.getListIndex(configuration.getProperty(PROPERTY_HITLIST_2, ""));
 			mComboBoxHitlist1.setSelectedIndex(hitlist1 == -1 ? 0 : hitlist1);
 			mComboBoxHitlist2.setSelectedIndex(hitlist2 == -1 ? 0 : hitlist2);
 			}
@@ -135,8 +132,10 @@ public class DETaskCombineTwoRowLists extends ConfigurableTask {
 	@Override
 	public void setDialogConfigurationToDefault() {
 		mTextFieldName.setText(DEFAULT_LIST_NAME);
-		mComboBoxHitlist1.setSelectedIndex(0);
-		mComboBoxHitlist2.setSelectedIndex(1);
+		if (mComboBoxHitlist1.getItemCount() >= 1)
+			mComboBoxHitlist1.setSelectedIndex(0);
+		if (mComboBoxHitlist2.getItemCount() >= 2)
+			mComboBoxHitlist2.setSelectedIndex(1);
 		mComboBoxOperation.setSelectedIndex(0);
 		}
 
@@ -153,13 +152,13 @@ public class DETaskCombineTwoRowLists extends ConfigurableTask {
 
 		if (isLive) {
 			String hitlistName1 = configuration.getProperty(PROPERTY_HITLIST_1, "");
-			int hitlist1 = mHitlistHandler.getHitlistIndex(hitlistName1);
+			int hitlist1 = mHitlistHandler.getListIndex(hitlistName1);
 			if (hitlist1 == -1) {
 				showErrorMessage("Row list '"+hitlistName1+"' not found.");
 				return false;
 				}
 			String hitlistName2 = configuration.getProperty(PROPERTY_HITLIST_2, "");
-			int hitlist2 = mHitlistHandler.getHitlistIndex(hitlistName2);
+			int hitlist2 = mHitlistHandler.getListIndex(hitlistName2);
 			if (hitlist2 == -1) {
 				showErrorMessage("Row list '"+hitlistName2+"' not found.");
 				return false;
@@ -175,11 +174,11 @@ public class DETaskCombineTwoRowLists extends ConfigurableTask {
 
 	@Override
 	public void runTask(Properties configuration) {
-		int hitlist1 = mHitlistHandler.getHitlistIndex(configuration.getProperty(PROPERTY_HITLIST_1));
-		int hitlist2 = mHitlistHandler.getHitlistIndex(configuration.getProperty(PROPERTY_HITLIST_2));
+		int hitlist1 = mHitlistHandler.getListIndex(configuration.getProperty(PROPERTY_HITLIST_1));
+		int hitlist2 = mHitlistHandler.getListIndex(configuration.getProperty(PROPERTY_HITLIST_2));
 		int operation = findListIndex(configuration.getProperty(PROPERTY_OPERATION), HitlistOptionRenderer.OPERATION_CODE, 0);
 
-		if (mHitlistHandler.createHitlist(mTextFieldName.getText(), hitlist1, hitlist2, operation) == null)
+		if (mHitlistHandler.createList(mTextFieldName.getText(), hitlist1, hitlist2, operation) == null)
 			showErrorMessage("The maximum number of filters/lists is reached.");
 		}
 
@@ -187,14 +186,4 @@ public class DETaskCombineTwoRowLists extends ConfigurableTask {
 	public DEFrame getNewFrontFrame() {
 		return null;
 		}
-
-	@Override
-	public Properties getRecentConfiguration() {
-    	return sRecentConfiguration;
-    	}
-
-	@Override
-	public void setRecentConfiguration(Properties configuration) {
-    	sRecentConfiguration = configuration;
-    	}
 	}

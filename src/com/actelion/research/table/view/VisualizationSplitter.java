@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -31,9 +31,9 @@ public class VisualizationSplitter {
 	 * @param bounds
 	 * @param count1 number of items in 1st category
 	 * @param count2 number of items in 2nd category (-1 if only one category used)
-	 * @param originalFontHeight font height without view splitting
+	 * @param fontHeight font height without view splitting
 	 * @param largeHeader true if header needs more height, e.g. for depicting molecules
-	 * @param desired width/height ratio of sub-views
+	 * @param aspect desired width/height ratio of sub-views
 	 */
 	protected VisualizationSplitter(Rectangle bounds, int count1, int count2, int fontHeight, boolean largeHeader, float aspect) {
 		int count = Math.max(1, count2 == -1 ? count1 : count1*count2);

@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,65 +18,37 @@
 
 package com.actelion.research.datawarrior.task.view;
 
+import com.actelion.research.datawarrior.DEFormView;
+import com.actelion.research.datawarrior.DEFrame;
+import com.actelion.research.datawarrior.DEMainPane;
+import com.actelion.research.datawarrior.task.AbstractViewTask;
+import com.actelion.research.datawarrior.task.file.JFilePathLabel;
+import com.actelion.research.gui.FileHelper;
+import com.actelion.research.gui.clipboard.ImageClipboardHandler;
+import com.actelion.research.gui.dock.Dockable;
+import com.actelion.research.gui.form.FormModel;
+import com.actelion.research.table.model.CompoundTableModel;
+import com.actelion.research.table.view.*;
 import info.clearthought.layout.TableLayout;
-
-import java.awt.Color;
-import java.awt.Component;
-import java.awt.Dimension;
-import java.awt.Frame;
-import java.awt.Graphics;
-import java.awt.Graphics2D;
-import java.awt.Image;
-import java.awt.Rectangle;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
-import java.awt.event.KeyAdapter;
-import java.awt.event.KeyEvent;
-import java.awt.geom.Rectangle2D;
-import java.awt.image.BufferedImage;
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.OutputStreamWriter;
-import java.io.Writer;
-import java.util.Properties;
-
-import javax.swing.ButtonGroup;
-import javax.swing.JButton;
-import javax.swing.JCheckBox;
-import javax.swing.JComboBox;
-import javax.swing.JComponent;
-import javax.swing.JLabel;
-import javax.swing.JPanel;
-import javax.swing.JRadioButton;
-import javax.swing.JTextField;
-
 import org.apache.batik.dom.GenericDOMImplementation;
 import org.apache.batik.svggen.SVGGeneratorContext;
 import org.apache.batik.svggen.SVGGraphics2D;
 import org.w3c.dom.DOMImplementation;
 import org.w3c.dom.Document;
 
-import com.actelion.research.datawarrior.DEFormView;
-import com.actelion.research.datawarrior.DEFrame;
-import com.actelion.research.datawarrior.DEMainPane;
-import com.actelion.research.datawarrior.task.file.JFilePathLabel;
-import com.actelion.research.gui.FileHelper;
-import com.actelion.research.gui.clipboard.ImageClipboardHandler;
-import com.actelion.research.gui.dock.Dockable;
-import com.actelion.research.gui.form.FormModel;
-import com.actelion.research.table.CompoundTableModel;
-import com.actelion.research.table.view.CompoundTableFormModel;
-import com.actelion.research.table.view.CompoundTableView;
-import com.actelion.research.table.view.JCompoundTableForm;
-import com.actelion.research.table.view.JStructureGrid;
-import com.actelion.research.table.view.JVisualization2D;
-import com.actelion.research.table.view.JVisualization3D;
-import com.actelion.research.table.view.VisualizationPanel;
-import com.actelion.research.table.view.VisualizationPanel3D;
+import javax.swing.*;
+import java.awt.*;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.awt.event.KeyAdapter;
+import java.awt.event.KeyEvent;
+import java.awt.geom.Rectangle2D;
+import java.awt.image.BufferedImage;
+import java.io.*;
+import java.util.Properties;
 
 
-public class DETaskCopyView extends DEAbstractViewTask implements ActionListener {
+public class DETaskCopyView extends AbstractViewTask implements ActionListener {
 	public static final String TASK_NAME = "Create View Image";
 
 	private static final String[] DPI = { "75", "150", "300", "600" };	// need to be multiples of 75
@@ -89,17 +61,16 @@ public class DETaskCopyView extends DEAbstractViewTask implements ActionListener
 	private static final String PROPERTY_TARGET = "target";
 	private static final String PROPERTY_FILENAME = "fileName";
 	private static final String PROPERTY_TRANSPARENT_BG = "transparentBG";
+	private static final String PROPERTY_ALL_VIEWS = "allViews";
 
 	private static final String TARGET_CLIPBOARD = "clipboard";
 	private static final String TARGET_FILE = "file";
 	private static final String FORMAT_PNG = "png";
 	private static final String FORMAT_SVG = "svg";
 
-	private static Properties sRecentConfiguration;
-
 	private DEMainPane		mMainPane;
 	private JTextField		mTextFieldWidth,mTextFieldHeight;
-	private JCheckBox		mCheckBoxKeepAspectRatio,mCheckBoxTransparentBG;
+	private JCheckBox		mCheckBoxAllViews,mCheckBoxKeepAspectRatio,mCheckBoxTransparentBG;
 	private JComboBox		mComboBoxResolution;
 	private JRadioButton	mRadioButtonCopy,mRadioButtonSaveAsPNG,mRadioButtonSaveAsSVG;
 	private JButton			mButtonEdit;
@@ -113,7 +84,7 @@ public class DETaskCopyView extends DEAbstractViewTask implements ActionListener
 		mCheckOverwrite = true;
 		}
 
-	public void keyTyped(KeyEvent arg0) {}
+//	public void keyTyped(KeyEvent arg0) {}
 
 	@Override
 	public String getViewQualificationError(CompoundTableView view) {
@@ -140,32 +111,30 @@ public class DETaskCopyView extends DEAbstractViewTask implements ActionListener
 
 	@Override
 	public JComponent createInnerDialogContent() {
-		final JComponent _view = getViewComponent(getInteractiveView());
-
 		JPanel mainpanel = new JPanel();
 		double[][] size = { {8, TableLayout.PREFERRED, 8, TableLayout.PREFERRED, 8},
-							{8, TableLayout.PREFERRED, 2, TableLayout.PREFERRED,
+							{4, TableLayout.PREFERRED, 16, TableLayout.PREFERRED, 2, TableLayout.PREFERRED,
 							 8,	TableLayout.PREFERRED, 8, TableLayout.PREFERRED, 16, TableLayout.PREFERRED,
 								TableLayout.PREFERRED, TableLayout.PREFERRED, 16, TableLayout.PREFERRED, 16,
 								TableLayout.PREFERRED, 4, TableLayout.PREFERRED, 8} };
 		mainpanel.setLayout(new TableLayout(size));
 
-		Dimension imageSize = getDefaultImageSize(_view);
-		mTextFieldWidth = new JTextField(""+imageSize.width);
-		mTextFieldHeight = new JTextField(""+imageSize.height);
+		mCheckBoxAllViews = new JCheckBox("Copy all graphical views into one image");
+		mCheckBoxAllViews.addActionListener(this);
+		mainpanel.add(mCheckBoxAllViews, "1,1,3,1");
+
+		mCurrentResolutionFactor = 2;
+		mTextFieldWidth = new JTextField();
+		mTextFieldHeight = new JTextField();
 		mCheckBoxKeepAspectRatio = new JCheckBox("Keep aspect ratio");
 		mCheckBoxKeepAspectRatio.addActionListener(this);
  
-		if (_view != null && _view instanceof JStructureGrid) {
-			mTextFieldHeight.setEnabled(false);
-			mCheckBoxKeepAspectRatio.setEnabled(false);
-			}
-
 		mTextFieldWidth.addKeyListener(new KeyAdapter() {
 			public void keyReleased(KeyEvent arg0) {
 				try {
+					JComponent view = mCheckBoxAllViews.isSelected() ? mMainPane : getViewComponent(getInteractiveView());
 					int width = Integer.parseInt(mTextFieldWidth.getText());
-					int height = calculateImageHeight(_view, width, mCheckBoxKeepAspectRatio.isSelected());
+					int height = calculateImageHeight(view, width, mCheckBoxKeepAspectRatio.isSelected());
 					if (height != -1)
 						mTextFieldHeight.setText(""+height);
 					}
@@ -177,8 +146,9 @@ public class DETaskCopyView extends DEAbstractViewTask implements ActionListener
 		mTextFieldHeight.addKeyListener(new KeyAdapter() {
 			public void keyReleased(KeyEvent arg0) {
 				try {
+					JComponent view = mCheckBoxAllViews.isSelected() ? mMainPane : getViewComponent(getInteractiveView());
 					int height = Integer.parseInt(mTextFieldHeight.getText());
-					int width = calculateImageWidth(_view, height, mCheckBoxKeepAspectRatio.isSelected());
+					int width = calculateImageWidth(view, height, mCheckBoxKeepAspectRatio.isSelected());
 					if (width != -1)
 						mTextFieldWidth.setText(""+width);
 					}
@@ -190,59 +160,68 @@ public class DETaskCopyView extends DEAbstractViewTask implements ActionListener
 
 		mTextFieldWidth.setColumns(6);
 		mTextFieldHeight.setColumns(6);
-		mainpanel.add(new JLabel("Image width:", JLabel.RIGHT), "1,1");
-		mainpanel.add(mTextFieldWidth, "3,1");
-		mainpanel.add(new JLabel("Image height:", JLabel.RIGHT), "1,3");
-		mainpanel.add(mTextFieldHeight, "3,3");
-		mainpanel.add(mCheckBoxKeepAspectRatio, "1,5,3,5");
+		mainpanel.add(new JLabel("Image width:", JLabel.RIGHT), "1,3");
+		mainpanel.add(mTextFieldWidth, "3,3");
+		mainpanel.add(new JLabel("Image height:", JLabel.RIGHT), "1,5");
+		mainpanel.add(mTextFieldHeight, "3,5");
+		mainpanel.add(mCheckBoxKeepAspectRatio, "1,7,3,7");
 
 		mComboBoxResolution = new JComboBox(DPI);
 		mComboBoxResolution.addActionListener(this);
-		mainpanel.add(new JLabel("Image resolution in dpi:"), "1,7");
-		mainpanel.add(mComboBoxResolution, "3,7");
+		mainpanel.add(new JLabel("Image resolution in dpi:"), "1,9");
+		mainpanel.add(mComboBoxResolution, "3,9");
 
 		ButtonGroup group = new ButtonGroup();
 		mRadioButtonCopy = new JRadioButton("Copy image to clipboard", true);
 		mRadioButtonCopy.addActionListener(this);
 		group.add(mRadioButtonCopy);
-		mainpanel.add(mRadioButtonCopy, "1,9,3,9");
+		mainpanel.add(mRadioButtonCopy, "1,11,3,11");
 
 		mRadioButtonSaveAsPNG = new JRadioButton("Save image as PNG-file", false);
 		mRadioButtonSaveAsPNG.addActionListener(this);
 		group.add(mRadioButtonSaveAsPNG);
-		mainpanel.add(mRadioButtonSaveAsPNG, "1,10,3,10");
+		mainpanel.add(mRadioButtonSaveAsPNG, "1,12,3,12");
 
 		mRadioButtonSaveAsSVG = new JRadioButton("Save image as SVG-file", false);
 		mRadioButtonSaveAsSVG.addActionListener(this);
 		group.add(mRadioButtonSaveAsSVG);
-		if (_view != null && !supportsSVG(_view))
-			mRadioButtonSaveAsSVG.setEnabled(false);
-		mainpanel.add(mRadioButtonSaveAsSVG, "1,11,3,11");
+		mainpanel.add(mRadioButtonSaveAsSVG, "1,13,3,13");
 
 		mCheckBoxTransparentBG = new JCheckBox("Use transparent background");
-		mainpanel.add(mCheckBoxTransparentBG, "1,13,3,13");
+		mainpanel.add(mCheckBoxTransparentBG, "1,15,3,15");
 
-		if (_view != null && _view instanceof VisualizationPanel3D)
-			mCheckBoxTransparentBG.setEnabled(false);
-
-		mainpanel.add(new JLabel("File name:"), "1,15");
+		mainpanel.add(new JLabel("File name:"), "1,17");
 		mButtonEdit = new JButton(JFilePathLabel.BUTTON_TEXT);
 		mButtonEdit.addActionListener(this);
-		mainpanel.add(mButtonEdit, "3,15");
+		mainpanel.add(mButtonEdit, "3,17");
 
-		mLabelFileName = new JFilePathLabel(_view == null);
-		mainpanel.add(mLabelFileName, "1,17,3,17");
+		mLabelFileName = new JFilePathLabel(!isInteractive());
+		mainpanel.add(mLabelFileName, "1,19,3,19");
 
 		return mainpanel;
 		}
 
-	private Dimension getDefaultImageSize(Component c) {
-		Dimension size = new Dimension(1200, 1200);
-		if (c != null && c instanceof JStructureGrid)
-			size.height = ((JStructureGrid)c).getTotalHeight(1200);
-		return size;
+	private void enableItems() {
+		JComponent view = mCheckBoxAllViews.isSelected() ? null : getViewComponent(getInteractiveView());
+
+		boolean aspectChoosable = mCheckBoxAllViews.isSelected()
+							   || view == null
+							   || !(view instanceof JStructureGrid);
+		mTextFieldHeight.setEnabled(aspectChoosable);
+		mCheckBoxKeepAspectRatio.setEnabled(aspectChoosable);
+
+		mRadioButtonSaveAsSVG.setEnabled(view == null || supportsSVG(view));
+		mCheckBoxTransparentBG.setEnabled(view == null || !(view instanceof VisualizationPanel3D));
 		}
 
+	/**
+	 * Get target image size from configuration. If viewComponent != null and configuration
+	 * is set to keep the aspect ratio and one of width and height is 0, then this value
+	 * is corrected to reflect the aspect ratio.
+	 * @param configuration
+	 * @param viewComponent
+	 * @return
+	 */
 	private Dimension getImageSize(Properties configuration, JComponent viewComponent) {
 		boolean keepAspectRatio = "true".equals(configuration.getProperty(PROPERTY_KEEP_ASPECT_RATIO));
 		int width = Integer.parseInt(configuration.getProperty(PROPERTY_IMAGE_WIDTH, "0"));
@@ -256,8 +235,7 @@ public class DETaskCopyView extends DEAbstractViewTask implements ActionListener
 		return new Dimension(width, height);
 		}
 
-	private void ensureSizeConstraints(boolean keepAspectRatio) {
-		JComponent viewComponent = getViewComponent(getInteractiveView());
+	private void ensureSizeConstraints(JComponent viewComponent, boolean keepAspectRatio) {
 		if (viewComponent != null) {
 			int width = -1;
 			try {
@@ -302,11 +280,16 @@ public class DETaskCopyView extends DEAbstractViewTask implements ActionListener
 						}
 					}
 				}
+			if (isInteractive() && mCheckBoxAllViews.isSelected()) {
+				Dimension size = suggestTargetViewSize(null, mRadioButtonSaveAsSVG.isSelected());
+				mTextFieldWidth.setText(Integer.toString(size.width));
+				mTextFieldHeight.setText(Integer.toString(size.height));
+				}
 			return;
 			}
 		if (e.getSource() == mButtonEdit) {
 			int filetype = mRadioButtonSaveAsSVG.isSelected() ? FileHelper.cFileTypeSVG : FileHelper.cFileTypePNG;
-			String filename = resolveVariables(mLabelFileName.getPath());
+			String filename = resolvePathVariables(mLabelFileName.getPath());
 			if (filename == null) {
 				Dockable dockable = mMainPane.getSelectedDockable();
 				filename = (dockable == null) ? null : dockable.getTitle();
@@ -319,9 +302,24 @@ public class DETaskCopyView extends DEAbstractViewTask implements ActionListener
 			return;
 			}
 		if (e.getSource() == mCheckBoxKeepAspectRatio) {
-			if (mCheckBoxKeepAspectRatio.isSelected())
-			   	ensureSizeConstraints(true);
+			if (mCheckBoxKeepAspectRatio.isSelected()) {
+				JComponent viewComponent = mCheckBoxAllViews.isSelected() ? mMainPane : getViewComponent(getInteractiveView());
+			   	ensureSizeConstraints(viewComponent, true);
+				}
 
+			return;
+			}
+		if (e.getSource() == mCheckBoxAllViews) {
+			if (isInteractive()) {
+				JComponent viewComponent = mCheckBoxAllViews.isSelected() ? null : getViewComponent(getInteractiveView());
+				Dimension size = suggestTargetViewSize(viewComponent, mRadioButtonSaveAsSVG.isSelected());
+				mTextFieldWidth.setText(Integer.toString(size.width));
+				mTextFieldHeight.setText(Integer.toString(size.height));
+				}
+			else {
+				setViewSelectionEnabled(!mCheckBoxAllViews.isSelected());
+				}
+			enableItems();
 			return;
 			}
 		if (e.getSource() == mComboBoxResolution) {
@@ -345,6 +343,7 @@ public class DETaskCopyView extends DEAbstractViewTask implements ActionListener
 	public Properties getDialogConfiguration() {
 		Properties configuration = super.getDialogConfiguration();
 
+		configuration.setProperty(PROPERTY_ALL_VIEWS, mCheckBoxAllViews.isSelected()?"true":"false");
 		configuration.setProperty(PROPERTY_IMAGE_WIDTH, mTextFieldWidth.getText());
 		configuration.setProperty(PROPERTY_IMAGE_HEIGHT, mTextFieldHeight.getText());
 		configuration.setProperty(PROPERTY_RESOLUTION, DPI[mComboBoxResolution.getSelectedIndex()]);
@@ -377,13 +376,15 @@ public class DETaskCopyView extends DEAbstractViewTask implements ActionListener
 		super.setDialogConfiguration(configuration);
 
 		mDisableEvents = true;
+		mCheckBoxAllViews.setSelected("true".equals(configuration.getProperty(PROPERTY_ALL_VIEWS, "false")));
 		mTextFieldWidth.setText(configuration.getProperty(PROPERTY_IMAGE_WIDTH));
 		mTextFieldHeight.setText(configuration.getProperty(PROPERTY_IMAGE_HEIGHT));
 		mCheckBoxKeepAspectRatio.setSelected("true".equals(configuration.getProperty(PROPERTY_KEEP_ASPECT_RATIO, "true")));
 		mCheckBoxTransparentBG.setSelected(mCheckBoxTransparentBG.isEnabled() && "true".equals(configuration.getProperty(PROPERTY_TRANSPARENT_BG)));
 		mComboBoxResolution.setSelectedItem(configuration.getProperty(PROPERTY_RESOLUTION, "300"));
 		mCurrentResolutionFactor = Integer.parseInt((String)mComboBoxResolution.getSelectedItem())/75;
-	   	ensureSizeConstraints(mCheckBoxKeepAspectRatio.isSelected());
+		JComponent viewComponent = mCheckBoxAllViews.isSelected() ? mMainPane : getViewComponent(getInteractiveView());
+	   	ensureSizeConstraints(viewComponent, mCheckBoxKeepAspectRatio.isSelected());
 	   	if (TARGET_CLIPBOARD.equals(configuration.getProperty(PROPERTY_TARGET)))
 	   		mRadioButtonCopy.setSelected(true);
 	   	else if (FORMAT_PNG.equals(configuration.getProperty(PROPERTY_FORMAT)))
@@ -396,32 +397,64 @@ public class DETaskCopyView extends DEAbstractViewTask implements ActionListener
 		if (filename != null && !new File(filename).exists())
 			filename = null;
 		mLabelFileName.setPath(filename);
+		enableItems();
 		mDisableEvents = false;
 		}
 
 	@Override
 	public void setDialogConfigurationToDefault() {
 		mDisableEvents = true;
+		mCheckBoxAllViews.setSelected(false);
 		JComponent viewComponent = getViewComponent(getInteractiveView());
 		mCurrentResolutionFactor = 2;	// reflects 150 dpi set below
 		mTextFieldWidth.setText(""+(mCurrentResolutionFactor*(viewComponent == null ? 640 : viewComponent.getWidth())));
 		mTextFieldHeight.setText(""+(mCurrentResolutionFactor*(viewComponent == null ? 640 : viewComponent.getHeight())));
-		ensureSizeConstraints(true);
+		ensureSizeConstraints(getViewComponent(getInteractiveView()), true);
 		mCheckBoxKeepAspectRatio.setSelected(true);
 		mCheckBoxTransparentBG.setSelected(false);
 		mComboBoxResolution.setSelectedItem("150");	// reflects resolution factor 2 above
    		mRadioButtonCopy.setSelected(true);
 	   	mButtonEdit.setEnabled(false);
 		mLabelFileName.setPath(null);
+		enableItems();
 		mDisableEvents = false;
 		}
 
 	@Override
 	public boolean isConfigurationValid(Properties configuration, boolean isLive) {
-		if (!super.isConfigurationValid(configuration, isLive))
+		boolean isAllViews = "true".equals(configuration.getProperty(PROPERTY_ALL_VIEWS, "false"));
+		if (isLive && isAllViews) {
+			boolean graphicalViewFound = false;
+			for (Dockable d:mMainPane.getDockables()) {
+				if (d.isVisibleDockable()
+				 && (d.getContent() instanceof VisualizationPanel2D
+				  || d.getContent() instanceof VisualizationPanel3D
+				  || d.getContent() instanceof DEFormView)) {
+					if (FORMAT_SVG.equals(configuration.getProperty(PROPERTY_FORMAT))
+					 && !supportsSVG(getViewComponent((CompoundTableView)d.getContent()))) {
+						showErrorMessage("3D-views and form views cannot be copied as SVG.");
+						return false;
+						}
+					if (d.getContent() instanceof VisualizationPanel3D) {
+						if ("true".equals(configuration.getProperty(PROPERTY_TRANSPARENT_BG))) {
+							showErrorMessage("3D-views do not support a transparent background.");
+							return false;
+							}
+						}
+					graphicalViewFound = true;
+					break;
+					}
+				}
+			if (!graphicalViewFound) {
+				showErrorMessage("No graphical view nor form view found.");
+				return false;
+				}
+			}
+
+		if (!isAllViews && !super.isConfigurationValid(configuration, isLive))
 			return false;
 
-		JComponent viewComponent = getViewComponent(getConfiguredView(configuration));
+		JComponent viewComponent = isAllViews ? mMainPane : getViewComponent(getConfiguredView(configuration));
 		try {
 			Dimension size = getImageSize(configuration, viewComponent);
 			if (size.width < 32 || size.height < 32) {
@@ -434,14 +467,16 @@ public class DETaskCopyView extends DEAbstractViewTask implements ActionListener
 			return false;
 			}
 
-		if (isLive && !supportsSVG(viewComponent) && FORMAT_SVG.equals(configuration.getProperty(PROPERTY_FORMAT))) {
-			showErrorMessage("Only structure-, form-, and 2D-views can be saved as SVG.");
-			return false;
-			}
-
-		if (isLive && viewComponent instanceof JVisualization3D && "true".equals(configuration.getProperty(PROPERTY_TRANSPARENT_BG))) {
-			showErrorMessage("The 3D-view does not support a transparent background.");
-			return false;
+		if (!isAllViews) {
+			if (isLive && !supportsSVG(viewComponent) && FORMAT_SVG.equals(configuration.getProperty(PROPERTY_FORMAT))) {
+				showErrorMessage("Only structure-, form-, and 2D-views can be saved as SVG.");
+				return false;
+				}
+	
+			if (isLive && viewComponent instanceof JVisualization3D && "true".equals(configuration.getProperty(PROPERTY_TRANSPARENT_BG))) {
+				showErrorMessage("The 3D-view does not support a transparent background.");
+				return false;
+				}
 			}
 
 		if (isLive) {
@@ -460,18 +495,9 @@ public class DETaskCopyView extends DEAbstractViewTask implements ActionListener
 		}
 
 	@Override
-	public Properties getRecentConfiguration() {
-		return sRecentConfiguration;
-		}
-
-	@Override
-	public void setRecentConfiguration(Properties configuration) {
-		sRecentConfiguration = configuration;
-		}
-
-	@Override
 	public void runTask(Properties configuration) {
-		JComponent viewComponent = getViewComponent(getConfiguredView(configuration));
+		boolean isAllViews = "true".equals(configuration.getProperty(PROPERTY_ALL_VIEWS, "false"));
+		JComponent viewComponent = isAllViews ? mMainPane : getViewComponent(getConfiguredView(configuration));
 		Dimension size = getImageSize(configuration, viewComponent);
 
 		int dpi = 300;
@@ -480,10 +506,32 @@ public class DETaskCopyView extends DEAbstractViewTask implements ActionListener
 		try {
 			boolean transparentBG = "true".equals(configuration.getProperty(PROPERTY_TRANSPARENT_BG, "false"));
 			if (FORMAT_SVG.equals(configuration.getProperty(PROPERTY_FORMAT))) {
-				File file = new File(resolveVariables(configuration.getProperty(PROPERTY_FILENAME)));
+				File file = new File(resolvePathVariables(configuration.getProperty(PROPERTY_FILENAME)));
 				try {
 					Writer writer = new OutputStreamWriter(new FileOutputStream(file),"UTF-8");
-					writeSVG(viewComponent, size.width, size.height, dpi/75, transparentBG, writer);
+					SVGGraphics2D g2d = null;
+					if (isAllViews) {
+						Rectangle parentBounds = getCombinedGraphicalViewBounds(true);
+						g2d = prepareSVG(size.width, size.height);
+						for (Dockable d:mMainPane.getDockables()) {
+							if (d.isVisibleDockable()
+							 && viewQualifiesForMultiView(d.getContent(), true)) {
+								Rectangle bounds = getScaledBounds(d, parentBounds, size);
+								paintViewInSVG(getViewComponent((CompoundTableView)d.getContent()), bounds, dpi/75, transparentBG, g2d);
+								}
+							}
+						}
+					else {
+						int width = size.width;
+						int height = (viewComponent instanceof JStructureGrid) ?
+								((JStructureGrid)viewComponent).getTotalHeight(width) : size.height;
+						g2d = prepareSVG(width, height);
+						paintViewInSVG(viewComponent, new Rectangle(0, 0, width, height), dpi/75, transparentBG, g2d);
+						}
+					// Finally, stream out SVG to the standard output using UTF-8 encoding.
+					boolean useCSS = true; // we want to use CSS style attributes
+//					Writer writer = new OutputStreamWriter(System.out, "UTF-8");	we have our own writer
+					g2d.stream(writer, useCSS);
 					writer.close();
 					}
 				catch (IOException ioe) {
@@ -491,15 +539,29 @@ public class DETaskCopyView extends DEAbstractViewTask implements ActionListener
 					}
 				}
 			else {	// png
-				Image image = createComponentImage(viewComponent, size.width, size.height, dpi/75, transparentBG);
+				BufferedImage image = null;
+				if (isAllViews) {
+					Rectangle parentBounds = getCombinedGraphicalViewBounds(false);
+					image = createTransparentImage(size.width, size.height);
+					for (Dockable d:mMainPane.getDockables()) {
+						if (d.isVisibleDockable()
+						 && viewQualifiesForMultiView(d.getContent(), false)) {
+							Rectangle bounds = getScaledBounds(d, parentBounds, size);
+							createComponentImage(image, getViewComponent((CompoundTableView)d.getContent()), bounds, dpi/75, transparentBG);
+							}
+						}
+					}
+				else {
+					image = (BufferedImage)createComponentImage(null, viewComponent, new Rectangle(size), dpi/75, transparentBG);
+					}
 				if (TARGET_FILE.equals(configuration.getProperty(PROPERTY_TARGET))) {
-					File file = new File(resolveVariables(configuration.getProperty(PROPERTY_FILENAME)));
+					File file = new File(resolvePathVariables(configuration.getProperty(PROPERTY_FILENAME)));
 					try {
 						/* do something like this for setting the image to 300 dpi
 						PNGEncodeParam png = PNGEncodeParam.getDefaultEncodeParam((BufferedImage)image);
 						png.setPhysicalDimension(11812, 11812, 1);  // 11812 dots per meter = 300dpi
 						JAI.create("filestore", (BufferedImage)image, "analemma.png", "PNG");   */
-						javax.imageio.ImageIO.write((BufferedImage)image, "png", file);
+						javax.imageio.ImageIO.write(image, "png", file);
 						}
 					catch (IOException ioe) {
 						showErrorMessage("Couldn't write image file.");
@@ -519,44 +581,148 @@ public class DETaskCopyView extends DEAbstractViewTask implements ActionListener
 			}
 		}
 
-	private Image createComponentImage(JComponent viewComponent, int width, int height, float fontScaling, boolean transparentBG) {
-		Image image = null;
+	private BufferedImage createTransparentImage(int width, int height) {
+		BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);	// we need ARGB for transparency
+
+// Some applications on Windows have trouble to work with transparency. We may need to consider to use white backgrounds for Windows?!
+//		image.getGraphics().setColor(new Color(255, 255, 255, 0));
+//		image.getGraphics().fillRect(0, 0, width, height);
+		return image;
+		}
+
+	private boolean viewQualifiesForMultiView(Component view, boolean isSVG) {
+		return view instanceof VisualizationPanel2D
+			|| (view instanceof VisualizationPanel3D && !isSVG)
+			|| view instanceof DEFormView;
+		}
+
+	private Rectangle getScaledBounds(Dockable d, Rectangle parent, Dimension size) {
+		Rectangle bounds = getBoundsOnMainPane(d.getParent() instanceof JTabbedPane ? d.getParent() : d);
+		return new Rectangle(size.width*(bounds.x-parent.x)/parent.width,
+							 size.height*(bounds.y-parent.y)/parent.height,
+							 bounds.width*size.width/parent.width,
+							 bounds.height*size.height/parent.height);
+		}
+
+	/**
+	 * Paints a high resolution representation of viewComponent at the position of bounds
+	 * into the given image. Image may be empty if bounds.x and bounds.y are 0.
+	 * In this case a new image of size bounds.width and bounds.height is created.
+	 * @param image
+	 * @param viewComponent
+	 * @param bounds
+	 * @param fontScaling
+	 * @param transparentBG
+	 * @return the image
+	 */
+	private Image createComponentImage(BufferedImage image, JComponent viewComponent, Rectangle bounds, float fontScaling, boolean transparentBG) {
 		if (viewComponent instanceof JVisualization3D) {
 			JVisualization3D v3D = (JVisualization3D)viewComponent;
-			image = v3D.getViewImage(new Rectangle(0, 0, width, height), fontScaling, JVisualization3D.STEREO_MODE_NONE);
+			if (image == null)
+				return v3D.getViewImage(bounds, fontScaling, JVisualization3D.STEREO_MODE_NONE);
+
+			Image vi = v3D.getViewImage(new Rectangle(0, 0, bounds.width, bounds.height), fontScaling, JVisualization3D.STEREO_MODE_NONE);
+			image.getGraphics().drawImage(vi, bounds.x, bounds.y, null);
+			return image;
 			}
 		else if (viewComponent instanceof JVisualization2D) {
 			JVisualization2D v2D = (JVisualization2D)viewComponent;
-//			image = v2D.getParent().createImage(width, height);
-			image = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);	// we need ARGB for transparency
-			Graphics imageG = image.getGraphics();
-			v2D.paintHighResolution(imageG, new Rectangle(0, 0, width, height), fontScaling, transparentBG, false);
+			if (image == null)
+				image = createTransparentImage(bounds.width, bounds.height);
+
+			Graphics2D imageG = image.createGraphics();
+			v2D.paintHighResolution(imageG, bounds, fontScaling, transparentBG, false);
+			return image;
 			}
 		else if (viewComponent instanceof JStructureGrid) {
-			height = ((JStructureGrid)viewComponent).getTotalHeight(width);
-//			image = c.createImage(width, height);
-			image = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);	// we need ARGB for transparency
+			int height = ((JStructureGrid)viewComponent).getTotalHeight(bounds.width);
+			image = createTransparentImage(bounds.width, bounds.height);
 			Graphics imageG = image.getGraphics();
 			if (!transparentBG) {
 				imageG.setColor(Color.WHITE);
-				imageG.fillRect(0, 0, width, height);
+				imageG.fillRect(0, 0, bounds.width, height);
 				}
-			((JStructureGrid)viewComponent).paintHighResolution(imageG, new Dimension(width, height), fontScaling, transparentBG);
+			((JStructureGrid)viewComponent).paintHighResolution(imageG, new Dimension(bounds.width, height), fontScaling, transparentBG);
 			}
 		else if (viewComponent instanceof JCompoundTableForm) {
-//			image = c.createImage(width, height);
-			image = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);	// we need ARGB for transparency
+			image = createTransparentImage(bounds.width, bounds.height);
 			Graphics imageG = image.getGraphics();
 			if (!transparentBG) {
 				imageG.setColor(Color.WHITE);
-				imageG.fillRect(0, 0, width, height);
+				imageG.fillRect(0, 0, bounds.width, bounds.height);
 				}
 			CompoundTableModel tableModel = mMainPane.getTableModel();
             FormModel model = new CompoundTableFormModel(tableModel, tableModel.getActiveRow());
             ((JCompoundTableForm)viewComponent).updatePrintColors(tableModel.getActiveRow());
-			((JCompoundTableForm)viewComponent).print((Graphics2D)imageG, new Rectangle2D.Float(0, 0, width, height), fontScaling, model);
+			((JCompoundTableForm)viewComponent).print((Graphics2D)imageG, new Rectangle2D.Double(0, 0, bounds.width, bounds.height), fontScaling, model, false);
 			}
 		return image;
+		}
+
+	/**
+	 * Calculates from mCurrentResolutionFactor and screen size of the dockable's component a suggested target size.
+	 * If !isInteractive(), then it uses a default size. If d==null, then it scales the bounds
+	 * of all compatible graphics views for mCurrentResolutionFactor upscaling.
+	 * @param viewComponent null for all graphical views
+	 * @param isSVG
+	 * @return
+	 */
+	private Dimension suggestTargetViewSize(JComponent viewComponent, boolean isSVG) {
+		Dimension size = new Dimension(600, 600);
+		if (isInteractive()) {
+			if (viewComponent == null) {
+				Rectangle bounds = getCombinedGraphicalViewBounds(isSVG);
+				if (bounds != null) {
+					size.width = bounds.width;
+					size.height = bounds.height;
+					}
+				}
+			else {
+				size.width = viewComponent.getWidth();
+				size.height = viewComponent.getHeight();
+				}
+			}
+
+		size.width *= mCurrentResolutionFactor;
+		size.height *= mCurrentResolutionFactor;
+			
+		if (viewComponent instanceof JStructureGrid)
+			size.height = ((JStructureGrid)viewComponent).getTotalHeight(size.width);
+
+		return size;
+		}
+
+	/**
+	 * @param isSVG
+	 * @return
+	 */
+	private Rectangle getCombinedGraphicalViewBounds(boolean isSVG) {
+		Rectangle parentBounds = null;
+		for (Dockable d:mMainPane.getDockables()) {
+			if (d.isVisibleDockable()
+			 && viewQualifiesForMultiView(d.getContent(), isSVG)) {
+				Rectangle bounds = getBoundsOnMainPane((d.getParent() instanceof JTabbedPane) ? d.getParent() : d);
+				parentBounds = (parentBounds == null) ? bounds : parentBounds.union(bounds);
+				}
+			}
+		return parentBounds;
+		}
+
+	private JComponent getViewComponent(CompoundTableView view) {
+		return (view == null) ? null
+			 : (view instanceof DEFormView) ? ((DEFormView)view).getCompoundTableForm()
+			 : (view instanceof VisualizationPanel) ? ((VisualizationPanel)view).getVisualization()
+			 : (JComponent)view;
+		}
+
+	private Rectangle getBoundsOnMainPane(Component c) {
+		Rectangle bounds = c.getBounds();
+		while (c.getParent() != mMainPane) {
+			c = c.getParent();
+			bounds.x += c.getX();
+			bounds.y += c.getY();
+			}
+		return bounds;
 		}
 
 	private int calculateImageHeight(JComponent viewComponent, int width, boolean keepAspectRatio) {
@@ -564,23 +730,30 @@ public class DETaskCopyView extends DEAbstractViewTask implements ActionListener
 			return -1;
 		if (viewComponent instanceof JStructureGrid)
 			return ((JStructureGrid)viewComponent).getTotalHeight(width);
-		if (keepAspectRatio)
-			return width*viewComponent.getHeight()/viewComponent.getWidth();
+		if (keepAspectRatio) {
+			if (viewComponent == mMainPane) {
+				Rectangle combinedBounds = getCombinedGraphicalViewBounds(mRadioButtonSaveAsSVG.isSelected());
+				return width*combinedBounds.height/combinedBounds.width;
+				}
+			else {
+				return width*viewComponent.getHeight()/viewComponent.getWidth();
+				}
+			}
 		return -1;
 		}
-
-	private JComponent getViewComponent(CompoundTableView view) {
-			return (view == null) ? null
-				 : (view instanceof DEFormView) ? ((DEFormView)view).getCompoundTableForm()
-				 : (view instanceof VisualizationPanel) ? ((VisualizationPanel)view).getVisualization()
-				 : (JComponent)view;
-			}
 
 	private int calculateImageWidth(JComponent viewComponent, int height, boolean keepAspectRatio) {
 		if (viewComponent == null)
 			return -1;
-		if (keepAspectRatio)
-			return height*viewComponent.getWidth()/viewComponent.getHeight();
+		if (keepAspectRatio) {
+			if (viewComponent == mMainPane) {
+				Rectangle combinedBounds = getCombinedGraphicalViewBounds(mRadioButtonSaveAsSVG.isSelected());
+				return height*combinedBounds.width/combinedBounds.height;
+				}
+			else {
+				return height*viewComponent.getWidth()/viewComponent.getHeight();
+				}
+			}
 		return -1;
 		}
 
@@ -594,7 +767,7 @@ public class DETaskCopyView extends DEAbstractViewTask implements ActionListener
 	 * This creates and writes an SVG to the given writer using the JFreeSVG library.
 	 * (not used because the tested version 2.1 of JFreeSVG seems to create larger files
 	 * and converts non-filled rectangles into 4 lines which do not touch at the corners)
-	 * @param c
+	 * @param v2D
 	 * @param width
 	 * @param height
 	 * @param fontScaling
@@ -614,11 +787,12 @@ public class DETaskCopyView extends DEAbstractViewTask implements ActionListener
 		writer.write(svgDoc);
 		}*/
 
-	/*
-	 * This creates and writes an SVG to the given writer using the Batik library.
+	/**
+	 * This creates an empty SVG using the Batik library.
+     * @param width
+     * @param height
 	 */
-	private void writeSVG(JComponent viewComponent, int width, int height, float fontScaling,
-							boolean transparentBG, Writer writer) throws IOException {
+	private SVGGraphics2D prepareSVG(int width, int height) {
 		// example from: http://xmlgraphics.apache.org/batik/using/svg-generator.html
 
 		// Get a DOMImplementation.
@@ -633,35 +807,35 @@ public class DETaskCopyView extends DEAbstractViewTask implements ActionListener
 		ctx.setComment("Visualization generated by DataWarrior with Batik SVG Generator");
 		SVGGraphics2D g2d = new SVGGraphics2D(ctx, false);
 
-		if (viewComponent instanceof JStructureGrid)
-			height = ((JStructureGrid)viewComponent).getTotalHeight(width);
-
 		g2d.setSVGCanvasSize(new Dimension(width,height));
 
+		return g2d;
+		}
+
+	/*
+	 * This paints a view into an SVG using the Batik library.
+	 */
+	private void paintViewInSVG(JComponent viewComponent, Rectangle bounds, float fontScaling,
+								boolean transparentBG, SVGGraphics2D g2d) {
 		if (viewComponent instanceof JVisualization2D) {
-			((JVisualization2D)viewComponent).paintHighResolution(g2d, new Rectangle(0, 0, width, height), fontScaling, transparentBG, false);
+			((JVisualization2D)viewComponent).paintHighResolution(g2d, bounds, fontScaling, transparentBG, false);
 			}
 		else if (viewComponent instanceof JCompoundTableForm) {
 			if (!transparentBG) {
 				g2d.setColor(Color.WHITE);
-				g2d.fillRect(0, 0, width, height);
+				g2d.fillRect(bounds.x, bounds.y, bounds.width, bounds.height);
 				}
 			CompoundTableModel tableModel = mMainPane.getTableModel();
             FormModel model = new CompoundTableFormModel(tableModel, tableModel.getActiveRow());
             ((JCompoundTableForm)viewComponent).updatePrintColors(tableModel.getActiveRow());
-            ((JCompoundTableForm)viewComponent).print(g2d, new Rectangle2D.Float(0, 0, width, height), fontScaling, model);
+            ((JCompoundTableForm)viewComponent).print(g2d, new Rectangle2D.Double(bounds.x, bounds.y, bounds.width, bounds.height), fontScaling, model, false);
 			}
 		else if (viewComponent instanceof JStructureGrid) {
 			if (!transparentBG) {
 				g2d.setColor(Color.WHITE);
-				g2d.fillRect(0, 0, width, height);
+				g2d.fillRect(0, 0, bounds.width, bounds.height);
 				}
-			((JStructureGrid)viewComponent).paintHighResolution(g2d, new Dimension(width, height), fontScaling, transparentBG);
+			((JStructureGrid)viewComponent).paintHighResolution(g2d, new Dimension(bounds.width, bounds.height), fontScaling, transparentBG);
 			}
-
-		// Finally, stream out SVG to the standard output using UTF-8 encoding.
-		boolean useCSS = true; // we want to use CSS style attributes
-//		Writer writer = new OutputStreamWriter(System.out, "UTF-8");	we have our own writer
-		g2d.stream(writer, useCSS);
 		}
 	}

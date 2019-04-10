@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -29,6 +29,8 @@
  */
 package com.actelion.research.chem;
 
+import com.actelion.research.io.BOMSkipper;
+
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
@@ -39,22 +41,44 @@ import java.util.TreeMap;
 
 public class MolfileParser
 {
-	public static boolean debug = true;
+	public static final int MODE_KEEP_HYDROGEN_MAP = 1;
+
+	public static boolean debug = false;
 	private StereoMolecule mMol;
 	private TreeMap<Integer,Integer> mAtomIndexMap,mBondIndexMap;
-	
+	private boolean mTreatAnyAsMetalBond,mDeduceMissingCharges;
+	private int mMode;
+	private int[] mHydrogenMap;
+
 	/**
 	 * Constructor of a MolFileParser, which will mirror Y,Z coordinates
 	 */
 	public MolfileParser() {
+		mMode = 0;
 	}
-	
+
+
+	public MolfileParser(int mode) {
+		mMode = mode;
+	}
+
+
+	/**
+	 * If this MoflileParser was instantiated with MODE_KEEP_HYDROGEN_MAP
+	 * @return
+	 */
+	public int[] getHandleHydrogenMap() {
+		return mHydrogenMap == null ? mMol.getHandleHydrogenMap() : mHydrogenMap;
+	}
+
 
 	private boolean readMoleculeFromBuffer(BufferedReader reader)
 	{
 		try{
 			String line;
 			int natoms,nbonds,nlists,chiral,version;
+
+			mHydrogenMap = null;
 
 			if(mMol != null){
 				mMol.deleteMolecule();
@@ -77,6 +101,9 @@ public class MolfileParser
 				TRACE("Error [readMoleculeFromBuffer]: No Comment Line\n");
 				return false;
 			}
+
+			mTreatAnyAsMetalBond = line.contains("From CSD data. Using bond type 'Any'");
+			mDeduceMissingCharges = line.contains("From CSD data.");
 
 			/*** Counts line ***/
 			if(null == (line = reader.readLine())){
@@ -225,6 +252,8 @@ public class MolfileParser
 
 				if(chiral == 0){
 					// to run the racemization scheduled with mMol.setToRacemate()
+					if ((mMode & MODE_KEEP_HYDROGEN_MAP) != 0)
+						mHydrogenMap = mMol.getHandleHydrogenMap();
 					mMol.ensureHelperArrays(Molecule.cHelperParities);
 				}
 
@@ -284,7 +313,7 @@ public class MolfileParser
 					}
 				}
 
-				if(line.startsWith("M  RBD")){
+				if(line.startsWith("M  RBC") || line.startsWith("M  RBD")){
 					int j = Integer.parseInt(line.substring(6,9).trim());
 					if(j > 0){
 						int aaa = 10;
@@ -383,8 +412,15 @@ public class MolfileParser
 			return false;
 		}
 
+		if (mDeduceMissingCharges) {
+			introduceObviousMetalBonds();
+			deduceMissingCharges();
+		}
+
 		// needs to be done for molfiles with chiral=0 that have stereo
 		// centers which will be assigned to one ESR-AND group
+		if ((mMode & MODE_KEEP_HYDROGEN_MAP) != 0)
+			mHydrogenMap = mMol.getHandleHydrogenMap();
 		mMol.ensureHelperArrays(Molecule.cHelperParities);
 
 		return true;
@@ -838,7 +874,9 @@ public class MolfileParser
 	{
 		mMol = mol;
 		try{
-			return readMoleculeFromBuffer(new BufferedReader(new InputStreamReader(new FileInputStream(file), "UTF-8")));
+			BufferedReader reader = new BufferedReader(new InputStreamReader(new FileInputStream(file), "UTF-8"));
+			BOMSkipper.skip(reader);
+			return readMoleculeFromBuffer(reader);
 		} catch(IOException e){
 			System.err.println("Error reading file " + e);
 		}
@@ -905,6 +943,13 @@ public class MolfileParser
 					case 4:
 						realBondType = Molecule.cBondTypeDelocalized;
 						break;
+					case 8:
+						if (mTreatAnyAsMetalBond)
+							realBondType = Molecule.cBondTypeMetalLigand;
+						break;
+					case 9:
+						realBondType = Molecule.cBondTypeMetalLigand;
+						break;
 				}
 				break;
 		}
@@ -928,8 +973,8 @@ public class MolfileParser
 					queryFeatures |= Molecule.cBondQFDouble | Molecule.cBondQFDelocalized;
 					break;
 				case 8:
-					queryFeatures |= Molecule.cBondQFSingle | Molecule.cBondQFDouble
-						| Molecule.cBondQFTriple | Molecule.cBondQFDelocalized;
+					if (!mTreatAnyAsMetalBond)
+						queryFeatures |= Molecule.cBondQFBondTypes;
 					break;
 			}
 		}
@@ -1011,5 +1056,93 @@ public class MolfileParser
 		if(debug){
 			System.out.println(s);
 		}
+	}
+
+	/**
+	 * If we have single atoms from a metal to an electronegative atom
+	 * that therefore exceeds its max valence, then reduce the bond to a
+	 * metal ligand bond.
+	 */
+	private void introduceObviousMetalBonds() {
+		int[] occupiedValence = new int[mMol.getAllAtoms()];
+
+		// initialize with 1 for all delocalized atoms
+		for (int bond=0; bond<mMol.getAllBonds(); bond++)
+			if (mMol.getBondType(bond) == Molecule.cBondTypeDelocalized)
+				for (int i=0; i<2; i++)
+					occupiedValence[mMol.getBondAtom(i, bond)] = 1;
+
+		// all bond orders
+		for (int bond=0; bond<mMol.getAllBonds(); bond++) {
+			int order = mMol.getBondOrder(bond);
+			for (int i=0; i<2; i++)
+				occupiedValence[mMol.getBondAtom(i, bond)] += order;
+		}
+
+		for (int bond=0; bond<mMol.getAllBonds(); bond++) {
+			if (mMol.getBondOrder(bond) == 1) {
+				for (int i=0; i<2; i++) {
+					int metalAtom = mMol.getBondAtom(1-i, bond);
+					if (mMol.isMetalAtom(metalAtom)) {
+						int atom = mMol.getBondAtom(i, bond);
+						if (mMol.isElectronegative(atom)
+						 && occupiedValence[atom] > mMol.getMaxValence(atom)) {
+							mMol.setBondType(bond, Molecule.cBondTypeMetalLigand);
+							continue;
+						}
+					}
+				}
+			}
+		}
+	}
+
+	/**
+	 * SD-Files exported from the CSD database contain aromatic bonds rather than single/double bonds.
+	 * Charges of aromatic systems are usually not given (e.g. in cyclopentadienyl(-) or pyridinium(+))
+	 * and counter ions carry reduced charges to compensate (e.g. Fe in ferrocene wrongly has no charge assigned).
+	 * To prevent valence problems and wrong idcode encoding we need to repair.
+	 */
+	private void deduceMissingCharges() {
+		int[] chargeChange = new int[mMol.getAllAtoms()];
+		for (int atom=0; atom<mMol.getAllAtoms(); atom++)
+			chargeChange[atom] = -mMol.getAtomCharge(atom);
+
+		new AromaticityResolver(mMol).locateDelocalizedDoubleBonds(null, true, false);
+
+		for (int atom=0; atom<mMol.getAllAtoms(); atom++)
+			chargeChange[atom] += mMol.getAtomCharge(atom);
+
+		for (int atom=0; atom<mMol.getAllAtoms(); atom++) {
+			if (chargeChange[atom] != 0) {
+				int chargeToDistribute = -chargeChange[atom];
+
+				for (int bond=0; bond<mMol.getAllBonds(); bond++) {
+					for (int i=0; i<2; i++) {
+						if (chargeToDistribute > 0
+						 && mMol.getBondType(bond) == Molecule.cBondTypeMetalLigand
+						 && mMol.getBondAtom(1-i, bond) == atom) {
+							int metal = mMol.getBondAtom(i, bond);
+							if (mMol.isMetalAtom(metal)) {
+								int maxCharge = getMaxOxidationState(metal);
+								int charge = mMol.getAtomCharge(metal);
+								if (charge < maxCharge) {
+									int dif = Math.min(chargeToDistribute, maxCharge - charge);
+									mMol.setAtomCharge(metal, charge + dif);
+									chargeToDistribute -= dif;
+								}
+							}
+						}
+					}
+				}
+
+			}
+		}
+	}
+
+	private int getMaxOxidationState(int metal) {
+		int atomicNo = mMol.getAtomicNo(metal);
+		byte[] os = (atomicNo < Molecule.cCommonOxidationState.length) ?
+				Molecule.cCommonOxidationState[atomicNo] : null;
+		return (os == null) ? 0 : os[os.length-1];
 	}
 }

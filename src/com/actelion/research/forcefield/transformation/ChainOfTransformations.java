@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -23,7 +23,6 @@ import java.util.Random;
 import com.actelion.research.chem.Coordinates;
 import com.actelion.research.chem.FFMolecule;
 import com.actelion.research.chem.calculator.StructureCalculator;
-import com.actelion.research.forcefield.optimizer.*;
 
 /**
  * 
@@ -87,27 +86,35 @@ public class ChainOfTransformations implements Cloneable {
 	 * Gets the Multivariate (ie the parameters that dictate this transformation)
 	 * @return
 	 */
-	public final MultiVariate getMultivariate() {		
-		//Populate the multivariate vector with the parameters of each transformation
-		MultiVariate v = new MultiVariate(N);
-		int N = 0;
+	public final double[] getMultivariate() {
+		return getMultivariate(new double[N]);
+	}
+	
+	/**
+	 * Populate the vector with the parameters of each transformation
+	 * @param v
+	 * @return
+	 */
+	public final double[] getMultivariate(double[] v) {
+		int offset = 0;
 		for (int i = 0; i < chain.length; i++) {
 			int l = chain[i].parameters.length;
-			System.arraycopy(chain[i].parameters, 0, v.vector, N, l);
-			N += l;
+			System.arraycopy(chain[i].parameters, 0, v, offset, l);
+			offset += l;
 		} 		
 		return v;
 	}
+
 
 	/**
 	 * Sets the Multivariate (ie the parameters that dictate this transformation)
 	 * @return
 	 */
-	public final void setMultivariate(MultiVariate v) {
+	public final void setMultivariate(double[] v) {
 		int N = 0;
 		for (int i = 0; i < chain.length; i++) {
 			int l = chain[i].parameters.length;
-			System.arraycopy(v.vector, N, chain[i].parameters, 0, l);
+			System.arraycopy(v, N, chain[i].parameters, 0, l);
 			N += l;
 		} 				
 	}
@@ -201,7 +208,7 @@ public class ChainOfTransformations implements Cloneable {
 		//Best is to crossover all chains
 		for (int i = 0; i < chain.length; i++) {
 			tr[i] = chain[i].crossover(other.chain[i]);
-			if(tr[i]==null) tr[i] = (AbstractTransform) chain[i].clone();
+			if(tr[i]==null) tr[i] = chain[i].clone();
 		}		
 
 		return new ChainOfTransformations(this, tr);				

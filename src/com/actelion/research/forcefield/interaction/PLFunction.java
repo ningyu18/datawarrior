@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -26,8 +26,9 @@ import com.actelion.research.util.FastSpline;
  */
 public class PLFunction {
 	
+	public static final int ARRAY_SIZE = (int)(PLFunctionSplineCalculator.CUTOFF_STATS/PLFunctionSplineCalculator.DELTA_RADIUS);
 	private String name;
-	private int[] occurencesArray = new int[(int)(PLFunctionSplineCalculator.CUTOFF_STATS/PLFunctionSplineCalculator.DELTA_RADIUS)];
+	private int[] occurencesArray = new int[ARRAY_SIZE];
 	private FastSpline spline, derivate;	
 
 	
@@ -41,6 +42,7 @@ public class PLFunction {
 	public int[] getOccurencesArray() {
 		return occurencesArray;
 	}
+	
 	public void setOccurencesArray(int[] occurencesArray) {
 		this.occurencesArray = occurencesArray;
 	}
@@ -61,7 +63,8 @@ public class PLFunction {
 			double dev = derivate.value(v);
 			return new double[]{value, dev};
 		} catch (Exception e) {
-			throw new IllegalArgumentException("Invalid getFGValue for "+name+": "+v);
+			e.printStackTrace();
+			throw new IllegalArgumentException("Invalid getFGValue for "+name+": "+v+" - "+e);
 		}
 	}
 	

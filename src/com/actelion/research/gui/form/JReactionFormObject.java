@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,22 +18,19 @@
 
 package com.actelion.research.gui.form;
 
-import java.awt.Color;
-import java.awt.Component;
-import java.awt.Frame;
-import java.awt.Graphics2D;
-import java.awt.event.MouseAdapter;
-import java.awt.event.MouseEvent;
-import java.awt.geom.Rectangle2D;
-
-import javax.swing.border.Border;
-
 import com.actelion.research.chem.AbstractDepictor;
 import com.actelion.research.chem.ExtendedDepictor;
 import com.actelion.research.chem.reaction.Reaction;
 import com.actelion.research.chem.reaction.ReactionEncoder;
 import com.actelion.research.gui.JDrawDialog;
 import com.actelion.research.gui.table.ChemistryRenderPanel;
+
+import javax.swing.*;
+import javax.swing.border.Border;
+import java.awt.*;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
+import java.awt.geom.Rectangle2D;
 
 public class JReactionFormObject extends AbstractFormObject {
     private Object mChemistry;
@@ -48,7 +45,7 @@ public class JReactionFormObject extends AbstractFormObject {
                     super.setBorder(border);
                 }
             };
-		mComponent.setBackground(Color.white);
+		mComponent.setBackground(UIManager.getColor("TextArea.background"));
 		mComponent.addMouseListener(new MouseAdapter() {
 			@Override
 		    public void mouseClicked(MouseEvent e) {
@@ -93,7 +90,7 @@ public class JReactionFormObject extends AbstractFormObject {
 		return 4;
 		}
 
-	public void printContent(Graphics2D g2D, Rectangle2D.Float r, float scale, Object data) {
+	public void printContent(Graphics2D g2D, Rectangle2D.Double r, float scale, Object data, boolean isMultipleRows) {
         if (data != null) {
 	        Reaction rxn = null;
 			if (data instanceof Reaction)

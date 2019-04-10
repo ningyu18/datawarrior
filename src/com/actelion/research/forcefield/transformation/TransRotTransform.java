@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -21,9 +21,10 @@ import java.util.List;
 
 import javax.vecmath.Matrix3d;
 
-import com.actelion.research.chem.*;
-import com.actelion.research.chem.calculator.*;
-import com.actelion.research.util.*;
+import com.actelion.research.chem.Coordinates;
+import com.actelion.research.chem.FFMolecule;
+import com.actelion.research.chem.calculator.StructureCalculator;
+import com.actelion.research.forcefield.FastMath;
 
 /**
  * Rotation around G + Translation 
@@ -86,7 +87,7 @@ public class TransRotTransform extends AbstractTransform {
 		if(Math.random()<=.5) {
 			Coordinates c;
 			do {c = new Coordinates(Math.random()-.5, Math.random()-.5, Math.random()-.5);} while(c.distSq()==0);
-			c =  c.unit().scaleC(Math.random()*2);						
+			c =  c.unitC().scaleC(Math.random()*2);						
 			res.parameters[0] += c.x;
 			res.parameters[1] += c.y;
 			res.parameters[2] += c.z;
@@ -96,7 +97,7 @@ public class TransRotTransform extends AbstractTransform {
 		}  else  {
 			Coordinates c;
 			do {c = new Coordinates(Math.random()-.5, Math.random()-.5, Math.random()-.5);} while(c.distSq()==0);
-			c =  c.unit().scaleC(Math.random()*4);						
+			c =  c.unitC().scaleC(Math.random()*4);						
 			res.parameters[0] += c.x;
 			res.parameters[1] += c.y;
 			res.parameters[2] += c.z;
@@ -128,13 +129,46 @@ public class TransRotTransform extends AbstractTransform {
 	}
 
 
-	private final void computeMatrixes() {
+	private final void computeRotationMatrixes() {
 		if(matrixes==null) {
-			matrixes = MathUtils.anglesToMatrixAndDerivates(new double[]{parameters[3], parameters[4], parameters[5]});
+			matrixes = anglesToMatrixAndDerivates(parameters[3], parameters[4], parameters[5]);
 		}
 	}
 
 
+	/**
+	 * Return an array of [M, dM/d1, dM/d2, dM/d3] where M is the transformation Matrix and dM/di its derivate  
+	 * @param angles
+	 * @return
+	 */
+	public final static Matrix3d[] anglesToMatrixAndDerivates(double angle0, double angle1, double angle2) {
+		double c1 = FastMath.cos(angle0);
+		double c2 = FastMath.cos(angle1);
+		double c3 = FastMath.cos(angle2);
+
+		double s1 = FastMath.sin(angle0);
+		double s2 = FastMath.sin(angle1);
+		double s3 = FastMath.sin(angle2);
+		
+		return new Matrix3d[]{
+			new Matrix3d(new double[]{
+				c2*c3,				c2*s3,			-s2,	
+				-c1*s3+s1*s2*c3,	c1*c3+s1*s2*s3,	s1*c2,	
+				c1*s2*c3+s1*s3,		c1*s2*s3-s1*c3,	c1*c2}),			
+			new Matrix3d(new double[]{
+				0,					0,					0,			
+				(c1*s2*c3+s1*s3),	(c1*s2*s3-s1*c3),	(c1*c2),	
+				(c1*s3-s1*s2*c3),	-(c1*c3+s1*s2*s3),	- (s1*c2)}),
+			new Matrix3d(new double[]{
+				(-s2*c3),	- (s2*s3),	- (c2),		
+				(c2*s1*c3),(c2*s1*s3),	- (s2*s1),	
+				(c2*c1*c3),(c2*c1*s3),	- (s2*c1)}),
+			new Matrix3d(new double[]{
+				(-s3*c2),			(c3*c2),			0,	
+				(-c3*c1-s3*s1*s2),	(c3*s1*s2-s3*c1),	0,	
+				(c3*s1-s3*c1*s2),	(c3*c1*s2+s3*s1),	0})};	
+	}		
+	
 	/**
 	 * @see com.actelion.research.forcefield.transformation.AbstractTransform#getDTransformation(int, int)
 	 */
@@ -164,7 +198,7 @@ public class TransRotTransform extends AbstractTransform {
 		case 3: 
 		case 4: 
 		case 5: 
-			computeMatrixes();
+			computeRotationMatrixes();
 			Matrix3d val = matrixes[var-2];
 			//Coordinates G = new Coordinates();//Coordinates.createBarycenter(X);
 			for (int i = 0; i < res.length; i++) {
@@ -190,26 +224,27 @@ public class TransRotTransform extends AbstractTransform {
 	@Override
 	public Coordinates[] getTransformation(Coordinates[] X) {
 		matrixes = null;
-		computeMatrixes();
-		Matrix3d val = matrixes[0];
+		computeRotationMatrixes();
+		Matrix3d rotM = matrixes[0];
 
 		Coordinates[] res = new Coordinates[X.length];
 		for (int i = 0; i < res.length; i++) {
 			Coordinates c = X[i].subC(G);
-			if(a2g==null || a2g[i] == a2g[groupSeed]) 
+			if(a2g==null || a2g[i] == a2g[groupSeed]) {
 				res[i] = new Coordinates(
-				val.m00*c.x + val.m01*c.y + val.m02*c.z + parameters[0] + G.x, 
-				val.m10*c.x + val.m11*c.y + val.m12*c.z + parameters[1] + G.y, 
-				val.m20*c.x + val.m21*c.y + val.m22*c.z + parameters[2] + G.z);
-			else 
+				rotM.m00*c.x + rotM.m01*c.y + rotM.m02*c.z + parameters[0] + G.x, 
+				rotM.m10*c.x + rotM.m11*c.y + rotM.m12*c.z + parameters[1] + G.y, 
+				rotM.m20*c.x + rotM.m21*c.y + rotM.m22*c.z + parameters[2] + G.z);
+			} else { 
 				res[i] = new Coordinates(X[i]);
+			}
 		}
 		return res;		
 	}
 	
 	@Override
 	public Coordinates[] getPartialTransformation(Coordinates[] X) {
-		computeMatrixes();
+		computeRotationMatrixes();
 		Matrix3d val = matrixes[0];
 
 		Coordinates[] res = new Coordinates[X.length];

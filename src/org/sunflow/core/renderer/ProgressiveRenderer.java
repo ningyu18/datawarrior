@@ -1,18 +1,13 @@
 package org.sunflow.core.renderer;
 
-import java.util.concurrent.PriorityBlockingQueue;
-
-import org.sunflow.core.Display;
-import org.sunflow.core.ImageSampler;
-import org.sunflow.core.IntersectionState;
-import org.sunflow.core.Options;
-import org.sunflow.core.Scene;
-import org.sunflow.core.ShadingState;
+import org.sunflow.core.*;
 import org.sunflow.image.Color;
 import org.sunflow.math.QMC;
 import org.sunflow.system.Timer;
 import org.sunflow.system.UI;
 import org.sunflow.system.UI.Module;
+
+import java.util.concurrent.PriorityBlockingQueue;
 
 public class ProgressiveRenderer implements ImageSampler {
     private Scene scene;
@@ -87,6 +82,8 @@ public class ProgressiveRenderer implements ImageSampler {
                     UI.taskUpdate(counter);
                 }
                 if (UI.taskCanceled())
+                    return;
+                if (display.imageCancelled())
                     return;
             }
         }

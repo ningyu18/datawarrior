@@ -19,15 +19,14 @@ package com.actelion.research.util.datamodel;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.Serializable;
 import java.text.DecimalFormat;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Random;
-import java.util.StringTokenizer;
+import java.util.*;
 
+import com.actelion.research.util.ArrayUtils;
 import com.actelion.research.util.BurtleHasher;
 
-public class IntArray {
+public class IntArray implements Serializable {
 	
 	private static final int START_CAPACITY = 32;
 	
@@ -48,7 +47,11 @@ public class IntArray {
 	public IntArray(int capacity) {
 		init(capacity);
 	}
-	
+
+	/**
+	 * Shallow constructor.
+	 * @param a
+	 */
 	public IntArray(int [] a) {
 		data = a;
 		
@@ -145,7 +148,11 @@ public class IntArray {
 	public int get(int i){
 		return data[i];
 	}
-	
+
+	/**
+	 *
+	 * @return shallow copy.
+	 */
 	public int [] get(){
 		resize(size);
 		return data;
@@ -160,9 +167,7 @@ public class IntArray {
 		int index = size;
 		
 		size++;
-		
-		facultativeResize();
-		
+
 		hash = -1;
 		
 		return index;
@@ -183,24 +188,17 @@ public class IntArray {
 	}
 	
 	public void add(int [] a){
+
+		int newsize = size + a.length;
 		
-		int indexStart = size;
-		
-		size += a.length;
-		
-		while(size >= data.length){
-			
-			long newsize = (long)data.length + (long)delta_capacity;
-			
+		if(newsize > data.length){
 			resize(newsize);
-			
-			if(delta_capacity<MAX_DELTA_CAPACITY){
-				delta_capacity *= 2;
-			}
 		}
 		
-		System.arraycopy(a, 0, data, indexStart, a.length);
-		
+		System.arraycopy(a, 0, data, size, a.length);
+
+		size = newsize;
+
 		hash = -1;
 		
 	}
@@ -219,7 +217,11 @@ public class IntArray {
 		}
 		
 	}
-	
+
+	/**
+	 *
+	 * @return number of occupied fields.
+	 */
 	public int length(){
 		return size;
 	}
@@ -378,7 +380,12 @@ public class IntArray {
     	
     	return val;
     }
-    
+
+    public void sort(){
+        resize(size);
+        Arrays.sort(data);
+    }
+
     public static void shuffle(IntArray arr){
     
     	Random rnd = new Random();

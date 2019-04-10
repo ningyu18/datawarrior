@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -34,7 +34,7 @@ import javax.swing.JTextField;
 import com.actelion.research.datawarrior.DEFrame;
 import com.actelion.research.datawarrior.DEPruningPanel;
 import com.actelion.research.datawarrior.task.ConfigurableTask;
-import com.actelion.research.table.CompoundTableModel;
+import com.actelion.research.table.model.CompoundTableModel;
 import com.actelion.research.table.filter.JFilterPanel;
 
 /**
@@ -53,8 +53,6 @@ public class DETaskCloseFilter extends ConfigurableTask implements ActionListene
 	private static final String PROPERTY_COLUMN = "column";
 	private static final String PROPERTY_DUPLICATE = "duplicate";
     
-    private static Properties sRecentConfiguration;
-
 	private CompoundTableModel  mTableModel;
 	private DEPruningPanel      mPruningPanel;
 	private JComboBox			mComboBoxType;
@@ -64,8 +62,8 @@ public class DETaskCloseFilter extends ConfigurableTask implements ActionListene
     /**
      * Instantiates this task interactively with a pre-defined configuration.
      * @param parent
-     * @param column
-     * @param filterType null, if not interactive
+     * @param pruningPanel
+     * @param filter null, if not interactive
      */
     public DETaskCloseFilter(Frame parent, DEPruningPanel pruningPanel, JFilterPanel filter) {
 		super(parent, false);
@@ -218,15 +216,5 @@ public class DETaskCloseFilter extends ConfigurableTask implements ActionListene
 	@Override
 	public DEFrame getNewFrontFrame() {
 		return null;
-		}
-
-	@Override
-	public Properties getRecentConfiguration() {
-		return sRecentConfiguration;
-		}
-
-	@Override
-	public void setRecentConfiguration(Properties configuration) {
-		sRecentConfiguration = configuration;
 		}
 	}

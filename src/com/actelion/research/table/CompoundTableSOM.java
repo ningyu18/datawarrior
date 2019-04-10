@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -42,6 +42,8 @@ import com.actelion.research.chem.descriptor.DescriptorEncoder;
 import com.actelion.research.chem.descriptor.DescriptorHandler;
 import com.actelion.research.chem.descriptor.DescriptorHandlerSkeletonSpheres;
 import com.actelion.research.chem.descriptor.DescriptorHelper;
+import com.actelion.research.table.model.CompoundTableEvent;
+import com.actelion.research.table.model.CompoundTableModel;
 import com.actelion.research.util.DoubleFormat;
 
 public class CompoundTableSOM implements SOMController {
@@ -53,7 +55,7 @@ public class CompoundTableSOM implements SOMController {
 	public static final String[] SOM_ANALYSIS_COLUMN_NAME = {"x", "y", "border dissimilarity"};
 
 	private SelfOrganizedMap	mSOM;
-	private CompoundTableModel	mTableModel;
+	private CompoundTableModel mTableModel;
 	private int[]				mColumnList,mVaryingKey,mUsedRowIndex;
 	private int					mType,mParameterCount,mInputVectorCount,mPivotGroupColumn,mPivotDataColumn;
 	private double[]			mRowParameter;
@@ -362,7 +364,7 @@ public class CompoundTableSOM implements SOMController {
 		return mSOM.findBestMatchLocation(mSOM.normalizeVector(getInputVector(row)));
 		}
 
-	public double[] findExactMatchLocation(int row) {
+	protected double[] findExactMatchLocation(int row) {
 		return mSOM.findExactMatchLocation(mSOM.normalizeVector(getInputVector(row)));
 		}
 

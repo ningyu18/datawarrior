@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -21,10 +21,10 @@ package com.actelion.research.datawarrior.task.list;
 import java.util.Properties;
 
 import com.actelion.research.datawarrior.DEFrame;
-import com.actelion.research.datawarrior.task.DETaskWithEmptyConfiguration;
-import com.actelion.research.table.CompoundTableHitlistHandler;
+import com.actelion.research.datawarrior.task.AbstractTaskWithoutConfiguration;
+import com.actelion.research.table.model.CompoundTableListHandler;
 
-public class DETaskDeleteAllRowLists extends DETaskWithEmptyConfiguration {
+public class DETaskDeleteAllRowLists extends AbstractTaskWithoutConfiguration {
     public static final String TASK_NAME = "Delete All Row Lists";
 
     DEFrame mParentFrame;
@@ -46,11 +46,11 @@ public class DETaskDeleteAllRowLists extends DETaskWithEmptyConfiguration {
 
 	@Override
 	public void runTask(Properties configuration) {
-		CompoundTableHitlistHandler hh = mParentFrame.getMainFrame().getTableModel().getHitlistHandler();
-		String[] names = hh.getHitlistNames();
+		CompoundTableListHandler hh = mParentFrame.getMainFrame().getTableModel().getListHandler();
+		String[] names = hh.getListNames();
 		if (names != null)
 			for (int i=0; i<names.length; i++)
-				hh.deleteHitlist(names[i]);
+				hh.deleteList(names[i]);
 		}
 
 	@Override

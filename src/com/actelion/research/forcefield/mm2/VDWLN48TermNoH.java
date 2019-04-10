@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -22,7 +22,8 @@ import java.text.DecimalFormat;
 import com.actelion.research.chem.Coordinates;
 import com.actelion.research.chem.FFMolecule;
 import com.actelion.research.forcefield.AbstractTerm;
-import com.actelion.research.forcefield.FFParameters;
+import com.actelion.research.forcefield.mm2.MM2Parameters.SingleVDWParameters;
+import com.actelion.research.forcefield.mm2.MM2Parameters.VDWParameters;
 import com.actelion.research.util.MathUtils;
 
 /**
@@ -35,7 +36,7 @@ import com.actelion.research.util.MathUtils;
  * @author freyssj
  */
 public final class VDWLN48TermNoH extends AbstractTerm {
-	private final static FFParameters parameters = MM2Parameters.getInstance();
+	private final static MM2Parameters parameters = MM2Parameters.getInstance();
 
 	private final static double CUTOFF = 7;
 	private final static double TAPER_CUTOFF = CUTOFF * .9;
@@ -54,13 +55,13 @@ public final class VDWLN48TermNoH extends AbstractTerm {
 	
 	protected static VDWLN48TermNoH create(MM2TermList tl, int a1, int a2) {
 		FFMolecule mol = tl.getMolecule();
-		int n1 = mol.getAtomMM2Class(a1);
-		int n2 = mol.getAtomMM2Class(a2);
-		FFParameters.SingleVDWParameters param1 = parameters.getSingleVDWParameters(n1);
-		FFParameters.SingleVDWParameters param2 = parameters.getSingleVDWParameters(n2);
+		int n1 = mol.getMM2AtomType(a1);
+		int n2 = mol.getMM2AtomType(a2);
+		SingleVDWParameters param1 = parameters.getSingleVDWParameters(n1);
+		SingleVDWParameters param2 = parameters.getSingleVDWParameters(n2);
 		if(param1==null||param2==null) return null;
 
-		FFParameters.VDWParameters paramPair = parameters.getVDWParameters(n1, n2);
+		VDWParameters paramPair = parameters.getVDWParameters(n1, n2);
 		double epsilon, radmin;
 		if(paramPair!=null) {
 			radmin = paramPair.radius;

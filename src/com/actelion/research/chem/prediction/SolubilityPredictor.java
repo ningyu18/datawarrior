@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -20,6 +20,9 @@ package com.actelion.research.chem.prediction;
 
 import com.actelion.research.chem.AtomTypeCalculator;
 import com.actelion.research.chem.StereoMolecule;
+
+import java.text.DecimalFormat;
+import java.text.NumberFormat;
 
 
 public class SolubilityPredictor {
@@ -189,10 +192,13 @@ public class SolubilityPredictor {
 					}
 				}
 			}
+		NumberFormat formatter = new DecimalFormat("#0.000");
 
 		for (int i=0; i<cIncrement.length; i++)
 			if (count[i] != 0)
-				detail.add(""+count[i]+" * "+cIncrement[i]+"   AtomType: 0x"
+				detail.add(""+count[i]+" * "+
+									formatter.format(cIncrement[i])
+									+"   AtomType: 0x"
 								  +Long.toHexString(cAtomType[i]),
 								  ParameterizedStringList.cStringTypeText);
 

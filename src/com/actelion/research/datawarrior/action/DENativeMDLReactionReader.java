@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -37,8 +37,8 @@ import com.actelion.research.datawarrior.DEFrame;
 import com.actelion.research.datawarrior.DataWarrior;
 import com.actelion.research.gui.FileHelper;
 import com.actelion.research.gui.JProgressDialog;
-import com.actelion.research.table.CompoundTableEvent;
-import com.actelion.research.table.CompoundTableModel;
+import com.actelion.research.table.model.CompoundTableEvent;
+import com.actelion.research.table.model.CompoundTableModel;
 
 
 public class DENativeMDLReactionReader implements Runnable {
@@ -132,7 +132,7 @@ public class DENativeMDLReactionReader implements Runnable {
 
             try {
                 Reaction rxn = mReader.getReaction(row, 0);
-                rxnList[row] = ReactionEncoder.encode(rxn, false, ReactionEncoder.RETURN_DEFAULT).getBytes();
+                rxnList[row] = ReactionEncoder.encode(rxn, false, ReactionEncoder.INCLUDE_DEFAULT).getBytes();
 
                 try {
                     catalysts.deleteMolecule();

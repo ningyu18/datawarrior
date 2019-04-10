@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,32 +18,30 @@
 
 package com.actelion.research.datawarrior.task.view;
 
-import java.awt.Frame;
+import com.actelion.research.datawarrior.DEFrame;
+import com.actelion.research.datawarrior.DEMainPane;
+import com.actelion.research.datawarrior.task.AbstractViewTask;
+import com.actelion.research.datawarrior.task.DEMacroRecorder;
+import com.actelion.research.table.view.CompoundTableView;
+import com.actelion.research.table.view.JVisualization;
+import com.actelion.research.table.view.VisualizationPanel;
+
+import javax.swing.*;
+import javax.swing.event.ChangeEvent;
+import javax.swing.event.ChangeListener;
+import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.ItemEvent;
 import java.awt.event.ItemListener;
 import java.util.Properties;
 
-import javax.swing.JComboBox;
-import javax.swing.JSlider;
-import javax.swing.SwingUtilities;
-import javax.swing.event.ChangeEvent;
-import javax.swing.event.ChangeListener;
 
-import com.actelion.research.datawarrior.DEFrame;
-import com.actelion.research.datawarrior.DEMainPane;
-import com.actelion.research.datawarrior.task.DEMacroRecorder;
-import com.actelion.research.table.view.CompoundTableView;
-import com.actelion.research.table.view.JVisualization;
-import com.actelion.research.table.view.VisualizationPanel;
-
-
-public abstract class DETaskAbstractSetViewOptions extends DEAbstractViewTask implements ActionListener,ChangeListener,ItemListener {
+public abstract class DETaskAbstractSetViewOptions extends AbstractViewTask implements ActionListener,ChangeListener,ItemListener {
 	private static final String PROPERTY_VIEW_NAME = "viewName";
 
-	private Properties			mOldConfiguration,mLastGoodConfiguration;
-	private boolean				mIgnoreEvents;
+	private Properties	mOldConfiguration,mLastGoodConfiguration;
+	private boolean		mIgnoreEvents;
 
 	/**
 	 * Instantiates this task to be run in the event dispatch thread
@@ -55,10 +53,9 @@ public abstract class DETaskAbstractSetViewOptions extends DEAbstractViewTask im
 		}
 
 	/**
-	 * Instantiates this task to be run in the event dispatch thread
 	 * @param owner
 	 * @param view null or view that is interactively updated
-	 * @param useOwnThread if false, the 
+	 * @param useOwnThread
 	 */
 	public DETaskAbstractSetViewOptions(Frame owner, DEMainPane mainPane, CompoundTableView view, boolean useOwnThread) {
 		super(owner, mainPane, view, useOwnThread);
@@ -98,14 +95,13 @@ public abstract class DETaskAbstractSetViewOptions extends DEAbstractViewTask im
 		mIgnoreEvents = b;
 		}
 
-	public JVisualization getVisualization() {
+	/**
+	 * Returns the 2D- or 3D-JVisualization object of the interactive view passed with the constructor.
+	 * @return null if not interactive or if no 2D-/3D-view is associated with this task
+	 */
+	public JVisualization getInteractiveVisualization() {
 		CompoundTableView view  = getInteractiveView();
 		return (view == null || !(view instanceof VisualizationPanel)) ? null : ((VisualizationPanel)view).getVisualization();
-		}
-
-	@Override
-	public boolean isRedundant(Properties previousConfiguration, Properties currentConfiguration) {
-		return getConfiguredViewName(currentConfiguration).equals(getConfiguredViewName(previousConfiguration));
 		}
 
 	@Override
@@ -114,7 +110,7 @@ public abstract class DETaskAbstractSetViewOptions extends DEAbstractViewTask im
 	 * Otherwise it returned the currently active view settings of the specified view.
 	 */
 	public final Properties getRecentConfiguration() {
-		return (!hasInteractiveView())	? getRecentConfigurationLocal() : getViewConfiguration();
+		return (!hasInteractiveView())	? super.getRecentConfiguration() : getViewConfiguration();
 		}
 
 	/**
@@ -137,11 +133,6 @@ public abstract class DETaskAbstractSetViewOptions extends DEAbstractViewTask im
 	 * @param configuration is pre-initialized with the view identifying name
 	 */
 	public abstract void addViewConfiguration(Properties configuration);
-
-	/**
-	 * @return sRecentConfiguration of the derived class
-	 */
-	public abstract Properties getRecentConfigurationLocal();
 
 	@Override
 	public final Properties getDialogConfiguration() {

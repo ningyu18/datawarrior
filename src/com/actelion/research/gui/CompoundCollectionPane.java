@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,52 +18,28 @@
 
 package com.actelion.research.gui;
 
-import java.awt.Color;
-import java.awt.Component;
-import java.awt.Dimension;
-import java.awt.Font;
-import java.awt.FontMetrics;
-import java.awt.Frame;
-import java.awt.Graphics;
-import java.awt.Graphics2D;
-import java.awt.Point;
-import java.awt.Rectangle;
-import java.awt.RenderingHints;
+import com.actelion.research.chem.*;
+import com.actelion.research.gui.clipboard.IClipboardHandler;
+import com.actelion.research.gui.dnd.MoleculeDragAdapter;
+import com.actelion.research.gui.dnd.MoleculeDropAdapter;
+import com.actelion.research.gui.dnd.MoleculeTransferable;
+import com.actelion.research.util.ColorHelper;
+
+import javax.swing.*;
+import java.awt.*;
 import java.awt.datatransfer.DataFlavor;
 import java.awt.datatransfer.Transferable;
 import java.awt.dnd.DnDConstants;
 import java.awt.dnd.DropTarget;
 import java.awt.dnd.DropTargetDragEvent;
 import java.awt.dnd.DropTargetEvent;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
-import java.awt.event.MouseEvent;
-import java.awt.event.MouseListener;
-import java.awt.event.MouseMotionListener;
+import java.awt.event.*;
 import java.awt.geom.Rectangle2D;
 import java.io.BufferedWriter;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.util.ArrayList;
-
-import javax.swing.JMenuItem;
-import javax.swing.JOptionPane;
-import javax.swing.JPanel;
-import javax.swing.JPopupMenu;
-import javax.swing.JScrollPane;
-
-import com.actelion.research.chem.AbstractDepictor;
-import com.actelion.research.chem.Canonizer;
-import com.actelion.research.chem.Depictor2D;
-import com.actelion.research.chem.Molecule;
-import com.actelion.research.chem.MolfileCreator;
-import com.actelion.research.chem.MolfileV3Creator;
-import com.actelion.research.chem.StereoMolecule;
-import com.actelion.research.gui.clipboard.IClipboardHandler;
-import com.actelion.research.gui.dnd.MoleculeDragAdapter;
-import com.actelion.research.gui.dnd.MoleculeDropAdapter;
-import com.actelion.research.gui.dnd.MoleculeTransferable;
 
 public class CompoundCollectionPane<T> extends JScrollPane
             implements ActionListener,CompoundCollectionListener,MouseListener,MouseMotionListener,StructureListener {
@@ -258,17 +234,38 @@ public class CompoundCollectionPane<T> extends JScrollPane
 	        		writer.newLine();
 	        		writer.write("<columnName=\""+title+"\">");
 	        		writer.newLine();
-	        		writer.write("<columnProperty=\"specialType	idcode\">");
+	        		writer.write("<columnProperty=\"specialType\tidcode\">");
+	        		writer.newLine();
+	        		writer.write("<columnName=\"coords\">");
+	        		writer.newLine();
+	        		writer.write("<columnProperty=\"specialType\tidcoordinates2D\">");
+	        		writer.newLine();
+	        		writer.write("<columnProperty=\"parent\t"+title+"\">");
 	        		writer.newLine();
 	        		writer.write("</column properties>");
 	        		writer.newLine();
-	        		writer.write(title);
+	        		writer.write(title+"\tcoords");
 	        		writer.newLine();
 	        		for (int i=0; i<mModel.getSize(); i++) {
-	        			if (mModel instanceof DefaultCompoundCollectionModel.IDCode)
-	        				writer.write((String)mModel.getCompound(i));
-	        			else
-	        				writer.write(new Canonizer(mModel.getMolecule(i)).getIDCode());
+	        			if (mModel instanceof DefaultCompoundCollectionModel.IDCode) {
+	        				String idcode = (String)mModel.getCompound(i);
+	        				int index = idcode.indexOf(' ');
+	        				if (index == -1) {
+	        					writer.write(idcode.substring(0, index));
+	        					writer.write('\t');
+	        					writer.write(idcode.substring(index+1));
+	        					}
+	        				else {
+	        					writer.write(idcode);
+	        					writer.write('\t');
+	        					}
+	        				}
+	        			else {
+	        				Canonizer canonizer = new Canonizer(mModel.getMolecule(i));
+	        				writer.write(canonizer.getIDCode());
+        					writer.write('\t');
+	        				writer.write(canonizer.getEncodedCoordinates());
+	        				}
 	            		writer.newLine();
 	        			}
 	    			writer.close();
@@ -351,7 +348,9 @@ public class CompoundCollectionPane<T> extends JScrollPane
 
 				Rectangle clipRect = g.getClipBounds();
 
-				g.setColor(Color.white);
+	            Color background = UIManager.getColor(mIsEnabled ? "TextArea.background" : "TextArea.inactiveBackground");
+	            Color foreground = UIManager.getColor(mIsEnabled ? "TextArea.foreground" : "TextArea.inactiveForeground");
+				g.setColor(background);
 				g.fillRect(clipRect.x, clipRect.y, clipRect.width, clipRect.height);
 
 		        if (mModel.getSize() != 0) {
@@ -359,6 +358,8 @@ public class CompoundCollectionPane<T> extends JScrollPane
     		                                         : clipRect.x / mCellSize.width);
     		        int i2 = Math.min(mModel.getSize(), mIsVertical ? 1+(clipRect.y+clipRect.height) / mCellSize.height
 		                                                            : 1+(clipRect.x+clipRect.width) / mCellSize.width);
+			        Color warningColor = (ColorHelper.perceivedBrightness(background) < 0.5f) ?
+					        ColorHelper.brighter(background, 0.8f) : ColorHelper.darker(background, 0.8f);
 
     		        for (int i=i1; i<i2; i++) {
                         Rectangle bounds = getMoleculeBounds(i);
@@ -370,8 +371,8 @@ public class CompoundCollectionPane<T> extends JScrollPane
     					        }
     					    catch (Exception e) {
     					        int size = Math.min(bounds.width, bounds.height);
-    					        g.setColor(new Color(255, 192, 192));
-    					        g.setFont(new Font("Helvetica", Font.BOLD, size));
+    					        g.setColor(warningColor);
+    					        g.setFont(g.getFont().deriveFont(Font.BOLD, size));
     					        FontMetrics m = g.getFontMetrics();
     					        Rectangle2D b = m.getStringBounds("?", g);
     					        g.drawString("?", bounds.x+(bounds.width-(int)b.getWidth())/2, bounds.y+(bounds.height-(int)b.getHeight())/2+m.getAscent());
@@ -380,13 +381,14 @@ public class CompoundCollectionPane<T> extends JScrollPane
     
     					Depictor2D d = new Depictor2D(compound, mDisplayMode);
     					d.validateView(g,
-    								   new Rectangle2D.Float(bounds.x, bounds.y, bounds.width, bounds.height),
+    								   new Rectangle2D.Double(bounds.x, bounds.y, bounds.width, bounds.height),
     								   AbstractDepictor.cModeInflateToMaxAVBL);
-    					d.setDefaultColor(mIsEnabled ? Molecule.cAtomColorBlack : AbstractDepictor.cColorGray);
+
+		                d.setForegroundColor(foreground, background);
     					d.paint(g);
 
     					if (mSelectedIndex == i || mHighlightedIndex == i) {
-    					    g.setColor(!mIsEnabled ? Color.GRAY 
+    					    g.setColor(!mIsEnabled ? ColorHelper.getContrastColor(Color.GRAY, background)
     					             : (mSelectedIndex != i) ? Color.BLUE
     					             : (mHighlightedIndex != i) ? Color.RED : Color.MAGENTA);
                             g.drawRect(bounds.x-2, bounds.y-2, bounds.width+3, bounds.height+3);
@@ -394,7 +396,7 @@ public class CompoundCollectionPane<T> extends JScrollPane
     					    }
 
     					if (mShowDropBorder) {
-    			            g.setColor(Color.gray);
+    			            g.setColor(ColorHelper.getContrastColor(Color.GRAY, background));
     			            Rectangle vb = getViewport().getViewRect();
     			            g.drawRect(vb.x, vb.y, vb.width-1,vb.height-1);
     			            g.drawRect(vb.x+1, vb.y+1, vb.width-3, vb.height-3);
@@ -599,7 +601,7 @@ public class CompoundCollectionPane<T> extends JScrollPane
                 public void onDropMolecule(StereoMolecule mol, Point pt) {
                     if (mIsEnabled && mIsEditable && mol != null && mol.getAllAtoms() != 0) {
                         for (int atom=0; atom<mol.getAllAtoms(); atom++) {
-                            mol.setAtomColor(atom, Molecule.cAtomColorBlack); // don't copy atom coloring
+                            mol.setAtomColor(atom, Molecule.cAtomColorNone); // don't copy atom coloring
                             }
 
                         int index = (mHighlightedIndex == -1) ? mModel.getSize() : mHighlightedIndex;

@@ -401,7 +401,6 @@ public class JDockingPanel extends JPanel implements ActionListener,AWTEventList
 	 * To recreate a docking state create an empty JDockingPanel and call dock(dockable, dockInfo)
 	 * once for every dockable keeping the order of the title[] array and pass the respective
 	 * dockInfo from the array returned by this function.
-	 * @param title dockable titles in arbitrary order
 	 * @return dockInfo[] array with a docking instruction for every dockable
 	 */
 	public String[] getDockInfoSequence() {

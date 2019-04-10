@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -30,16 +30,16 @@ public class JDrawPanel extends JPanel {
     
 	protected JDrawArea mArea;
 
-	public JDrawPanel(Frame parent, StereoMolecule mol) {
-		this(parent, mol, 0);
+	public JDrawPanel(StereoMolecule mol) {
+		this(mol, 0);
 	}
 
-	public JDrawPanel(Frame parent, StereoMolecule mol, boolean isReaction) {
-		this(parent, mol, JDrawArea.MODE_MULTIPLE_FRAGMENTS
+	public JDrawPanel(StereoMolecule mol, boolean isReaction) {
+		this(mol, JDrawArea.MODE_MULTIPLE_FRAGMENTS
 				| JDrawArea.MODE_REACTION);
 	}
 
-	public JDrawPanel(Frame parent, StereoMolecule mol, int mode) {
+	public JDrawPanel(StereoMolecule mol, int mode) {
 		setLayout(new BorderLayout());
 
 		mArea = new JDrawArea(mol, mode);
@@ -61,5 +61,3 @@ public class JDrawPanel extends JPanel {
 		mArea.toolChanged(1);
 	}
 }
-
-

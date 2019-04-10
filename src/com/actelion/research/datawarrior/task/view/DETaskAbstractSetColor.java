@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,6 +18,7 @@
 
 package com.actelion.research.datawarrior.task.view;
 
+import com.actelion.research.table.model.CompoundTableListHandler;
 import info.clearthought.layout.TableLayout;
 
 import java.awt.Color;
@@ -28,17 +29,10 @@ import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
 import java.util.Properties;
 
-import javax.swing.JCheckBox;
-import javax.swing.JComboBox;
-import javax.swing.JComponent;
-import javax.swing.JLabel;
-import javax.swing.JPanel;
-import javax.swing.JTextField;
-import javax.swing.SwingConstants;
+import javax.swing.*;
 
 import com.actelion.research.datawarrior.DEMainPane;
-import com.actelion.research.table.CompoundTableHitlistHandler;
-import com.actelion.research.table.CompoundTableModel;
+import com.actelion.research.table.model.CompoundTableModel;
 import com.actelion.research.table.view.CompoundTableView;
 import com.actelion.research.table.view.JVisualization;
 import com.actelion.research.table.view.VisualizationColor;
@@ -137,8 +131,8 @@ public abstract class DETaskAbstractSetColor extends DETaskAbstractSetViewOption
 				mComboBox.addItem(getTableModel().getColumnTitleExtended(i));
 				}
 			}
-		for (int i=0; i<getTableModel().getHitlistHandler().getHitlistCount(); i++) {
-			int pseudoColumn = CompoundTableHitlistHandler.getColumnFromHitlist(i);
+		for (int i = 0; i<getTableModel().getListHandler().getListCount(); i++) {
+			int pseudoColumn = CompoundTableListHandler.getColumnFromList(i);
 			mComboBox.addItem(getTableModel().getColumnTitleExtended(pseudoColumn));
 			}
 		mComboBox.setEditable(!hasInteractiveView());
@@ -160,7 +154,7 @@ public abstract class DETaskAbstractSetColor extends DETaskAbstractSetViewOption
 	 * Based on the combobox setting (column) and the checkbox setting (categories of numerical)
 	 * it updates the colorpanel to show the correct number of categories or the numerical color button.
 	 */
-	private void updateColorPanel() {
+	protected void updateColorPanel() {
 		int column = getTableModel().findColumn((String)mComboBox.getSelectedItem());
 		int categoryCount = !mCheckBoxByCategories.isSelected() ? -1 : (column == -1) ? DEFAULT_CATEGORY_COUNT : getTableModel().getCategoryCount(column);
 		mColorPanel.updateColorListMode(categoryCount);
@@ -192,7 +186,7 @@ public abstract class DETaskAbstractSetColor extends DETaskAbstractSetViewOption
 		if (!hasInteractiveView()) {
 			enabled = true;
 			}
-		else if (CompoundTableHitlistHandler.isHitlistColumn(column)) {
+		else if (CompoundTableListHandler.isListColumn(column)) {
 			selected = true;
 			}
 		else if (column != JVisualization.cColumnUnassigned
@@ -230,7 +224,7 @@ public abstract class DETaskAbstractSetColor extends DETaskAbstractSetViewOption
 		try {
 			if (mTextFieldMin.getText().length() != 0)
 				min = Float.parseFloat(mTextFieldMin.getText());
-			mTextFieldMin.setBackground(Color.white);
+			mTextFieldMin.setBackground(UIManager.getColor("TextArea.background"));
 			}
 		catch (NumberFormatException nfe) {
 			mTextFieldMin.setBackground(Color.red);
@@ -238,7 +232,7 @@ public abstract class DETaskAbstractSetColor extends DETaskAbstractSetViewOption
 		try {
 			if (mTextFieldMax.getText().length() != 0)
 				max = Float.parseFloat(mTextFieldMax.getText());
-			mTextFieldMax.setBackground(Color.white);
+			mTextFieldMax.setBackground(UIManager.getColor("TextArea.background"));
 			}
 		catch (NumberFormatException nfe) {
 			mTextFieldMax.setBackground(Color.red);
@@ -358,7 +352,7 @@ public abstract class DETaskAbstractSetColor extends DETaskAbstractSetViewOption
 				}
 			String mode = configuration.getProperty(PROPERTY_MODE);
 			if (VisualizationColor.COLOR_LIST_MODE_CODE[VisualizationColor.cColorListModeCategories].equals(mode)) {
-				if (!CompoundTableHitlistHandler.isHitlistColumn(column)
+				if (!CompoundTableListHandler.isListColumn(column)
 				 && !view.getTableModel().isColumnTypeCategory(column)) {
 					showErrorMessage("Column '"+columnName+"' does not contain categories.");
 					return false;

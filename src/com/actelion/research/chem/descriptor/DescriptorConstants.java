@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,6 +18,9 @@
 
 package com.actelion.research.chem.descriptor;
 
+import com.actelion.research.chem.SSSearcherWithIndex;
+import com.actelion.research.chem.reaction.ReactionSearcher;
+
 public interface DescriptorConstants {
     public static final int DESCRIPTOR_TYPE_UNKNOWN = -1;
     public static final int DESCRIPTOR_TYPE_MOLECULE = 1;
@@ -26,6 +29,7 @@ public interface DescriptorConstants {
     public static final DescriptorInfo DESCRIPTOR_FFP512 = 
                             new DescriptorInfo("FragmentFingerprint512",
                                                "FragFp",
+											   SSSearcherWithIndex.cIndexVersion,
                                                DESCRIPTOR_TYPE_MOLECULE,
                                                true,
                                                true,
@@ -33,6 +37,7 @@ public interface DescriptorConstants {
     public static final DescriptorInfo DESCRIPTOR_PFP512 = 
                             new DescriptorInfo("PathFingerprint512",
                                                "PathFp",
+											   "1.1",
                                                DESCRIPTOR_TYPE_MOLECULE,
                                                true,
                                                true,
@@ -40,6 +45,7 @@ public interface DescriptorConstants {
     public static final DescriptorInfo DESCRIPTOR_HashedCFp = 
                             new DescriptorInfo("HashedSphericalFingerprint512",
                                                "SphereFp",
+											   "2.1",
                                                DESCRIPTOR_TYPE_MOLECULE,
                                                true,
                                                true,
@@ -47,6 +53,7 @@ public interface DescriptorConstants {
     public static final DescriptorInfo DESCRIPTOR_SkeletonSpheres = 
                                                new DescriptorInfo("HashedSkeletonSphereCount1024",
                                                "SkelSpheres",
+											   "1.1",
                                                DESCRIPTOR_TYPE_MOLECULE,
                                                false,
                                                true,
@@ -54,6 +61,7 @@ public interface DescriptorConstants {
     public static final DescriptorInfo DESCRIPTOR_OrganicFunctionalGroups = 
     										   new DescriptorInfo("FunctionalGroupTreeCount1024",
     										   "OrgFunctions",
+											   "1.0",
     										   DESCRIPTOR_TYPE_MOLECULE,
     										   false,
     										   false,
@@ -61,6 +69,7 @@ public interface DescriptorConstants {
     public static final DescriptorInfo DESCRIPTOR_CenteredSkeletonFragments = 
 										        new DescriptorInfo("CenteredSkeletonFragments",
 										        "CentSkelFrags",
+												"1.0",
 										        DESCRIPTOR_TYPE_MOLECULE,
 										        false,
 										        true,
@@ -68,6 +77,7 @@ public interface DescriptorConstants {
     public static final DescriptorInfo DESCRIPTOR_TopoPPHistDist = 
                             new DescriptorInfo("TopologicalPharmacophoreHistograms",
                                                "TopPPHist",
+                                               "version",
                                                DESCRIPTOR_TYPE_MOLECULE,
                                                false,
                                                false,
@@ -75,13 +85,15 @@ public interface DescriptorConstants {
     public static final DescriptorInfo DESCRIPTOR_Flexophore = 
                             new DescriptorInfo("Flexophore",
                                                "Flexophore",
+											   "4.4",
                                                DESCRIPTOR_TYPE_MOLECULE,
                                                false,
                                                false,
                                                false);
-    public static final DescriptorInfo DESCRIPTOR_Flexophore_HighRes = 
+    public static final DescriptorInfo DESCRIPTOR_Flexophore_HighRes =
         					new DescriptorInfo("FlexophoreHighResolution",
         									   "FlexophoreHighRes",
+												"version",
         									   DESCRIPTOR_TYPE_MOLECULE,
         									   false,
         									   false,
@@ -89,6 +101,7 @@ public interface DescriptorConstants {
     public static final DescriptorInfo DESCRIPTOR_ReactionIndex = 
                             new DescriptorInfo("ReactionIndex",
                                                "RxnIdx",
+											   ReactionSearcher.cIndexVersion,
                                                DESCRIPTOR_TYPE_REACTION,
                                                false,
                                                false,
@@ -96,6 +109,7 @@ public interface DescriptorConstants {
     public static final DescriptorInfo DESCRIPTOR_IntegerVector = 
     						new DescriptorInfo("IntegerVector",
     											"IntVec",
+												"1.0",
     											DESCRIPTOR_TYPE_UNKNOWN,
     											false,
     											false,
@@ -103,7 +117,8 @@ public interface DescriptorConstants {
    
     public static final DescriptorInfo DESCRIPTOR_MAX_COMMON_SUBSTRUCT = 
         					new DescriptorInfo("MaximumCommonSubstructure",
-        										"MCS",
+        										"Structure",
+												"1.0",
         										DESCRIPTOR_TYPE_MOLECULE,
         										false,
         										true,
@@ -111,19 +126,39 @@ public interface DescriptorConstants {
 
     public static final DescriptorInfo DESCRIPTOR_SUBSTRUCT_QUERY_IN_BASE = 
 							new DescriptorInfo("SubStructureQueryInBase",
-								"SSSQinB",
-								DESCRIPTOR_TYPE_MOLECULE,
-								false,
-								false, // ??? TODO check
-								false);
+												"SSSQinB",
+												"1.0",
+												DESCRIPTOR_TYPE_MOLECULE,
+												false,
+												false, // ??? TODO check
+												false);
     
     public static final DescriptorInfo DESCRIPTOR_FULL_FRAGMENT_SET = 
-            new DescriptorInfo("FullFragmentSet",
-                               "FullFragSet",
-                               DescriptorConstants.DESCRIPTOR_TYPE_MOLECULE,
-                               true,
-                               true,
-                               false);
+							new DescriptorInfo("FullFragmentSet",
+											   "FullFragSet",
+											   "1.0",
+											   DescriptorConstants.DESCRIPTOR_TYPE_MOLECULE,
+											   true,
+											   true,
+											   false);
+    
+    public static final DescriptorInfo DESCRIPTOR_PhysicoChemicalProperties = 
+							new DescriptorInfo("DescriptorPhysicoChemicalProperties",
+											   "PhysChem",
+												"version",
+											   DescriptorConstants.DESCRIPTOR_TYPE_MOLECULE,
+											   false,
+											   false,
+											   false);
+
+    public static final DescriptorInfo DESCRIPTOR_BINARY_SKELETONSPHERES =
+							new DescriptorInfo("BinarySkeletonSpheres",
+												"BinSkelSpheres",
+												"10052017",
+												DescriptorConstants.DESCRIPTOR_TYPE_MOLECULE,
+												true,
+												true,
+												false);
 
     public static final DescriptorInfo[] DESCRIPTOR_LIST = {
                                                 DESCRIPTOR_FFP512,
@@ -139,6 +174,7 @@ public interface DescriptorConstants {
                                                 DESCRIPTOR_PFP512,
                                                 DESCRIPTOR_HashedCFp,
                                                 DESCRIPTOR_SkeletonSpheres,
+												DESCRIPTOR_BINARY_SKELETONSPHERES,
                                                 DESCRIPTOR_CenteredSkeletonFragments,
                                                 DESCRIPTOR_FULL_FRAGMENT_SET,
                                                 DESCRIPTOR_MAX_COMMON_SUBSTRUCT,
@@ -149,7 +185,9 @@ public interface DescriptorConstants {
                                                 DESCRIPTOR_Flexophore_HighRes,
                                                 DESCRIPTOR_ReactionIndex,
                                                 DESCRIPTOR_IntegerVector,
-                                                DESCRIPTOR_FULL_FRAGMENT_SET
+                                                DESCRIPTOR_FULL_FRAGMENT_SET,
+                                                DESCRIPTOR_PhysicoChemicalProperties,
+                                                DESCRIPTOR_BINARY_SKELETONSPHERES
                                                 };
     }
 

@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -23,8 +23,8 @@ package com.actelion.research.util;
  */
 public class ScaleLabel {
 	public String label;
-	public float position;
-	public float value;
+	public double position;
+	public double value;
 
 	/**
 	 * Create an ScaleLabel object consisting of visible label,
@@ -33,7 +33,7 @@ public class ScaleLabel {
 	 * @param position relative label position, >= 0.0 and <= 1.0
 	 * @param value numerical value, which in case of a logarithmic scale is log10 of the shown value
 	 */
-	public ScaleLabel(String label, float position, float value) {
+	public ScaleLabel(String label, double position, double value) {
 		this.label = label;
 		this.position = position;
 		this.value = value;

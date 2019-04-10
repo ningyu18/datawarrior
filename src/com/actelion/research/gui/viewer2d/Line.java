@@ -9,6 +9,7 @@ import com.actelion.research.chem.Coordinates;
 import com.actelion.research.gui.viewer2d.jmol.*;
 
 public class Line extends Shape {
+	
 	protected Color color;
 	protected Coordinates realPoint2;
 	private int style;
@@ -16,12 +17,15 @@ public class Line extends Shape {
 	public Line(Coordinates p1, Coordinates p2, Color c) {
 		this(p1, p2, c, 0);
 	}
+	
 	public Line(Coordinates p1, Coordinates p2, Color c, int style) {
 		super(p1);
 		this.color = c;
 		this.realPoint2 = p2;
 		this.style = style;
 	}		
+	
+	@Override
 	public void paint(Canvas3D canvas3D, Graphics3D g) {
 		super.paint(canvas3D, g);
 		Point3i c2 = canvas3D.visualizer3D.screenPosition(realPoint2);
@@ -35,6 +39,7 @@ public class Line extends Shape {
 					break;
 				case DASHED_STROKE:
 					g.drawDashedLine(Colix.getColix(getAttenuatedColor(canvas3D, color)), 1, 2, screenCoordinates.x, screenCoordinates.y, screenCoordinates.z, c2.x, c2.y, c2.z);
+					break;
 				case BOLD_STROKE:
 					g.fillCylinder(Colix.getColix(getAttenuatedColor(canvas3D, color)), (byte)2, 10, screenCoordinates.x, screenCoordinates.y, screenCoordinates.z, c2.x, c2.y, c2.z);
 			}

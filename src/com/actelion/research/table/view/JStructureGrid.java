@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,22 +18,22 @@
 
 package com.actelion.research.table.view;
 
-import java.awt.AlphaComposite;
-import java.awt.BasicStroke;
-import java.awt.Color;
-import java.awt.Composite;
-import java.awt.Dimension;
-import java.awt.Font;
-import java.awt.Frame;
-import java.awt.Graphics;
-import java.awt.Graphics2D;
-import java.awt.Image;
-import java.awt.Point;
-import java.awt.Rectangle;
-import java.awt.RenderingHints;
-import java.awt.Shape;
-import java.awt.Stroke;
-import java.awt.Toolkit;
+import com.actelion.research.chem.AbstractDepictor;
+import com.actelion.research.chem.Depictor2D;
+import com.actelion.research.chem.IDCodeParser;
+import com.actelion.research.chem.StereoMolecule;
+import com.actelion.research.gui.hidpi.HiDPIHelper;
+import com.actelion.research.gui.LookAndFeelHelper;
+import com.actelion.research.gui.dnd.MoleculeDragAdapter;
+import com.actelion.research.gui.dnd.MoleculeTransferable;
+import com.actelion.research.table.*;
+import com.actelion.research.table.model.*;
+import com.actelion.research.util.ColorHelper;
+
+import javax.swing.*;
+import javax.swing.event.ListSelectionEvent;
+import javax.swing.event.ListSelectionListener;
+import java.awt.*;
 import java.awt.datatransfer.Transferable;
 import java.awt.dnd.DnDConstants;
 import java.awt.event.InputEvent;
@@ -46,51 +46,22 @@ import java.awt.print.PageFormat;
 import java.awt.print.Printable;
 import java.util.ArrayList;
 
-import javax.swing.BorderFactory;
-import javax.swing.JPanel;
-import javax.swing.JPopupMenu;
-import javax.swing.JScrollPane;
-import javax.swing.UIManager;
-import javax.swing.event.ListSelectionEvent;
-import javax.swing.event.ListSelectionListener;
-
-import com.actelion.research.chem.AbstractDepictor;
-import com.actelion.research.chem.Depictor2D;
-import com.actelion.research.chem.IDCodeParser;
-import com.actelion.research.chem.StereoMolecule;
-import com.actelion.research.gui.dnd.MoleculeDragAdapter;
-import com.actelion.research.gui.dnd.MoleculeTransferable;
-import com.actelion.research.table.CompoundListSelectionModel;
-import com.actelion.research.table.CompoundRecord;
-import com.actelion.research.table.CompoundTableChemistryCellRenderer;
-import com.actelion.research.table.CompoundTableColorHandler;
-import com.actelion.research.table.CompoundTableEvent;
-import com.actelion.research.table.CompoundTableHitlistEvent;
-import com.actelion.research.table.CompoundTableModel;
-import com.actelion.research.table.DetailPopupProvider;
-import com.actelion.research.table.HighlightListener;
-import com.actelion.research.table.MarkerLabelDisplayer;
-
 public class JStructureGrid extends JScrollPane
 		implements CompoundTableColorHandler.ColorListener,CompoundTableView,FocusableView,HighlightListener,
 					ListSelectionListener,MarkerLabelDisplayer,MouseListener,MouseMotionListener,Printable {
 	private static final long serialVersionUID = 0x20060904;
 
-	private static final Color cSelectionColor = UIManager.getColor("TextArea.selectionBackground");
-	private static final Color cOutOfFocusBackground = new Color(224, 224, 224);
-	private static final Color cOutOfFocusForeground = new Color(192, 192, 192);
-
 	private Frame						mParentFrame;
-	private CompoundTableModel			mTableModel;
+	private CompoundTableModel mTableModel;
 	private CompoundTableColorHandler	mColorHandler;
-	private CompoundListSelectionModel	mSelectionModel;
-	private CompoundRecord				mActiveRow,mHighlightedRow;
+	private CompoundListSelectionModel mSelectionModel;
+	private CompoundRecord mActiveRow,mHighlightedRow;
 	private JStructureGridContentPanel	mContentPanel;
 	private GridCellSize				mCellSize;
 	private float						mMarkerLabelSize;
 	private int							mNoOfColumns,mTableRowCount,
 										mRecordCountOnLastValidation,mIndexOfFirstImage,
-										mTableRowCountOnLastValidation,mFocusHitlist,mFocusCount,
+										mTableRowCountOnLastValidation,mFocusList,mFocusCount,
 										mStructureColumn;
 	private int[]						mLabelColumn,mFocusRow;
 	private ArrayList<GridImage> 		mImageList;
@@ -119,8 +90,8 @@ public class JStructureGrid extends JScrollPane
 		mHighlightedRow = mTableModel.getHighlightedRow();
 		mImageList = new ArrayList<GridImage>();
 		mContentPanel = new JStructureGridContentPanel();
-		mContentPanel.setBackground(Color.white);
-		mFocusHitlist = cHitlistUnassigned;
+//		mContentPanel.setBackground(Color.white);
+		mFocusList = cFocusNone;
 		mFocusValid = true;
 
 		setBorder(BorderFactory.createEmptyBorder());
@@ -232,7 +203,7 @@ public class JStructureGrid extends JScrollPane
 		float x2 = bounds.x+bounds.width;
 		float y2 = bounds.y+bounds.height-FOOTER_FONT_SIZE/4;
 		g2D.setColor(Color.black);
-		g2D.setFont(new Font("Helvetica", Font.PLAIN, (int)FOOTER_FONT_SIZE));
+		g2D.setFont(g2D.getFont().deriveFont(Font.PLAIN, (int)FOOTER_FONT_SIZE));
 		String docTitle = mParentFrame.getTitle();
 		g2D.drawString(docTitle, (int)x1, (int)y2);
 		g2D.drawString(footer, (int)x2-g2D.getFontMetrics().stringWidth(footer), (int)y2);
@@ -264,7 +235,7 @@ public class JStructureGrid extends JScrollPane
 
 			if (mShowAnyLabels) {
 				g2D.setColor(Color.black);
-				g2D.setFont(new Font("Helvetica", Font.PLAIN, (int)cellSize.fontSize));
+				g2D.setFont(g2D.getFont().deriveFont(Font.PLAIN, (int)cellSize.fontSize));
 				for (int position=0; position<mLabelColumn.length; position++) {
 					int column = mLabelColumn[position];
 					if (column != -1) {
@@ -306,14 +277,14 @@ public class JStructureGrid extends JScrollPane
 						if (mColorHandler.hasColorAssigned(column, CompoundTableColorHandler.BACKGROUND)) {
 							if (transparentBG)
 								g2D.setComposite(transparent);
-							g2D.setColor(mColorHandler.getVisualizationColor(column, CompoundTableColorHandler.BACKGROUND).getLighterColor(getRecord(firstRow+i)));
+							g2D.setColor(mColorHandler.getVisualizationColor(column, CompoundTableColorHandler.BACKGROUND).getColorForPrintBackground(getRecord(firstRow+i)));
 							g2D.fill(labelRect);
 							if (transparentBG)
 								g2D.setComposite(opaque);
 							}
 	
 						if (mColorHandler.hasColorAssigned(column, CompoundTableColorHandler.FOREGROUND))
-							g2D.setColor(mColorHandler.getVisualizationColor(column, CompoundTableColorHandler.FOREGROUND).getDarkerColor(getRecord(firstRow+i)));
+							g2D.setColor(mColorHandler.getVisualizationColor(column, CompoundTableColorHandler.FOREGROUND).getColorForPrintForeground(getRecord(firstRow+i)));
 						else
 							g2D.setColor(Color.black);
 	
@@ -362,7 +333,7 @@ public class JStructureGrid extends JScrollPane
 			if (mColorHandler.hasColorAssigned(mStructureColumn, CompoundTableColorHandler.BACKGROUND)) {
 				if (transparentBG)
 					g2D.setComposite(transparent);
-				g2D.setColor(mColorHandler.getVisualizationColor(mStructureColumn, CompoundTableColorHandler.BACKGROUND).getLighterColor(getRecord(firstRow+i)));
+				g2D.setColor(mColorHandler.getVisualizationColor(mStructureColumn, CompoundTableColorHandler.BACKGROUND).getColorForPrintBackground(getRecord(firstRow+i)));
 				g2D.fill(new Rectangle2D.Float(r.x, r.y+cellSize.topHeight, r.width, r.height-cellSize.topHeight-cellSize.bottomHeight-cellSize.tableHeight));
 				if (transparentBG)
 					g2D.setComposite(opaque);
@@ -372,17 +343,21 @@ public class JStructureGrid extends JScrollPane
 			if (mol != null) {
 				g2D.setColor(Color.black);
 				Depictor2D depictor = new Depictor2D(mol, Depictor2D.cDModeSuppressChiralText);
-				depictor.validateView(g2D, new Rectangle2D.Float(r.x,
-											r.y+cellSize.topHeight,
-											r.width,
+				depictor.validateView(g2D, new Rectangle2D.Double(r.x, r.y+cellSize.topHeight, r.width,
 											r.height-cellSize.topHeight-cellSize.bottomHeight-cellSize.tableHeight),
 									  AbstractDepictor.cModeInflateToMaxAVBL+(int)(scaling*AbstractDepictor.cOptAvBondLen));
 
+				Color bg = Color.white;
+				if (mColorHandler.hasColorAssigned(mStructureColumn, CompoundTableColorHandler.BACKGROUND)) {
+					VisualizationColor vc = mColorHandler.getVisualizationColor(mStructureColumn, CompoundTableColorHandler.BACKGROUND);
+					bg = vc.getColorForPrintBackground(getRecord(firstRow+i));
+					}
 				if (mColorHandler.hasColorAssigned(mStructureColumn, CompoundTableColorHandler.FOREGROUND)) {
-					Color foreground = mColorHandler.getVisualizationColor(mStructureColumn, CompoundTableColorHandler.FOREGROUND).getDarkerColor(getRecord(firstRow+i));
-					Color background = mColorHandler.hasColorAssigned(mStructureColumn, CompoundTableColorHandler.BACKGROUND) ?
-							mColorHandler.getVisualizationColor(mStructureColumn, CompoundTableColorHandler.BACKGROUND).getLighterColor(getRecord(firstRow+i)) : Color.white;
-					depictor.setOverruleColor(foreground, background);
+					Color fg = mColorHandler.getVisualizationColor(mStructureColumn, CompoundTableColorHandler.FOREGROUND).getColorForPrintForeground(getRecord(firstRow+i));
+					depictor.setOverruleColor(fg, bg);
+					}
+				else {
+					depictor.setForegroundColor(Color.BLACK, bg);
 					}
 				depictor.paint(g2D);
 				}
@@ -395,7 +370,7 @@ public class JStructureGrid extends JScrollPane
 	 * Returns the record to be shown at this index position
 	 * considering whether we have an active focus. In this case
 	 * the records in focus are returned first.
-	 * @param index
+	 * @param row
 	 * @return
 	 */
 	private CompoundRecord getRecord(int row) {
@@ -419,14 +394,14 @@ public class JStructureGrid extends JScrollPane
 		}
 
 	@Override
-	public int getFocusHitlist() {
-		return mFocusHitlist;
+	public int getFocusList() {
+		return mFocusList;
 		}
 
 	@Override
 	public void setFocusHitlist(int no) {
-		if (mFocusHitlist != no) {
-			mFocusHitlist = no;
+		if (mFocusList != no) {
+			mFocusList = no;
 			mFocusValid = false;
 			invalidateView();
 			}
@@ -434,12 +409,12 @@ public class JStructureGrid extends JScrollPane
 
 	private void validateFocus() {
 		if (!mFocusValid) {
-			if (mFocusHitlist == cHitlistUnassigned) {
+			if (mFocusList == cFocusNone) {
 				mFocusRow = null;
 				}
 			else {
-				int focusFlag = (mFocusHitlist == cFocusOnSelection) ? CompoundRecord.cFlagSelected
-							  : mTableModel.getHitlistHandler().getHitlistFlagNo(mFocusHitlist);
+				int focusFlag = (mFocusList == cFocusOnSelection) ? CompoundRecord.cFlagSelected
+							  : mTableModel.getListHandler().getListFlagNo(mFocusList);
 		
 				mFocusCount = 0;
 				for (int row=0; row<mTableModel.getRowCount(); row++)
@@ -467,7 +442,7 @@ public class JStructureGrid extends JScrollPane
 		 || e.getType() == CompoundTableEvent.cDeleteRows
 		 || e.getType() == CompoundTableEvent.cChangeExcluded
 		 || e.getType() == CompoundTableEvent.cChangeSortOrder) {
-			if (mFocusHitlist != cHitlistUnassigned)
+			if (mFocusList != cFocusNone)
 				mFocusValid = false;
 			mHighlightedRow = mTableModel.getHighlightedRow();
 			needsUpdate = true;
@@ -527,15 +502,15 @@ public class JStructureGrid extends JScrollPane
 		}
 
 	@Override
-	public void hitlistChanged(CompoundTableHitlistEvent e) {
-		if (e.getType() == CompoundTableHitlistEvent.cDelete) {
-			if (mFocusHitlist == e.getHitlistIndex())
-				setFocusHitlist(cHitlistUnassigned);
-			else if (mFocusHitlist > e.getHitlistIndex())
-				mFocusHitlist--;
+	public void listChanged(CompoundTableListEvent e) {
+		if (e.getType() == CompoundTableListEvent.cDelete) {
+			if (mFocusList == e.getListIndex())
+				setFocusHitlist(cFocusNone);
+			else if (mFocusList > e.getListIndex())
+				mFocusList--;
 			}
-		if (e.getType() == CompoundTableHitlistEvent.cChange) {
-			if (mFocusHitlist == e.getHitlistIndex()) {
+		if (e.getType() == CompoundTableListEvent.cChange) {
+			if (mFocusList == e.getListIndex()) {
 				mFocusValid = false;
 				invalidateView();
 				}
@@ -588,13 +563,29 @@ public class JStructureGrid extends JScrollPane
 		invalidateView();
 		}
 
+	@Override
 	public boolean supportsMarkerLabelTable() {
 		return true;
 		}
 
-	public boolean supportsMidPositionLabels() {
+	@Override public boolean supportsMidPositionLabels() {
 		return false;
 		}
+	@Override public void setMarkerLabelList(int listNo) {}
+	@Override public int getMarkerLabelList() {
+		return cLabelsOnAllRows;
+		}
+	@Override public boolean supportsLabelsByList() {
+		return false;
+		}
+	@Override public boolean supportsLabelBackground() {
+		return false;
+		}
+	@Override public boolean supportsLabelBackgroundTransparency() { return false; }
+	@Override public float getLabelTransparency() { return 0f; }
+	@Override public void setLabelTransparency(float transparency, boolean isAdjusting) {}
+	@Override public boolean isShowLabelBackground() { return false; }
+	@Override public void setShowLabelBackground(boolean b) {}
 
 	public int getMarkerLabelTableEntryCount() {
 		return mTableRowCount;
@@ -620,7 +611,7 @@ public class JStructureGrid extends JScrollPane
 
 	public synchronized void valueChanged(ListSelectionEvent e) {
 		if (!e.getValueIsAdjusting()) {
-			if (mFocusHitlist == cFocusOnSelection) {
+			if (mFocusList == cFocusOnSelection) {
 				mFocusValid = false;
 				invalidateView();
 				}
@@ -762,7 +753,7 @@ public class JStructureGrid extends JScrollPane
 			mRecordCountOnLastValidation = mTableModel.getRowCount();
 			mTableRowCountOnLastValidation = mTableRowCount;
 
-			mCellSize = new GridCellSize(r.width, 1, JVisualization.getContentScaleFactor(), 1.0f, 7);
+			mCellSize = new GridCellSize(r.width, 1, HiDPIHelper.getRetinaScaleFactor(), 1.0f, 7);
 			mImageList.clear();
 			mContentPanel.setPreferredSize(
 				new Dimension(mCellSize.totalWidth*mNoOfColumns,
@@ -807,10 +798,30 @@ public class JStructureGrid extends JScrollPane
 	class JStructureGridContentPanel extends JPanel {
 		private static final long serialVersionUID = 0x20060904;
 
+		@Override
+		public void updateUI() {
+			mImageList.clear();
+			super.updateUI();
+			}
+
+		@Override
 		public void paintComponent(Graphics g) {
 			mRepaintRequested = false;
 			super.paintComponent(g);
-			((Graphics2D)g).setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+			Color selectionBackground = UIManager.getColor("Table.selectionBackground");
+			Color selectionForeground = UIManager.getColor("Table.selectionForeground");
+			Color backgroundColor = UIManager.getColor("Table.background");
+			Color foregroundColor = UIManager.getColor("Table.foreground");
+			Color spacingColor = ColorHelper.darker(backgroundColor, LookAndFeelHelper.isDarkLookAndFeel() ? 0.86f : 0.75f);
+			Color outOfFocusBackground = LookAndFeelHelper.isDarkLookAndFeel() ? ColorHelper.darker(backgroundColor, 0.85f) : ColorHelper.darker(backgroundColor, 0.8f);
+			Color outOfFocusForeground = LookAndFeelHelper.isDarkLookAndFeel() ? ColorHelper.brighter(outOfFocusBackground, 0.6f) : ColorHelper.darker(outOfFocusBackground, 0.6f);
+			Color outOfFocusSelection = ColorHelper.intermediateColor(outOfFocusBackground, selectionBackground, 0.25f);
+
+			g.setColor(spacingColor);
+			g.fillRect(0, 0, getWidth(), getHeight());
+
+// not needed ((Graphics2D)g).setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
 
 			validateSize(false);
 			validateFocus();
@@ -855,29 +866,34 @@ public class JStructureGrid extends JScrollPane
 					 && mCellSize.scaledHeight > 0) {
 						BufferedImage image = new BufferedImage(mCellSize.scaledWidth, mCellSize.scaledHeight, BufferedImage.TYPE_INT_ARGB);
 						Graphics ig = image.getGraphics();
-						((Graphics2D)ig).setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-						((Graphics2D)ig).setRenderingHint(RenderingHints.KEY_STROKE_CONTROL, RenderingHints.VALUE_STROKE_PURE);
-// doesn't seem to work ((Graphics2D)ig).setRenderingHint(RenderingHints.KEY_FRACTIONALMETRICS, RenderingHints.VALUE_FRACTIONALMETRICS_ON);
-						ig.setColor(Color.LIGHT_GRAY);
+						ig.setColor(spacingColor);
 						for (int j=0; j<mCellSize.border; j++)
 							ig.drawRect(j, j, mCellSize.scaledWidth-2*j-1, mCellSize.scaledHeight-2*j-1);
 
-						if (mFocusHitlist != cHitlistUnassigned)
-							ig.setColor(i<mFocusCount ? Color.white : cOutOfFocusBackground);
+						((Graphics2D)ig).setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+						((Graphics2D)ig).setRenderingHint(RenderingHints.KEY_STROKE_CONTROL, RenderingHints.VALUE_STROKE_PURE);
+// doesn't seem to work ((Graphics2D)ig).setRenderingHint(RenderingHints.KEY_FRACTIONALMETRICS, RenderingHints.VALUE_FRACTIONALMETRICS_ON);
+
+						if (mFocusList == cFocusOnSelection) // don't show selection background
+							ig.setColor(i<mFocusCount ? backgroundColor : outOfFocusBackground);
+						else if (mFocusList != cFocusNone && i>=mFocusCount)
+							ig.setColor(getRecord(i).isSelected() ? outOfFocusSelection : outOfFocusBackground);
 						else
-							ig.setColor((getRecord(i).isSelected()) ? cSelectionColor : Color.white);
+							ig.setColor((getRecord(i).isSelected()) ? selectionBackground : backgroundColor);
 						ig.fillRect(mCellSize.border, mCellSize.border, mCellSize.viewWidth, mCellSize.viewHeight);
 
-						boolean isOutOfFocus = (mFocusHitlist != cHitlistUnassigned && i>=mFocusCount);
+						boolean isOutOfFocus = (mFocusList != cFocusNone && i>=mFocusCount);
 
 						if (mShowAnyLabels) {
-							ig.setFont(new Font("Helvetica", Font.PLAIN, mCellSize.fontSize));
+							ig.setFont(ig.getFont().deriveFont(Font.PLAIN, mCellSize.fontSize));
 							for (int position=0; position<mLabelColumn.length; position++) {
 								int column = mLabelColumn[position];
 								if (column != -1) {
 									int x = mCellSize.border;
 									int y = mCellSize.border;
-									if (!isOutOfFocus && mColorHandler.hasColorAssigned(column, CompoundTableColorHandler.BACKGROUND)) {
+									if (!isOutOfFocus
+									 && (!getRecord(i).isSelected() || mFocusList == cFocusOnSelection)
+									 && mColorHandler.hasColorAssigned(column, CompoundTableColorHandler.BACKGROUND)) {
 										int width = (2 + mCellSize.viewWidth) / 3;
 										int height = mCellSize.fontSize;
 										switch (position) {
@@ -913,16 +929,21 @@ public class JStructureGrid extends JScrollPane
 											width = mCellSize.viewWidth;
 											break;
 											}
-										ig.setColor(mColorHandler.getVisualizationColor(column, CompoundTableColorHandler.BACKGROUND).getLighterColor(getRecord(i)));
+										VisualizationColor vc = mColorHandler.getVisualizationColor(column, CompoundTableColorHandler.BACKGROUND);
+										ig.setColor(vc.getColorForBackground(getRecord(i)));
 										ig.fillRect(x, y, width, height);
 										}
 
 									if (isOutOfFocus)
-										ig.setColor(cOutOfFocusForeground);
-									else if (mColorHandler.hasColorAssigned(column, CompoundTableColorHandler.FOREGROUND))
-										ig.setColor(mColorHandler.getVisualizationColor(column, CompoundTableColorHandler.FOREGROUND).getDarkerColor(getRecord(i)));
+										ig.setColor(outOfFocusForeground);
+									else if (mColorHandler.hasColorAssigned(column, CompoundTableColorHandler.FOREGROUND)) {
+										VisualizationColor vc = mColorHandler.getVisualizationColor(column, CompoundTableColorHandler.FOREGROUND);
+										ig.setColor(vc.getColorForForeground(getRecord(i)));
+										}
+									else if (getRecord(i).isSelected())
+										ig.setColor(selectionForeground);
 									else
-										ig.setColor(Color.black);
+										ig.setColor(foregroundColor);
 
 									x = mCellSize.border;
 									y = mCellSize.border;
@@ -968,8 +989,11 @@ public class JStructureGrid extends JScrollPane
 								}
 							}
 
-						if (!isOutOfFocus && mColorHandler.hasColorAssigned(mStructureColumn, CompoundTableColorHandler.BACKGROUND)) {
-							ig.setColor(mColorHandler.getVisualizationColor(mStructureColumn, CompoundTableColorHandler.BACKGROUND).getLighterColor(getRecord(i)));
+						if (!isOutOfFocus
+						 && (!getRecord(i).isSelected() || mFocusList == cFocusOnSelection)
+						 && mColorHandler.hasColorAssigned(mStructureColumn, CompoundTableColorHandler.BACKGROUND)) {
+							VisualizationColor vc = mColorHandler.getVisualizationColor(mStructureColumn, CompoundTableColorHandler.BACKGROUND);
+							ig.setColor(vc.getColorForBackground(getRecord(i)));
 							ig.fillRect(mCellSize.border, mCellSize.border+mCellSize.topHeight, mCellSize.viewWidth, mCellSize.structureHeight-mCellSize.topHeight-mCellSize.bottomHeight);
 							}
 
@@ -978,10 +1002,10 @@ public class JStructureGrid extends JScrollPane
 							if ((coordinateColumn == -1 || getRecord(i).getData(coordinateColumn) == null)
 							 && new IDCodeParser().getAtomCount(idcode, 0) > CompoundTableChemistryCellRenderer.ON_THE_FLY_COORD_MAX_ATOMS) {
 								if (isOutOfFocus)
-									ig.setColor(cOutOfFocusForeground);
+									ig.setColor(outOfFocusForeground);
 								else if (mColorHandler.hasColorAssigned(mStructureColumn, CompoundTableColorHandler.FOREGROUND)) {
-									Color foreground = mColorHandler.getVisualizationColor(mStructureColumn, CompoundTableColorHandler.FOREGROUND).getDarkerColor(getRecord(i));
-									ig.setColor(foreground);
+									VisualizationColor vc = mColorHandler.getVisualizationColor(mStructureColumn, CompoundTableColorHandler.FOREGROUND);
+									ig.setColor(vc.getColorForForeground(getRecord(i)));
 									}
 								else {
 									ig.setColor(Color.RED);
@@ -995,18 +1019,33 @@ public class JStructureGrid extends JScrollPane
 								if (mol != null) {
 									AbstractDepictor depictor = new Depictor2D(mol, Depictor2D.cDModeSuppressChiralText);
 									depictor.validateView(ig,
-														  new Rectangle2D.Float(mCellSize.border,
-																(float)mCellSize.border+mCellSize.topHeight,
-																(float)(mCellSize.viewWidth),
-																(float)(mCellSize.structureHeight-mCellSize.topHeight-mCellSize.bottomHeight)),
-														  AbstractDepictor.cModeInflateToMaxAVBL+(int)(JVisualization.getContentScaleFactor()*AbstractDepictor.cOptAvBondLen));
-									if (isOutOfFocus)
-										depictor.setOverruleColor(cOutOfFocusForeground, cOutOfFocusBackground);
-									else if (mColorHandler.hasColorAssigned(mStructureColumn, CompoundTableColorHandler.FOREGROUND)) {
-										Color foreground = mColorHandler.getVisualizationColor(mStructureColumn, CompoundTableColorHandler.FOREGROUND).getDarkerColor(getRecord(i));
-										Color background = mColorHandler.hasColorAssigned(mStructureColumn, CompoundTableColorHandler.BACKGROUND) ?
-												mColorHandler.getVisualizationColor(mStructureColumn, CompoundTableColorHandler.BACKGROUND).getLighterColor(getRecord(i)) : Color.white;
-										depictor.setOverruleColor(foreground, background);
+														  new Rectangle2D.Double(mCellSize.border,
+																mCellSize.border+mCellSize.topHeight,
+																mCellSize.viewWidth,
+																mCellSize.structureHeight-mCellSize.topHeight-mCellSize.bottomHeight),
+														  AbstractDepictor.cModeInflateToMaxAVBL+HiDPIHelper.scaleRetinaAndUI(AbstractDepictor.cOptAvBondLen));
+									if (isOutOfFocus) {
+										depictor.setOverruleColor(outOfFocusForeground, getRecord(i).isSelected() ? outOfFocusSelection : outOfFocusBackground);
+										}
+									else {
+										Color bg = backgroundColor;
+										Color fg = foregroundColor;
+										if (getRecord(i).isSelected() && mFocusList != cFocusOnSelection) {
+											bg = selectionBackground;
+											fg = selectionForeground;
+											}
+										else if (mColorHandler.hasColorAssigned(mStructureColumn, CompoundTableColorHandler.BACKGROUND)) {
+											VisualizationColor vc = mColorHandler.getVisualizationColor(mStructureColumn, CompoundTableColorHandler.BACKGROUND);
+											bg = vc.getColorForBackground(getRecord(i));
+											}
+										if (mColorHandler.hasColorAssigned(mStructureColumn, CompoundTableColorHandler.FOREGROUND)) {
+											VisualizationColor vc = mColorHandler.getVisualizationColor(mStructureColumn, CompoundTableColorHandler.FOREGROUND);
+											fg = vc.getColorForForeground(getRecord(i));
+											depictor.setOverruleColor(fg, bg);
+											}
+										else {
+											depictor.setForegroundColor(fg, bg);
+											}
 										}
 		
 									depictor.paint(ig);
@@ -1082,7 +1121,7 @@ public class JStructureGrid extends JScrollPane
 			scaledWidth = (int)(contentScale * totalWidth);
 			viewWidth = scaledWidth - 2 * border;
 
-			fontSize = (int)(mMarkerLabelSize * contentScale * Math.max(fontScale*viewWidth/16, minFontSize));
+			fontSize = (int)(mMarkerLabelSize * Math.max(fontScale*viewWidth/12, minFontSize));
 			topHeight = 0;
 			bottomHeight = 0;
 			if (mShowAnyLabels) {

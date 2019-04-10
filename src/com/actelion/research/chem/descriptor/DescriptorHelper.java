@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -48,7 +48,21 @@ public class DescriptorHelper implements DescriptorConstants {
         return false;
     }
 
-    private static String unifyShortName(String shortname) {
+    public static String shortNameToName(String shortName) {
+		for (int i=0; i<DESCRIPTOR_EXTENDED_LIST.length; i++)
+			if (DESCRIPTOR_EXTENDED_LIST[i].shortName.equals(shortName))
+				return DESCRIPTOR_EXTENDED_LIST[i].name;
+		return null;
+	}
+
+	public static String nameToShortName(String name) {
+		for (int i=0; i<DESCRIPTOR_EXTENDED_LIST.length; i++)
+			if (DESCRIPTOR_EXTENDED_LIST[i].name.equals(name))
+				return DESCRIPTOR_EXTENDED_LIST[i].shortName;
+		return null;
+	}
+
+	private static String unifyShortName(String shortname) {
         return "PP3DMM2".equals(shortname) ? "Flexophore" : shortname;
     }
 

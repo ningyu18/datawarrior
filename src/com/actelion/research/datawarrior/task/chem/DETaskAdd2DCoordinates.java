@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,47 +18,41 @@
 
 package com.actelion.research.datawarrior.task.chem;
 
-import info.clearthought.layout.TableLayout;
-
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
-import java.util.ArrayList;
-import java.util.Properties;
-
-import javax.swing.JCheckBox;
-import javax.swing.JComboBox;
-import javax.swing.JLabel;
-import javax.swing.JOptionPane;
-import javax.swing.JPanel;
-
-import com.actelion.research.chem.Canonizer;
-import com.actelion.research.chem.CoordinateInventor;
-import com.actelion.research.chem.IDCodeParser;
-import com.actelion.research.chem.Molecule;
-import com.actelion.research.chem.SSSearcher;
-import com.actelion.research.chem.SSSearcherWithIndex;
-import com.actelion.research.chem.ScaffoldHelper;
-import com.actelion.research.chem.StereoMolecule;
+import com.actelion.research.chem.*;
+import com.actelion.research.chem.coords.CoordinateInventor;
+import com.actelion.research.chem.coords.InventorTemplate;
 import com.actelion.research.chem.descriptor.DescriptorConstants;
+import com.actelion.research.chem.descriptor.DescriptorHandlerFFP512;
 import com.actelion.research.chem.io.CompoundTableConstants;
 import com.actelion.research.datawarrior.DEFrame;
 import com.actelion.research.gui.CompoundCollectionModel;
 import com.actelion.research.gui.CompoundCollectionPane;
 import com.actelion.research.gui.DefaultCompoundCollectionModel;
 import com.actelion.research.gui.clipboard.ClipboardHandler;
-import com.actelion.research.table.CompoundTableModel;
+import com.actelion.research.gui.hidpi.HiDPIHelper;
+import com.actelion.research.table.model.CompoundTableModel;
+import info.clearthought.layout.TableLayout;
+
+import javax.swing.*;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.util.ArrayList;
+import java.util.Properties;
+import java.util.TreeMap;
 
 
 public class DETaskAdd2DCoordinates extends DETaskAbstractAddChemProperty implements ActionListener,Runnable {
 	public static final String TASK_NAME = "Generate 2D-Atom-Coordinates";
-	private static Properties sRecentConfiguration;
 
 	private static final String PROPERTY_SCAFFOLD_LIST = "scaffolds";
 	private static final String PROPERTY_AUTOMATIC = "automatic";
 	private static final String PROPERTY_SCAFFOLD_MODE = "scaffoldMode";
+	private static final String PROPERTY_COLORIZE_SCAFFOLDS = "colorizeScaffolds";
 
 	private static final int SCAFFOLD_CENTRAL_RING = 0;
 	private static final int SCAFFOLD_MURCKO = 1;
+
+	private static final String SCAFFOLD_COLOR = "orange:";
 
 	private static final String[] SCAFFOLD_TEXT = { "Most central ring system", "Murcko scaffolds" };
 	private static final String[] SCAFFOLD_CODE = { "centralRing", "murcko" };
@@ -66,24 +60,18 @@ public class DETaskAdd2DCoordinates extends DETaskAbstractAddChemProperty implem
 	private CompoundCollectionPane<String>	mStructurePane;
 	private JCheckBox						mCheckBoxAutomatic;
 	private JComboBox						mComboBoxScaffoldMode;
-	private ArrayList<Scaffold>				mScaffoldList;
+	private JCheckBox                       mCheckBoxColorizeAtoms;
+	private ArrayList<InventorTemplate>		mExplicitScaffoldList;
+	private TreeMap<String,StereoMolecule>  mImplicitScaffoldMap;
 	private int								mCoordinateColumn,mFFPColumn,mScaffoldMode,mIDCodeErrors;
-	private SSSearcher						mSearcher;
-	private SSSearcherWithIndex				mSearcherWithIndex;
+	private byte[][]                        mScaffoldAtoms;
+	private StringBuilder                   mScaffoldColorBuilder;
+//	private SSSearcher						mSearcher;
+//	private SSSearcherWithIndex				mSearcherWithIndex;
 	private StereoMolecule					mScaffoldContainer;
 
 	public DETaskAdd2DCoordinates(DEFrame parent) {
 		super(parent, DESCRIPTOR_NONE, false, false);
-		}
-
-	@Override
-	public Properties getRecentConfiguration() {
-		return sRecentConfiguration;
-		}
-
-	@Override
-	public void setRecentConfiguration(Properties configuration) {
-		sRecentConfiguration = configuration;
 		}
 
 	@Override
@@ -97,10 +85,17 @@ public class DETaskAdd2DCoordinates extends DETaskAbstractAddChemProperty implem
 		}
 
 	@Override
+	public boolean hasExtendedDialogContent() {
+		return true;
+		}
+
+	@Override
 	public JPanel getExtendedDialogContent() {
 		JPanel ep = new JPanel();
-		double[][] size = { {480},
-							{TableLayout.PREFERRED, 4, 96, 24, TableLayout.PREFERRED, 4, TableLayout.PREFERRED} };
+		int unit = HiDPIHelper.scale(24);
+		double[][] size = { {20*unit},
+							{TableLayout.PREFERRED, 4, 4*unit, unit, TableLayout.PREFERRED,
+							 TableLayout.PREFERRED, unit/2, TableLayout.PREFERRED} };
 		
 		ep.setLayout(new TableLayout(size));
 		ep.add(new JLabel("Enforce atom coordinates for these scaffolds:"), "0,0");
@@ -120,15 +115,25 @@ public class DETaskAdd2DCoordinates extends DETaskAbstractAddChemProperty implem
 		tp.add(new JLabel("Scaffold detection method: "));
 		mComboBoxScaffoldMode = new JComboBox(SCAFFOLD_TEXT);
 		tp.add(mComboBoxScaffoldMode);
-		ep.add(tp, "0,6");
+		ep.add(tp, "0,5");
+
+		mCheckBoxColorizeAtoms = new JCheckBox("Show scaffolds by colorizing atoms");
+		ep.add(mCheckBoxColorizeAtoms, "0,7");
+
+		enableItems();
 
 		return ep;
+		}
+
+	private void enableItems() {
+		mComboBoxScaffoldMode.setEnabled(mCheckBoxAutomatic.isSelected());
+		mCheckBoxColorizeAtoms.setEnabled(mStructurePane.getModel().getSize() != 0 || mCheckBoxAutomatic.isSelected());
 		}
 
 	@Override
 	public void actionPerformed(ActionEvent e) {
 		if (e.getSource() == mCheckBoxAutomatic) {
-			mComboBoxScaffoldMode.setEnabled(mCheckBoxAutomatic.isSelected());
+			enableItems();
 			return;
 			}
 
@@ -149,6 +154,7 @@ public class DETaskAdd2DCoordinates extends DETaskAbstractAddChemProperty implem
 			}
 		configuration.setProperty(PROPERTY_AUTOMATIC, mCheckBoxAutomatic.isSelected() ? "true" : "false");
 		configuration.setProperty(PROPERTY_SCAFFOLD_MODE, SCAFFOLD_CODE[mComboBoxScaffoldMode.getSelectedIndex()]);
+		configuration.setProperty(PROPERTY_COLORIZE_SCAFFOLDS, mCheckBoxColorizeAtoms.isSelected() ? "true" : "false");
 		return configuration;
 		}
 
@@ -166,6 +172,10 @@ public class DETaskAdd2DCoordinates extends DETaskAbstractAddChemProperty implem
 
 		mCheckBoxAutomatic.setSelected(!"false".equals(configuration.getProperty(PROPERTY_AUTOMATIC)));
 		mComboBoxScaffoldMode.setSelectedIndex(findListIndex(configuration.getProperty(PROPERTY_SCAFFOLD_MODE), SCAFFOLD_CODE, SCAFFOLD_CENTRAL_RING));
+
+		mCheckBoxColorizeAtoms.setSelected("true".equals(configuration.getProperty(PROPERTY_COLORIZE_SCAFFOLDS)));
+
+		enableItems();
 		}
 
 	@Override
@@ -174,6 +184,8 @@ public class DETaskAdd2DCoordinates extends DETaskAbstractAddChemProperty implem
 		mStructurePane.getModel().clear();
 		mCheckBoxAutomatic.setSelected(true);
 		mComboBoxScaffoldMode.setSelectedIndex(SCAFFOLD_CENTRAL_RING);
+		mCheckBoxColorizeAtoms.setSelected(false);
+		enableItems();
 		}
 
 	@Override
@@ -211,29 +223,39 @@ public class DETaskAdd2DCoordinates extends DETaskAbstractAddChemProperty implem
 		int idcodeColumn = getStructureColumn();
 		mCoordinateColumn = getTableModel().getChildColumn(idcodeColumn, CompoundTableConstants.cColumnType2DCoordinates);
 
-		mScaffoldList = new ArrayList<Scaffold>();
 		String scaffolds = configuration.getProperty(PROPERTY_SCAFFOLD_LIST, "");
 		if (scaffolds.length() != 0) {
+			mExplicitScaffoldList = new ArrayList<InventorTemplate>();
+			SSSearcherWithIndex ffpCreator = new SSSearcherWithIndex();
 			String[] idcodeList = scaffolds.split("\\t");
-			for (int i=0; i<idcodeList.length; i++)
-				mScaffoldList.add(new Scaffold(new IDCodeParser().getCompactMolecule(idcodeList[i])));
+			for (int i=0; i<idcodeList.length; i++) {
+				StereoMolecule scaffold = new IDCodeParser().getCompactMolecule(idcodeList[i]);
+				int[] ffp = ffpCreator.createIndex(scaffold);
+				mExplicitScaffoldList.add(new InventorTemplate(scaffold, ffp));
+				}
 			}
 
 		if ("true".equals(configuration.getProperty(PROPERTY_AUTOMATIC))) {
+			mImplicitScaffoldMap = new TreeMap<String,StereoMolecule>();
 			mScaffoldContainer = new StereoMolecule();
 			mScaffoldMode = findListIndex(configuration.getProperty(PROPERTY_SCAFFOLD_MODE), SCAFFOLD_CODE, SCAFFOLD_CENTRAL_RING);
 			}
 
-		if (!mScaffoldList.isEmpty() || mScaffoldContainer != null) {
+		if (mExplicitScaffoldList != null || mScaffoldContainer != null) {
 			mFFPColumn = getTableModel().getChildColumn(idcodeColumn, DescriptorConstants.DESCRIPTOR_FFP512.shortName);
-			if (mFFPColumn == -1) {
+/*			if (mFFPColumn == -1) {
 				mSearcher = new SSSearcher();
 				}
-			else {
+			else if (mExplicitScaffoldList != null) {
 				mSearcherWithIndex = new SSSearcherWithIndex();
-				for (Scaffold s:mScaffoldList)
+				for (ExplicitScaffold s:mExplicitScaffoldList)
 					s.calculateFFP();
-				}
+				}*/
+			}
+
+		if ("true".equals(configuration.getProperty(PROPERTY_COLORIZE_SCAFFOLDS))) {
+			mScaffoldAtoms = new byte[getTableModel().getTotalRowCount()][];
+			mScaffoldColorBuilder = new StringBuilder();
 			}
 
 		return true;
@@ -244,64 +266,107 @@ public class DETaskAdd2DCoordinates extends DETaskAbstractAddChemProperty implem
 		int coordinateColumn = (mCoordinateColumn != -1) ? mCoordinateColumn : firstNewColumn;
 		StereoMolecule mol = getChemicalStructure(row, containerMol);
 		if (mol != null && mol.getAllAtoms() != 0) {
+			String freshIDCode = new Canonizer(mol).getIDCode();
+
 			boolean found = false;
-			if (!mScaffoldList.isEmpty()) {
+			if (mExplicitScaffoldList != null) {
+				mol.ensureHelperArrays(Molecule.cHelperParities);
+
 				if (mFFPColumn == -1) {
-					mSearcher.setMolecule(mol);
-					for (Scaffold s:mScaffoldList) {
-						mSearcher.setFragment(s.mol);
-						if (mSearcher.findFragmentInMolecule(SSSearcher.cCountModeFirstMatch, SSSearcher.cDefaultMatchMode) != 0) {
+					SSSearcher searcher = new SSSearcher();
+					searcher.setMolecule(mol);
+					for (InventorTemplate s:mExplicitScaffoldList) {
+						searcher.setFragment(s.getFragment());
+						if (searcher.findFragmentInMolecule(SSSearcher.cCountModeFirstMatch, SSSearcher.cDefaultMatchMode) != 0) {
 							found = true;
-							updateCoords(mol, s.mol, mSearcher.getMatchList().get(0));
 							break;
 							}
 						}
 					}
 				else {
-					mSearcherWithIndex.setMolecule(mol, (int[])getTableModel().getTotalRecord(row).getData(mFFPColumn));
-					for (Scaffold s:mScaffoldList) {
-						mSearcherWithIndex.setFragment(s.mol, s.ffp);
-						if (mSearcherWithIndex.findFragmentInMolecule(SSSearcher.cCountModeFirstMatch, SSSearcher.cDefaultMatchMode) != 0) {
-							updateCoords(mol, s.mol, mSearcherWithIndex.getMatchList().get(0));
+					SSSearcherWithIndex searcher = new SSSearcherWithIndex();
+					searcher.setMolecule(mol, (int[])getTableModel().getTotalRecord(row).getData(mFFPColumn));
+					for (InventorTemplate s:mExplicitScaffoldList) {
+						searcher.setFragment(s.getFragment(), s.getFFP());
+						if (searcher.findFragmentInMolecule(SSSearcher.cCountModeFirstMatch, SSSearcher.cDefaultMatchMode) != 0) {
 							found = true;
 							break;
 							}
 						}
 					}
-				}
 
-			if (mScaffoldContainer != null && !found) {
-				StereoMolecule mol2 = mol.getCompactCopy();
-				int[] atomMap = mol2.stripSmallFragments();
-				boolean[] isCoreAtom = (mScaffoldMode == SCAFFOLD_MURCKO) ?
-						ScaffoldHelper.findMurckoScaffold(mol2) : ScaffoldHelper.findMostCentralRingSystem(mol2);
-				if (isCoreAtom != null) {
-					int[] coreAtom = new int[mol2.getAllAtoms()];
-					mol2.copyMoleculeByAtoms(mScaffoldContainer, isCoreAtom, true, coreAtom);
-					new CoordinateInventor().invent(mScaffoldContainer);
-					Scaffold scaffold = new Scaffold(mScaffoldContainer.getCompactCopy());
-					scaffold.calculateFFP();
-					mScaffoldList.add(scaffold);
+				if (found) {
+					CoordinateInventor inventor = new CoordinateInventor();
+					inventor.setCustomTemplateList(mExplicitScaffoldList);
+					inventor.invent(mol);
+					mol.setStereoBondsFromParity();
 
-					int[] matchMask = new int[mScaffoldContainer.getAtoms()];
-					if (atomMap == null) {
-						for (int atom=0; atom<mol.getAllAtoms(); atom++) {
-							int scaffoldAtom = coreAtom[atom];
-							if (scaffoldAtom != -1)
-								matchMask[scaffoldAtom] = atom;
-							}
-						}
-					else {
-						for (int atom=0; atom<mol.getAllAtoms(); atom++) {
-							if (atomMap[atom] != -1) {
-								int scaffoldAtom = coreAtom[atomMap[atom]];
-								if (scaffoldAtom != -1)
-									matchMask[scaffoldAtom] = atom;
+					if (mScaffoldAtoms != null) {
+						mScaffoldColorBuilder.setLength(0);
+						boolean[] isScaffoldAtom = inventor.getCustomTemplateAtomMask();
+						for (int atom=0; atom<isScaffoldAtom.length; atom++) {
+							if (isScaffoldAtom[atom]) {
+								if (mScaffoldColorBuilder.length()==0) {
+									mScaffoldColorBuilder.append(SCAFFOLD_COLOR);
+									}
+								else {
+									mScaffoldColorBuilder.append(',');
+									}
+								mScaffoldColorBuilder.append(Integer.toString(atom));
 								}
 							}
+						mScaffoldAtoms[row] = mScaffoldColorBuilder.toString().getBytes();
 						}
-					updateCoords(mol, mScaffoldContainer, matchMask);
-					found = true;
+					}
+				}
+
+			if (mImplicitScaffoldMap != null && !found) {
+				StereoMolecule strippedMol = mol.getCompactCopy();
+
+				int[] atomToStrippedAtom = strippedMol.stripSmallFragments();
+				if (atomToStrippedAtom == null) {
+					atomToStrippedAtom = new int[strippedMol.getAllAtoms()];
+					for (int i=0; i<atomToStrippedAtom.length; i++)
+						atomToStrippedAtom[i] = i;
+					}
+
+				boolean[] isCoreAtom = (mScaffoldMode == SCAFFOLD_MURCKO) ?
+						ScaffoldHelper.findMurckoScaffold(strippedMol) : ScaffoldHelper.findMostCentralRingSystem(strippedMol);
+				if (isCoreAtom != null) {
+					int[] strippedAtomToScaffoldAtom = new int[strippedMol.getAllAtoms()];
+					strippedMol.copyMoleculeByAtoms(mScaffoldContainer, isCoreAtom, true, strippedAtomToScaffoldAtom);
+					Canonizer canonizer = new Canonizer(mScaffoldContainer);
+					String idcode = canonizer.getIDCode();
+					if (!mImplicitScaffoldMap.containsKey(idcode)) {
+						new CoordinateInventor().invent(mScaffoldContainer);
+						mImplicitScaffoldMap.put(idcode, canonizer.getCanMolecule());
+
+						int[] scaffoldAtomToAtom = new int[mScaffoldContainer.getAtoms()];
+						for (int atom=0; atom<mol.getAllAtoms(); atom++) {
+							if (atomToStrippedAtom[atom] != -1) {
+								int scaffoldAtom = strippedAtomToScaffoldAtom[atomToStrippedAtom[atom]];
+								if (scaffoldAtom != -1)
+									scaffoldAtomToAtom[scaffoldAtom] = atom;
+								}
+							}
+						updateCoords(mol, mScaffoldContainer, scaffoldAtomToAtom, row);
+						found = true;
+						}
+					else {
+						int[] canonicalAtomToScaffoldAtom = canonizer.getGraphIndexes();
+						int[] canonicalAtomToAtom = new int[mScaffoldContainer.getAtoms()];
+						for (int atom=0; atom<mol.getAllAtoms(); atom++) {
+							if (atomToStrippedAtom[atom] != -1) {
+								int scaffoldAtom = strippedAtomToScaffoldAtom[atomToStrippedAtom[atom]];
+								if (scaffoldAtom != -1)
+									canonicalAtomToAtom[canonicalAtomToScaffoldAtom[scaffoldAtom]] = atom;
+								}
+							}
+
+						StereoMolecule scaffold = mImplicitScaffoldMap.get(idcode);
+						updateCoords(mol, scaffold, canonicalAtomToAtom, row);
+						found = true;
+						}
 					}
 				}
 
@@ -313,10 +378,22 @@ public class DETaskAdd2DCoordinates extends DETaskAbstractAddChemProperty implem
 
 			Canonizer canonizer = new Canonizer(mol);
 			if (!canonizer.getIDCode().equals(getTableModel().getTotalValueAt(row, getStructureColumn()))) {
-				mIDCodeErrors++;
-				System.out.println("WARNING: idcodes after 2D-coordinate generation differ!!!");
-				System.out.println("old: "+getTableModel().getTotalValueAt(row, getStructureColumn()));
-				System.out.println("new: "+canonizer.getIDCode());
+				boolean idcodesDiffer = !freshIDCode.equals(getTableModel().getTotalValueAt(row, getStructureColumn()));
+				if (!idcodesDiffer)
+					mIDCodeErrors++;
+
+				if (System.getProperty("development") != null) {
+					if (idcodesDiffer) {
+						System.out.println("ERROR: idcodes before 2D-coordinate generation differ!!!");
+						System.out.println(" file: " + getTableModel().getTotalValueAt(row, getStructureColumn()));
+						System.out.println("fresh: " + freshIDCode);
+						}
+					else {
+						System.out.println("WARNING: idcodes after 2D-coordinate generation differ!!!");
+						System.out.println("old: " + getTableModel().getTotalValueAt(row, getStructureColumn()));
+						System.out.println("new: " + canonizer.getIDCode());
+						}
+					}
 				}
 			else {	// don't change coordinates if idcode from new coordinates doesn't match old one
 				getTableModel().setTotalValueAt(canonizer.getEncodedCoordinates(true), row, coordinateColumn);
@@ -327,15 +404,25 @@ public class DETaskAdd2DCoordinates extends DETaskAbstractAddChemProperty implem
 			}
 		}
 
-	private void updateCoords(StereoMolecule mol, StereoMolecule scaffold, int[] matchMask) {
+	private void updateCoords(StereoMolecule mol, StereoMolecule scaffold, int[] scaffoldAtomToAtom, int row) {
 		mol.ensureHelperArrays(Molecule.cHelperParities);
 		for (int atom=0; atom<scaffold.getAllAtoms(); atom++) {
-			mol.setAtomX(matchMask[atom], scaffold.getAtomX(atom));
-			mol.setAtomY(matchMask[atom], scaffold.getAtomY(atom));
-			mol.setAtomMarker(matchMask[atom], true);
+			mol.setAtomX(scaffoldAtomToAtom[atom], scaffold.getAtomX(atom));
+			mol.setAtomY(scaffoldAtomToAtom[atom], scaffold.getAtomY(atom));
+			mol.setAtomMarker(scaffoldAtomToAtom[atom], true);
 			}
 		new CoordinateInventor(CoordinateInventor.MODE_PREFER_MARKED_ATOM_COORDS).invent(mol);
 		mol.setStereoBondsFromParity();
+
+		if (mScaffoldAtoms != null) {
+			mScaffoldColorBuilder.setLength(0);
+			mScaffoldColorBuilder.append(SCAFFOLD_COLOR);
+			for (int i=0; i<scaffoldAtomToAtom.length; i++) {
+				mScaffoldColorBuilder.append(i==0 ? ':' : ',');
+				mScaffoldColorBuilder.append(Integer.toString(scaffoldAtomToAtom[i]));
+				}
+			mScaffoldAtoms[row] = mScaffoldColorBuilder.toString().getBytes();
+			}
 		}
 
 	@Override
@@ -344,21 +431,20 @@ public class DETaskAdd2DCoordinates extends DETaskAbstractAddChemProperty implem
 			getTableModel().finalizeChangeChemistryColumn(getTableModel().getParentColumn(mCoordinateColumn),
 					0, getTableModel().getTotalRowCount(), false);
 
+		if (mScaffoldAtoms != null) {
+			final String[] columnName = { "colorInfo" };
+			int colorColumn = getTableModel().addNewColumns(columnName);
+			getTableModel().setColumnProperty(colorColumn, CompoundTableConstants.cColumnPropertySpecialType,
+					CompoundTableConstants.cColumnTypeAtomColorInfo);
+			getTableModel().setColumnProperty(colorColumn, CompoundTableConstants.cColumnPropertyParentColumn,
+					getTableModel().getColumnTitleNoAlias(getStructureColumn()));
+			for (int row=0; row<getTableModel().getTotalRowCount(); row++)
+				getTableModel().setTotalDataAt(mScaffoldAtoms[row], row, colorColumn);
+			getTableModel().finalizeNewColumns(colorColumn, this);
+			}
+
 		if (isInteractive() && mIDCodeErrors != 0)
 			showInteractiveTaskMessage("Coordinates were not changed for "+mIDCodeErrors
 					+" structures, because original stereo configurations would have been changed.", JOptionPane.INFORMATION_MESSAGE);
-		}
-
-	private class Scaffold {
-		StereoMolecule mol;
-		int[] ffp;
-
-		private Scaffold(StereoMolecule mol) {
-			this.mol = mol;
-			}
-
-		private void calculateFFP() {
-			ffp = mSearcherWithIndex.createIndex(mol);
-			}
 		}
 	}

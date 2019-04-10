@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,23 +18,19 @@
 
 package com.actelion.research.table.filter;
 
-import info.clearthought.layout.TableLayout;
-
-import java.awt.BorderLayout;
-import java.awt.Dimension;
-import java.awt.Frame;
-import java.awt.event.ItemEvent;
-
-import javax.swing.JComboBox;
-import javax.swing.JPanel;
-
 import com.actelion.research.chem.Canonizer;
 import com.actelion.research.chem.StereoMolecule;
 import com.actelion.research.chem.descriptor.DescriptorConstants;
 import com.actelion.research.gui.JEditableStructureView;
 import com.actelion.research.gui.StructureListener;
 import com.actelion.research.gui.clipboard.ClipboardHandler;
-import com.actelion.research.table.CompoundTableModel;
+import com.actelion.research.gui.hidpi.HiDPIHelper;
+import com.actelion.research.table.model.CompoundTableModel;
+import info.clearthought.layout.TableLayout;
+
+import javax.swing.*;
+import java.awt.*;
+import java.awt.event.ItemEvent;
 
 public class JSingleStructureFilterPanel extends JStructureFilterPanel 
 				implements DescriptorConstants,StructureListener {
@@ -82,9 +78,10 @@ public class JSingleStructureFilterPanel extends JStructureFilterPanel
 			mStructureView = new JEditableStructureView(mol);
 			}
 
+		int s = HiDPIHelper.scale(100);
 		mStructureView.setClipboardHandler(new ClipboardHandler());
-		mStructureView.setMinimumSize(new Dimension(100, 100));
-		mStructureView.setPreferredSize(new Dimension(100, 100));
+		mStructureView.setMinimumSize(new Dimension(s, s));
+		mStructureView.setPreferredSize(new Dimension(s, s));
 		mStructureView.setBackground(getBackground());
 		mStructureView.addStructureListener(this);
 		mStructureView.setAllowFragmentStatusChangeOnDrop(true);
@@ -212,7 +209,7 @@ public class JSingleStructureFilterPanel extends JStructureFilterPanel
 	public String getInnerSettings() {
 		if (mStructureView.getMolecule().getAllAtoms() != 0) {
 			String item = (String)mComboBox.getSelectedItem();
-			String settings = item.equals(cItemContains) ? cFilterBySubstructure
+			String settings = item == null || item.equals(cItemContains) ? cFilterBySubstructure
 					: itemToDescriptor(item)+"\t"+getSimilaritySlider().getValue();
 
 			StereoMolecule mol = mStructureView.getMolecule();

@@ -30,8 +30,8 @@ public class ContainerMemory<S extends AMemorizedObject> {
 	
 	/**
 	 * 
-	 * @param sizeVector size of the integer array.
 	 * @param capacity
+	 * @param factory
 	 */
 	public ContainerMemory(int capacity, IFactory<S> factory) {
 		

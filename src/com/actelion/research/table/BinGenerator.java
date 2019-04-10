@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -21,7 +21,10 @@ package com.actelion.research.table;
 import java.math.BigDecimal;
 import java.math.MathContext;
 import java.math.RoundingMode;
+import java.text.DateFormat;
+import java.util.Date;
 
+import com.actelion.research.table.model.CompoundTableModel;
 import com.actelion.research.util.DoubleFormat;
 
 public class BinGenerator {
@@ -43,7 +46,7 @@ public class BinGenerator {
 	 * @param binStart
 	 * @param binSize
 	 */
-	public BinGenerator(CompoundTableModel tableModel, int column, BigDecimal binStart, BigDecimal binSize, boolean useLogValues) {
+	public BinGenerator(CompoundTableModel tableModel, int column, BigDecimal binStart, BigDecimal binSize, boolean useLogValues, boolean isDate) {
 		boolean sourceIsLog = tableModel.isLogarithmicViewMode(column);
 		mValueValidation = (sourceIsLog == useLogValues) ? NONE : sourceIsLog ? FROM_LOG : TO_LOG;
 
@@ -59,15 +62,15 @@ public class BinGenerator {
 		if (binStart == null)
 			binStart = new BigDecimal(dataMin);
 
-		initialize(binStart, binSize, useLogValues, dataMin, dataMax);
+		initialize(binStart, binSize, useLogValues, dataMin, dataMax, isDate);
 		}
 
-	public BinGenerator(BigDecimal binStart, BigDecimal binSize, boolean useLogValues, double dataMin, double dataMax) {
+	public BinGenerator(BigDecimal binStart, BigDecimal binSize, boolean useLogValues, double dataMin, double dataMax, boolean isDate) {
 		mValueValidation = useLogValues ? TO_LOG : NONE;
-		initialize(binStart, binSize, useLogValues, validateValue(dataMin), validateValue(dataMax));
+		initialize(binStart, binSize, useLogValues, validateValue(dataMin), validateValue(dataMax), isDate);
 		}
 
-	private void initialize(BigDecimal binStart, BigDecimal binSize, boolean useLogValues, double dataMin, double dataMax) {
+	private void initialize(BigDecimal binStart, BigDecimal binSize, boolean useLogValues, double dataMin, double dataMax, boolean isDate) {
 		while (binStart.add(binSize).doubleValue() < dataMin)
 			binStart = binStart.add(binSize);
 		while (binStart.subtract(binSize).doubleValue() >= dataMin)
@@ -100,14 +103,17 @@ public class BinGenerator {
 		else {
 			BigDecimal bd = mBinStart;
 			for (int i=0; i<binCount; i++) {
-				mCategory[i] = toString(bd) + CompoundTableModel.cRangeSeparation;
+				mCategory[i] = toString(bd, isDate) + CompoundTableModel.cRangeSeparation;
 				bd = bd.add(binSize);
-				mCategory[i] = mCategory[i].concat(toString(bd));
+				mCategory[i] = mCategory[i].concat(toString(bd, isDate));
 				}
 			}
 		}
 
-	private String toString(BigDecimal bd) {
+	private String toString(BigDecimal bd, boolean isDate) {
+		if (isDate)
+			return DateFormat.getDateInstance().format(new Date(bd.longValue()*86400000));
+
 //		return bd.stripTrailingZeros().toString();	// scientific notation even for small numbers, e.g.: 1E+2
 		return DoubleFormat.toString(bd.doubleValue());
 		}

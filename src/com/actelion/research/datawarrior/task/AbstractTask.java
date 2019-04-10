@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,9 +18,7 @@
 
 package com.actelion.research.datawarrior.task;
 
-import java.awt.BorderLayout;
-import java.awt.Frame;
-import java.awt.GridLayout;
+import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.io.File;
@@ -30,6 +28,7 @@ import java.io.StringWriter;
 import java.io.Writer;
 import java.net.URL;
 import java.util.Properties;
+import java.util.TreeMap;
 
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
@@ -48,13 +47,18 @@ import javax.swing.text.html.HTMLEditorKit;
 import com.actelion.research.calc.ProgressController;
 import com.actelion.research.datawarrior.DEFrame;
 import com.actelion.research.datawarrior.DataWarrior;
+import com.actelion.research.datawarrior.task.macro.GenericTaskRunMacro;
 import com.actelion.research.gui.JProgressDialog;
-import com.actelion.research.table.CompoundTableModel;
+import com.actelion.research.gui.hidpi.HiDPIHelper;
+import com.actelion.research.gui.hidpi.ScaledEditorKit;
+import com.actelion.research.table.model.CompoundTableModel;
 
 public abstract class AbstractTask implements ProgressController,Runnable {
 	public static final int ERROR_MESSAGE = JOptionPane.ERROR_MESSAGE;
 	public static final int WARNING_MESSAGE = JOptionPane.WARNING_MESSAGE;
 	public static final int INFORMATION_MESSAGE = JOptionPane.INFORMATION_MESSAGE;
+
+	private static TreeMap<String,Properties> sRecentConfigurationMap;
 
 	private JDialog				mDialog;
 	private TaskUIDelegate		mUIDelegate;
@@ -62,7 +66,7 @@ public abstract class AbstractTask implements ProgressController,Runnable {
 	private volatile Frame		mParentFrame;
 	private volatile ProgressController	mProgressController;
 	private volatile Properties	mTaskConfiguration;
-	private volatile boolean	mUseOwnThread,mIsInteractive;
+	private volatile boolean	mUseOwnThread,mIsInteractive,mIsExecuting;
 
 	public static String configurationToString(Properties configuration) {
 		try {
@@ -84,10 +88,6 @@ public abstract class AbstractTask implements ProgressController,Runnable {
 		catch (IOException ioe) {
 			return null;
 			}
-		}
-
-	public static String constructTaskCodeFromName(String taskName) {
-		return taskName.substring(0,1).toLowerCase() + taskName.substring(1).replaceAll("[^a-zA-Z0-9]", "");
 		}
 
 	/**
@@ -118,13 +118,16 @@ public abstract class AbstractTask implements ProgressController,Runnable {
 		}
 
 	/**
-	 * Returns a unique task code to identify and distinguish this task
-	 * from others within a task sequence file.
+	 * Returns a unique task code that serves as task identification in macro files.
+	 * In the default implementation this is constructed from the task name.
+	 * The task name must stay unchanged over time to identify the task.
+	 * If the associated task name is renamed for whatever reason, then getTaskCode()
+	 * must be overridden to return the original task code.
 	 * @return unique task name
 	 */
-	public String getTaskCode() {
+/*	public String getTaskCode() {
 		return constructTaskCodeFromName(getTaskName());
-		}
+	}*/
 
 	/**
 	 * Returns a unique task name that serves as task identification for the user.
@@ -200,23 +203,29 @@ public abstract class AbstractTask implements ProgressController,Runnable {
 		return mTaskConfiguration;
 		}
 
-	/**
-	 * Any subclass is expected to keep a static copy of the most recently interactively
-	 * defined and executed configuration, which is provided and requested by this superclass.
-	 * @return recent configuration or null
-	 */
-	public abstract Properties getRecentConfiguration();
-
-	/**
-	 * Any subclass is expected to keep a static copy of the most recently interactively
-	 * defined and executed configuration, which is provided and requested by this superclass.
-	 * @param configuration interactively used configuration
-	 */
-	public abstract void setRecentConfiguration(Properties configuration);
-
 	public AbstractTask(Frame owner, boolean useOwnThread) {
 		mParentFrame = owner;
 		mUseOwnThread = useOwnThread;
+		}
+
+	/**
+	 * A static copy of the most recently interactively
+	 * defined and executed configuration is kept for every task.
+	 * @return recent configuration or null
+	 */
+	public Properties getRecentConfiguration() {
+		return sRecentConfigurationMap == null ? null : sRecentConfigurationMap.get(getTaskName());
+		}
+
+	/**
+	 * A static copy of the most recently interactively
+	 * defined and executed configuration is kept for every task.
+	 * @return recent configuration or null
+	 */
+	public void setRecentConfiguration(Properties configuration) {
+		if (sRecentConfigurationMap == null)
+			sRecentConfigurationMap = new TreeMap<String,Properties>();
+		sRecentConfigurationMap.put(getTaskName(), configuration);
 		}
 
 	/**
@@ -346,8 +355,9 @@ public abstract class AbstractTask implements ProgressController,Runnable {
 			@Override
 			public void actionPerformed(ActionEvent e) {
 				if (e.getActionCommand().equals("Help")) {
+					final float zoomFactor = HiDPIHelper.getUIScaleFactor();
 					final JEditorPane helpPane = new JEditorPane();
-					helpPane.setEditorKit(new HTMLEditorKit());
+					helpPane.setEditorKit(HiDPIHelper.getUIScaleFactor() == 1f ? new HTMLEditorKit() : new ScaledEditorKit());
 					helpPane.setEditable(false);
 					helpPane.addHyperlinkListener(new HyperlinkListener() {
 						public void hyperlinkUpdate(HyperlinkEvent e) {
@@ -363,10 +373,22 @@ public abstract class AbstractTask implements ProgressController,Runnable {
 
 					URL url = createURL(getHelpURL());
 					if (url != null)
-						try { helpPane.setPage(url); } catch (IOException ioe) {}
+						try {
+							helpPane.setPage(url);
+						} catch (IOException ioe) {}
 
+/*					System.out.println(((HTMLDocument)helpPane.getDocument()).getStyle("body").toString());
+
+					((HTMLDocument)helpPane.getDocument()).getStyleSheet().removeStyle("body");
+					String rule1 = "body { font-family: Verdana, Arial, Helvetica, sans-serif; font-size: 20pt; color: #000000; text-decoration: none }";
+//					h1 { font-size: 18pt; font-weight : bold; color: #C06020; margin-top: 13px; margin-bottom: 10px; }
+//					h2 { font-size: 16pt; font-weight: bold; color: #8080FF }
+//					h3 { font-size: 13pt; font-style: italic; font-weight: bold; color: #3030AA }
+//					td { font-size: 12pt }
+					((HTMLDocument)helpPane.getDocument()).getStyleSheet().addRule(rule1);
+*/
 					JDialog helpDialog = new JDialog(getDialog(), "Help "+getTaskName(), false);
-					helpDialog.setSize(720, 500);
+					helpDialog.setSize(HiDPIHelper.scale(720), HiDPIHelper.scale(500));
 					helpDialog.getContentPane().add(new JScrollPane(helpPane,
 									JScrollPane.VERTICAL_SCROLLBAR_ALWAYS,
 									JScrollPane.HORIZONTAL_SCROLLBAR_NEVER));
@@ -488,6 +510,45 @@ public abstract class AbstractTask implements ProgressController,Runnable {
 		return mParentFrame;
 		}
 
+	/**
+	 * Assuming that the task is currently executed as part of a running macro,
+	 * this method does a lookup of the variable with the given name in the context
+	 * of the running macro (the DEMacroRecorder's context).
+	 * @param name
+	 * @return null if variable doesn't exists or if task is not currently running in a macro
+	 */
+	public String getVariable(String name) {
+		if (!(mProgressController instanceof DEMacroRecorder))
+			return null;
+		return ((DEMacroRecorder)mProgressController).getVariable(name);
+		}
+
+	/**
+	 * Assuming that the task is currently executed as part of a running macro,
+	 * this method replaces as occurences of '$<variableName>' with the respective
+	 * value of the variables known to the context of the running macro (the DEMacroRecorder's context).
+	 * @param text
+	 * @return original text if task is not currently running in a macro or if variable(s) do(es)n't exist
+	 */
+	public String resolveVariables(String text) {
+		if (!(mProgressController instanceof DEMacroRecorder))
+			return text;
+		return ((DEMacroRecorder)mProgressController).resolveVariables(text);
+		}
+
+	/**
+	 * Assuming that the task is currently executed as part of a running macro,
+	 * this method registers a variable with the given name and value in the context
+	 * of the running macro (the DEMacroRecorder's context).
+	 * @param name
+	 * @param value
+	 */
+	public void setVariable(String name, String value) {
+		if (!(mProgressController instanceof DEMacroRecorder))
+			return;
+		((DEMacroRecorder)mProgressController).setVariable(name, value);
+		}
+
 	public void startProgress(String text, int min, int max) {
 		if (mProgressController != null)
 			mProgressController.startProgress(text, min, max);
@@ -496,6 +557,11 @@ public abstract class AbstractTask implements ProgressController,Runnable {
 	public void updateProgress(int value) {
 		if (mProgressController != null)
 			mProgressController.updateProgress(value);
+		}
+
+	public void updateProgress(int value, String message) {
+		if (mProgressController != null)
+			mProgressController.updateProgress(value, message);
 		}
 
 	public void stopProgress() {
@@ -540,6 +606,21 @@ public abstract class AbstractTask implements ProgressController,Runnable {
 		}
 
 	/**
+	 * @return whether this task is currently executing, be it interactively or as part of a macro
+	 */
+	public boolean isExecuting() {
+		return mIsExecuting;
+		}
+
+	/**
+	 * @return whether this task is currently executing as part of a running macro
+	 */
+	private boolean isRunningMacro() {
+		return mProgressController != null
+			&& mProgressController instanceof DEMacroRecorder;
+		}
+
+	/**
 	 * Interactively let the user configure the task and run it.
 	 * This method must be called from the EventDispatchThread.
 	 * Non-configurable tasks are executed without showing a dialog.
@@ -561,7 +642,7 @@ public abstract class AbstractTask implements ProgressController,Runnable {
 				mTaskConfiguration = configuration;
 				if (mUseOwnThread) {
 					mProgressController = new JProgressDialog(mParentFrame, true);
-					Thread t = new Thread(this, getTaskCode());
+					Thread t = new Thread(this, getTaskName());
 					t.setPriority(Thread.MIN_PRIORITY);
 					t.start();
 					}
@@ -580,6 +661,7 @@ public abstract class AbstractTask implements ProgressController,Runnable {
 	 */
 	public void executeAsSubtask(final Properties configuration, final ProgressController pc) {
 		mProgressController = pc;
+		mIsExecuting = true;
 		if (isConfigurable()
 		 && isConfigurationValid(configuration, true)) {
 			mTaskConfiguration = configuration;
@@ -597,6 +679,7 @@ public abstract class AbstractTask implements ProgressController,Runnable {
 	 */
 	public void execute(final Properties configuration, final ProgressController pc) {
 		mProgressController = pc;
+		mIsExecuting = true;
 		if (isConfigurable()
 		 && isConfigurationValid(configuration, true)) {
 			mTaskConfiguration = configuration;
@@ -725,7 +808,7 @@ public abstract class AbstractTask implements ProgressController,Runnable {
 			showErrorMessage("No file name specified.");
 			return false;
 			}
-		File file = new File(resolveVariables(filename));
+		File file = new File(resolvePathVariables(filename));
 		if (!file.exists()) {
 			if (!isSaving) {
 				showErrorMessage("File not found:\n"+filename);
@@ -756,7 +839,7 @@ public abstract class AbstractTask implements ProgressController,Runnable {
 					showErrorMessage("No privileges to overwrite file:\n"+filename);
 					return false;
 					}
-				if (askOverwrite && JOptionPane.showConfirmDialog(mParentFrame,
+				if (askOverwrite && !isRunningMacro() && JOptionPane.showConfirmDialog(mParentFrame,
 						"A file with this name already exists.\nDo you want to replace the existing file?", "Warning",
 						JOptionPane.OK_CANCEL_OPTION, JOptionPane.WARNING_MESSAGE) == JOptionPane.CANCEL_OPTION) {
 					return false;
@@ -772,7 +855,7 @@ public abstract class AbstractTask implements ProgressController,Runnable {
 		return true;
 		}
 
-	public String resolveVariables(String path) {
+	public String resolvePathVariables(String path) {
 		return DataWarrior.resolveVariables(path);
 		}
 
@@ -785,7 +868,7 @@ public abstract class AbstractTask implements ProgressController,Runnable {
 	 */
 	public void waitForDescriptor(CompoundTableModel tableModel, int column) {
 		if (!tableModel.isDescriptorAvailable(column)) {
-			startProgress("Waiting descriptor calculation: "+tableModel.getColumnTitle(column)+"'...", 0, 0);
+			startProgress("Awaiting descriptor calculation: "+tableModel.getColumnTitle(column)+"'...", 0, 0);
 			while (!threadMustDie() && !tableModel.isDescriptorAvailable(column)) {
 				try {
 					Thread.sleep(100);

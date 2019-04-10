@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -21,9 +21,8 @@ package com.actelion.research.chem.descriptor;
 import com.actelion.research.chem.StereoMolecule;
 import com.actelion.research.chem.FingerPrintGenerator;
 
-public class DescriptorHandlerPFP512 extends AbstractDescriptorHandlerFP<StereoMolecule>
-		implements DescriptorConstants {
-    private static final double CORRECTION_FACTOR = 0.8;
+public class DescriptorHandlerPFP512 extends AbstractDescriptorHandlerFP<StereoMolecule> implements DescriptorConstants {
+    private static final double CORRECTION_FACTOR = 0.85;
 
     private static DescriptorHandlerPFP512 sDefaultInstance;
 
@@ -41,10 +40,13 @@ public class DescriptorHandlerPFP512 extends AbstractDescriptorHandlerFP<StereoM
 	}
 
 	public String getVersion() {
-		return "1.0";
+		return DescriptorConstants.DESCRIPTOR_PFP512.version;
 	}
 
 	public int[] createDescriptor(StereoMolecule mol) {
+		if (mol ==null)
+			return null;
+
 		java.util.BitSet bitset = new FingerPrintGenerator().getFingerprint(mol);
 
 		if (bitset == null)
@@ -54,7 +56,7 @@ public class DescriptorHandlerPFP512 extends AbstractDescriptorHandlerFP<StereoM
 		int mask = 1;
 		for (int i = 0; i < 32; i++) {
 			for (int j = 0; j < 16; j++)
-				if (bitset.get(32 * i + j))
+				if (bitset.get(16 * i + j))
 					fp[j] += mask;
 			mask <<= 1;
 		}
@@ -62,8 +64,8 @@ public class DescriptorHandlerPFP512 extends AbstractDescriptorHandlerFP<StereoM
 		return fp;
 	}
 
-	public DescriptorHandler<int[], StereoMolecule> getDeepCopy() {
-		return new DescriptorHandlerPFP512();
+	public DescriptorHandler<int[], StereoMolecule> getThreadSafeCopy() {
+		return this;
 	}
 
 	@Override

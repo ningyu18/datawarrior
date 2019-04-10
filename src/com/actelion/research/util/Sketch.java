@@ -1155,8 +1155,7 @@ public class Sketch
                     break;
 
                 case 8:
-                    queryFeatures |= (Molecule.cBondQFSingle | Molecule.cBondQFDouble
-                    | Molecule.cBondQFTriple | Molecule.cBondQFDelocalized);
+                    queryFeatures |= Molecule.cBondQFBondTypes;
 
                     break;
             }

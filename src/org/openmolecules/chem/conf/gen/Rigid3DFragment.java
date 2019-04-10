@@ -14,28 +14,26 @@
 
 package org.openmolecules.chem.conf.gen;
 
-import java.util.ArrayList;
-
+import com.actelion.research.chem.Coordinates;
+import com.actelion.research.chem.StereoMolecule;
 import org.openmolecules.chem.conf.so.ConformationSelfOrganizer;
 import org.openmolecules.chem.conf.so.SelfOrganizedConformer;
 
-import com.actelion.research.chem.Molecule;
-import com.actelion.research.chem.StereoMolecule;
+import java.util.ArrayList;
 
 public class Rigid3DFragment {
-	private static final int MAX_CONFORMERS = 16; // no specific seed
-
+	private static final int MAX_CONFORMERS = 16;
 	private static long sRandomSeed = 0;	 // no specific seed
 
 	private int mCoreAtomCount;
 	private int[] mFragmentToOriginalAtom,mCoreToFragmentAtom,
 				  mExtendedToFragmentAtom,mOriginalToExtendedAtom;
-	private float[] mConformerLikelyhood;
+	private double[] mConformerLikelyhood;
 	private ConformationSelfOrganizer mSelfOrganizer;
 	private SelfOrganizedConformer[] mConformerList;
 
-private StereoMolecule mFragment;   // TODO remove this
-public StereoMolecule getFragment() { return mFragment; };
+private StereoMolecule[] mFragment;   // TODO remove this
+public StereoMolecule[] getFragment() { return mFragment; };
 
 	public static void setRandomSeed(long seed) {
 		sRandomSeed = seed;
@@ -51,7 +49,6 @@ public StereoMolecule getFragment() { return mFragment; };
 	 * @param mol
 	 * @param fragmentNo
 	 * @param fragmentIndex
-	 * @param multipleFragmentConformations
 	 */
 	public Rigid3DFragment(StereoMolecule mol, int[] fragmentNo, int fragmentIndex) {
 		mCoreAtomCount = 0;
@@ -92,8 +89,8 @@ public StereoMolecule getFragment() { return mFragment; };
 				bondCount++;
 
 		StereoMolecule fragment = new StereoMolecule(atomCount, bondCount);
-		mol.copyMoleculeByAtoms(fragment, includeAtom, true, null);
-		fragment.setFragment(true); // if mFragment is a fragment, then H-atoms are converted to query features!!!
+		mol.copyMoleculeByAtoms(fragment, includeAtom, false, null);
+		fragment.setFragment(false); // if mFragment is a fragment, then H-atoms are converted to query features!!!
 		fragment.setParitiesValid(0);
 
 		mCoreToFragmentAtom = new int[mCoreAtomCount];
@@ -105,8 +102,9 @@ public StereoMolecule getFragment() { return mFragment; };
 		int extendedAtom = 0;
 		for (int atom=0; atom<mol.getAllAtoms(); atom++) {
 			if (includeAtom[atom]) {
-				if (mol.isFlatNitrogen(atom))
-				    fragment.setAtomQueryFeature(fragmentAtom, Molecule.cAtomQFFlatNitrogen, true);
+// this would convert the molecule to a fragment
+//				if (mol.isFlatNitrogen(atom))
+//				    fragment.setAtomQueryFeature(fragmentAtom, Molecule.cAtomQFFlatNitrogen, true);
 
 				if (isOuterShellAtom[atom])
 					fragment.setAtomMarker(fragmentAtom, true);
@@ -139,26 +137,30 @@ public StereoMolecule getFragment() { return mFragment; };
 			}
 		mConformerList = conformerList.toArray(new SelfOrganizedConformer[0]);
 
-		mConformerLikelyhood = new float[mConformerList.length];
-		float likelyhoodSum = 0f;
+		mConformerLikelyhood = new double[mConformerList.length];
+		double likelyhoodSum = 0.0;
 		for (int i=0; i<mConformerList.length; i++) {
 			mConformerLikelyhood[i] = mConformerList[i].getLikelyhood();
 			likelyhoodSum += mConformerLikelyhood[i];
 			}
-		if (likelyhoodSum != 0f) {
+		if (likelyhoodSum != 0.0) {
 			for (int i=0; i<mConformerList.length; i++)
 				mConformerLikelyhood[i] /= likelyhoodSum;
 			}
 
-mFragment = fragment;
-mConformerList[0].copyTo(mFragment);
+if (ConformerGenerator.WRITE_DW_FRAGMENT_FILE) {
+ mFragment = new StereoMolecule[mConformerList.length];
+ for (int i=0; i<mConformerList.length; i++) {
+  mFragment[i] = fragment.getCompactCopy();
+  mConformerList[i].toMolecule(mFragment[i]);
+ }}
 	    }
 
 	public int getConformerCount() {
 		return mConformerList.length;
 		}
 
-	public float getConformerLikelyhood(int i) {
+	public double getConformerLikelyhood(int i) {
 		return mConformerLikelyhood[i];
 		}
 
@@ -171,10 +173,10 @@ mConformerList[0].copyTo(mFragment);
 	 * @param random
 	 * @param progress 0...1 
 	 */
-	public int getLikelyRandomConformerIndex(float random, float progress) {
-		float sum = 0;
+	public int getLikelyRandomConformerIndex(double random, double progress) {
+		double sum = 0;
 		for (int t=0; t<mConformerLikelyhood.length; t++) {
-			float contribution = (1f-progress)*mConformerLikelyhood[t] + progress/mConformerLikelyhood.length;
+			double contribution = (1f-progress)*mConformerLikelyhood[t] + progress/mConformerLikelyhood.length;
 			sum += contribution;
 			if (random <= sum)
 				return t;
@@ -212,27 +214,11 @@ mConformerList[0].copyTo(mFragment);
 		return mExtendedToFragmentAtom.length;
 		}
 
-	public float getCoreAtomX(int conformer, int atom) {
-	    return mConformerList[conformer].x[mCoreToFragmentAtom[atom]];
+	public Coordinates getCoreCoordinates(int conformer, int atom) {
+		return mConformerList[conformer].getCoordinates(mCoreToFragmentAtom[atom]);
 		}
 
-	public float getCoreAtomY(int conformer, int atom) {
-	    return mConformerList[conformer].y[mCoreToFragmentAtom[atom]];
-		}
-
-	public float getCoreAtomZ(int conformer, int atom) {
-        return mConformerList[conformer].z[mCoreToFragmentAtom[atom]];
-		}
-
-	public float getExtendedAtomX(int conformer, int atom) {
-		return mConformerList[conformer].x[mExtendedToFragmentAtom[atom]];
-		}
-
-	public float getExtendedAtomY(int conformer, int atom) {
-		return mConformerList[conformer].y[mExtendedToFragmentAtom[atom]];
-		}
-
-	public float getExtendedAtomZ(int conformer, int atom) {
-		return mConformerList[conformer].z[mExtendedToFragmentAtom[atom]];
+	public Coordinates getExtendedCoordinates(int conformer, int atom) {
+		return mConformerList[conformer].getCoordinates(mExtendedToFragmentAtom[atom]);
 		}
 	}

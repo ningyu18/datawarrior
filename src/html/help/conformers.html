@@ -87,7 +87,7 @@ constraints are randomly picked and their atoms relocated in space to better mee
 works best with highly constrained, i.e. rigid structures like bridged ring systems.</li>
 </ul>
 </p>
-<p><b>Algorithm:</b> Rule based assembled or self-organized conformers like those created by the above algorithms
+<p><b>Minimize energy:</b> Rule based assembled or self-organized conformers like those created by the above algorithms
 may still suffer from angle strains, slight atom collisions or suboptimal torsions, because the local environment
 of a particular molecule may not be well represented by more general rules that were used for the construction.
 In order to minimize strains and energy these conformers can be optimized by a forcefield:
@@ -107,6 +107,19 @@ rather than added to the current dataset.</p>
 one are removed from the molecule before conformers are generated. This is particularly advisable, if a forcefield
 minimization is used, which may potentially take a very long time to optimize relative positions of non connected
 fragments.</p>
+<p><b>Neutralize remaining fragment:</b> If this option and the <i>Remove small fragment</i>i> option both are selected,
+then <span class="keyword">DataWarrior</span> tries after the removal of all small fragments to neutralize all
+charged atoms of the remaining fragment through protonation or deprotonation. If quarternary nitrogens cannot
+be deprotonated, the <span class="keyword">DataWarrior</span> tries to deprotonate acidic atoms to achieve a
+neutral overall charge.</p>
+<p><b>Create proper protonation state:</b> This option is available for selection only, if the ChemAxon pKa-Plugin
+is installed and DataWarrior was configured to find it. If this option is selected, then the pKa-values of
+basic and acidic atoms are determined using the ChemAxon method and these atoms are properly protonated
+or deprotonated to reflect their natural state at the given pH value. If the value in the <b>+-</b> text field
+is different from '0', then this defines a pH-range. In this case <span class="keyword">DataWarrior</span> may
+produce more than one protonation state if the pKa of one or more of the basic or acidic atoms fall into the
+pKa range.
+</p>
 <br>
 
 <h3><a name="Explore"></a>Exploring Conformers of a Molecule</h3>

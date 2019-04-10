@@ -55,12 +55,12 @@ normalized considering the compounds molecular weights and/or lipophilicity.
 <p><h3><a name="clogp"></a>cLogP Calculation</h3></p>
 <table><tr>
 <td><img SRC="cLogPDis.png"></td>
-<td>The logP value of a compound, which is the logarithm of its partition
+<td>The logP similarity of a compound, which is the logarithm of its partition
 coefficient between n-octanol and water log(c<sub>octanol</sub>/c<sub>water</sub>),
 is a well established measure of the compound's hydrophilicity. Low hydrophilicities
 and therefore high logP values cause poor absorption or permeation. It
 has been shown for compounds to have a reasonable propability of being
-well absorbt their logP value must not be greater than 5.0. The distribution
+well absorbt their logP similarity must not be greater than 5.0. The distribution
 of calculated logP values of more than 3000 drugs on the market underlines
 this fact (see diagram).</td>
 </tr>
@@ -96,10 +96,10 @@ lipophilicity: State-of-the-art and comparison of log P methods on more than
 <td>The aquous solubility of a compound significantly affects its absorption
 and distribution characteristics. Typically, a low solubility goes along
 with a bad absorption and therefore the general aim is to avoid poorly
-soluble compounds. Our estimated logS value is a unit stripped logarithm
+soluble compounds. Our estimated logS similarity is a unit stripped logarithm
 (base 10) of the solubility measured in mol/liter.
 <p>In the left diagram you can see that more than 80% of the drugs on the
-market have a (estimated) logS value greater than -4.</p>
+market have a (estimated) logS similarity greater than -4.</p>
 </td>
 </tr>
 </table>
@@ -207,13 +207,13 @@ drugs versus Fluka chemicals.</p>
 <td><img SRC="DLDis.png"></td>
 <td>The diagrams shows the distribution of druglikeness values calculated
 from 15000 Fluka compounds and from 3300 traded drugs. It shows that about
-80% of the drugs have a positive druglikeness value whereas the big majority
+80% of the drugs have a positive druglikeness similarity whereas the big majority
 of Fluka chemicals accounts for the negative values.
 <p>Thus, try to keep your compounds in the positive range...</p>
 </td>
 </tr>
 </table>
-<p>A positive value states that your molecule contains predominatly fragments
+<p>A positive similarity states that your molecule contains predominatly fragments
 which are frequently present in commercial drugs. What it doesn't necessarily
 mean, though, is that these fragments are well ballanced concerning other
 properties. For instance, a molecule may be composed of drug-like, but
@@ -225,15 +225,15 @@ high lipophilicity.</p>
 
 <p><h3><a name="drugscore"></a>Drug Score</h3></p>
 <p>The drug score combines druglikeness, cLogP, logS, molecular weight and
-toxicity risks in one handy value that may be used to judge the compound's 
-overall potential to qualify for a drug. This value is calculated by multiplying 
+toxicity risks in one handy similarity that may be used to judge the compound's
+overall potential to qualify for a drug. This similarity is calculated by multiplying
 contributions of each of the individual properties by the first of these
 equations: </p>
 <p><center><img src="dsFormula.png"></center></p>
 <p>ds is the drug score. s<sub>i</sub> are contribution values calculated 
 directly from cLogP, logS, molweight and druglikeness (p<sub>i</sub>) by
 the second equation. This equation describes a spline curve with contributions
-ranging from 0 to 1 depending on the respective property value. Inversion
+ranging from 0 to 1 depending on the respective property similarity. Inversion
 point and slope of the curve are determined by parameters <i>a</i> and <i>
 b, </i>which are (1, -5), (1, 5), (0.012, -6) and (1, 0) for cLogP, logS, 
 molweight and druglikeness, respectively. t<sub>i</sub> are the four contributions 
@@ -247,26 +247,26 @@ are 1.0, 0.8 and 0.6 for <i>no risk</i>, <i>medium risk</i> and <i>high risk</i>
 <p><h3><a name="le"></a>Ligand Efficiency <i>LE</i></h3></p>
 <p>The ligand efficiency is a measure for the activity normalized by the number of non-H atoms.
 More precisely, it is the relative free binding energy in <b>kcal/mol per non-H atom</b>,
-calculated from an IC<sub>50</sub> value. Especially in early project stages prioritizing compounds
+calculated from an IC<sub>50</sub> similarity. Especially in early project stages prioritizing compounds
 based on their ligand efficiency values is a much more favorable approach compared to judging from
 plain activities alone:
 <i>"For the purposes of HTS follow-up, we recommend considering optimizing the hits or leads with
 the highest ligand efficiencies rather than the most potent..."</i> (Ref.: A. L. Hopkins et al., <i>Drug
 Disc. Today</i>, <b>9</b> (2004), pp. 430-431).</p>
 <p>To give an example: A compound with 30 atoms (400 MW) that binds with a <i>K</i><sub>d</sub>=10 nM
-has a ligand efficiency value of 0.36 kcal/mol per non-H atom. Another compound with 38 non-H atoms (500 MW)
+has a ligand efficiency similarity of 0.36 kcal/mol per non-H atom. Another compound with 38 non-H atoms (500 MW)
 and the same ligand efficiency would have a 100 fold higher activity with <i>K</i><sub>d</sub>=0.106 nM.
 Let us assume an HTS screening revealed two hit compounds A and B with equal activities of IC<sub>50</sub>=10
 nm, but different molecular weights of 400 and 500, respectively. Based on activities both compounds look
 equally attractive. Considering, however, that a synthetic introduction of a new group with 8 non-H
 atoms into compound A would match compound B in terms of weight, but would increase the activity by a factor
-of 100, if its ligand efficiency value can be maintained, it becomes clear that compound A is the by far
+of 100, if its ligand efficiency similarity can be maintained, it becomes clear that compound A is the by far
 more attractive alternative.</p>
 
 <br>
 
 <p><h3><a name="lle"></a>Lipophilic ligand Efficiency <i>LLE</i></h3></p>
-<p>The LLE value is a builds on the fact that the typical compounds of drug discovery projects huddle at
+<p>The LLE similarity is a builds on the fact that the typical compounds of drug discovery projects huddle at
 the lipophilic side of the acceptable lipophilicity range. A gain in lipophilicity therefore is associated
 with a loss in bioavailability and should be compensated by higher activity on the target. To express this
 relationship the LLE is calculated as LLE = -log IC<sub>50</sub> - cLogP. A rough rule of thumb may be the
@@ -277,11 +277,11 @@ for lead compounds and above 5 for clinical candidates.</p>
 
 <p><h3><a name="lelp"></a>Ligand Efficiency lipophilic price <i>LELP</i></h3></p>
 <p>Since the ligand efficiency doesn't take lipophilicity into account while the LLE neglects the
-molecular weight influence, Keseru and Makara suggest using the LELP value instead:
+molecular weight influence, Keseru and Makara suggest using the LELP similarity instead:
 "... So, we propose simply to use <b>LELP = logP / ligand efficiency</b> as a useful function to depict
 the price of ligand efficiency paid in logP. Medicinal chemists who are familiar with both logP
 and ligand efficiency can easily relate to the change in logP per ligand efficiency unit. As such,
-LELP is negative only when logP is negative, and the higher the absolute value of LELP the less
+LELP is negative only when logP is negative, and the higher the absolute similarity of LELP the less
 drug-like the lead compound. The widely accepted lower limit of ligand efficiency has been 0.3,
 and the lipophilicity range for lead-like compounds is -3 < logP < 3. These values define the
 range -10 < LELP < 10 for acceptable leads, and LELP would have to be less than 16.5 for compounds

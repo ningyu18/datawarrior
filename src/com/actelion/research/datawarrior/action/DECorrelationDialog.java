@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,6 +18,9 @@
 
 package com.actelion.research.datawarrior.action;
 
+import com.actelion.research.gui.hidpi.HiDPIHelper;
+import com.actelion.research.table.model.CompoundTableModel;
+import com.actelion.research.table.model.NumericalCompoundTableColumn;
 import info.clearthought.layout.TableLayout;
 
 import java.awt.*;
@@ -26,16 +29,17 @@ import java.awt.event.*;
 import javax.swing.*;
 
 import com.actelion.research.calc.*;
-import com.actelion.research.table.*;
 import com.actelion.research.util.DoubleFormat;
 
 
 public class DECorrelationDialog extends JDialog implements ActionListener {
     private static final long serialVersionUID = 0x20080507;
 
+	private static final int FONT_SIZE = 14;
+
 	private JComboBox			mComboBoxCorrelationType;
 	private Frame				mParentFrame;
-	private CompoundTableModel	mTableModel;
+	private CompoundTableModel mTableModel;
 	private int[]				mNumericalColumn;
 	private double[][][]		mMatrix;
 
@@ -52,9 +56,12 @@ public class DECorrelationDialog extends JDialog implements ActionListener {
 		    }
 		mMatrix = new double[CorrelationCalculator.TYPE_NAME.length][][];
 
+		int gap1 = HiDPIHelper.scale(8);
+		int gap2 = HiDPIHelper.scale(12);
+		int width = HiDPIHelper.scale(80);
 		JPanel p = new JPanel();
-        double[][] size = { {8, 80, TableLayout.FILL, 80, 8},
-                            {8, TableLayout.PREFERRED, 8, TableLayout.FILL, 12, TableLayout.PREFERRED, 8 } };
+        double[][] size = { {gap1, width, TableLayout.FILL, width, gap1},
+                            {gap1, TableLayout.PREFERRED, gap1, TableLayout.FILL, gap2, TableLayout.PREFERRED, gap1 } };
         p.setLayout(new TableLayout(size));
 
 		JPanel cbp = new JPanel();
@@ -67,17 +74,21 @@ public class DECorrelationDialog extends JDialog implements ActionListener {
 		JPanel matrixPanel = new JPanel() {
 		    private static final long serialVersionUID = 0x20080507;
 
-		    private final int SPACING = 4;
-		    private final int NUM_CELL_WIDTH = 24;
-		    private final int CELL_WIDTH = 72;
-		    private final int CELL_HEIGHT = 16;
+		    private final int SPACING = HiDPIHelper.scale(4);
+		    private final int NUM_CELL_WIDTH = HiDPIHelper.scale(24);
+		    private final int CELL_WIDTH = HiDPIHelper.scale(72);
+		    private final int CELL_HEIGHT = HiDPIHelper.scale(16);
             private Dimension size;
             private int titleWidth;
+			private Font font;
 
 		    public Dimension getPreferredSize() {
 		        if (size == null) {
+		        	if (font == null)
+			        	font = new JLabel().getFont().deriveFont((float)HiDPIHelper.scale(FONT_SIZE));
+		        	FontMetrics metrics = new JLabel().getFontMetrics(font);
 		            for (int i=0; i<mNumericalColumn.length; i++)
-		                titleWidth = Math.max(titleWidth, mParentFrame.getGraphics().getFontMetrics().stringWidth(mTableModel.getColumnTitle(mNumericalColumn[i])));
+		                titleWidth = Math.max(titleWidth, metrics.stringWidth(mTableModel.getColumnTitle(mNumericalColumn[i])));
 
 		            size = new Dimension(CELL_WIDTH * mNumericalColumn.length + titleWidth + 2*SPACING + NUM_CELL_WIDTH,
 		                                 CELL_HEIGHT * mNumericalColumn.length + CELL_HEIGHT);
@@ -88,6 +99,11 @@ public class DECorrelationDialog extends JDialog implements ActionListener {
 
 		    public void paint(Graphics g) {
 		        super.paint(g);
+
+				if (font == null)
+					font = new JLabel().getFont().deriveFont((float)HiDPIHelper.scale(FONT_SIZE));
+				g.setFont(font);
+
 		        g.setColor(getBackground().darker());
                 for (int i=0; i<mNumericalColumn.length; i++) {
                     g.fillRect(2*SPACING+titleWidth+1, (i+1)*CELL_HEIGHT+1, NUM_CELL_WIDTH-2, CELL_HEIGHT-2);
@@ -131,7 +147,7 @@ public class DECorrelationDialog extends JDialog implements ActionListener {
 		matrixPanel.setSize(matrixPanel.getPreferredSize());
         if (mNumericalColumn.length > 10) {
             JScrollPane scrollPane = new JScrollPane(matrixPanel, JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED, JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
-            scrollPane.setPreferredSize(new Dimension(720, 192));
+            scrollPane.setPreferredSize(new Dimension(HiDPIHelper.scale(720), HiDPIHelper.scale(192)));
             p.add(scrollPane, "1,3,3,3");
             }
         else {

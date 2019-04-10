@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,6 +18,7 @@
 
 package com.actelion.research.datawarrior.task.file;
 
+import com.actelion.research.datawarrior.DataWarrior;
 import info.clearthought.layout.TableLayout;
 
 import java.awt.event.ActionEvent;
@@ -25,22 +26,20 @@ import java.awt.event.ActionListener;
 import java.io.File;
 import java.util.Properties;
 
-import javax.swing.JButton;
-import javax.swing.JCheckBox;
-import javax.swing.JComponent;
-import javax.swing.JPanel;
+import javax.swing.*;
 
 import com.actelion.research.chem.io.CompoundFileHelper;
 import com.actelion.research.datawarrior.DEFrame;
 import com.actelion.research.datawarrior.task.ConfigurableTask;
 import com.actelion.research.gui.FileHelper;
-import com.actelion.research.table.CompoundTableModel;
+import com.actelion.research.table.model.CompoundTableModel;
 
 
 public abstract class DETaskAbstractSaveFile extends ConfigurableTask implements ActionListener {
 	protected static final String PROPERTY_FILENAME = "fileName";
 	private static final String ASK_FOR_FILE = "#ask#";
 
+	private DataWarrior		mApplication;
 	private JFilePathLabel	mFilePathLabel;
 	private JButton			mButtonEdit;
 	private JCheckBox		mCheckBoxInteractive;
@@ -56,6 +55,7 @@ public abstract class DETaskAbstractSaveFile extends ConfigurableTask implements
 	 */
 	public DETaskAbstractSaveFile(DEFrame parent, String dialogTitle) {
 		super(parent, false);
+		mApplication = parent.getApplication();
 		mTableModel = parent.getTableModel();
 		mDialogTitle = dialogTitle;
 		}
@@ -164,7 +164,7 @@ public abstract class DETaskAbstractSaveFile extends ConfigurableTask implements
 	@Override
 	public void actionPerformed(ActionEvent e) {
 		if (e.getActionCommand().equals(JFilePathLabel.BUTTON_TEXT)) {
-			String fileName = askForFile(resolveVariables(mFilePathLabel.getPath()));
+			String fileName = askForFile(resolvePathVariables(mFilePathLabel.getPath()));
 			if (fileName != null) {
 				mFilePathLabel.setPath(fileName);
 				enableItems();
@@ -226,7 +226,22 @@ public abstract class DETaskAbstractSaveFile extends ConfigurableTask implements
 				}
 			}
 
-		saveFile(new File(resolveVariables(fileName)), configuration);
+		final File file = new File(resolvePathVariables(fileName));
+
+		saveFile(file, configuration);
+
+		if (SwingUtilities.isEventDispatchThread())
+			mApplication.updateRecentFiles(file);
+		else {
+			SwingUtilities.invokeLater(
+					new Runnable() {
+						@Override
+						public void run() {
+							mApplication.updateRecentFiles(file);
+						}
+					}
+				);
+			}
 		}
 
 	public abstract int getFileType();

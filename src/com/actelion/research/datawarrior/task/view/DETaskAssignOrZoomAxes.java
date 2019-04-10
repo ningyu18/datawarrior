@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,24 +18,17 @@
 
 package com.actelion.research.datawarrior.task.view;
 
-import info.clearthought.layout.TableLayout;
-
-import java.awt.Frame;
-import java.util.ArrayList;
-import java.util.Properties;
-
-import javax.swing.JCheckBox;
-import javax.swing.JComboBox;
-import javax.swing.JComponent;
-import javax.swing.JPanel;
-import javax.swing.SwingConstants;
-import javax.swing.SwingUtilities;
-
 import com.actelion.research.datawarrior.DEMainPane;
 import com.actelion.research.gui.JPruningBar;
 import com.actelion.research.table.view.CompoundTableView;
 import com.actelion.research.table.view.JVisualization;
 import com.actelion.research.table.view.VisualizationPanel;
+import info.clearthought.layout.TableLayout;
+
+import javax.swing.*;
+import java.awt.*;
+import java.util.ArrayList;
+import java.util.Properties;
 
 public class DETaskAssignOrZoomAxes extends DETaskAbstractSetViewOptions {
 	public static final String TASK_NAME = "Assign Or Zoom Axes";
@@ -44,8 +37,6 @@ public class DETaskAssignOrZoomAxes extends DETaskAbstractSetViewOptions {
 	private static final String PROPERTY_LOW = "high";
 	private static final String PROPERTY_HIGH = "low";
 	private static final String PROPERTY_MILLIS = "millis";	// if it is animated
-
-    private static Properties sRecentConfiguration;
 
 	private JPruningBar[]		mPruningBar;
     private JComboBox[]			mComboBoxColumn;
@@ -68,11 +59,6 @@ public class DETaskAssignOrZoomAxes extends DETaskAbstractSetViewOptions {
 	@Override
 	public String getViewQualificationError(CompoundTableView view) {
 		return (view instanceof VisualizationPanel) ? null : "Axes only exist in 2D- or 3D-Views.";
-		}
-
-	@Override
-	public boolean isRedundant(Properties previousConfiguration, Properties currentConfiguration) {
-		return getConfiguredViewName(currentConfiguration).equals(getConfiguredViewName(previousConfiguration));
 		}
 
 	@Override
@@ -131,16 +117,11 @@ public class DETaskAssignOrZoomAxes extends DETaskAbstractSetViewOptions {
 		for (int i=0; i<vp.getDimensionCount(); i++) {
 			if (vp.getSelectedColumn(i) != JVisualization.cColumnUnassigned) {
 				configuration.setProperty(PROPERTY_COLUMN+i, vp.getAxisColumnName(i));
-				configuration.setProperty(PROPERTY_LOW+i, ""+getVisualization().getPruningBarLow(i));
-				configuration.setProperty(PROPERTY_HIGH+i, ""+getVisualization().getPruningBarHigh(i));
+				configuration.setProperty(PROPERTY_LOW+i, ""+ getInteractiveVisualization().getPruningBarLow(i));
+				configuration.setProperty(PROPERTY_HIGH+i, ""+ getInteractiveVisualization().getPruningBarHigh(i));
 				}
 			}
 		configuration.setProperty(PROPERTY_MILLIS, "1000");
-		}
-
-	@Override
-	public Properties getRecentConfigurationLocal() {
-		return sRecentConfiguration;
 		}
 
 	@Override
@@ -263,9 +244,4 @@ public class DETaskAssignOrZoomAxes extends DETaskAbstractSetViewOptions {
 			}
 		mCheckBoxAnimated.setSelected(true);
 		}
-
-	@Override
-	public void setRecentConfiguration(Properties configuration) {
-		sRecentConfiguration = configuration;
-		}
-}
+	}

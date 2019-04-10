@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,33 +18,33 @@
 
 package com.actelion.research.table;
 
-import java.awt.Color;
-import java.awt.Component;
-
-import javax.swing.JTable;
-import javax.swing.JTextArea;
-import javax.swing.UIManager;
-import javax.swing.border.EmptyBorder;
-import javax.swing.table.TableCellRenderer;
-
+import com.actelion.research.gui.LookAndFeelHelper;
+import com.actelion.research.table.model.CompoundRecord;
+import com.actelion.research.table.model.CompoundTableModel;
 import com.actelion.research.table.view.JVisualization;
 import com.actelion.research.table.view.VisualizationColor;
+import com.actelion.research.util.ColorHelper;
+
+import javax.swing.*;
+import javax.swing.border.EmptyBorder;
+import javax.swing.table.TableCellRenderer;
+import java.awt.*;
 
 public class MultiLineCellRenderer extends JTextArea implements ColorizedCellRenderer,TableCellRenderer {
     static final long serialVersionUID = 0x20070312;
 
-    private Color mAlternatingRowBackground;
+    private boolean mAlternateBackground;
     private VisualizationColor mForegroundColor,mBackgroundColor;
 
     public MultiLineCellRenderer() {
 		setLineWrap(true);
 		setWrapStyleWord(true);
-		setOpaque(false);
+	    setOpaque(false);
 		}
 
-    public void setAlternatingRowBackground(Color bg) {
-        mAlternatingRowBackground = bg;
-        }
+	public void setAlternateRowBackground(boolean b) {
+		mAlternateBackground = b;
+		}
 
 	public void setColorHandler(VisualizationColor vc, int type) {
 		switch (type) {
@@ -57,8 +57,32 @@ public class MultiLineCellRenderer extends JTextArea implements ColorizedCellRen
 			}
 		}
 
+	@Override
+	public void paintComponent(Graphics g) {
+		// Substance Graphite LaF does not consider the defined background
+		if (LookAndFeelHelper.isNewSubstance()) {
+			Rectangle r = new Rectangle(new java.awt.Point(0,0), getSize());
+			g.setColor(getBackground());
+			((Graphics2D) g).fill(r);
+			setOpaque(false);    // if the panel is opaque (e.g. after LaF change) new substance may crash
+			super.paintComponent(g);
+			}
+		else {
+			super.paintComponent(g);
+			}
+		}
+
     public Component getTableCellRendererComponent(JTable table, Object value,
 							boolean isSelected, boolean hasFocus, int row, int column) {
+	    if (LookAndFeelHelper.isAqua()
+			    // Quaqua does not use the defined background color if CellRenderer is translucent
+	     || (LookAndFeelHelper.isQuaQua()
+		  && mBackgroundColor != null
+		  && mBackgroundColor.getColorColumn() != JVisualization.cColumnUnassigned))
+		    setOpaque(true);
+		else
+		    setOpaque(false);
+
 		if (isSelected) {
             setForeground(UIManager.getColor("Table.selectionForeground"));
             setBackground(UIManager.getColor("Table.selectionBackground"));
@@ -66,27 +90,19 @@ public class MultiLineCellRenderer extends JTextArea implements ColorizedCellRen
 		else {
             if (mForegroundColor != null && mForegroundColor.getColorColumn() != JVisualization.cColumnUnassigned) {
             	CompoundRecord record = ((CompoundTableModel)table.getModel()).getRecord(row);
-            	setForeground(mForegroundColor.getDarkerColor(record));
+            	setForeground(mForegroundColor.getColorForForeground(record));
             	}
             else
             	setForeground(UIManager.getColor("Table.foreground"));
 
-            boolean isQuaQuaLaF = UIManager.getLookAndFeel().getName().startsWith("Quaqua");
-
-            // Quaqua does not use the defined background color if CellRenderer is translucent
-        	if (isQuaQuaLaF)
-        		setOpaque(mBackgroundColor != null && mBackgroundColor.getColorColumn() != JVisualization.cColumnUnassigned);
-
             if (mBackgroundColor != null && mBackgroundColor.getColorColumn() != JVisualization.cColumnUnassigned) {
             	CompoundRecord record = ((CompoundTableModel)table.getModel()).getRecord(row);
-            	setBackground(mBackgroundColor.getLighterColor(record));
+            	setBackground(mBackgroundColor.getColorForBackground(record));
             	}
             else {
-            	if (!isQuaQuaLaF) {	// simulate the quaqua table style "striped"
-	            	if (mAlternatingRowBackground != null && (row & 1) == 1)
-	            		setBackground(mAlternatingRowBackground);
-	            	else
-	            		setBackground(UIManager.getColor("Table.background"));
+            	if (!LookAndFeelHelper.isQuaQua()) {	// simulate the quaqua table style "striped"
+		            Color bg = UIManager.getColor("Table.background");
+		            setBackground(!mAlternateBackground || (row & 1) == 0 ? bg : ColorHelper.darker(bg, 0.94f));
             		}
             	}
 			}

@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,11 +18,10 @@
 
 package com.actelion.research.chem;
 
-import java.awt.Color;
+import org.jmol.g3d.Graphics3D;
 
 import javax.vecmath.Point3i;
-
-import org.jmol.g3d.Graphics3D;
+import java.awt.*;
 
 public class Depictor3D extends AbstractDepictor {
     private int			mZ;
@@ -56,15 +55,15 @@ public class Depictor3D extends AbstractDepictor {
         }
 
 
-    protected void drawString(String s, float x, float y) {
+    protected void drawString(String s, double x, double y) {
 	    if (mpTextSize > 1) {
 			double strWidth = getStringWidth(s);
-			((Graphics3D)mG).drawStringNoSlab(s, null, (int)(x-strWidth/2.0), (int)(y+(double)mpTextSize/3.0), 0);
+			((Graphics3D)mG).drawString(s, null, (int)(x-strWidth/2.0), (int)(y+(double)mpTextSize/3.0), mZ, 0);
 	    	}
 		}
 
 
-	protected void drawPolygon(float[] x, float[] y, int count) {
+	protected void drawPolygon(double[] x, double[] y, int count) {
 	    		// only polygons with 3 or 4 corners used
 	    if (count >= 3)
 	        ((Graphics3D)mG).fillTriangle(mColix,
@@ -79,12 +78,12 @@ public class Depictor3D extends AbstractDepictor {
 		}
 
 
-	protected void fillCircle(float x, float y, float r) {
+	protected void fillCircle(double x, double y, double r) {
 		((Graphics3D)mG).drawCircleCentered(mColix, (int)(2*r), (int)x, (int)y, mZ, true);
 		}
 
 
-	protected float getStringWidth(String s) {
+	protected double getStringWidth(String s) {
 		return ((Graphics3D)mG).getFont3DCurrent().fontMetrics.stringWidth(s);
 		}
 
@@ -100,16 +99,17 @@ public class Depictor3D extends AbstractDepictor {
         }
 
 
-	protected float getLineWidth() {
+	protected double getLineWidth() {
 		return 1.0f;
 		}
 
 
-	protected void setLineWidth(float lineWidth) {
+	protected void setLineWidth(double lineWidth) {
 		}
 
 
 	protected void setColor(Color c) {
-		((Graphics3D)mG).setColix(Graphics3D.getColix(c.getRGB()));
+		mColix = Graphics3D.getColix(c.getRGB());
+		((Graphics3D)mG).setColix(mColix);
 		}
 	}

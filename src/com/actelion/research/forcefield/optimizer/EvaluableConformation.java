@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -26,7 +26,7 @@ import com.actelion.research.forcefield.transformation.*;
  * Transformation used to optimize the torsions of the ligand (degrees of freedom = nRotBonds) 
  * 
  */
-public class EvaluableConformation extends EvaluableTransformation {
+public class EvaluableConformation extends AbstractEvaluableTransformation {
 	
 	private EvaluableConformation(EvaluableConformation e) {
 		super(e.forcefield, (ChainOfTransformations) e.chain.clone(), e.initial);		
@@ -44,7 +44,7 @@ public class EvaluableConformation extends EvaluableTransformation {
 	/**
 	 * Clone the multivariate of this function. The forcefield and the initial position
 	 * are shared by the original 
-	 * @see com.actelion.research.forcefield.optimizer.IEvaluable#clone()
+	 * @see com.actelion.research.forcefield.optimizer.AbstractEvaluable#clone()
 	 */
 	@Override
 	public EvaluableConformation clone() {

@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,7 +18,7 @@
 
 package com.actelion.research.gui;
 
-import java.awt.Frame;
+import java.awt.*;
 import java.io.File;
 import java.util.ArrayList;
 
@@ -26,21 +26,22 @@ import javax.swing.JFileChooser;
 import javax.swing.JOptionPane;
 
 import com.actelion.research.chem.io.CompoundFileHelper;
+import com.actelion.research.gui.hidpi.HiDPIHelper;
 
 public class FileHelper extends CompoundFileHelper {
-	private Frame mParentFrame;
+	private Component mParent;
 
-	public FileHelper(Frame parent) {
-		mParentFrame = parent;
+	public FileHelper(Component parent) {
+		mParent = parent;
 		}
 
 	public String selectOption(String message, String title, String[] option) {
-        return (String)JOptionPane.showInputDialog(mParentFrame, message, title,
+        return (String)JOptionPane.showInputDialog(mParent, message, title,
         										   JOptionPane.QUESTION_MESSAGE, null, option, option[0]);
 		}
 
 	public void showMessage(String message) {
-		JOptionPane.showMessageDialog(mParentFrame, message);
+		JOptionPane.showMessageDialog(mParent, message);
 		}
 
 	/**
@@ -50,7 +51,7 @@ public class FileHelper extends CompoundFileHelper {
 	 * @param filetypes
 	 * @return
 	 */
-	public static File getFile(Frame parent, String title, int filetypes) {
+	public static File getFile(Component parent, String title, int filetypes) {
 		return new FileHelper(parent).selectFileToOpen(title, filetypes);
 		}
 
@@ -67,6 +68,12 @@ public class FileHelper extends CompoundFileHelper {
 	 */
 	public File selectFileToOpen(String title, int filetypes, String initialFileName) {
 		JFileChooser fileChooser = new JFileChooser();
+
+		// file chooser height does not automatically grow with UI scale factor
+		if (HiDPIHelper.getUIScaleFactor() > 1)
+			fileChooser.setPreferredSize(new Dimension(fileChooser.getPreferredSize().width,
+					HiDPIHelper.scale(fileChooser.getPreferredSize().height)));
+
 		fileChooser.setDialogTitle(title);
 		fileChooser.setCurrentDirectory(getCurrentDirectory());
 		fileChooser.setFileFilter(createFileFilter(filetypes, false));
@@ -83,7 +90,7 @@ public class FileHelper extends CompoundFileHelper {
 					fileChooser.setSelectedFile(new File(FileHelper.getCurrentDirectory(), initialFileName.substring(index+1)));
 				}
 			}
-		int option = fileChooser.showOpenDialog(mParentFrame);
+		int option = fileChooser.showOpenDialog(mParent);
 		setCurrentDirectory(fileChooser.getCurrentDirectory());
 		if (option != JFileChooser.APPROVE_OPTION)
 			return null;
@@ -110,7 +117,14 @@ public class FileHelper extends CompoundFileHelper {
 	 */
 	public String selectFileToSave(String title, int filetype, String newFileName) {
 		JFileChooserOverwrite fileChooser = new JFileChooserOverwrite();
+
+		// file chooser height does not automatically grow with UI scale factor
+		if (HiDPIHelper.getUIScaleFactor() > 1)
+			fileChooser.setPreferredSize(new Dimension(fileChooser.getPreferredSize().width,
+					HiDPIHelper.scale(fileChooser.getPreferredSize().height)));
+
 		fileChooser.setCurrentDirectory(getCurrentDirectory());
+		fileChooser.setDialogTitle(title);
 		fileChooser.setFileFilter(createFileFilter(filetype, true));
 		fileChooser.setExtension(FileHelper.getExtension(filetype));
 		if (newFileName == null) {
@@ -129,7 +143,7 @@ public class FileHelper extends CompoundFileHelper {
 					fileChooser.setSelectedFile(new File(FileHelper.getCurrentDirectory(), newFileName.substring(index+1)));
 				}
 			}
-		int option = fileChooser.showSaveDialog(mParentFrame);
+		int option = fileChooser.showSaveDialog(mParent);
 		setCurrentDirectory(fileChooser.getCurrentDirectory());
 		return (option != JFileChooser.APPROVE_OPTION) ? null : fileChooser.getFile().getPath();
 		}

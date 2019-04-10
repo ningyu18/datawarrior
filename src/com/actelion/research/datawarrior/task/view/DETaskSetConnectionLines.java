@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,6 +18,7 @@
 
 package com.actelion.research.datawarrior.task.view;
 
+import com.actelion.research.gui.hidpi.HiDPIHelper;
 import info.clearthought.layout.TableLayout;
 
 import java.awt.Dimension;
@@ -34,7 +35,7 @@ import javax.swing.event.ChangeEvent;
 
 import com.actelion.research.chem.io.CompoundTableConstants;
 import com.actelion.research.datawarrior.DEMainPane;
-import com.actelion.research.table.CompoundTableModel;
+import com.actelion.research.table.model.CompoundTableModel;
 import com.actelion.research.table.view.CompoundTableView;
 import com.actelion.research.table.view.JVisualization;
 import com.actelion.research.table.view.VisualizationPanel;
@@ -60,16 +61,16 @@ public class DETaskSetConnectionLines extends DETaskAbstractSetViewOptions {
     private static final String PROPERTY_LINE_WIDTH = "lineWidth";
     private static final float DEFAULT_LINE_WIDTH = 1.0f;
 
+	private static final String PROPERTY_INVERT_ARROWS = "invertArrows";
     private static final String PROPERTY_TREE_VIEW = "treeView";
     private static final String PROPERTY_SHOW_ALL = "showAll";
     private static final String PROPERTY_DYNAMIC = "dynamic";
-
-    private static Properties sRecentConfiguration;
+	private static final String PROPERTY_INVERT_TREE = "invert";
 
 	JSlider             mSliderLineWidth,mSliderRadius;
 	JComboBox			mComboBox1,mComboBox2,mComboBox3;
-	JCheckBox			mCheckBoxShowAll,mCheckBoxIsDynamic;
-	JLabel				mLabelRadius;
+	JCheckBox			mCheckBoxInvertArrows,mCheckBoxShowAll,mCheckBoxIsDynamic,mCheckBoxInvertTree;
+	JLabel				mLabelLevels,mLabelRadius;
 
 	public DETaskSetConnectionLines(Frame owner, DEMainPane mainPane, VisualizationPanel view) {
 		super(owner, mainPane, view);
@@ -81,6 +82,11 @@ public class DETaskSetConnectionLines extends DETaskAbstractSetViewOptions {
 		}
 
 	@Override
+	public String getHelpURL() {
+		return "/html/help/views.html#ConnectionLines";
+		}
+
+	@Override
 	public boolean isViewTaskWithoutConfiguration() {
 		return false;
 		}
@@ -88,21 +94,22 @@ public class DETaskSetConnectionLines extends DETaskAbstractSetViewOptions {
 	@Override
 	public JComponent createInnerDialogContent() {
 		double[][] size = { {8, TableLayout.PREFERRED, 8, TableLayout.PREFERRED, 8, TableLayout.PREFERRED, 8 },
-    						{8, TableLayout.PREFERRED, 8, TableLayout.PREFERRED, 8, TableLayout.PREFERRED, 16,
-								TableLayout.PREFERRED, 8, TableLayout.PREFERRED, 4, TableLayout.PREFERRED, 8, TableLayout.PREFERRED, 8 } };
+    						{8, TableLayout.PREFERRED, 8, TableLayout.PREFERRED, 8, TableLayout.PREFERRED, 4,
+								TableLayout.PREFERRED, 24, TableLayout.PREFERRED, 8, TableLayout.PREFERRED, 2,
+								TableLayout.PREFERRED, 2, TableLayout.PREFERRED, 8, TableLayout.PREFERRED, 8 } };
 		JPanel cp = new JPanel();
 		cp.setLayout(new TableLayout(size));
 
 		mComboBox1 = new JComboBox();
 		mComboBox1.addItem(ITEM_CONNECTION_NONE);
-		if (getVisualization() == null
-		 || getVisualization().getChartType() == JVisualization.cChartTypeBoxPlot
-		 || getVisualization().getChartType() == JVisualization.cChartTypeWhiskerPlot) {
+		if (getInteractiveVisualization() == null
+		 || getInteractiveVisualization().getChartType() == JVisualization.cChartTypeBoxPlot
+		 || getInteractiveVisualization().getChartType() == JVisualization.cChartTypeWhiskerPlot) {
 			mComboBox1.addItem(ITEM_CONNECTION_CASES);
 			}
-		if (getVisualization() == null
-		 || (getVisualization().getChartType() != JVisualization.cChartTypeBoxPlot
-		  && getVisualization().getChartType() != JVisualization.cChartTypeWhiskerPlot)) {
+		if (getInteractiveVisualization() == null
+		 || (getInteractiveVisualization().getChartType() != JVisualization.cChartTypeBoxPlot
+		  && getInteractiveVisualization().getChartType() != JVisualization.cChartTypeWhiskerPlot)) {
 			mComboBox1.addItem(ITEM_CONNECTION_ALL);
 			}
 		for (int i=0; i<getTableModel().getTotalColumnCount(); i++)
@@ -131,34 +138,43 @@ public class DETaskSetConnectionLines extends DETaskAbstractSetViewOptions {
 		mSliderLineWidth = new JSlider(JSlider.HORIZONTAL, 0, 100, 50);
 //		mSliderLineWidth.setMinorTickSpacing(10);
 //		mSliderLineWidth.setMajorTickSpacing(100);
-		mSliderLineWidth.setPreferredSize(new Dimension(100, mSliderLineWidth.getPreferredSize().height));
+		mSliderLineWidth.setPreferredSize(new Dimension(HiDPIHelper.scale(100), mSliderLineWidth.getPreferredSize().height));
 		mSliderLineWidth.addChangeListener(this);
 		cp.add(new JLabel("Relative line width:"), "1,5");
 		cp.add(mSliderLineWidth, "3,5");
 
+		mCheckBoxInvertArrows = new JCheckBox("Invert arrow direction (directed graphs only)");
+		mCheckBoxInvertArrows.addActionListener(this);
+		cp.add(mCheckBoxInvertArrows, "1,7,5,7");
+
 		mComboBox3 = new JComboBox(JVisualization.TREE_VIEW_MODE_NAME);
     	mComboBox3.addItemListener(this);
 		cp.add(new JLabel("Detail graph mode: "), "1,7");
-		cp.add(mComboBox3, "3,7,5,7");
+		cp.add(mComboBox3, "3,9,5,9");
 
 		mCheckBoxShowAll = new JCheckBox("Show all markers if no tree root (current row) is chosen");
 		mCheckBoxShowAll.addActionListener(this);
-		cp.add(mCheckBoxShowAll, "1,9,5,9");
+		cp.add(mCheckBoxShowAll, "1,11,5,11");
 
 		mCheckBoxIsDynamic = new JCheckBox("If nodes get invisible, re-arrange and remove sub-branches");
 		mCheckBoxIsDynamic.addActionListener(this);
-		cp.add(mCheckBoxIsDynamic, "1,11,5,11");
+		cp.add(mCheckBoxIsDynamic, "1,13,5,13");
+
+		mCheckBoxInvertTree = new JCheckBox("Invert tree direction (directed graphs only)");
+		mCheckBoxInvertTree.addActionListener(this);
+		cp.add(mCheckBoxInvertTree, "1,15,5,15");
 
 		mSliderRadius = new JSlider(JSlider.HORIZONTAL, 0, 20, DEFAULT_RADIUS);
 //		mSliderRadius.setMinorTickSpacing(1);
 //		mSliderRadius.setMajorTickSpacing(5);
-		mSliderRadius.setPreferredSize(new Dimension(100, mSliderRadius.getPreferredSize().height));
+		mSliderRadius.setPreferredSize(new Dimension(HiDPIHelper.scale(100), mSliderRadius.getPreferredSize().height));
 		mSliderRadius.addChangeListener(this);
-		cp.add(new JLabel("Detail graph levels:"), "1,13");
-		cp.add(mSliderRadius, "3,13");
+		mLabelLevels = new JLabel("Detail graph levels:");
+		cp.add(mLabelLevels, "1,17");
+		cp.add(mSliderRadius, "3,17");
 		mLabelRadius = new JLabel(""+DEFAULT_RADIUS);
-		mLabelRadius.setPreferredSize(new Dimension(32, mLabelRadius.getPreferredSize().height));
-		cp.add(mLabelRadius, "5,13");
+		mLabelRadius.setPreferredSize(new Dimension(HiDPIHelper.scale(32), mLabelRadius.getPreferredSize().height));
+		cp.add(mLabelRadius, "5,17");
 
 		return cp;
 	    }
@@ -174,9 +190,11 @@ public class DETaskSetConnectionLines extends DETaskAbstractSetViewOptions {
 		mComboBox2.setSelectedItem(ITEM_ORDER_X_AXIS);
 		mComboBox3.setSelectedItem(JVisualization.cTreeViewModeNone);
 		mSliderRadius.setValue(DEFAULT_RADIUS);
+		mCheckBoxInvertArrows.setSelected(false);
 		mSliderLineWidth.setValue((int)(50.0*Math.sqrt(DEFAULT_LINE_WIDTH)));
 		mCheckBoxShowAll.setSelected(true);
 		mCheckBoxIsDynamic.setSelected(false);
+		mCheckBoxInvertTree.setSelected(false);
 		}
 
 	@Override
@@ -188,20 +206,26 @@ public class DETaskSetConnectionLines extends DETaskAbstractSetViewOptions {
 			mComboBox1.setSelectedItem(ITEM_CONNECTION_ALL);
 		else if (connection.equals(PROPERTY_CONNECTION_CODE_CASES))
 			mComboBox1.setSelectedItem(ITEM_CONNECTION_CASES);
-		else
-			mComboBox1.setSelectedItem(connection);
+		else {
+			int column = getTableModel().findColumn(connection);
+			mComboBox1.setSelectedItem(!hasInteractiveView() && column == -1 ? connection : getTableModel().getColumnTitle(column));
+			}
 
 		String order = configuration.getProperty(PROPERTY_ORDER, PROPERTY_ORDER_CODE_X_AXIS);
 		if (order.equals(PROPERTY_ORDER_CODE_X_AXIS))
 			mComboBox2.setSelectedItem(ITEM_ORDER_X_AXIS);
-		else
-			mComboBox2.setSelectedItem(order);
+		else {
+			int column = getTableModel().findColumn(order);
+			mComboBox2.setSelectedItem(!hasInteractiveView() && column == -1 ? order : getTableModel().getColumnTitle(column));
+			}
 
 		mComboBox3.setSelectedIndex(findListIndex(configuration.getProperty(PROPERTY_TREE_VIEW),
 					JVisualization.TREE_VIEW_MODE_CODE, JVisualization.cTreeViewModeNone));
 
+		mCheckBoxInvertArrows.setSelected(configuration.getProperty(PROPERTY_INVERT_ARROWS, "false").equals("true"));
 		mCheckBoxShowAll.setSelected(configuration.getProperty(PROPERTY_SHOW_ALL, "true").equals("true"));
 		mCheckBoxIsDynamic.setSelected(configuration.getProperty(PROPERTY_DYNAMIC, "false").equals("true"));
+		mCheckBoxInvertTree.setSelected(configuration.getProperty(PROPERTY_INVERT_TREE, "false").equals("true"));
 
 		int radius = DEFAULT_RADIUS;
 		try {
@@ -238,8 +262,10 @@ public class DETaskSetConnectionLines extends DETaskAbstractSetViewOptions {
 
 		configuration.setProperty(PROPERTY_TREE_VIEW, JVisualization.TREE_VIEW_MODE_CODE[mComboBox3.getSelectedIndex()]);
 
+		configuration.setProperty(PROPERTY_INVERT_ARROWS, mCheckBoxInvertArrows.isSelected() ? "true" : "false");
 		configuration.setProperty(PROPERTY_SHOW_ALL, mCheckBoxShowAll.isSelected() ? "true" : "false");
 		configuration.setProperty(PROPERTY_DYNAMIC, mCheckBoxIsDynamic.isSelected() ? "true" : "false");
+		configuration.setProperty(PROPERTY_INVERT_TREE, mCheckBoxInvertTree.isSelected() ? "true" : "false");
 
 		configuration.setProperty(PROPERTY_RADIUS, ""+mSliderRadius.getValue());
 		configuration.setProperty(PROPERTY_LINE_WIDTH, ""+((float)(mSliderLineWidth.getValue()*mSliderLineWidth.getValue())/2500.0f));
@@ -247,7 +273,7 @@ public class DETaskSetConnectionLines extends DETaskAbstractSetViewOptions {
 
 	@Override
 	public void addViewConfiguration(Properties configuration) {
-		int selectedConnectionColumn = getVisualization().getConnectionColumn();
+		int selectedConnectionColumn = getInteractiveVisualization().getConnectionColumn();
 		if (selectedConnectionColumn == JVisualization.cColumnUnassigned)
 			configuration.setProperty(PROPERTY_CONNECTION, PROPERTY_CONNECTION_CODE_NONE);
 		else if (selectedConnectionColumn == JVisualization.cConnectionColumnConnectAll)
@@ -257,19 +283,20 @@ public class DETaskSetConnectionLines extends DETaskAbstractSetViewOptions {
 		else
 			configuration.setProperty(PROPERTY_CONNECTION, getTableModel().getColumnTitleNoAlias(selectedConnectionColumn));
 
-		int selectedOrderColumn = getVisualization().getConnectionOrderColumn();
+		int selectedOrderColumn = getInteractiveVisualization().getConnectionOrderColumn();
 		if (selectedOrderColumn == JVisualization.cColumnUnassigned)
 			configuration.setProperty(PROPERTY_ORDER, PROPERTY_ORDER_CODE_X_AXIS);
 		else
 			configuration.setProperty(PROPERTY_ORDER, getTableModel().getColumnTitleNoAlias(selectedOrderColumn));
 
-		configuration.setProperty(PROPERTY_TREE_VIEW, JVisualization.TREE_VIEW_MODE_CODE[getVisualization().getTreeViewMode()]);
+		configuration.setProperty(PROPERTY_TREE_VIEW, JVisualization.TREE_VIEW_MODE_CODE[getInteractiveVisualization().getTreeViewMode()]);
 
-		configuration.setProperty(PROPERTY_SHOW_ALL, getVisualization().isTreeViewShowAll() ? "true" : "false");
-		configuration.setProperty(PROPERTY_DYNAMIC, getVisualization().isTreeViewDynamic() ? "true" : "false");
+		configuration.setProperty(PROPERTY_SHOW_ALL, getInteractiveVisualization().isTreeViewShowAll() ? "true" : "false");
+		configuration.setProperty(PROPERTY_DYNAMIC, getInteractiveVisualization().isTreeViewDynamic() ? "true" : "false");
+		configuration.setProperty(PROPERTY_INVERT_TREE, getInteractiveVisualization().isTreeViewInverted() ? "true" : "false");
 
-		configuration.setProperty(PROPERTY_RADIUS, ""+getVisualization().getTreeViewRadius());
-		configuration.setProperty(PROPERTY_LINE_WIDTH, ""+getVisualization().getConnectionLineWidth());
+		configuration.setProperty(PROPERTY_RADIUS, ""+ getInteractiveVisualization().getTreeViewRadius());
+		configuration.setProperty(PROPERTY_LINE_WIDTH, ""+ getInteractiveVisualization().getConnectionLineWidth());
 		}
 
 	@Override
@@ -322,11 +349,14 @@ public class DETaskSetConnectionLines extends DETaskAbstractSetViewOptions {
 			}
 		catch (NumberFormatException nfe) {}
 
+		boolean invertArrows = configuration.getProperty(PROPERTY_INVERT_ARROWS, "true").equals("true");
 		boolean showAll = configuration.getProperty(PROPERTY_SHOW_ALL, "true").equals("true");
 		boolean isDynamic = configuration.getProperty(PROPERTY_DYNAMIC, "false").equals("true");
+		boolean invertTree = configuration.getProperty(PROPERTY_INVERT_TREE, "false").equals("true");
 
 		visualization.setConnectionColumns(column, orderColumn);
-		visualization.setTreeViewMode(mode, radius, showAll, isDynamic);
+		visualization.setConnectionLineInversion(invertArrows);
+		visualization.setTreeViewMode(mode, radius, showAll, isDynamic, invertTree);
 		visualization.setConnectionLineWidth(lineWidth, isAdjusting);
 		}
 
@@ -334,14 +364,19 @@ public class DETaskSetConnectionLines extends DETaskAbstractSetViewOptions {
 	public void enableItems() {
 		String item = (String)mComboBox1.getSelectedItem();
 		boolean isReferencedConnection = false;
+		boolean isDirectionalConnection = false;
 		if (!item.equals(ITEM_CONNECTION_NONE)
 		 && !item.equals(ITEM_CONNECTION_ALL)
 		 && !item.equals(ITEM_CONNECTION_CASES)) {
 			int column = getTableModel().findColumn(item);
 			if (column != -1
-			 && getTableModel().getColumnProperty(column, CompoundTableModel.cColumnPropertyReferencedColumn) != null)
+			 && getTableModel().getColumnProperty(column, CompoundTableModel.cColumnPropertyReferencedColumn) != null) {
 				isReferencedConnection = true;
+				if (CompoundTableModel.cColumnPropertyReferenceTypeTopDown.equals(getTableModel().getColumnProperty(column, CompoundTableModel.cColumnPropertyReferenceType)))
+					isDirectionalConnection = true;
+				}
 			}
+		mCheckBoxInvertArrows.setEnabled(!hasInteractiveView() || isDirectionalConnection);
 		mComboBox2.setEnabled(!item.equals(ITEM_CONNECTION_NONE) && !item.equals(ITEM_CONNECTION_CASES) && !isReferencedConnection);
 		mSliderLineWidth.setEnabled(!item.equals(ITEM_CONNECTION_NONE));
 		mComboBox3.setEnabled(!hasInteractiveView() || isReferencedConnection);
@@ -349,7 +384,11 @@ public class DETaskSetConnectionLines extends DETaskAbstractSetViewOptions {
 		boolean showDetailGraph = ((!hasInteractiveView() || isReferencedConnection)
 								&& mComboBox3.getSelectedIndex() != JVisualization.cTreeViewModeNone);
 		mCheckBoxShowAll.setEnabled(showDetailGraph);
+		mCheckBoxIsDynamic.setEnabled(showDetailGraph);
+		mCheckBoxInvertTree.setEnabled(showDetailGraph);
 		mSliderRadius.setEnabled(showDetailGraph);
+		mLabelRadius.setEnabled(showDetailGraph && (!hasInteractiveView() || isDirectionalConnection));
+		mLabelLevels.setEnabled(showDetailGraph);
 		}
 
 	/**
@@ -361,15 +400,5 @@ public class DETaskSetConnectionLines extends DETaskAbstractSetViewOptions {
 			mLabelRadius.setText(""+mSliderRadius.getValue());
 
 		super.stateChanged(e);
-		}
-
-	@Override
-	public Properties getRecentConfigurationLocal() {
-		return sRecentConfiguration;
-		}
-	
-	@Override
-	public void setRecentConfiguration(Properties configuration) {
-		sRecentConfiguration = configuration;
 		}
 	}

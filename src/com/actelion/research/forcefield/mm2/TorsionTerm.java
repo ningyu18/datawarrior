@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -22,20 +22,20 @@ import java.text.DecimalFormat;
 import com.actelion.research.chem.Coordinates;
 import com.actelion.research.chem.FFMolecule;
 import com.actelion.research.forcefield.AbstractTerm;
-import com.actelion.research.forcefield.FFParameters;
+import com.actelion.research.forcefield.mm2.MM2Parameters.TorsionParameters;
 
 /**
  * 
  */
 public final class TorsionTerm extends AbstractTerm {
-	private final static FFParameters parameters = MM2Parameters.getInstance();
+	private final static MM2Parameters parameters = MM2Parameters.getInstance();
 
 	private static final double TORSION_UNIT = .5;
 	protected double initV1, initV2, initV3;
 	protected double v1, v2, v3;
 	private double energy;	
 	
-	private TorsionTerm(FFMolecule mol, int[] atoms, FFParameters.TorsionParameters params) {
+	private TorsionTerm(FFMolecule mol, int[] atoms, TorsionParameters params) {
 		super(mol, atoms);
 		
 		initV1 = v1 = params.v1;
@@ -47,16 +47,17 @@ public final class TorsionTerm extends AbstractTerm {
 	public static TorsionTerm create(MM2TermList tl, int a1, int a2, int a3, int a4) {
 		int[] atoms = new int[]{a1, a2, a3, a4};
 		FFMolecule mol = tl.getMolecule();
-		int n1 = mol.getAtomMM2Class(a1);
-		int n2 = mol.getAtomMM2Class(a2);
-		int n3 = mol.getAtomMM2Class(a3);
-		int n4 = mol.getAtomMM2Class(a4);
+		int n1 = mol.getMM2AtomType(a1);
+		int n2 = mol.getMM2AtomType(a2);
+		int n3 = mol.getMM2AtomType(a3);
+		int n4 = mol.getMM2AtomType(a4);
 		int ringSize = mol.getRingSize(atoms);
-		FFParameters.TorsionParameters params = parameters.getTorsionParameters(n1, n2, n3, n4, ringSize);
-		if(params!=null) {
-			return new TorsionTerm(mol, atoms, params);
+		TorsionParameters params = parameters.getTorsionParameters(n1, n2, n3, n4, ringSize);
+		if(params==null) {
+			System.err.println("TorsionTerm.create() No torsion for "+n1+"-"+n2+"-"+n3+"-"+n4+" in "+tl.getMolecule());
+			return null;
 		}
-		return null;
+		return new TorsionTerm(mol, atoms, params);
 	}
 	
 	public double[] getTorsionTerms() {
@@ -138,4 +139,10 @@ public final class TorsionTerm extends AbstractTerm {
 		return v1!=0 || v2!=0 || v3!=0;
 	}
 
+	
+	@Override
+	public final boolean isBonded() {
+		return false;
+	}
+	
 }

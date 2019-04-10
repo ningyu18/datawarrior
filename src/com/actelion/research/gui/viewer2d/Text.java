@@ -2,7 +2,6 @@ package com.actelion.research.gui.viewer2d;
 
 import java.awt.*;
 
-
 import com.actelion.research.chem.Coordinates;
 import com.actelion.research.gui.viewer2d.jmol.*;
 
@@ -26,6 +25,7 @@ public class Text extends Shape {
 		this.size = size;
 	}
 	
+	@Override
 	public void paint(Canvas3D canvas3D, Graphics3D g) {
 		super.paint(canvas3D, g);
 		if(screenCoordinates==null) return;

@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -24,13 +24,18 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
 
 import com.actelion.research.chem.Coordinates;
 import com.actelion.research.chem.FFMolecule;
 import com.actelion.research.chem.calculator.StructureCalculator;
-import com.actelion.research.forcefield.interaction.KeyAssigner;
 import com.actelion.research.forcefield.interaction.ProteinLigandTerm;
+import com.actelion.research.forcefield.mm2.MM2Config;
 import com.actelion.research.forcefield.mm2.MM2TermList;
+import com.actelion.research.forcefield.mm2.VDWLNTerm;
+import com.actelion.research.forcefield.mmff.MMFFConfig;
+import com.actelion.research.forcefield.mmff.MMFFTermList;
 import com.actelion.research.util.ArrayUtils;
 
 /**
@@ -39,12 +44,43 @@ import com.actelion.research.util.ArrayUtils;
  */
 public abstract class TermList implements Cloneable {
 	
+	protected FFConfig config;
 	protected int nTerms = 0;
 	protected int nProteinLigandTerms = 0;
 	protected AbstractTerm[] terms = new AbstractTerm[500];
 	protected ProteinLigandTerm[] proteinLigandTerms = new ProteinLigandTerm[500];	
 	protected FFMolecule mol;
 
+	
+	public static TermList create(FFConfig config) {
+		if(config instanceof MM2Config) {
+			return new MM2TermList((MM2Config)config);
+		} else if(config instanceof MMFFConfig){
+			return new MMFFTermList((MMFFConfig)config);
+		} else {
+			throw new IllegalArgumentException("Invalid config: "+config.getClass());
+		}
+	}
+	public static TermList create(FFConfig config, FFMolecule mol) {
+		TermList res = create(config);
+		res.setMolecule(mol);
+		return res;
+	}
+
+	
+	
+	public TermList(FFConfig config) {
+		this.config = config;
+	}
+	
+	public void setConfig(FFConfig config) {
+		this.config = config;
+	}
+	
+	public FFConfig getConfig() {
+		return config;
+	}
+	
 	
 	public void setMolecule(FFMolecule mol) {
 		this.mol = mol;
@@ -59,13 +95,13 @@ public abstract class TermList implements Cloneable {
 	 * Called at the forcefield initialization (once) to set the atom classes
 	 * @param config
 	 */
-	public abstract void prepareMolecule(FFMolecule mol, FFConfig config);
+	public abstract void prepareMolecule(FFMolecule mol);
 	
 	/**
 	 * Called before any energy calculation to recreate the terms
 	 * @param config
 	 */
-	public abstract void init(FFMolecule mol, FFConfig config);
+	public abstract void init(FFMolecule mol);
 	
 	
 	/**
@@ -89,8 +125,8 @@ public abstract class TermList implements Cloneable {
 		final Coordinates[] bounds = StructureCalculator.getBounds(mol);		
 		//System.out.println("Used before: "+(Runtime.getRuntime().totalMemory()-Runtime.getRuntime().freeMemory())/1024+" / "+Runtime.getRuntime().maxMemory()/1024);
 		
-		MM2TermList[] tl = new MM2TermList[mol.getNMovables()];
-		for (int i = 0; i < tl.length; i++) tl[i] = new MM2TermList(this);
+		TermList[] tl = new TermList[mol.getNMovables()];
+		for (int i = 0; i < tl.length; i++) tl[i] = TermList.create(getConfig(), getMolecule());
 
 		loop: for (int j = 0; j < size(); j++) {
 			AbstractTerm t = get(j);
@@ -105,7 +141,7 @@ public abstract class TermList implements Cloneable {
 				}
 			}
 			
-			if(a>=0 /*&& (t instanceof SuperposeTerm || mol.getAtomicNo(a)==6)*/) {
+			if(a>=0 ) {
 				tl[a].add(remove(j--));
 			}				
 		}
@@ -135,13 +171,15 @@ public abstract class TermList implements Cloneable {
 		for(List<Integer> l: values) orderOfProcessing.addAll(l);
 		
 		long free = Runtime.getRuntime().maxMemory()-(Runtime.getRuntime().totalMemory()-Runtime.getRuntime().freeMemory());		
-//		int n2 = 0;
+		int n1 = 0, n2 = 0;
 		Map<Integer, GridTerm> map = new HashMap<Integer, GridTerm>();
 		for (int i: orderOfProcessing) {
 			//Add the new aggregated term if needed
 			if(tl[i].size()>0) {
 				
-				final double gridSize =  (tl[i].get(0) instanceof SuperposeTerm)? .5: mol.getAtomicNo(i)==6? .75:.4;
+//				final double gridSize =  (tl[i].get(0) instanceof SuperposeTerm)? .5: mol.getAtomicNo(i)==6? .8:.4;
+//				final double gridSize =  (tl[i].get(0) instanceof SuperposeTerm)? .5: mol.getAtomicNo(i)==6? 1:.5;
+				final double gridSize =  (tl[i].get(0) instanceof SuperposeTerm)? .5: mol.getAtomicNo(i)==6? 3/4d: 1/3d;
 				
 				
 				GridTerm gt = map.get(mol.getAtomInteractionClass(i));
@@ -150,26 +188,26 @@ public abstract class TermList implements Cloneable {
 					final int mem = (16*4)*size;
 					if(free>4*1024*1024+mem && classIdToAtom.get(mol.getAtomInteractionClass(i)).size()>0) {
 						free-=mem;
-						gt = new GridTerm(getMolecule(), i, tl[i], bounds, gridSize);
-//						n1+=tl[i].size();
-//						n2++;
+						gt = new GridTerm(i, tl[i], bounds, gridSize);
+						n1+=tl[i].size();
+						n2++;
 						map.put(mol.getAtomInteractionClass(i), gt);
 						//System.out.println("aggregate " + StatisticalPreference.keyAssigner.getSubKey(mol, i)+" "+classIdToAtom.get(mol.getAtomClassId(i)).size()+" TermList");
 					} else {
-						if(classIdToAtom.get(mol.getAtomInteractionClass(i)).size()>1) System.out.println("Memory low!!! Cannot aggregate "+KeyAssigner.getSubKey(mol, i)+" "+classIdToAtom.get(mol.getAtomInteractionClass(i)).size()+" TermList: "+free/(1024*1024)+"M free");
+						if(classIdToAtom.get(mol.getAtomInteractionClass(i)).size()>1) System.out.println("Memory low!!! Cannot aggregate class:"+mol.getAtomInteractionClass(i)+" "+classIdToAtom.get(mol.getAtomInteractionClass(i)).size()+" TermList: "+free/(1024*1024)+"M free");
 						for (int j = 0; j < tl[i].size(); j++) add(tl[i].get(j));
 						continue;
 					}
 				} else {
 					gt = new GridTerm(getMolecule(), i, gt);
-//					n1+=tl[i].size();
+					n1+=tl[i].size();
 				}					
 				add(gt);
 				
 			}
 		}
-		//System.out.println("#TERMS="+size()+" terms with "+n2+" gridTerms" );
-		//System.out.println("Used after: "+(Runtime.getRuntime().totalMemory()-Runtime.getRuntime().freeMemory())/1024+" / "+Runtime.getRuntime().maxMemory()/1024);
+		System.out.println("Aggregated terms: now "+size()+" terms with "+n2+" aggregated gridTerms representing "+n1+ " single terms" );
+		System.out.println("Used after: "+(Runtime.getRuntime().totalMemory()-Runtime.getRuntime().freeMemory())/1024+" / "+Runtime.getRuntime().maxMemory()/1024);
 	
 	}	
 	public void clear() {
@@ -186,6 +224,7 @@ public abstract class TermList implements Cloneable {
 	}
 
 	public final void add(AbstractTerm t) {
+		if(t==null) return;
 		if(t instanceof ProteinLigandTerm ) {
 			if(proteinLigandTerms.length<=nProteinLigandTerms) proteinLigandTerms = (ProteinLigandTerm[]) ArrayUtils.resize(proteinLigandTerms, nProteinLigandTerms*3+100);
 			proteinLigandTerms[nProteinLigandTerms++] = (ProteinLigandTerm) t;			
@@ -246,14 +285,32 @@ public abstract class TermList implements Cloneable {
 		double energy = 0; 
 		
 		//Reset derivates
-		if(d!=null) for(int i=0; i<d.length; i++) {d[i] = new Coordinates();}
-		 
+		if(d!=null) {
+			for(int i=0; i<d.length; i++) {
+				if(d[i]==null) {
+					d[i] = new Coordinates();
+				}  else {
+					d[i].x=d[i].y=d[i].z=0;
+				}
+			}
+
+		}
+		
 		//Compute Derivates		
 		for(int k=0; k<size(); k++) {
 			AbstractTerm term = get(k);
 			double e = term.getFGValue(d);
+			assert !Double.isNaN(e): "error in energy "+term.getClass()+" "+term;
 			energy += e;
+			
+//			for(int i=0;d!=null && i<d.length; i++) {
+//				assert !Double.isNaN(d[i].x): "error in grad "+term.getClass()+" "+term;
+//				assert !Double.isNaN(d[i].y): "error in grad "+term.getClass()+" "+term;
+//				assert !Double.isNaN(d[i].z): "error in grad "+term.getClass()+" "+term;
+//			}
+
 		}
+
 		return energy;
 	}
 	
@@ -335,6 +392,42 @@ public abstract class TermList implements Cloneable {
 	@Override
 	public String toString() {		
 		return "["+getClass()+"]";
+	}
+	
+	protected void addProteinLigandTerms(FFMolecule mol) {
+		//Protein-Ligand Terms
+//  		nProteinLigandTerms = 0;
+  		if(config.isUsePLInteractions() && config.getMaxPLDistance()>0) {
+  			
+  			Set<Integer> proteinAtoms = new TreeSet<Integer>();
+  			Set<Integer> ligandAtoms = new TreeSet<Integer>();	 			 
+  			for (int a = 0; a < mol.getAllAtoms(); a++) {			
+  				
+  				if(mol.isAtomFlag(a, FFMolecule.LIGAND)) {
+  					ligandAtoms.add(a);
+  				} else {
+  					proteinAtoms.add(a);
+  				}
+  			}
+
+  			//Add the terms
+  			for(int a1: ligandAtoms) {
+  				for(int a2: proteinAtoms) {
+  					if(mol.isAtomFlag(a1, FFMolecule.RIGID) && mol.isAtomFlag(a2, FFMolecule.RIGID )) continue;
+  					if(mol.getCoordinates(a1).distSquareTo(mol.getCoordinates(a2))>config.getMaxPLDistance()*config.getMaxPLDistance()) continue;						
+  					if(mol.getAtomicNo(a1)<=1) continue;
+  					if(!config.isUseHydrogenOnProtein() && mol.getAtomicNo(a2)<=1) continue;
+  					AbstractTerm t = ProteinLigandTerm.create(mol, a2, a1, config);
+  					
+  					//If not found, switch to VDW 
+  					if(t==null && mol.getAtomicNo(a1)>1 && mol.getAtomicNo(a2)>1) {
+  						t = VDWLNTerm.create(this, a1, a2);
+  					}
+  					add(t);
+  					
+  				}			
+  			}
+  		}
 	}
 
 }

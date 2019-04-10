@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,18 +18,18 @@
 
 package com.actelion.research.datawarrior;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.TreeMap;
-
-import com.actelion.research.chem.CoordinateInventor;
+import com.actelion.research.chem.coords.CoordinateInventor;
 import com.actelion.research.chem.Molecule;
 import com.actelion.research.chem.SSSearcher;
 import com.actelion.research.chem.StereoMolecule;
 import com.actelion.research.chem.mcs.MCS;
-import com.actelion.research.table.CompoundRecord;
-import com.actelion.research.table.CompoundTableEvent;
-import com.actelion.research.table.CompoundTableModel;
+import com.actelion.research.table.model.CompoundRecord;
+import com.actelion.research.table.model.CompoundTableEvent;
+import com.actelion.research.table.model.CompoundTableModel;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.TreeMap;
 
 /**
  * Adds atom coloring to CompoundTableModel
@@ -67,15 +67,15 @@ public class DECompoundTableModel extends CompoundTableModel {
 		}
 
 	@Override
-	public void freeCompoundFlag(int flag) {
+	public void freeRowFlag(int flag) {
 		removeFromList(flag);
-		super.freeCompoundFlag(flag);
+		super.freeRowFlag(flag);
 		}
 
 	@Override
-	public void clearCompoundFlag(int flag) {
+	public void clearRowFlag(int flag) {
 		removeFromList(flag);
-		super.clearCompoundFlag(flag);
+		super.clearRowFlag(flag);
 		}
 
 	@Override
@@ -83,9 +83,12 @@ public class DECompoundTableModel extends CompoundTableModel {
 //	    if (inverse)	we need the colorInfo when toggling inverse
 //	    	setAtomColorInfo(idcodeColumn, cStructureHiliteModeFilter, null);
 //    	else
-    		setAtomColorInfo(idcodeColumn, cStructureHiliteModeFilter, 
-		    		new CompoundTableAtomColorInfo(idcodeColumn, CompoundTableAtomColorInfo.TYPE_SSS_FILTER,
-                                                   flag, inverse, fragment));
+		if (cColumnTypeIDCode.equals(getColumnSpecialType(idcodeColumn))) {
+			setAtomColorInfo(idcodeColumn, cStructureHiliteModeFilter,
+					new CompoundTableAtomColorInfo(idcodeColumn, CompoundTableAtomColorInfo.TYPE_SSS_FILTER,
+							flag, inverse, fragment));
+			}
+
 		super.setSubStructureExclusion(flag, idcodeColumn, fragment, inverse);
 		}
 
@@ -95,30 +98,32 @@ public class DECompoundTableModel extends CompoundTableModel {
 									   float[][] similarity, float minSimilarity,
 									   boolean inverse, boolean isAdjusting) {
 		int idcodeColumn = getParentColumn(descriptorColumn);
+		if (getColumnSpecialType(idcodeColumn) == cColumnTypeIDCode) {
 //	    if (inverse)	we need the colorInfo when toggling inverse
 //	    	setAtomColorInfo(idcodeColumn, cStructureHiliteModeFilter, null);
- //   	else {
-    		// molecules will be turned into fragments. Therefore we need to copy...
-    		StereoMolecule[] copy = new StereoMolecule[molecule.length];
-    		for (int i=0; i<molecule.length; i++)
-    			copy[i] = new StereoMolecule(molecule[i]);
-    		CompoundTableAtomColorInfo colorInfo = new CompoundTableAtomColorInfo(idcodeColumn,
-    				CompoundTableAtomColorInfo.TYPE_SIM_FILTER, flag, inverse, copy);
-    		if (molecule.length != 1) {
-    			colorInfo.bestMatch = new int[getTotalRowCount()];
-    			for (int i=0; i<getTotalRowCount(); i++) {
+//   	else {
+			// molecules will be turned into fragments. Therefore we need to copy...
+			StereoMolecule[] copy = new StereoMolecule[molecule.length];
+			for (int i = 0; i < molecule.length; i++)
+				copy[i] = new StereoMolecule(molecule[i]);
+			CompoundTableAtomColorInfo colorInfo = new CompoundTableAtomColorInfo(idcodeColumn,
+					CompoundTableAtomColorInfo.TYPE_SIM_FILTER, flag, inverse, copy);
+			if (molecule.length != 1) {
+				colorInfo.bestMatch = new int[getTotalRowCount()];
+				for (int i = 0; i < getTotalRowCount(); i++) {
 					int row = getTotalRecord(i).getID();
-    				float maxSimilarity = 0f;
-    				for (int j=0; j<similarity.length; j++) {
-    					if (maxSimilarity < similarity[j][row]) {
-    						maxSimilarity = similarity[j][row];
-    						colorInfo.bestMatch[row] = j;
-    						}
-    					}
-    				}
-    			}
+					float maxSimilarity = 0f;
+					for (int j = 0; j < similarity.length; j++) {
+						if (maxSimilarity < similarity[j][row]) {
+							maxSimilarity = similarity[j][row];
+							colorInfo.bestMatch[row] = j;
+							}
+						}
+					}
+				}
 
-    		setAtomColorInfo(idcodeColumn, cStructureHiliteModeFilter, colorInfo);
+			setAtomColorInfo(idcodeColumn, cStructureHiliteModeFilter, colorInfo);
+			}
 //			}
 
 	    super.setSimilarityExclusion(flag, descriptorColumn, molecule, similarity, minSimilarity, inverse, isAdjusting);
@@ -147,7 +152,8 @@ public class DECompoundTableModel extends CompoundTableModel {
             }
 		else if (e.getType() == CompoundTableEvent.cRemoveColumns) {
 			int[] columnMapping = e.getMapping();
-			for (String key:mColorInfoMap.keySet()) {
+			String[] keySet = mColorInfoMap.keySet().toArray(new String[0]);
+			for (String key:keySet) {
 				CompoundTableAtomColorInfo colorInfo = mColorInfoMap.get(key);
 				if (columnMapping[colorInfo.idcodeColumn] == -1)
                     mColorInfoMap.remove(key);
@@ -191,17 +197,18 @@ public class DECompoundTableModel extends CompoundTableModel {
     	}
 
     private CompoundTableAtomColorInfo getAtomColorInfo(int idcodeColumn, int type) {
-    	return mColorInfoMap.get(cHiliteModeOption[type]+":"+getColumnTitleNoAlias(idcodeColumn));
+    	return mColorInfoMap.get(cHiliteModeCode[type]+":"+getColumnTitleNoAlias(idcodeColumn));
     	}
 
     private void setAtomColorInfo(int idcodeColumn, int type, CompoundTableAtomColorInfo colorInfo) {
-    	mColorInfoMap.put(cHiliteModeOption[type]+":"+getColumnTitleNoAlias(idcodeColumn), colorInfo);
+    	mColorInfoMap.put(cHiliteModeCode[type]+":"+getColumnTitleNoAlias(idcodeColumn), colorInfo);
     	}
 
     private void colorizeAtomsByFilter(CompoundRecord record, int idcodeColumn, StereoMolecule mol) {
     	CompoundTableAtomColorInfo colorInfo = getAtomColorInfo(idcodeColumn, cStructureHiliteModeFilter);
 
     	if (colorInfo != null
+	     && colorInfo.exclusionFlag != -1   // filter disabled
     	 && colorInfo.type == CompoundTableAtomColorInfo.TYPE_SSS_FILTER
 		 && !colorInfo.inverse) {
 			StereoMolecule[] fragment = colorInfo.refMol;
@@ -229,16 +236,18 @@ public class DECompoundTableModel extends CompoundTableModel {
 			if (matchList != null) {
                 for (int[] matching:matchList)
 					for (int k=0; k<matching.length; k++)
-						if (mol.getAtomColor(matching[k]) == Molecule.cAtomColorBlack)
+						if (matching[k] != -1
+						 && mol.getAtomColor(matching[k]) == Molecule.cAtomColorNone)
 							mol.setAtomColor(matching[k], Molecule.cAtomColorDarkRed);
 				}
             }
 
 		if (colorInfo != null
+		 && colorInfo.exclusionFlag != -1   // filter disabled
 		 && colorInfo.type == CompoundTableAtomColorInfo.TYPE_SIM_FILTER
 		 && !colorInfo.inverse) {
 			int bestMatch = (colorInfo.bestMatch == null) ? 0 : colorInfo.bestMatch[record.getID()];
-			colorizeByMCS(colorInfo.refMol[bestMatch], mol, Molecule.cAtomColorDarkGreen, false, false);
+			colorizeByMCS(colorInfo.refMol[bestMatch], mol, Molecule.cAtomColorDarkGreen, false);
 			}
     	}
 
@@ -248,83 +257,135 @@ public class DECompoundTableModel extends CompoundTableModel {
 		 && colorInfo.refMol != null
 		 && colorInfo.type == CompoundTableAtomColorInfo.TYPE_SIM_TO_CURRENT
 		 && !colorInfo.inverse) {
-			colorizeByMCS(colorInfo.refMol[0], mol, Molecule.cAtomColorBlue, true, true);
+			colorizeByMCS(colorInfo.refMol[0], mol, Molecule.cAtomColorBlue, true);
             }
     	}
 
-    private void colorizeByMCS(StereoMolecule refMol, StereoMolecule mol, int color, boolean hiliteBonds, boolean addNonMCSRefMolFragments) {
+    private void colorizeByMCS(StereoMolecule refMol, StereoMolecule mol, int color, boolean hiliteDifferences) {
 		MCS mcsSearcher = new MCS();
 		mcsSearcher.set(mol, refMol);
+
+//	Something like this could be the new handling based on matching bond bit masks
+//  once the MCS creator would support them without internally running a substructure search.
+/*		boolean[][] bondMask = mcsSearcher.getMCSBondArray(null, null);
+		if (bondMask != null) {
+			if (hiliteDifferences) {	// hilite bond background of all non-MCS bonds in mol and attach hilited non-MCS fragments of refmol
+				if (bondMask[0] != null) {
+					for (int bond = 0; bond < mol.getBonds(); bond++)
+						mol.setBondBackgroundHiliting(bond, !bondMask[0][bond]);
+					}
+				if (bondMask[1] != null) {
+					int originalMolAtomCount = mol.getAtoms();
+
+					boolean[] isMatchingAtom = new boolean[refMol.getAtoms()];
+					for (int bond=0; bond<refMol.getBonds(); bond++)
+						if (bondMask[1][bond])
+							for (int i=0; i<2; i++)
+								isMatchingAtom[refMol.getBondAtom(i, bond)] = true;
+
+					int[] molAtom = new int[refMol.getAtoms()];
+					for (int atom=0; atom<refMol.getAtoms(); atom++) {
+						if (!isMatchingAtom[atom]) {
+							molAtom[atom] = refMol.copyAtom(mol, atom, 0, 0);	// TODO correct ESR pre- and post-processing
+						}
+					}
+
+					// add all mcs atom to match refMol atom indices to destination mol atom indices
+					for (int atom=0; atom<refMol.getAtoms(); atom++)
+						if (isMatchingAtom[atom])
+	//	do something appropriate	molAtom[refMatch[atom]] = molMatch[atom];
+
+					for (int bond=0; bond<refMol.getBonds(); bond++) {
+						if (!bondMask[1][bond]) {
+							int destBond = refMol.copyBond(mol, bond, 0, 0, molAtom, true);	// TODO correct ESR pre- and post-processing
+							mol.setBondForegroundHiliting(destBond, true);
+						}
+					}
+
+					for (int atom=0; atom<originalMolAtomCount; atom++)
+						mol.setAtomMarker(atom, true);
+					new CoordinateInventor(CoordinateInventor.MODE_REMOVE_HYDROGEN | CoordinateInventor.MODE_PREFER_MARKED_ATOM_COORDS).invent(mol);
+					}
+				}
+			else {	// hilite all MCS atoms in mol
+				boolean[] isMatchingAtom = new boolean[mol.getAtoms()];
+				for (int bond=0; bond<mol.getBonds(); bond++)
+					if (bondMask[0][bond])
+						for (int i=0; i<2; i++)
+							isMatchingAtom[mol.getBondAtom(i, bond)] = true;
+				for (int atom=0; atom<mol.getAtoms(); atom++)
+					if (isMatchingAtom[atom] && mol.getAtomColor(atom) == Molecule.cAtomColorNone)
+						mol.setAtomColor(atom, color);
+				}
+			}	*/
+
 		StereoMolecule mcs = mcsSearcher.getMCS();
 		if (mcs != null && (mcs.getAllAtoms() >= mol.getAllAtoms() / 2)) {
 		    SSSearcher sssSearcher = new SSSearcher();
 		    sssSearcher.setMol(mcs, mol);
-			boolean[] isMatchingAtom = null;
-			boolean[] isMatchingBond = null;
 			if (sssSearcher.findFragmentInMolecule(SSSearcher.cCountModeFirstMatch, SSSearcher.cDefaultMatchMode) == 1) {
 	            int[] molMatch = sssSearcher.getMatchList().get(0);
-	    		if (hiliteBonds) {
-	    			isMatchingBond = new boolean[mol.getBonds()];
+	    		if (hiliteDifferences) {
+					// hilite background of all bonds of mol that are not part of the MCS
+					boolean[] isMatchingBond = new boolean[mol.getBonds()];
 	    			for (int bond=0; bond<mcs.getBonds(); bond++)
 	    				isMatchingBond[mol.getBond(molMatch[mcs.getBondAtom(0, bond)], molMatch[mcs.getBondAtom(1, bond)])] = true;
-	    			}
-	    		else {
-	    			isMatchingAtom = new boolean[mol.getAtoms()];
-					for (int k=0; k<molMatch.length; k++)
-						isMatchingAtom[molMatch[k]] = true;
-	    			}
-	
-	    		if (isMatchingBond != null) {
+
 					for (int bond=0; bond<mol.getBonds(); bond++)
 						mol.setBondBackgroundHiliting(bond, !isMatchingBond[bond]);
-					}
-		
-				if (isMatchingAtom != null) {
-					for (int atom=0; atom<mol.getAtoms(); atom++)
-						if (isMatchingAtom[atom]
-						 && mol.getAtomColor(atom) == Molecule.cAtomColorBlack)
-							mol.setAtomColor(atom, color);
-					}
-	
-				if (addNonMCSRefMolFragments) {
-				    sssSearcher.setMolecule(refMol);
-					isMatchingAtom = null;
-					isMatchingBond = null;
+
+					// copy all bonds from refMol to mol that are not part of the MCS and color them in red
+					sssSearcher.setMolecule(refMol);
 					if (sssSearcher.findFragmentInMolecule(SSSearcher.cCountModeFirstMatch, SSSearcher.cDefaultMatchMode) == 1) {
 						int originalMolAtomCount = mol.getAtoms();
-			            int[] refMatch = sssSearcher.getMatchList().get(0);
-	
-			            isMatchingBond = new boolean[refMol.getBonds()];
-		    			for (int bond=0; bond<mcs.getBonds(); bond++)
-		    				isMatchingBond[refMol.getBond(refMatch[mcs.getBondAtom(0, bond)], refMatch[mcs.getBondAtom(1, bond)])] = true;
-	
-		    			isMatchingAtom = new boolean[refMol.getAtoms()];
-						for (int k=0; k<refMatch.length; k++)
-							isMatchingAtom[refMatch[k]] = true;
-	
-		    			int[] molAtom = new int[refMol.getAtoms()];
-						for (int atom=0; atom<refMol.getAtoms(); atom++) {
-							if (!isMatchingAtom[atom]) {
-								molAtom[atom] = refMol.copyAtom(mol, atom, 0, 0);	// TODO correct ESR pre- and post-processing
+						int[] refMatch = sssSearcher.getMatchList().get(0);
+
+						isMatchingBond = new boolean[refMol.getBonds()];
+						for (int bond=0; bond<mcs.getBonds(); bond++)
+							isMatchingBond[refMol.getBond(refMatch[mcs.getBondAtom(0, bond)], refMatch[mcs.getBondAtom(1, bond)])] = true;
+
+						int[] refFragmentAtom = refMol.getFragmentAtoms(refMatch[0]);
+
+						if (refFragmentAtom.length > mcs.getAllAtoms()) {
+							boolean[] isRefAtomToCopy = new boolean[refMol.getAtoms()];
+							for (int i=0; i<refFragmentAtom.length; i++)
+								isRefAtomToCopy[refFragmentAtom[i]] = true;
+							for (int i=0; i<refMatch.length; i++)
+								isRefAtomToCopy[refMatch[i]] = false;
+
+							int[] molAtom = new int[refMol.getAtoms()];
+
+							// add all mcs atom to match refMol atom indices to destination mol atom indices
+							for (int atom = 0; atom<mcs.getAtoms(); atom++)
+								molAtom[refMatch[atom]] = molMatch[atom];
+
+							for (int atom=0; atom<refMol.getAtoms(); atom++)
+								if (isRefAtomToCopy[atom])
+									molAtom[atom] = refMol.copyAtom(mol, atom, 0, 0);    // TODO correct ESR pre- and post-processing
+
+							for (int bond=0; bond<refMol.getBonds(); bond++) {
+								if (isRefAtomToCopy[refMol.getBondAtom(0, bond)] || isRefAtomToCopy[refMol.getBondAtom(1, bond)]) {
+									int destBond = refMol.copyBond(mol, bond, 0, 0, molAtom, true);    // TODO correct ESR pre- and post-processing
+									mol.setBondForegroundHiliting(destBond, true);
+									}
 								}
+
+							for (int atom=0; atom<originalMolAtomCount; atom++)
+								mol.setAtomMarker(atom, true);
+							new CoordinateInventor(CoordinateInventor.MODE_REMOVE_HYDROGEN | CoordinateInventor.MODE_PREFER_MARKED_ATOM_COORDS).invent(mol);
 							}
-	
-						// add all mcs atom to match refMol atom indices to destination mol atom indices
-						for (int atom=0; atom<mcs.getAtoms(); atom++)
-							molAtom[refMatch[atom]] = molMatch[atom];
-	
-						for (int bond=0; bond<refMol.getBonds(); bond++) {
-							if (!isMatchingBond[bond]) {
-								int destBond = refMol.copyBond(mol, bond, 0, 0, molAtom, true);	// TODO correct ESR pre- and post-processing
-								mol.setBondForegroundHiliting(destBond, true);
-								}
-							}
-	
-						for (int atom=0; atom<originalMolAtomCount; atom++)
-							mol.setAtomMarker(atom, true);
-						new CoordinateInventor(CoordinateInventor.MODE_REMOVE_HYDROGEN | CoordinateInventor.MODE_PREFER_MARKED_ATOM_COORDS).invent(mol);
 						}
 					}
+	    		else {
+					boolean[] isMatchingAtom = new boolean[mol.getAtoms()];
+					for (int k=0; k<molMatch.length; k++)
+						isMatchingAtom[molMatch[k]] = true;
+
+					for (int atom=0; atom<mol.getAtoms(); atom++)
+						if (isMatchingAtom[atom]
+								&& mol.getAtomColor(atom) == Molecule.cAtomColorNone)
+							mol.setAtomColor(atom, color);
+	    			}
 				}
 			}
     	}

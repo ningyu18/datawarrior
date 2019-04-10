@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -46,8 +46,6 @@ public class DETaskSynchronizeView extends ConfigurableTask implements ActionLis
 	private static final String PROPERTY_MASTER = "master";
 
 	private static final String NO_MASTER_ITEM = "<none>";
-
-	private static Properties sRecentConfiguration;
 
 	private DEMainPane	mMainPane;
 	private JComboBox	mComboBoxView,mComboBoxMaster;
@@ -206,15 +204,5 @@ public class DETaskSynchronizeView extends ConfigurableTask implements ActionLis
 	@Override
 	public DEFrame getNewFrontFrame() {
 		return null;
-		}
-
-	@Override
-	public Properties getRecentConfiguration() {
-		return sRecentConfiguration;
-		}
-
-	@Override
-	public void setRecentConfiguration(Properties configuration) {
-		sRecentConfiguration = configuration;
 		}
 	}

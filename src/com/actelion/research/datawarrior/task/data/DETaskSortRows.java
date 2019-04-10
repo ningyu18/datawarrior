@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -31,7 +31,7 @@ import javax.swing.JRadioButton;
 
 import com.actelion.research.datawarrior.DEFrame;
 import com.actelion.research.datawarrior.task.ConfigurableTask;
-import com.actelion.research.table.CompoundTableModel;
+import com.actelion.research.table.model.CompoundTableModel;
 
 public class DETaskSortRows extends ConfigurableTask {
 	public static final String TASK_NAME = "Sort Rows";
@@ -39,8 +39,6 @@ public class DETaskSortRows extends ConfigurableTask {
 	private static final String PROPERTY_COLUMN = "column";
 	private static final String PROPERTY_DESCENDING = "descending";
 	private static final String PROPERTY_SELECTED_FIRST = "selectedFirst";
-
-    private static Properties sRecentConfiguration;
 
     private JComboBox			mComboBoxColumn;
     private JRadioButton		mRadioButton,mRadioButtonSelectedFirst;
@@ -160,15 +158,5 @@ public class DETaskSortRows extends ConfigurableTask {
 	@Override
 	public DEFrame getNewFrontFrame() {
 		return null;
-		}
-	
-	@Override
-	public Properties getRecentConfiguration() {
-		return sRecentConfiguration;
-		}
-	
-	@Override
-	public void setRecentConfiguration(Properties configuration) {
-		sRecentConfiguration = configuration;
 		}
 	}

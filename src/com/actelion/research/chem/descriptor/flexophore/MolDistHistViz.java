@@ -9,7 +9,7 @@ import java.util.List;
 import java.util.StringTokenizer;
 
 import com.actelion.research.calc.ArrayUtilsCalc;
-import com.actelion.research.chem.CoordinateInventor;
+import com.actelion.research.chem.coords.CoordinateInventor;
 import com.actelion.research.chem.Coordinates;
 import com.actelion.research.chem.FFMolecule;
 import com.actelion.research.chem.IDCodeParser;
@@ -17,7 +17,7 @@ import com.actelion.research.chem.Molecule;
 import com.actelion.research.chem.StereoMolecule;
 import com.actelion.research.chem.calculator.StructureCalculator;
 import com.actelion.research.chem.descriptor.flexophore.generator.CGMult;
-import com.actelion.research.chem.descriptor.flexophore.generator.CompleteGraphFunctions;
+import com.actelion.research.chem.descriptor.flexophore.generator.FFMolecule2CompleteGraphConverter;
 import com.actelion.research.chem.redgraph.FFMolSummarizerInteractTable;
 import com.actelion.research.forcefield.interaction.ClassInteractionStatistics;
 import com.actelion.research.forcefield.mm2.MM2Parameters;
@@ -654,7 +654,7 @@ public class MolDistHistViz extends DistHist implements Serializable, IMolDistHi
 	}
 	
 	public void realize() {
-		super.realize();
+		// super.realize();
 		
 		for(PPNodeViz node : liPPNodeViz){
 			node.realize();
@@ -781,14 +781,17 @@ public class MolDistHistViz extends DistHist implements Serializable, IMolDistHi
 	 * @return deep object.
 	 */
 	public MolDistHist getMolDistHist(){
-		MolDistHist mdh = new MolDistHist(getNumPPNodes());
-		
-		for (int i = 0; i < getNumPPNodes(); i++) {
+
+		int nPPNodes = getNumPPNodes();
+
+		MolDistHist mdh = new MolDistHist(nPPNodes);
+
+		for (int i = 0; i < nPPNodes; i++) {
 			mdh.addNode(getNode(i));
 		}
 		
-		for (int i = 0; i < getNumPPNodes(); i++) {
-			for (int j = i+1; j < getNumPPNodes(); j++) {
+		for (int i = 0; i < nPPNodes ; i++) {
+			for (int j = i+1; j < nPPNodes ; j++) {
 				mdh.setDistHist(i, j, getDistHist(i,j));
 			}
 		}
@@ -1109,14 +1112,14 @@ public class MolDistHistViz extends DistHist implements Serializable, IMolDistHi
 		
 		FFMolecule ffMol = new FFMolecule(ster);
 		
-		MM2Parameters.getInstance().setAtomClassesForMolecule(ffMol);
+		MM2Parameters.getInstance().setAtomTypes(ffMol);
 		ClassInteractionStatistics.getInstance().setClassIdsForMolecule(ffMol);
 
 		summarizer.summarize(ffMol, false);
 		
-		CGMult cgMult = new CGMult(CompleteGraphFunctions.convert(ffMol), ffMol);
+		CGMult cgMult = new CGMult(FFMolecule2CompleteGraphConverter.convert(ffMol), ffMol);
 
-		MolDistHistViz mdhv = cgMult.getMolDistHistViz();
+		MolDistHistViz mdhv = cgMult.getMolDistHistVizWithSummarizedAlkaneClusters();
 		
 		merge(mdhv, mdh);
 		

@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -22,13 +22,11 @@ import java.awt.Frame;
 import java.util.Properties;
 
 import com.actelion.research.datawarrior.DEPruningPanel;
-import com.actelion.research.table.filter.JDoubleFilterPanel;
+import com.actelion.research.table.filter.JRangeFilterPanel;
 import com.actelion.research.table.filter.JFilterPanel;
 
 public class DETaskChangeRangeFilter extends DEAbstractFilterTask {
 	public static final String TASK_NAME = "Change Range Filter";
-
-	private static Properties sRecentConfiguration;
 
 	public DETaskChangeRangeFilter(Frame parent, DEPruningPanel pruningPanel, JFilterPanel filter) {
 		super(parent, pruningPanel, filter);
@@ -40,18 +38,8 @@ public class DETaskChangeRangeFilter extends DEAbstractFilterTask {
 		}
 
 	@Override
-	public Properties getRecentConfiguration() {
-		return sRecentConfiguration;
-		}
-
-	@Override
-	public void setRecentConfiguration(Properties configuration) {
-		sRecentConfiguration = configuration;
-		}
-
-	@Override
 	public JFilterPanel createFilterUI() {
-		return new JDoubleFilterPanel(getTableModel());
+		return new JRangeFilterPanel(getTableModel());
 		}
 
 	@Override

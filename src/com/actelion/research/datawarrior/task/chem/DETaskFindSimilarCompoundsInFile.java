@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,6 +18,8 @@
 
 package com.actelion.research.datawarrior.task.chem;
 
+import com.actelion.research.chem.io.*;
+import com.actelion.research.util.DoubleFormat;
 import info.clearthought.layout.TableLayout;
 
 import java.awt.BorderLayout;
@@ -28,14 +30,7 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.Hashtable;
-import java.util.Properties;
-import java.util.TreeMap;
-import java.util.TreeSet;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import javax.swing.JButton;
@@ -52,16 +47,12 @@ import javax.swing.SwingConstants;
 import com.actelion.research.chem.descriptor.DescriptorConstants;
 import com.actelion.research.chem.descriptor.DescriptorHandler;
 import com.actelion.research.chem.descriptor.DescriptorHelper;
-import com.actelion.research.chem.io.CompoundFileParser;
-import com.actelion.research.chem.io.CompoundTableConstants;
-import com.actelion.research.chem.io.DWARFileParser;
-import com.actelion.research.chem.io.SDFileParser;
 import com.actelion.research.datawarrior.DEFrame;
 import com.actelion.research.datawarrior.task.ConfigurableTask;
 import com.actelion.research.datawarrior.task.file.JFilePathLabel;
 import com.actelion.research.gui.FileHelper;
-import com.actelion.research.table.CompoundRecord;
-import com.actelion.research.table.CompoundTableModel;
+import com.actelion.research.table.model.CompoundRecord;
+import com.actelion.research.table.model.CompoundTableModel;
 
 public class DETaskFindSimilarCompoundsInFile extends ConfigurableTask implements ActionListener,Runnable {
 	static final long serialVersionUID = 0x20140205;
@@ -72,44 +63,42 @@ public class DETaskFindSimilarCompoundsInFile extends ConfigurableTask implement
 	private static final String PROPERTY_IN_FILE_NAME = "inFile";
 	private static final String PROPERTY_SIMILAR_FILE_NAME = "similarFile";
 	private static final String PROPERTY_DISSIMILAR_FILE_NAME = "dissimilarFile";
+	private static final String PROPERTY_PAIR_FILE_NAME = "pairFile";
+	private static final String PROPERTY_PAIR_ID1 = "pairID1";
+	private static final String PROPERTY_PAIR_ID2 = "pairID2";
+	private static final String PROPERTY_HALF_MATRIX = "halfMatrix";
 
 	private static final String STRUCTURE_COLUMN_NAME = "Most Similar Structure";
 	private static final String SIMILARITY_COLUMN_NAME = "Similarity";
 
-	private static final int MIN_SIMILARITY = 70;
+	private static final String[] COMPOUND_ID_OPTIONS = { "<Use row number>", "<Automatic>" };
+	private static final String[] COMPOUND_ID_CODE = { "<rowNo>", "<idColumn>" };
+	private static final int COMPOUND_ID_OPTION_ROW_NUMBER = 0;
+	private static final int COMPOUND_ID_OPTION_AUTOMATIC = 1;
+
+	private static final int MIN_SIMILARITY = 0;
 	private static final int DEFAULT_SIMILARITY = 85;
 	private static final int MAX_DESCRIPTOR_CACHE_SIZE = 100000;
 
 	public static final String TASK_NAME = "Find Similar Compounds In Other File";
 
-	private static Properties sRecentConfiguration;
-
 	private DEFrame				mSourceFrame;
 	private CompoundTableModel	mTableModel;
-	private JComboBox			mComboBoxDescriptorColumn;
+	private JComboBox			mComboBoxDescriptorColumn,mComboBoxPairID1,mComboBoxPairID2;
 	private JSlider				mSimilaritySlider;
 	private JList				mListColumns;
-	private JCheckBox			mCheckBoxSimilarFile,mCheckBoxDissimilarFile;
-	private JFilePathLabel		mLabelInFileName,mLabelSimilarFileName,mLabelDissimilarFileName;
-	private boolean				mIsInteractive,mCheckOverwriteSim,mCheckOverwriteDissim;
+	private JCheckBox			mCheckBoxSimilarFile,mCheckBoxDissimilarFile,mCheckBoxPairFile,mCheckBoxHalfMatrix;
+	private JFilePathLabel		mLabelInFileName,mLabelSimilarFileName,mLabelDissimilarFileName,mLabelPairFileName;
+	private boolean				mCheckOverwriteSim,mCheckOverwriteDissim,mCheckOverwritePairs,mBothFilesAreTheSame;
+	private ArrayList<String>	mDescriptorList;
 
-	public DETaskFindSimilarCompoundsInFile(DEFrame parent, boolean isInteractive) {
+	public DETaskFindSimilarCompoundsInFile(DEFrame parent) {
 		super(parent, true);
 		mSourceFrame = parent;
 		mTableModel = mSourceFrame.getTableModel();
-		mIsInteractive = isInteractive;
 		mCheckOverwriteSim = true;
 		mCheckOverwriteDissim = true;
-		}
-
-	@Override
-	public Properties getRecentConfiguration() {
-		return sRecentConfiguration;
-		}
-
-	@Override
-	public void setRecentConfiguration(Properties configuration) {
-		sRecentConfiguration = configuration;
+		mCheckOverwritePairs = true;
 		}
 
 	@Override
@@ -139,7 +128,8 @@ public class DETaskFindSimilarCompoundsInFile extends ConfigurableTask implement
 	public JPanel createDialogContent() {
 		double[][] size = { {8, TableLayout.PREFERRED, 4, TableLayout.PREFERRED, 4, TableLayout.PREFERRED, 4, TableLayout.PREFERRED, 8},
 							{8, TableLayout.PREFERRED, 8, TableLayout.PREFERRED, 8, TableLayout.PREFERRED, 8,
-								TableLayout.PREFERRED, 16, TableLayout.PREFERRED, TableLayout.PREFERRED, 8} };
+								TableLayout.PREFERRED, 16, TableLayout.PREFERRED, TableLayout.PREFERRED, 16,
+								TableLayout.PREFERRED, 4, TableLayout.PREFERRED, 4, TableLayout.PREFERRED, 8, TableLayout.PREFERRED, 8} };
 
 		JPanel content = new JPanel();
 		content.setLayout(new TableLayout(size));
@@ -147,7 +137,7 @@ public class DETaskFindSimilarCompoundsInFile extends ConfigurableTask implement
 		JPanel inFilePanel = new JPanel();
 		inFilePanel.setLayout(new BorderLayout());
 		inFilePanel.add(new JLabel("File:  "), BorderLayout.WEST);
-		mLabelInFileName = new JFilePathLabel(!mIsInteractive);
+		mLabelInFileName = new JFilePathLabel(!isInteractive());
 		inFilePanel.add(mLabelInFileName, BorderLayout.CENTER);
 		content.add(inFilePanel, "1,1,3,1");
 
@@ -155,12 +145,12 @@ public class DETaskFindSimilarCompoundsInFile extends ConfigurableTask implement
 		buttonEdit.addActionListener(this);
 		content.add(buttonEdit, "5,1");
 
-		content.add(new JLabel("Descriptor:"), "1,3");
+		content.add(new JLabel("Descriptor:", JLabel.RIGHT), "1,3");
 		mComboBoxDescriptorColumn = new JComboBox();
 		for (int column=0; column<mTableModel.getTotalColumnCount(); column++)
 			if (qualifiesAsDescriptorColumn(column))
 				mComboBoxDescriptorColumn.addItem(mTableModel.getColumnTitle(column));
-		mComboBoxDescriptorColumn.setEditable(!mIsInteractive);
+		mComboBoxDescriptorColumn.setEditable(!isInteractive());
 		content.add(mComboBoxDescriptorColumn, "3,3,5,3");
 
 		content.add(new JLabel("Similarity limit:", JLabel.RIGHT), "1,5");
@@ -178,26 +168,50 @@ public class DETaskFindSimilarCompoundsInFile extends ConfigurableTask implement
 		content.add(mCheckBoxSimilarFile, "1,9");
 		mCheckBoxSimilarFile.addActionListener(this);
 
-		mLabelSimilarFileName = new JFilePathLabel(!mIsInteractive);
+		mLabelSimilarFileName = new JFilePathLabel(!isInteractive());
 		content.add(mLabelSimilarFileName, "3,9,5,9");
 
 		mCheckBoxDissimilarFile = new JCheckBox("Save dissimilar compounds to file:");
 		content.add(mCheckBoxDissimilarFile, "1,10");
 		mCheckBoxDissimilarFile.addActionListener(this);
 
-		mLabelDissimilarFileName = new JFilePathLabel(!mIsInteractive);
+		mLabelDissimilarFileName = new JFilePathLabel(!isInteractive());
 		content.add(mLabelDissimilarFileName, "3,10,5,10");
+
+		mCheckBoxPairFile = new JCheckBox("Save similar compound pairs to file:");
+		content.add(mCheckBoxPairFile, "1,12");
+		mCheckBoxPairFile.addActionListener(this);
+
+		mLabelPairFileName = new JFilePathLabel(!isInteractive());
+		content.add(mLabelPairFileName, "3,12,5,12");
+
+		content.add(new JLabel("Compound-ID of this dataset:", JLabel.RIGHT), "1,14");
+		mComboBoxPairID1 = new JComboBox(COMPOUND_ID_OPTIONS);
+		mComboBoxPairID1.setEditable(!isInteractive());
+		for (int column=0; column<mTableModel.getTotalColumnCount(); column++)
+			if (!mTableModel.isMultiCategoryColumn(column)
+			 && mTableModel.getColumnSpecialType(column) == null)
+				mComboBoxPairID1.addItem(mTableModel.getColumnTitle(column));
+		content.add(mComboBoxPairID1, "3,14,5,14");
+
+		content.add(new JLabel("Compound-ID of external file:", JLabel.RIGHT), "1,16");
+		mComboBoxPairID2 = new JComboBox();
+		mComboBoxPairID2.setEditable(!isInteractive());
+		content.add(mComboBoxPairID2, "3,16,5,16");
+
+		mCheckBoxHalfMatrix = new JCheckBox("Create half matrix only");
+		content.add(mCheckBoxHalfMatrix, "3,18,5,18");
 
 		return content;
 		}
 
 	private JComponent createSimilaritySlider() {
 		Hashtable<Integer,JLabel> labels = new Hashtable<Integer,JLabel>();
-		labels.put(new Integer(MIN_SIMILARITY), new JLabel(""+MIN_SIMILARITY+"%"));
-		labels.put(new Integer((100+MIN_SIMILARITY)/2), new JLabel(""+((100+MIN_SIMILARITY)/2)+"%"));
-		labels.put(new Integer(100), new JLabel("100%"));
+		labels.put(MIN_SIMILARITY, new JLabel(Integer.toString(MIN_SIMILARITY)+"%"));
+		labels.put(50+MIN_SIMILARITY/2, new JLabel(Integer.toString(50+MIN_SIMILARITY/2)+"%"));
+		labels.put(100, new JLabel("100%"));
 		mSimilaritySlider = new JSlider(JSlider.HORIZONTAL, MIN_SIMILARITY, 100, DEFAULT_SIMILARITY);
-		mSimilaritySlider.setMinorTickSpacing(1);
+		mSimilaritySlider.setMinorTickSpacing(5);
 		mSimilaritySlider.setMajorTickSpacing(10);
 		mSimilaritySlider.setLabelTable(labels);
 		mSimilaritySlider.setPaintLabels(true);
@@ -244,13 +258,31 @@ public class DETaskFindSimilarCompoundsInFile extends ConfigurableTask implement
 				}
 	
 			String similarFileName = configuration.getProperty(PROPERTY_SIMILAR_FILE_NAME);
-			if (similarFileName != null && !isFileAndPathValid(similarFileName, true, mCheckOverwriteSim))
-				return false;
+			if (similarFileName != null) {
+				if (!isFileAndPathValid(similarFileName, true, mCheckOverwriteSim))
+					return false;
+				index = similarFileName.lastIndexOf('.');
+				if (index == -1 || !similarFileName.substring(index+1).toLowerCase().equals(extension)) {
+					showErrorMessage("The file types of input file and similar compounds output file don't match.");
+					return false;
+					}
+				}
 	
 			String dissimilarFileName = configuration.getProperty(PROPERTY_DISSIMILAR_FILE_NAME);
-			if (dissimilarFileName != null && !isFileAndPathValid(dissimilarFileName, true, mCheckOverwriteDissim))
+			if (dissimilarFileName != null) {
+				if (!isFileAndPathValid(dissimilarFileName, true, mCheckOverwriteDissim))
+					return false;
+				index = dissimilarFileName.lastIndexOf('.');
+				if (index == -1 || !dissimilarFileName.substring(index+1).toLowerCase().equals(extension)) {
+					showErrorMessage("The file types of input file and dissimilar compounds output file don't match.");
+					return false;
+				}
+				}
+
+			String pairFileName = configuration.getProperty(PROPERTY_PAIR_FILE_NAME);
+			if (pairFileName != null && !isFileAndPathValid(pairFileName, true, mCheckOverwritePairs))
 				return false;
-	
+
 			int descriptorColumn = mTableModel.findColumn(descriptorName);
 			if (descriptorColumn == -1) {
 				showErrorMessage("Descriptor column '"+descriptorName+"' not found.");
@@ -272,12 +304,12 @@ public class DETaskFindSimilarCompoundsInFile extends ConfigurableTask implement
 			int column = mTableModel.findColumn(value);
 			if (column != -1 && qualifiesAsDescriptorColumn(column))
 				mComboBoxDescriptorColumn.setSelectedItem(mTableModel.getColumnTitle(column));
-			else if (!mIsInteractive)
+			else if (!isInteractive())
 				mComboBoxDescriptorColumn.setSelectedItem(value);
 			else if (mComboBoxDescriptorColumn.getItemCount() != 0)
 				mComboBoxDescriptorColumn.setSelectedIndex(0);
 			}
-		else if (!mIsInteractive) {
+		else if (!isInteractive()) {
 			mComboBoxDescriptorColumn.setSelectedItem("Structure [FragFp]");
 			}
 
@@ -304,10 +336,35 @@ public class DETaskFindSimilarCompoundsInFile extends ConfigurableTask implement
 		value = configuration.getProperty(PROPERTY_SIMILAR_FILE_NAME);
 		mCheckBoxSimilarFile.setSelected(value != null);
 		mLabelSimilarFileName.setPath(value == null ? null : isFileAndPathValid(value, true, false) ? value : null);
+		mLabelSimilarFileName.setEnabled(value != null);
 
 		value = configuration.getProperty(PROPERTY_DISSIMILAR_FILE_NAME);
 		mCheckBoxDissimilarFile.setSelected(value != null);
 		mLabelDissimilarFileName.setPath(value == null ? null : isFileAndPathValid(value, true, false) ? value : null);
+		mLabelDissimilarFileName.setEnabled(value != null);
+
+		value = configuration.getProperty(PROPERTY_PAIR_FILE_NAME);
+		mCheckBoxPairFile.setSelected(value != null);
+		mLabelPairFileName.setPath(value == null ? null : isFileAndPathValid(value, true, false) ? value : null);
+		mLabelPairFileName.setEnabled(value != null);
+		mComboBoxPairID1.setEnabled(value != null);
+		mComboBoxPairID2.setEnabled(value != null);
+
+		String idColumn1 = configuration.getProperty(PROPERTY_PAIR_ID1, COMPOUND_ID_CODE[COMPOUND_ID_OPTION_AUTOMATIC]);
+		int index1 = findListIndex(idColumn1, COMPOUND_ID_CODE, -1);
+		if (index1 == -1)
+			mComboBoxPairID1.setSelectedItem(idColumn1);
+		else
+			mComboBoxPairID1.setSelectedIndex(index1);
+
+		String idColumn2 = configuration.getProperty(PROPERTY_PAIR_ID2, COMPOUND_ID_CODE[COMPOUND_ID_OPTION_AUTOMATIC]);
+		int index2 = findListIndex(idColumn2, COMPOUND_ID_CODE, -1);
+		if (index2 == -1)
+			mComboBoxPairID2.setSelectedItem(idColumn2);
+		else
+			mComboBoxPairID2.setSelectedIndex(index2);
+
+		mCheckBoxHalfMatrix.setSelected(configuration.getProperty(PROPERTY_HALF_MATRIX, "true").equals("true"));
 		}
 
 	@Override
@@ -318,7 +375,7 @@ public class DETaskFindSimilarCompoundsInFile extends ConfigurableTask implement
 
 		if (mComboBoxDescriptorColumn.getItemCount() != 0)
 			mComboBoxDescriptorColumn.setSelectedIndex(0);
-		else if (!mIsInteractive)
+		else if (!isInteractive())
 			mComboBoxDescriptorColumn.setSelectedItem("Structure [FragFp]");
 
 		mSimilaritySlider.setValue(DEFAULT_SIMILARITY);
@@ -330,6 +387,13 @@ public class DETaskFindSimilarCompoundsInFile extends ConfigurableTask implement
 
 		mCheckBoxDissimilarFile.setSelected(false);
 		mLabelDissimilarFileName.setPath("");
+
+		mCheckBoxPairFile.setSelected(false);
+		mLabelPairFileName.setPath("");
+		mLabelPairFileName.setEnabled(false);
+		mComboBoxPairID1.setEnabled(false);
+		mComboBoxPairID2.setEnabled(false);
+		mCheckBoxHalfMatrix.setSelected(false);
 		}
 
 	@Override
@@ -346,11 +410,11 @@ public class DETaskFindSimilarCompoundsInFile extends ConfigurableTask implement
 
 		configuration.setProperty(PROPERTY_SIMILARITY, ""+mSimilaritySlider.getValue());
 
-		Object[] selectedColumn = mListColumns.getSelectedValues();
-		if (selectedColumn.length != 0) {
-			StringBuilder sb = new StringBuilder((String)selectedColumn[0]);
-			for (int i=1; i<selectedColumn.length; i++)
-				sb.append('\t').append((String)selectedColumn[i]);
+		List selectedColumnList = mListColumns.getSelectedValuesList();
+		if (selectedColumnList.size() != 0) {
+			StringBuilder sb = new StringBuilder((String)selectedColumnList.get(0));
+			for (int i=1; i<selectedColumnList.size(); i++)
+				sb.append('\t').append((String)selectedColumnList.get(i));
 			configuration.setProperty(PROPERTY_COLUMN_LIST, sb.toString());
 			}
 
@@ -359,6 +423,19 @@ public class DETaskFindSimilarCompoundsInFile extends ConfigurableTask implement
 
 		if (mCheckBoxDissimilarFile.isSelected())
 			configuration.setProperty(PROPERTY_DISSIMILAR_FILE_NAME, mLabelDissimilarFileName.getPath());
+
+		if (mCheckBoxPairFile.isSelected())
+			configuration.setProperty(PROPERTY_PAIR_FILE_NAME, mLabelPairFileName.getPath());
+
+		int index1 = mComboBoxPairID1.getSelectedIndex();
+		configuration.setProperty(PROPERTY_PAIR_ID1, index1 < COMPOUND_ID_CODE.length ?
+				COMPOUND_ID_CODE[index1] : mTableModel.getColumnTitleNoAlias((String)mComboBoxPairID1.getSelectedItem()));
+
+		int index2 = mComboBoxPairID2.getSelectedIndex();
+		configuration.setProperty(PROPERTY_PAIR_ID2, index2 < COMPOUND_ID_CODE.length ?
+				COMPOUND_ID_CODE[index2] : mTableModel.getColumnTitleNoAlias((String)mComboBoxPairID2.getSelectedItem()));
+
+		configuration.setProperty(PROPERTY_HALF_MATRIX, mCheckBoxHalfMatrix.isEnabled() && mCheckBoxHalfMatrix.isSelected() ? "true" : "false");
 
 		return configuration;
 		}
@@ -386,6 +463,11 @@ public class DETaskFindSimilarCompoundsInFile extends ConfigurableTask implement
 			}
 
 		mLabelInFileName.setPath(fileIsValid ? filePath : null);
+
+		mBothFilesAreTheSame = (filePath != null && (!isInteractive()
+				|| (mTableModel.getFile() != null && mTableModel.getFile().getPath().equals(filePath))));
+		mCheckBoxHalfMatrix.setEnabled(mCheckBoxPairFile.isSelected() && mBothFilesAreTheSame);
+		mCheckBoxHalfMatrix.setSelected(mCheckBoxPairFile.isSelected() && mBothFilesAreTheSame);
 
 		setOKButtonEnabled(fileIsValid);
 		}
@@ -430,6 +512,11 @@ public class DETaskFindSimilarCompoundsInFile extends ConfigurableTask implement
 			} );
 		mListColumns.removeAll();
 		mListColumns.setListData(itemList);
+		mComboBoxPairID2.removeAllItems();
+		for (String item: COMPOUND_ID_OPTIONS)
+			mComboBoxPairID2.addItem(item);
+		for (String item:itemList)
+			mComboBoxPairID2.addItem(item);
 		getDialog().pack();
 		return null;
 		}
@@ -445,7 +532,7 @@ public class DETaskFindSimilarCompoundsInFile extends ConfigurableTask implement
 
 	public void actionPerformed(ActionEvent e) {
 		if (e.getActionCommand().equals(JFilePathLabel.BUTTON_TEXT)) {
-			String path = askForCompoundFile(resolveVariables(mLabelInFileName.getPath()));
+			String path = askForCompoundFile(resolvePathVariables(mLabelInFileName.getPath()));
 			if (path != null) {
 				mLabelInFileName.setPath(path);
 				updateDialogFromFile(path);
@@ -455,8 +542,9 @@ public class DETaskFindSimilarCompoundsInFile extends ConfigurableTask implement
 
 		if (e.getSource() == mCheckBoxSimilarFile) {
 			if (mCheckBoxSimilarFile.isSelected()) {
+				int filetype = FileHelper.getFileType(mLabelInFileName.getPath());
 				String filename = new FileHelper(getParentFrame()).selectFileToSave(
-						"Save Similar Compounds To File", FileHelper.cFileTypeDataWarrior, "Similar Compounds");
+						"Save Similar Compounds To File", filetype, "Similar Compounds");
 				if (filename != null) {
 					mLabelSimilarFileName.setPath(filename);
 					mLabelSimilarFileName.setEnabled(true);
@@ -476,8 +564,9 @@ public class DETaskFindSimilarCompoundsInFile extends ConfigurableTask implement
 
 		if (e.getSource() == mCheckBoxDissimilarFile) {
 			if (mCheckBoxDissimilarFile.isSelected()) {
+				int filetype = FileHelper.getFileType(mLabelInFileName.getPath());
 				String filename = new FileHelper(getParentFrame()).selectFileToSave(
-						"Save Dissimilar Compounds To File", FileHelper.cFileTypeDataWarrior, "Dissimilar Compounds");
+						"Save Dissimilar Compounds To File", filetype, "Dissimilar Compounds");
 				if (filename != null) {
 					mLabelDissimilarFileName.setPath(filename);
 					mLabelDissimilarFileName.setEnabled(true);
@@ -494,11 +583,34 @@ public class DETaskFindSimilarCompoundsInFile extends ConfigurableTask implement
 				}
 			return;
 			}
+
+		if (e.getSource() == mCheckBoxPairFile) {
+			boolean writePairFile = mCheckBoxPairFile.isSelected();
+			if (writePairFile) {
+				String filename = new FileHelper(getParentFrame()).selectFileToSave(
+						"Save Compound Pairs To File", FileHelper.cFileTypeDataWarrior, "Compound Pairs");
+				if (filename != null) {
+					mLabelPairFileName.setPath(filename);
+					mCheckOverwritePairs = false;
+					}
+				else {
+					writePairFile = false;
+					mCheckBoxPairFile.setSelected(false);
+					mLabelPairFileName.setPath(null);
+					}
+				}
+			mLabelPairFileName.setEnabled(writePairFile);
+			mComboBoxPairID1.setEnabled(writePairFile);
+			mComboBoxPairID2.setEnabled(writePairFile);
+			mCheckBoxHalfMatrix.setEnabled(mCheckBoxPairFile.isSelected() && mBothFilesAreTheSame);
+			mCheckBoxHalfMatrix.setSelected(mCheckBoxPairFile.isSelected() && mBothFilesAreTheSame);
+			return;
+			}
 		}
 
 	@Override
 	public void runTask(Properties configuration) {
-		String fileName = resolveVariables(configuration.getProperty(PROPERTY_IN_FILE_NAME));
+		String fileName = resolvePathVariables(configuration.getProperty(PROPERTY_IN_FILE_NAME));
 		final int descriptorColumn = mTableModel.findColumn(configuration.getProperty(PROPERTY_DESCRIPTOR_COLUMN));
 		waitForDescriptor(mTableModel, descriptorColumn);
 		if (threadMustDie())
@@ -514,7 +626,7 @@ public class DETaskFindSimilarCompoundsInFile extends ConfigurableTask implement
 		BufferedWriter simWriter = null;
 		if (simFileName != null) {
 			try {
-				simWriter = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(resolveVariables(simFileName)), "UTF-8"));
+				simWriter = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(resolvePathVariables(simFileName)), "UTF-8"));
 				}
 			catch (IOException ioe) {}
 			}
@@ -523,7 +635,16 @@ public class DETaskFindSimilarCompoundsInFile extends ConfigurableTask implement
 		BufferedWriter dissimWriter = null;
 		if (dissimFileName != null) {
 			try {
-				dissimWriter = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(resolveVariables(dissimFileName)), "UTF-8"));
+				dissimWriter = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(resolvePathVariables(dissimFileName)), "UTF-8"));
+				}
+			catch (IOException ioe) {}
+			}
+
+		String pairFileName = configuration.getProperty(PROPERTY_PAIR_FILE_NAME);
+		BufferedWriter pairWriter = null;
+		if (pairFileName != null) {
+			try {
+				pairWriter = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(resolvePathVariables(pairFileName)), "UTF-8"));
 				}
 			catch (IOException ioe) {}
 			}
@@ -543,12 +664,97 @@ public class DETaskFindSimilarCompoundsInFile extends ConfigurableTask implement
 				writeHeadOrTail((DWARFileParser)parser, dissimWriter);
 			}
 
-		int records = 0;
-		int errors = 0;
 		String descriptorType = mTableModel.getColumnSpecialType(descriptorColumn);
-
 		@SuppressWarnings("unchecked")
 		final DescriptorHandler<Object,Object> dh = mTableModel.getDescriptorHandler(descriptorColumn);
+
+		DWARFileCreator dwarCreator = null;
+		ArrayList<PairMapEntry> pairMap = null;
+		boolean halfMatrix = configuration.getProperty(PROPERTY_HALF_MATRIX, "false").equals("true");
+		if (pairWriter != null) {
+			pairMap = new ArrayList<PairMapEntry>();
+			dwarCreator = new DWARFileCreator(pairWriter);
+
+			int structure1SourceColumn = mTableModel.getParentColumn(descriptorColumn);
+			int structure1DestColumn = dwarCreator.addStructureColumn("Structure 1", "ID 1");
+			pairMap.add(new PairMapEntry(structure1SourceColumn, structure1DestColumn, false));
+
+			for (int column=0; column<mTableModel.getTotalColumnCount(); column++) {
+				if (mTableModel.getParentColumn(column) == structure1SourceColumn) {
+					String type = mTableModel.getColumnSpecialType(column);
+					if (CompoundTableConstants.cColumnType2DCoordinates.equals(type))
+						pairMap.add(new PairMapEntry(column,
+								dwarCreator.add2DCoordinatesColumn(structure1DestColumn), false));
+					else if (CompoundTableConstants.cColumnType3DCoordinates.equals(type))
+						pairMap.add(new PairMapEntry(column,
+								dwarCreator.add3DCoordinatesColumn(mTableModel.getColumnTitle(column), structure1DestColumn), false));
+					else if (mTableModel.isDescriptorColumn(column))
+						pairMap.add(new PairMapEntry(column,
+								dwarCreator.addDescriptorColumn(type, dh.getVersion(), structure1DestColumn), false));
+					}
+				}
+
+			String id1ColumnName = configuration.getProperty(PROPERTY_PAIR_ID1, COMPOUND_ID_CODE[COMPOUND_ID_OPTION_AUTOMATIC]);
+			int index = findListIndex(id1ColumnName, COMPOUND_ID_CODE, -1);
+			int id1Column = (index == COMPOUND_ID_OPTION_ROW_NUMBER) ? -1
+						  : (index == COMPOUND_ID_OPTION_AUTOMATIC) ?
+					mTableModel.findColumn(mTableModel.getColumnProperty(structure1SourceColumn, CompoundTableModel.cColumnPropertyIdentifierColumn))
+						  : mTableModel.findColumn(id1ColumnName);
+			if (id1Column == -1)
+				id1Column = PairMapEntry.CONSTRUCT_ROW_NUMBER;
+			pairMap.add(new PairMapEntry(id1Column,
+						dwarCreator.addAlphanumericalColumn("ID 1"), false));
+
+			int structure2DestColumn = dwarCreator.addStructureColumn("Structure 2", "ID 2");
+			pairMap.add(new PairMapEntry(PairMapEntry.STRUCTURE, structure2DestColumn, true));
+
+			if (parser instanceof DWARFileParser) {
+				if (((DWARFileParser)parser).hasStructureCoordinates2D())
+					pairMap.add(new PairMapEntry(PairMapEntry.COORDINATES_2D,
+							dwarCreator.add2DCoordinatesColumn(structure2DestColumn), true));
+				if (((DWARFileParser)parser).hasStructureCoordinates3D())
+					pairMap.add(new PairMapEntry(PairMapEntry.COORDINATES_3D,
+							dwarCreator.add3DCoordinatesColumn(((DWARFileParser)parser).getStructureCoordinates3DColumnName(),
+									structure2DestColumn), true));
+			}
+
+			pairMap.add(new PairMapEntry(PairMapEntry.DESCRIPTOR,
+					dwarCreator.addDescriptorColumn(descriptorType, dh.getVersion(), structure2DestColumn), true));
+
+			String id2ColumnName = configuration.getProperty(PROPERTY_PAIR_ID2);
+			index = findListIndex(id2ColumnName, COMPOUND_ID_CODE, -1);
+			int id2Column = PairMapEntry.CONSTRUCT_ROW_NUMBER;	// default
+			if (index == COMPOUND_ID_OPTION_ROW_NUMBER) {
+				id2Column = PairMapEntry.CONSTRUCT_ROW_NUMBER;
+				}
+			else if (index == COMPOUND_ID_OPTION_AUTOMATIC) {
+				if (parser instanceof DWARFileParser) {
+					id2Column = PairMapEntry.AUTOMATIC_COMPOUND_ID;
+					}
+				}
+			else {
+				String[] fieldName = parser.getFieldNames();
+				for (int i=0; i<fieldName.length; i++) {
+					if (fieldName[i].equals(id2ColumnName)) {
+						id2Column = i;
+						break;
+						}
+					}
+				}
+			pairMap.add(new PairMapEntry(id2Column, dwarCreator.addAlphanumericalColumn("ID 2"), true));
+
+			dwarCreator.addAlphanumericalColumn("Similarity ("+descriptorType+")");
+
+			try {
+				dwarCreator.writeHeader(-1);
+				}
+			catch (IOException ioe) {
+				ioe.printStackTrace();
+				}
+			}
+
+		int records = 0;
+		int errors = 0;
 
 		TreeMap<String,Object> descriptorCache = new TreeMap<String,Object>();
 
@@ -588,6 +794,7 @@ public class DETaskFindSimilarCompoundsInFile extends ConfigurableTask implement
 				}
 			}
 
+//try {
 		int rowCount = parser.getRowCount();
 		startProgress("Processing Compounds From File...", 0, (rowCount == -1) ? 0 : rowCount);
 		while (parser.next()) {
@@ -647,6 +854,55 @@ public class DETaskFindSimilarCompoundsInFile extends ConfigurableTask implement
 				float similarity = (similarityList != null) ? similarityList[row]
 						: dh.getSimilarity(descriptor, record.getData(descriptorColumn));
 				if (similarity >= similarityLimit) {
+					if (pairWriter != null && (!halfMatrix || row+1 < records)) {
+						try {
+							for (PairMapEntry pme : pairMap) {
+								if (pme.isFromExternalFile) {
+									String cellValue = null;
+									switch (pme.sourceColumn) {
+									case PairMapEntry.STRUCTURE:
+										cellValue = parser.getIDCode();
+										break;
+									case PairMapEntry.COORDINATES_2D:
+										cellValue = ((DWARFileParser)parser).getCoordinates2D();
+										break;
+									case PairMapEntry.COORDINATES_3D:
+										cellValue = ((DWARFileParser)parser).getCoordinates3D();
+										break;
+									case PairMapEntry.DESCRIPTOR:
+										cellValue = dh.encode(descriptor);
+										break;
+									case PairMapEntry.CONSTRUCT_ROW_NUMBER:
+										cellValue = Integer.toString(records);
+										break;
+									case PairMapEntry.AUTOMATIC_COMPOUND_ID:
+										cellValue = parser.getMoleculeName();
+										break;
+									default:
+										cellValue = parser.getFieldData(pme.sourceColumn);
+										break;
+										}
+									if (cellValue != null)
+										pairWriter.write(cellValue);
+									}
+								else {
+									switch (pme.sourceColumn) {
+									case PairMapEntry.CONSTRUCT_ROW_NUMBER:
+										pairWriter.write(Integer.toString(row + 1));
+										break;
+									default:
+										pairWriter.write(mTableModel.encodeData(record, pme.sourceColumn));
+										break;
+										}
+									}
+								pairWriter.write("\t");
+								}
+							pairWriter.write(DoubleFormat.toString(similarity));
+							pairWriter.newLine();
+							}
+						catch (IOException ioe) {}
+						}
+
 					int similarityRank = 0;
 					if (record.getData(firstNewColumn) != null) {	// if is not the only similarity value, then we have to compare
 						String[] similarityText = new String((byte[])record.getData(firstNewColumn)).split("\\n");
@@ -688,6 +944,8 @@ public class DETaskFindSimilarCompoundsInFile extends ConfigurableTask implement
 
 			updateProgress(records);
 			}
+//} catch (Exception e) { e.printStackTrace(); }
+
 
 		if (!threadMustDie() && !isSDF && detailReferences.size() != 0) {
 			resolveDetailIDCollisions(detailReferences);
@@ -709,6 +967,8 @@ public class DETaskFindSimilarCompoundsInFile extends ConfigurableTask implement
 			try { simWriter.close(); } catch (IOException ioe) {}
 		if (dissimWriter != null)
 			try { dissimWriter.close(); } catch (IOException ioe) {}
+		if (pairWriter != null)
+			try { pairWriter.close(); } catch (IOException ioe) {}
 
 		if (errors != 0)
 			showErrorMessage(""+errors+" of "+records+" file records could not be processed and were skipped.");
@@ -833,3 +1093,21 @@ public class DETaskFindSimilarCompoundsInFile extends ConfigurableTask implement
 			}
 		}
 	}
+
+class PairMapEntry {
+	public static final int STRUCTURE = -1;
+	public static final int COORDINATES_2D = -2;
+	public static final int COORDINATES_3D = -3;
+	public static final int DESCRIPTOR = -4;
+	public static final int CONSTRUCT_ROW_NUMBER = -5;
+	public static final int AUTOMATIC_COMPOUND_ID = -6;
+
+	int sourceColumn,destColumn;
+	boolean isFromExternalFile;
+
+	public PairMapEntry(int sourceColumn, int destColumn, boolean isFromExternalFile) {
+		this.sourceColumn = sourceColumn;
+		this.destColumn = destColumn;
+		this.isFromExternalFile = isFromExternalFile;
+	}
+}

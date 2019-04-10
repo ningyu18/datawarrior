@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,6 +18,7 @@
 
 package com.actelion.research.datawarrior.task.filter;
 
+import com.actelion.research.datawarrior.task.DEMacroRecorder;
 import info.clearthought.layout.TableLayout;
 
 import java.awt.Frame;
@@ -32,7 +33,7 @@ import javax.swing.JTextField;
 import com.actelion.research.datawarrior.DEFrame;
 import com.actelion.research.datawarrior.DEPruningPanel;
 import com.actelion.research.datawarrior.task.ConfigurableTask;
-import com.actelion.research.table.CompoundTableModel;
+import com.actelion.research.table.model.CompoundTableModel;
 import com.actelion.research.table.filter.JFilterPanel;
 
 /**
@@ -83,6 +84,8 @@ public abstract class DEAbstractFilterTask extends ConfigurableTask {
         if (needsColumnSelection()) {
 	        p.add(new JLabel("Column name:", JLabel.RIGHT), "1,1");
 	        mComboBox = new JComboBox();
+	        if (supportsAllColumns())
+				mComboBox.addItem(JFilterPanel.ALL_COLUMN_TEXT);
 	        for (int column=0; column<mTableModel.getTotalColumnCount(); column++)
 	        	if (getColumnQualificationError(column) == null)
 	        		mComboBox.addItem(mTableModel.getColumnTitleExtended(column));
@@ -113,6 +116,10 @@ public abstract class DEAbstractFilterTask extends ConfigurableTask {
 		return DETaskAddNewFilter.FILTER_NEEDS_COLUMN[getFilterType()];
 		}
 
+	private boolean supportsAllColumns() {
+		return getFilterType() == JFilterPanel.FILTER_TYPE_TEXT;
+		}
+
 	/**
 	 * @param column
 	 * @return error message if the column doesn't qualify for this filter type
@@ -125,9 +132,11 @@ public abstract class DEAbstractFilterTask extends ConfigurableTask {
 			return null;
 
 		Properties configuration = new Properties();
-		int column = mFilter.getColumnIndex();
-		if (needsColumnSelection())
-			configuration.setProperty(PROPERTY_COLUMN, mTableModel.getColumnTitleNoAlias(column));
+		if (needsColumnSelection()) {
+			int column = mFilter.getColumnIndex();
+			configuration.setProperty(PROPERTY_COLUMN, column == JFilterPanel.PSEUDO_COLUMN_ALL_COLUMNS ?
+					JFilterPanel.ALL_COLUMN_CODE : mTableModel.getColumnTitleNoAlias(column));
+			}
 		configuration.setProperty(PROPERTY_DUPLICATE, Integer.toString(1+mPruningPanel.getFilterDuplicateIndex(mFilter, mFilter.getColumnIndex())));
 		String filterSettings = mFilter.getSettings();
 		if (filterSettings != null)
@@ -139,9 +148,15 @@ public abstract class DEAbstractFilterTask extends ConfigurableTask {
 	public Properties getDialogConfiguration() {
 		Properties configuration = new Properties();
 		if (needsColumnSelection()) {
-			String columnName = mTableModel.getColumnTitleNoAlias((String)mComboBox.getSelectedItem());
-			if (columnName != null)
-				configuration.setProperty(PROPERTY_COLUMN, columnName);
+			String item = (String)mComboBox.getSelectedItem();
+			if (supportsAllColumns() && JFilterPanel.ALL_COLUMN_TEXT.equals(item)) {
+				configuration.setProperty(PROPERTY_COLUMN, JFilterPanel.ALL_COLUMN_CODE);
+				}
+			else {
+				String columnName = mTableModel.getColumnTitleNoAlias(item);
+				if (columnName != null)
+					configuration.setProperty(PROPERTY_COLUMN, columnName);
+				}
 			}
 		configuration.setProperty(PROPERTY_DUPLICATE, mTextFieldIndex.getText());
 		String filterSettings = mFilter.getSettings();
@@ -152,10 +167,15 @@ public abstract class DEAbstractFilterTask extends ConfigurableTask {
 
 	@Override
 	public void setDialogConfiguration(Properties configuration) {
-		if (needsColumnSelection())
-			mComboBox.setSelectedItem(configuration.getProperty(PROPERTY_COLUMN, ""));
+		if (needsColumnSelection()) {
+			String columnName = configuration.getProperty(PROPERTY_COLUMN, "");
+			if (supportsAllColumns() && columnName.equals(JFilterPanel.ALL_COLUMN_CODE))
+				mComboBox.setSelectedItem(JFilterPanel.ALL_COLUMN_TEXT);
+			else
+				mComboBox.setSelectedItem(columnName);
+			}
 		mTextFieldIndex.setText(configuration.getProperty(PROPERTY_DUPLICATE, "1"));
-		mFilter.applySettings(configuration.getProperty(PROPERTY_SETTINGS));
+		mFilter.applySettings(configuration.getProperty(PROPERTY_SETTINGS), false);
 		}
 
 	@Override
@@ -189,15 +209,20 @@ public abstract class DEAbstractFilterTask extends ConfigurableTask {
 
 		int column = -1;
 		if (isLive && needsColumnSelection()) {
-			column = mTableModel.findColumn(columnName);
-			if (column == -1) {
-				showErrorMessage("Column '"+columnName+"' not found.");
-				return false;
+			if (supportsAllColumns() && JFilterPanel.ALL_COLUMN_CODE.equals(columnName)) {
+				column = JFilterPanel.PSEUDO_COLUMN_ALL_COLUMNS;
 				}
-			String error = getColumnQualificationError(column);
-			if (error != null) {
-				showErrorMessage(error);
-				return false;
+			else {
+				column = mTableModel.findColumn(columnName);
+				if (column == -1) {
+					showErrorMessage("Column '"+columnName+"' not found.");
+					return false;
+					}
+				String error = getColumnQualificationError(column);
+				if (error != null) {
+					showErrorMessage(error);
+					return false;
+					}
 				}
 			}
 
@@ -240,12 +265,22 @@ public abstract class DEAbstractFilterTask extends ConfigurableTask {
 
 	@Override
 	public void runTask(Properties configuration) {
-		int column = needsColumnSelection() ? mTableModel.findColumn(configuration.getProperty(PROPERTY_COLUMN)) : -1;
+		int column = -1;
+		if (needsColumnSelection()) {
+			String columnName = configuration.getProperty(PROPERTY_COLUMN);
+			if (supportsAllColumns() && JFilterPanel.ALL_COLUMN_CODE.equals(columnName))
+				column = JFilterPanel.PSEUDO_COLUMN_ALL_COLUMNS;
+			else
+				column = mTableModel.findColumn(columnName);
+			}
 		int duplicate = Integer.parseInt(configuration.getProperty(PROPERTY_DUPLICATE, "1")) - 1;
 		String settings = configuration.getProperty(PROPERTY_SETTINGS);
 		JFilterPanel filter = mPruningPanel.getFilter(getFilterType(), column, duplicate);
-		if (filter != null)
-			filter.applySettings(settings);
+		if (filter != null) {
+			boolean suppressMessages = DEMacroRecorder.getInstance().isRunningMacro()
+			&& (DEMacroRecorder.getInstance().getMessageMode() == DEMacroRecorder.MESSAGE_MODE_SKIP_ERRORS);
+			filter.applySettings(settings, suppressMessages);
+			}
 		}
 
 	@Override

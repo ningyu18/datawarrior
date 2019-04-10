@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -408,8 +408,10 @@ public class SimpleCanonizer {
 			encodeBits(mGraphClosure[i], nbits);
 
 		for (int bond=0; bond<mMol.getBonds(); bond++) {
-			int bondOrder = (mMol.isDelocalizedBond(mGraphBond[bond])) ?
-							0 : mMol.getBondOrder(mGraphBond[bond]);
+			int bondOrder = ((mMol.getBondQueryFeatures(mGraphBond[bond]) & Molecule.cBondQFBridge) != 0
+					|| mMol.getBondType(mGraphBond[bond]) == Molecule.cBondTypeMetalLigand) ?
+					1 : (mMol.isDelocalizedBond(mGraphBond[bond])) ?
+					0 : mMol.getBondOrder(mGraphBond[bond]);
 			encodeBits(bondOrder, 2);
 			}
 
@@ -583,8 +585,23 @@ public class SimpleCanonizer {
 				if (isAromaticSPBond[mGraphBond[bond]])
 					encodeBits(bond, nbits);
 			}
-		
-        encodeBits(0, 1);
+
+		if (mMol.isFragment())	// 27 = datatype 'part of an exclude-group'
+			isSecondFeatureBlock |= addAtomQueryFeatures(27, isSecondFeatureBlock, nbits, Molecule.cAtomQFExcludeGroup, 1, -1);
+
+		count = 0;
+		for (int bond=0; bond<mMol.getBonds(); bond++)
+			if (mMol.getBondType(mGraphBond[bond]) == Molecule.cBondTypeMetalLigand)
+				count++;
+		isSecondFeatureBlock = ensureSecondFeatureBlock(isSecondFeatureBlock);
+		encodeBits(1, 1);   //  more data to come
+		encodeBits(12, 4);   //  (28-offset) 28 = datatype 'coordinate bond'
+		encodeBits(count, nbits);
+		for (int bond=0; bond<mMol.getBonds(); bond++)
+			if (mMol.getBondType(mGraphBond[bond]) == Molecule.cBondTypeMetalLigand)
+				encodeBits(bond, nbits);
+
+		encodeBits(0, 1);
         mIDCode = encodeBitsEnd();
 		}
 
@@ -696,26 +713,26 @@ public class SimpleCanonizer {
 		encodeBits(keepAbsoluteValues ? 1 : 0, 1);
 		encodeBits(resolutionBits/2, 4);	// resolution bits devided by 2
 
-		float maxDelta = 0.0f;
+		double maxDelta = 0.0;
 		for (int i=1; i<mMol.getAtoms(); i++) {
 			int atom = mGraphAtom[i];
 			int from = (mGraphFrom[i] == -1) ? -1 : mGraphAtom[mGraphFrom[i]];
 
-			float deltaX = (from == -1) ?
-							Math.abs(mMol.getAtomX(atom) - mMol.getAtomX(mGraphAtom[0])) / 8.0f
+			double deltaX = (from == -1) ?
+							Math.abs(mMol.getAtomX(atom) - mMol.getAtomX(mGraphAtom[0])) / 8.0
 						  : Math.abs(mMol.getAtomX(atom) - mMol.getAtomX(from));
 			if (maxDelta < deltaX)
 				maxDelta = deltaX;
 
-			float deltaY = (from == -1) ?
-							Math.abs(mMol.getAtomY(atom) - mMol.getAtomY(mGraphAtom[0])) / 8.0f
+			double deltaY = (from == -1) ?
+							Math.abs(mMol.getAtomY(atom) - mMol.getAtomY(mGraphAtom[0])) / 8.0
 						  : Math.abs(mMol.getAtomY(atom) - mMol.getAtomY(from));
 			if (maxDelta < deltaY)
 				maxDelta = deltaY;
 
 			if (mZCoordinatesAvailable) {
-				float deltaZ = (from == -1) ?
-								Math.abs(mMol.getAtomZ(atom) - mMol.getAtomZ(mGraphAtom[0])) / 8.0f
+				double deltaZ = (from == -1) ?
+								Math.abs(mMol.getAtomZ(atom) - mMol.getAtomZ(mGraphAtom[0])) / 8.0
 							  : Math.abs(mMol.getAtomZ(atom) - mMol.getAtomZ(from));
 				if (maxDelta < deltaZ)
 					maxDelta = deltaZ;
@@ -728,27 +745,27 @@ public class SimpleCanonizer {
             }
 
         int binCount = (1 << resolutionBits);
-        float increment = maxDelta / (binCount / 2.0f - 1);
-        float halfIncrement = increment / 2.0f;
+		double increment = maxDelta / (binCount / 2.0 - 1);
+		double halfIncrement = increment / 2.0;
 
 		for (int i=1; i<mMol.getAtoms(); i++) {
 			int atom = mGraphAtom[i];
 			int from = (mGraphFrom[i] == -1) ? -1 : mGraphAtom[mGraphFrom[i]];
 
-			float deltaX = (from == -1) ?
-							(mMol.getAtomX(atom) - mMol.getAtomX(mGraphAtom[0])) / 8.0f
+			double deltaX = (from == -1) ?
+							(mMol.getAtomX(atom) - mMol.getAtomX(mGraphAtom[0])) / 8.0
 						   : mMol.getAtomX(atom) - mMol.getAtomX(from);
 
-			float deltaY = (from == -1) ?
-							(mMol.getAtomY(atom) - mMol.getAtomY(mGraphAtom[0])) / 8.0f
+			double deltaY = (from == -1) ?
+							(mMol.getAtomY(atom) - mMol.getAtomY(mGraphAtom[0])) / 8.0
 						   : mMol.getAtomY(atom) - mMol.getAtomY(from);
 
 			encodeBits((int)((maxDelta + deltaX + halfIncrement) / increment), resolutionBits);
 			encodeBits((int)((maxDelta + deltaY + halfIncrement) / increment), resolutionBits);
 
 			if (mZCoordinatesAvailable) {
-				float deltaZ = (from == -1) ?
-								(mMol.getAtomZ(atom) - mMol.getAtomZ(mGraphAtom[0])) / 8.0f
+				double deltaZ = (from == -1) ?
+								(mMol.getAtomZ(atom) - mMol.getAtomZ(mGraphAtom[0])) / 8.0
 							   : mMol.getAtomZ(atom) - mMol.getAtomZ(from);
 
 				encodeBits((int)((maxDelta + deltaZ + halfIncrement) / increment), resolutionBits);
@@ -774,12 +791,12 @@ public class SimpleCanonizer {
 	 * @param value
 	 * @return
 	 */
-	private int encodeABVL(float value, int binCount) {
+	private int encodeABVL(double value, int binCount) {
 		return Math.min(binCount-1, Math.max(0, (int)(0.5 + Math.log10(value/0.1) / Math.log10(200/0.1) * (binCount-1))));
 		}
 
 
-	private int encodeShift(float value, int binCount) {
+	private int encodeShift(double value, int binCount) {
 		int halfBinCount = binCount / 2;
 		boolean isNegative =  (value < 0);
 		value = Math.abs(value);

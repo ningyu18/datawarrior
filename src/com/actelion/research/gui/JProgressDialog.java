@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,20 +18,14 @@
 
 package com.actelion.research.gui;
 
+import com.actelion.research.calc.ProgressController;
+import com.actelion.research.gui.hidpi.HiDPIHelper;
 import info.clearthought.layout.TableLayout;
 
-import java.awt.Frame;
+import javax.swing.*;
+import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
-
-import javax.swing.JButton;
-import javax.swing.JDialog;
-import javax.swing.JLabel;
-import javax.swing.JOptionPane;
-import javax.swing.JProgressBar;
-import javax.swing.SwingUtilities;
-
-import com.actelion.research.calc.ProgressController;
 
 public class JProgressDialog extends JDialog implements ActionListener,ProgressController,Runnable {
 	private static final long serialVersionUID = 0x20070301;
@@ -39,12 +33,14 @@ public class JProgressDialog extends JDialog implements ActionListener,ProgressC
 	private static final int sActionDispose = 2;
 	private static final int sActionStart = 4;
 	private static final int sActionUpdate = 8;
-	private static final int sActionStop = 16;
+	private static final int sActionMessage = 16;
+	private static final int sActionStop = 32;
 
 	private JProgressBar	mProgressBar;
 	private JLabel			mProgressLabel,mLabelRemainingTime;
 	private Frame			mNewFrontFrame;
 	private String			mBusyText;
+	private volatile String	mProgressMessage;
 	private volatile boolean mProcessCancelled;
 	private volatile int	mProgressMin,mProgressMax,mProgressValue,mAction;
 	private volatile long   mProgressStart,mLastUpdate;
@@ -96,6 +92,23 @@ public class JProgressDialog extends JDialog implements ActionListener,ProgressC
 		if (mProgressValue < newValue) {
 			mProgressValue = newValue;
 			mAction |= sActionUpdate;
+			update();
+			}
+		}
+
+	/**
+	 * Update progress status in an absolute or relative way.
+	 * This method also updates the message of the progress dialog
+	 * @param value if negative, its abs value is added to current progress.
+	 * @param message
+	 */
+	public void updateProgress(int value, String message) {
+		// may be called safely from any thread
+		int newValue = (value >= 0) ? value : mProgressValue-value;
+		if (mProgressValue < newValue) {
+			mProgressValue = newValue;
+			mProgressMessage = message;
+			mAction |= sActionUpdate | sActionMessage;
 			update();
 			}
 		}
@@ -160,7 +173,7 @@ public class JProgressDialog extends JDialog implements ActionListener,ProgressC
 		}
 
 	private void initialize() {
-		double[][] size = { {8, 200, 8, TableLayout.PREFERRED, 8},
+		double[][] size = { {8, HiDPIHelper.scale(200), 8, TableLayout.PREFERRED, 8},
 							{8, TableLayout.PREFERRED, 8, TableLayout.PREFERRED, 16, TableLayout.PREFERRED, 8} };
 		getContentPane().setLayout(new TableLayout(size));
 
@@ -226,10 +239,16 @@ public class JProgressDialog extends JDialog implements ActionListener,ProgressC
 			if (mProgressValue > mProgressMin) {
 				long milliesUsed = System.currentTimeMillis() - mProgressStart;
 				long milliesToGo = milliesUsed * (mProgressMax - mProgressValue) / (mProgressValue - mProgressMin);
-				String timeToGo = (milliesToGo >= 7200000) ? ""+(milliesToGo/3600000)+" hours remaining"
-								: (milliesToGo >=  120000) ? ""+(milliesToGo/60000)+" minutes remaining"
-								: 							 ""+(milliesToGo/1000)+" seconds remaining";
-				mLabelRemainingTime.setText(timeToGo);
+				long millis = (mProgressMax == mProgressMin) ? milliesUsed : milliesToGo;
+				String timeToShow = (millis >= 7200000) ? ""+(millis/3600000)+" hours"
+								  : (millis >=  120000) ? ""+(millis/60000)+" minutes"
+								  : 					  ""+(millis/1000)+" seconds";
+				String message = (mProgressMax == mProgressMin) ? " waiting" : " remaining";
+				mLabelRemainingTime.setText(timeToShow+message);
+				}
+			if ((mAction & sActionMessage) != 0) {
+				mAction &= ~sActionMessage;
+				mProgressLabel.setText(mProgressMessage);
 				}
 			}
 		if ((mAction & sActionStop) != 0) {

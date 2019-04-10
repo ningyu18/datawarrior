@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -90,25 +90,53 @@ public abstract class CompoundFileHelper {
             return null;
 
         ArrayList<StereoMolecule> moleculeList = new ArrayList<StereoMolecule>();
-        readChemObjectsFromFile(file, moleculeList, null, readIdentifier);
+        readChemObjectsFromFile(file, moleculeList, null, null, readIdentifier, false);
 
         return moleculeList;
 	    }
 
+	/**
+	 * Reads all compounds as idcode list from the given file.
+	 * @param file SD- or DataWarrior file
+	 * @return
+	 */
 	public ArrayList<String> readIDCodesFromFile(File file) {
         if (file == null)
             return null;
 
         ArrayList<String> idcodeList = new ArrayList<String>();
-        readChemObjectsFromFile(file, null, idcodeList, false);
+        readChemObjectsFromFile(file, null, idcodeList, null, false, false);
 
         return idcodeList;
 	    }
 
+	/**
+	 * Reads all compounds as idcode list with identifiers from the given file.
+	 * Therefore, it asks for an identifier column.
+	 * @param file if null the user is asked for a file
+	 * @param readIDCoords if true, then the id-coords are SPACE delimited attached to the idcode
+	 * @return list of String[2] with idcode (index 0) and molecule name (index 1)
+	 */
+	public ArrayList<String[]> readIDCodesWithNamesFromFile(File file, boolean readIDCoords) {
+		if (file == null)
+			file = selectFileToOpen("Please select substance file",
+									CompoundFileHelper.cFileTypeSD
+								  | CompoundFileHelper.cFileTypeDataWarrior);
+
+		if (file == null)
+			return null;
+
+		ArrayList<String[]> idcodeWithIDList = new ArrayList<String[]>();
+		readChemObjectsFromFile(file, null, null, idcodeWithIDList, false, readIDCoords);
+
+		return idcodeWithIDList;
+		}
+
 	private void readChemObjectsFromFile(File file,
-	                                            ArrayList<StereoMolecule> moleculeList,
-	                                            ArrayList<String> idcodeList,
-	                                            boolean readIdentifier) {
+                                         ArrayList<StereoMolecule> moleculeList,
+	                                     ArrayList<String> idcodeList,
+										 ArrayList<String[]> idcodeWithIDList,
+	                                     boolean readIdentifier, boolean readIDCoords) {
 	    mRecordCount = 0;
 	    mErrorCount = 0;
 	    String filename = file.getName();
@@ -124,7 +152,7 @@ public abstract class CompoundFileHelper {
 	    // If we create molecules,
 	    // then we might set the name field with the proper identifier
 	    int indexOfID = -1;
-	    if (readIdentifier && moleculeList != null) {
+	    if (idcodeWithIDList != null || readIdentifier) {
 	        String[] fieldNames = parser.getFieldNames();
 	        if (fieldNames != null && fieldNames.length != 0) {
 	            String id = selectOption("Select compound name or identifier", filename, fieldNames);
@@ -152,10 +180,33 @@ public abstract class CompoundFileHelper {
 	                }
 	            }
 
-	        if (idcodeList != null) {
+	        if (idcodeList != null || idcodeWithIDList != null) {
 	            String idcode = parser.getIDCode();
-	            if (idcode != null)
-	                idcodeList.add(idcode);
+	            if (idcode != null) {
+					if (readIDCoords) {
+						String coords = parser.getCoordinates();
+						if (coords != null)
+							idcode = idcode.concat(" ").concat(coords);
+						}
+					}
+
+				String id = null;
+				if (idcodeWithIDList != null) {
+					id = parser.getMoleculeName();	// default
+					if (indexOfID != -1)
+						id = parser.getFieldData(indexOfID);
+					}
+
+				if (idcode != null) {
+					if (idcodeList != null)
+						idcodeList.add(idcode);
+					if (idcodeWithIDList != null) {
+						String[] idcodeWithID = new String[2];
+						idcodeWithID[0] = idcode;
+						idcodeWithID[1] = id;
+						idcodeWithIDList.add(idcodeWithID);
+						}
+					}
 	            else
                     isError = true;
     	        }
@@ -332,6 +383,10 @@ public abstract class CompoundFileHelper {
     	return list;
     	}
 
+	/**
+	 * @param filetype
+	 * @return file extension including the dot
+	 */
     public static String getExtension(int filetype) {
 		String extension = "";
 		switch (filetype) {

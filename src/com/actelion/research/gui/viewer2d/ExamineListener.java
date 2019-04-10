@@ -20,11 +20,18 @@ public class ExamineListener implements MouseListener, MouseMotionListener {
 	}
 
 
+	@Override
 	public synchronized void mouseExited(MouseEvent e) {}
+	
+	@Override
 	public synchronized void mouseReleased(MouseEvent e) {
 		if(canvas3D.getTool()!=null && canvas3D.getTool().mouseReleased(e, canvas3D)) return;				
 	}
+	
+	@Override
 	public synchronized void mouseEntered(MouseEvent e) {}
+	
+	@Override
 	public synchronized void mousePressed(MouseEvent e) {
 		if(canvas3D.getTool()!=null && canvas3D.getTool().mousePressed(e, canvas3D)) return;			
 		mMouseX1 = e.getX();
@@ -32,22 +39,16 @@ public class ExamineListener implements MouseListener, MouseMotionListener {
 	}
 	
 	
+	@Override
 	public synchronized void mouseClicked(MouseEvent e) {
 		if(canvas3D.getTool()!=null) {
 			canvas3D.getTool().mouseClicked(e, canvas3D);			
-		}
-		
-		//check if a shape has been selected
-//		PickableShape shape = canvas3D.getPickableShapeAt(e.getX(), e.getY());
-//		if(shape!=null) {
-			//canvas3D.setSelection(shape.getPickListener().getBounds());
-		//} else {
-		//	canvas3D.setSelection(null);
-		//}
-		//canvas3D.repaint();
+		}		
 	}
 	
-	IPickable shape = null;
+	private IPickable shape = null;
+	
+	@Override
 	public synchronized void mouseMoved(MouseEvent e) {
 		IPickable newShape;
 		if(canvas3D.getTool()!=null) {
@@ -67,6 +68,7 @@ public class ExamineListener implements MouseListener, MouseMotionListener {
 		}
 	}	
 	
+	@Override
 	public synchronized void mouseDragged(MouseEvent e) {
 		mouseMoved(e);
 		if(canvas3D.getTool()!=null && canvas3D.getTool().mouseDragged(e, canvas3D)) return;			

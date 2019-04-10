@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -38,16 +38,19 @@ public class DescriptorHandlerReactionIndex extends AbstractDescriptorHandlerFP<
     }
 
     public String getVersion() {
-        return ReactionSearcher.cIndexVersion;
+        return DescriptorConstants.DESCRIPTOR_ReactionIndex.version;
     }
 
     public int[] createDescriptor(Reaction rxn) {
+	    if (rxn ==null)
+		    return null;
+
         int[] descriptor = new ReactionSearcher().createIndex(rxn);
         return (descriptor == null) ? FAILED_OBJECT : descriptor;
     }
     
-	public DescriptorHandler<int[], Reaction> getDeepCopy() {
-		return new DescriptorHandlerReactionIndex();
+	public DescriptorHandler<int[], Reaction> getThreadSafeCopy() {
+		return this;
 	}
 
 }

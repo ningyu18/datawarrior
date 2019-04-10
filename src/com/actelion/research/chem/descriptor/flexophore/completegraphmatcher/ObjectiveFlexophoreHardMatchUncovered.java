@@ -28,16 +28,24 @@ import com.actelion.research.util.graph.complete.SolutionCompleteGraph;
  * @author Modest von Korff
  * @version 1.0
  * Oct 2, 2012 MvK: Start implementation
+ * Mar 3. 2016 MvK: updates. Lowered thresh for histogram similarity.
  */
 public class ObjectiveFlexophoreHardMatchUncovered implements IObjectiveCompleteGraph<IMolDistHist>{
 
 	public static final int MAX_NUM_NODES_FLEXOPHORE = 64;
 	
-	// Default 0.3 
-	final static double THRESH_NODE_SIMILARITY	= 0.3;
-	
+	// The thresh for the node similarity depends on the number of interaction types in the node.
+	// final static double THRESH_NODE_SIMILARITY_START = 0.8;
+
+	// 03.03.2016 Top result so far
+	final static double THRESH_NODE_SIMILARITY_START = 0.9;
+
 	// Default 0.05
-	private final static double THRESH_HISTOGRAM_SIMILARITY	= 0.75;
+	// private final static double THRESH_HISTOGRAM_SIMILARITY	= 0.75;
+	// private final static double THRESH_HISTOGRAM_SIMILARITY	= 0.25;
+
+	// 0.15 best thresh tested on 31.03.2016
+	private final static double THRESH_HISTOGRAM_SIMILARITY	= 0.15;
 
 	private static final float INIT_VAL = -1;
 
@@ -60,22 +68,18 @@ public class ObjectiveFlexophoreHardMatchUncovered implements IObjectiveComplete
 	
 	private boolean resetSimilarityArrays;
 	
-	private double threshNodeMinSimilarity;
+	private double threshNodeMinSimilarityStart;
 	
 	private double threshHistogramSimilarity;
 
 	private HistogramMatchCalculator histogramMatchCalculator;
+
+	private IPPNodeSimilarity nodeSimilarity;
+
+	// private ScaleClasses scaleClassesSimilarityNodes;
 	
-	// private PPNodeSimilarityOptimistic nodeSimilarity;
-	// private PPNodeSimilarityMedian nodeSimilarity;
-	private PPNodeSimilarityMultiplicative nodeSimilarity;
-	
-	private ScaleClasses scaleClassesSimilarityHistogram;
-	
-	private ScaleClasses scaleClassesSimilarityNodes;
-	
-	private ScaleClasses scaleClassesFinalSimilarity;
-	
+	// private ScaleClasses scaleClassesFinalSimilarity;
+
 	private float [][] arrSimilarityNodes;
 	
 	private float [][] arrSimilarityHistograms;
@@ -105,33 +109,28 @@ public class ObjectiveFlexophoreHardMatchUncovered implements IObjectiveComplete
 	private double similarityScaled;
 	
 	
-	public ObjectiveFlexophoreHardMatchUncovered() {
+	public ObjectiveFlexophoreHardMatchUncovered(int versionInteractionTable) {
 		
 		arrTmpHist =  new byte[CGMult.BINS_HISTOGRAM];
 		
 		histogramMatchCalculator = new HistogramMatchCalculator();
-		
-		// nodeSimilarity = new PPNodeSimilarityOptimistic();
-		// nodeSimilarity = new PPNodeSimilarityMedian();
-		nodeSimilarity = new PPNodeSimilarityMultiplicative();
-		
-		/**
-		 * The scaling could be scaleClassesSimilarityHistogram.add(0.0, 1.0, 0.5, 1.0) 
-		 * because a minimum similarity is already given in <code>THRESH_HISTOGRAM_SIMILARITY</code>
-		 */
-		scaleClassesSimilarityHistogram = new ScaleClasses();
-		scaleClassesSimilarityHistogram.add(0.05, 1.0, 0.2, 1.0);
 
-		scaleClassesSimilarityNodes = new ScaleClasses();
-		scaleClassesSimilarityNodes.add(0.0, 1.0, 0.0, 1.0);
+		// nodeSimilarity = new PPNodeSimilarityOptimistic();
+
+		// nodeSimilarity = new PPNodeSimilarityMedian();
+
+		nodeSimilarity = new PPNodeSimilarityMultiplicative(versionInteractionTable);
+
+//		scaleClassesSimilarityNodes = new ScaleClasses();
+//		scaleClassesSimilarityNodes.add(0.0, 1.0, 0.0, 1.0);
 		
-		scaleClassesFinalSimilarity = new ScaleClasses();
-		scaleClassesFinalSimilarity.add(0.0, 0.1, 0.0, 0.5);
-		scaleClassesFinalSimilarity.add(0.1, 0.5, 0.5, 0.8);
-		scaleClassesFinalSimilarity.add(0.5, 0.7, 0.8, 0.9);
-		scaleClassesFinalSimilarity.add(0.7, 1.0, 0.9, 1.0);
+//		scaleClassesFinalSimilarity = new ScaleClasses();
+//		scaleClassesFinalSimilarity.add(0.0, 0.1, 0.0, 0.5);
+//		scaleClassesFinalSimilarity.add(0.1, 0.5, 0.5, 0.8);
+//		scaleClassesFinalSimilarity.add(0.5, 0.7, 0.8, 0.9);
+//		scaleClassesFinalSimilarity.add(0.7, 1.0, 0.9, 1.0);
 		
-		threshNodeMinSimilarity = THRESH_NODE_SIMILARITY;
+		threshNodeMinSimilarityStart = THRESH_NODE_SIMILARITY_START;
 		
 		threshHistogramSimilarity = THRESH_HISTOGRAM_SIMILARITY;
 		
@@ -243,15 +242,26 @@ public class ObjectiveFlexophoreHardMatchUncovered implements IObjectiveComplete
 				int indexNodeQuery = solution.getIndexQueryFromHeap(i);
 				PPNode nodeQuery = cgQuery.getNode(indexNodeQuery);
 				if(nodeQuery.hasHeteroAtom()){
+
 					heteroNodeQuery = true;
+
 				}
 				
 				int indexNodeBase = solution.getIndexCorrespondingBaseNode(indexNodeQuery);
 				
 				PPNode nodeBase = cgBase.getNode(indexNodeBase);
 				if(nodeBase.hasHeteroAtom()){
+
 					heteroNodeBase = true;
+
 				}
+
+				if(heteroNodeQuery && heteroNodeBase){
+
+					break;
+
+				}
+
 			}
 			
 			if(!heteroNodeQuery || !heteroNodeBase) {
@@ -296,6 +306,10 @@ public class ObjectiveFlexophoreHardMatchUncovered implements IObjectiveComplete
 					if(!areHistogramsMapping(indexNode1Query, indexNode2Query, indexNode1Base, indexNode2Base)){
 						mapping = false;
 						break outer;
+					} else {
+
+						// System.out.println("Match");
+
 					}
 	
 				}
@@ -306,6 +320,12 @@ public class ObjectiveFlexophoreHardMatchUncovered implements IObjectiveComplete
 		
 	}
 
+	/**
+	 * Dynamic calculation of similarity threshold. Depends on the number of interaction types in the nodes.
+	 * @param indexNodeQuery
+	 * @param indexNodeBase
+	 * @return
+	 */
 	public boolean areNodesMapping(int indexNodeQuery, int indexNodeBase) {
 		
 		if(!validHelpersQuery){
@@ -324,8 +344,34 @@ public class ObjectiveFlexophoreHardMatchUncovered implements IObjectiveComplete
 		boolean match = true;
 
 		double simNodes = getSimilarityNodes(indexNodeQuery, indexNodeBase);
-		
-		if(simNodes < threshNodeMinSimilarity){
+
+
+		//
+		// Dynamic calculation of similarity threshold.
+		//
+		PPNode ppNodeBase = cgBase.getNode(indexNodeBase);
+
+		PPNode ppNodeQuery = cgQuery.getNode(indexNodeQuery);
+
+		int interactionTypeCountBase = ppNodeBase.getInteractionTypeCount();
+
+		int interactionTypeCountQuery = ppNodeQuery.getInteractionTypeCount();
+
+		double threshCalc = 0;
+
+		if(interactionTypeCountBase > interactionTypeCountQuery) {
+
+			threshCalc = Math.pow(threshNodeMinSimilarityStart, interactionTypeCountBase);
+
+		} else {
+
+			threshCalc = Math.pow(threshNodeMinSimilarityStart, interactionTypeCountQuery);
+
+		}
+
+		// System.out.println("threshCalc " + Formatter.format3(threshCalc));
+
+		if(simNodes < threshCalc){
 			match=false;
 		}
 		
@@ -363,7 +409,9 @@ public class ObjectiveFlexophoreHardMatchUncovered implements IObjectiveComplete
 		int heap = solution.getSizeHeap();
 
 		double sumPairwiseMapping = 0;
-		
+
+		// double productPairwiseMapping = 0;
+
 		for (int i = 0; i < heap; i++) {
 			
 			int indexNode1Query = solution.getIndexQueryFromHeap(i);
@@ -374,8 +422,12 @@ public class ObjectiveFlexophoreHardMatchUncovered implements IObjectiveComplete
 				int indexNode2Query = solution.getIndexQueryFromHeap(j);
 				
 				int indexNode2Base = solution.getIndexCorrespondingBaseNode(indexNode2Query);
-				
-				sumPairwiseMapping += getScorePairwiseMapping(indexNode1Query, indexNode2Query, indexNode1Base, indexNode2Base);
+
+				double scorePairwiseMapping = getScorePairwiseMapping(indexNode1Query, indexNode2Query, indexNode1Base, indexNode2Base);
+
+				sumPairwiseMapping += scorePairwiseMapping;
+
+				// productPairwiseMapping *= productPairwiseMapping;
 
 			}
 		}
@@ -412,8 +464,15 @@ public class ObjectiveFlexophoreHardMatchUncovered implements IObjectiveComplete
 		}
 					
 		similarity = avrPairwiseMappingScaled * coverage * ratioNodes;
-				
+
+		// product give much worse results than average
+		// similarity = productPairwiseMapping * coverage * ratioNodes;
+
 		return (float)similarity;
+
+		// For testing
+		// return (float)1.0;
+
 	}
 
 
@@ -714,25 +773,30 @@ public class ObjectiveFlexophoreHardMatchUncovered implements IObjectiveComplete
 
 		double simNodePair1 = getSimilarityNodes(indexNode1Query, indexNode1Base);
 		
-		double simNodePair1Scaled = scaleClassesSimilarityNodes.scale(simNodePair1);
+		// double simNodePair1Scaled = scaleClassesSimilarityNodes.scale(simNodePair1);
 		
 		double simNodePair2 = getSimilarityNodes(indexNode2Query, indexNode2Base);
 		
-		double simNodePair2Scaled = scaleClassesSimilarityNodes.scale(simNodePair2);
+		// double simNodePair2Scaled = scaleClassesSimilarityNodes.scale(simNodePair2);
 		
 		double simHists = getSimilarityHistogram(indexNode1Query, indexNode2Query, indexNode1Base, indexNode2Base);
 		
 		if(simHists==0){
+
+			System.out.println("ObjectiveFlexophoreHardMatchUncovered getScorePairwiseMapping(int indexNode1Query, int indexNode2Query, int indexNode1Base, int indexNode2Base)");
+
 			System.out.println("Sim hists = 0");
 		}
-		
-		double simHistsScaled = scaleClassesSimilarityHistogram.scale(simHists);
-		
-		// score = simNodePair1Scaled * simNodePair2Scaled * simHistsScaled;
-		
-		score = simNodePair1Scaled * simNodePair1Scaled * simNodePair2Scaled * simNodePair2Scaled * simHistsScaled * simHistsScaled;
-		
-		
+
+		// double simHistsScaled = scHistogramMatch.scale(simHists);
+		double simHistsScaled = simHists;
+
+
+		// score = simNodePair1Scaled * simNodePair1Scaled * simNodePair2Scaled * simNodePair2Scaled * simHistsScaled * simHistsScaled;
+
+		score = simNodePair1 * simNodePair1 * simNodePair2 * simNodePair2 * simHistsScaled * simHistsScaled * simHistsScaled;
+
+
 		return score;
 	}
 
@@ -758,7 +822,7 @@ public class ObjectiveFlexophoreHardMatchUncovered implements IObjectiveComplete
 		if(arrSimilarityHistograms[indexHistogramQuery][indexHistogramBase] < 0){
 			
 			float similarityHistogram = (float)histogramMatchCalculator.getSimilarity(cgQuery, indexNode1Query, indexNode2Query, cgBase, indexNode1Base, indexNode2Base);
-			
+
 			arrSimilarityHistograms[indexHistogramQuery][indexHistogramBase]=similarityHistogram;
 		} 
 			

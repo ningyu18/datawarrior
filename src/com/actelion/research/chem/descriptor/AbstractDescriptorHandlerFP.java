@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -22,7 +22,7 @@ import java.util.Arrays;
 
 import com.actelion.research.chem.*;
 
-abstract public class AbstractDescriptorHandlerFP<U extends Object> implements DescriptorHandler<int[], U> {
+abstract public class AbstractDescriptorHandlerFP<U> implements DescriptorHandler<int[], U> {
     protected static final int[] FAILED_OBJECT = new int[0];
 
     public String encode(int[] o) {

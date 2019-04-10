@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,28 +18,22 @@
 
 package com.actelion.research.datawarrior.task.db;
 
-import java.util.Arrays;
-import java.util.Comparator;
-import java.util.Properties;
-import java.util.TreeMap;
-import java.util.TreeSet;
-
-import org.openmolecules.chembl.ChemblServerConstants;
-
 import com.actelion.research.chem.StereoMolecule;
 import com.actelion.research.chem.io.CompoundTableConstants;
 import com.actelion.research.datawarrior.DEFrame;
 import com.actelion.research.datawarrior.task.chem.DETaskAbstractAddChemProperty;
-import com.actelion.research.table.CompoundRecord;
-import com.actelion.research.table.CompoundTableModel;
+import com.actelion.research.table.model.CompoundRecord;
+import com.actelion.research.table.model.CompoundTableModel;
 import com.actelion.research.util.ByteArrayComparator;
+import org.openmolecules.chembl.ChemblServerConstants;
+
+import java.util.*;
 
 
 public class DETaskFindSimilarActiveCompounds extends DETaskAbstractAddChemProperty implements ChemblServerConstants,Runnable {
 	public static final String TASK_NAME = "Find Similar Compounds In ChEMBL Actives";
 
 	private static final int MAX_COMPOUNDS = 10000;
-	private static Properties sRecentConfiguration;
     private TreeMap<byte[], byte[][][]> mResultMap;
 
 	public DETaskFindSimilarActiveCompounds(DEFrame parent) {
@@ -47,18 +41,13 @@ public class DETaskFindSimilarActiveCompounds extends DETaskAbstractAddChemPrope
 		}
 
 	@Override
-	public Properties getRecentConfiguration() {
-    	return sRecentConfiguration;
-    	}
-
-	@Override
-	public void setRecentConfiguration(Properties configuration) {
-    	sRecentConfiguration = configuration;
-    	}
-
-	@Override
 	public String getTaskName() {
 		return TASK_NAME;
+		}
+
+	@Override
+	public boolean hasExtendedDialogContent() {
+		return false;
 		}
 
 	@Override
@@ -97,7 +86,7 @@ public class DETaskFindSimilarActiveCompounds extends DETaskAbstractAddChemPrope
 			}
 
 		if (idcodeSet.size() == 0) {
-			showErrorMessage("No compound structures found.");
+			showErrorMessage("No molecule structures found in current data set.");
 			return false;
 			}
 		
@@ -141,7 +130,12 @@ public class DETaskFindSimilarActiveCompounds extends DETaskAbstractAddChemPrope
 		if (mResultMap.size() == 0)
 			mResultMap = null;
 
-		return (mResultMap != null);
+		if (mResultMap == null) {
+			showErrorMessage("The server didn't find similar compounds among the 'Reliable ChEMBL Actives'.");
+			return false;
+			}
+
+		return true;
 		}
 
 	@Override

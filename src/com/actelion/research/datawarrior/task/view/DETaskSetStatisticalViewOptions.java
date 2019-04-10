@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,30 +18,16 @@
 
 package com.actelion.research.datawarrior.task.view;
 
-import info.clearthought.layout.TableLayout;
-
-import java.awt.BorderLayout;
-import java.awt.Frame;
-import java.awt.GridLayout;
-import java.awt.event.ActionEvent;
-import java.util.Properties;
-
-import javax.swing.JCheckBox;
-import javax.swing.JComboBox;
-import javax.swing.JComponent;
-import javax.swing.JLabel;
-import javax.swing.JPanel;
-import javax.swing.JTabbedPane;
-import javax.swing.JTextField;
-
 import com.actelion.research.calc.CorrelationCalculator;
 import com.actelion.research.datawarrior.DEMainPane;
-import com.actelion.research.table.CompoundTableModel;
-import com.actelion.research.table.view.CompoundTableView;
-import com.actelion.research.table.view.JVisualization;
-import com.actelion.research.table.view.JVisualization2D;
-import com.actelion.research.table.view.VisualizationPanel;
-import com.actelion.research.table.view.VisualizationPanel2D;
+import com.actelion.research.table.model.CompoundTableModel;
+import com.actelion.research.table.view.*;
+import info.clearthought.layout.TableLayout;
+
+import javax.swing.*;
+import java.awt.*;
+import java.awt.event.ActionEvent;
+import java.util.Properties;
 
 
 public class DETaskSetStatisticalViewOptions extends DETaskAbstractSetViewOptions {
@@ -50,8 +36,11 @@ public class DETaskSetStatisticalViewOptions extends DETaskAbstractSetViewOption
 
     private static final String PROPERTY_CORRELATION_TYPE = "correlationType";
     private static final String PROPERTY_MEAN_LINE_TYPE = "meanLineType";
-    private static final String PROPERTY_SHOW_STDDEV = "showStdDev";
+    private static final String PROPERTY_SHOW_STDDEV_LINES = "showStdDev";
     private static final String PROPERTY_SPLIT_BY_CATEGORY = "splitCurvesByCategory";
+    private static final String PROPERTY_BOXPLOT_SHOW_VALUE_COUNT = "showValueCount";
+    private static final String PROPERTY_BOXPLOT_SHOW_STDDEV = "showBoxStdDev";
+    private static final String PROPERTY_BOXPLOT_SHOW_CONF_INTERVAL = "showConfInterval";
     private static final String PROPERTY_BOXPLOT_SHOW_PVALUE = "showPValues";
     private static final String PROPERTY_BOXPLOT_SHOW_FOLDCHANGE = "showFoldChange";
     private static final String PROPERTY_PVALUE_COLUMN = "pValueColumn";
@@ -59,15 +48,16 @@ public class DETaskSetStatisticalViewOptions extends DETaskAbstractSetViewOption
     private static final String PROPERTY_BOXPLOT_MEAN_MODE = "boxPlotMeanMode";
     private static final String PROPERTY_BOXPLOT_MEAN_VALUES = "boxPlotMeanValues";
 
-    private static Properties sRecentConfiguration;
-
 	private JComboBox			mComboBoxCorrelationType,mComboBoxLineMode,mComboBoxBoxplotMeanMode;
-	private JCheckBox			mCheckBoxStdDev,mCheckBoxMultipleCurves,mCheckBoxShowMeanValues,mCheckBoxShowPValues,mCheckBoxShowFoldChange;
+	private JCheckBox			mCheckBoxScatterStdDev,mCheckBoxMultipleCurves,mCheckBoxShowMeanValues,
+								mCheckBoxShowPValues,mCheckBoxShowFoldChange,
+								mCheckBoxShowStdDev,mCheckBoxShowConfInterval,mCheckBoxShowValueCount;
 	private JComponent			mSelectorPValueColumn,mSelectorPValueRefCategory;
 
 	/**
 	 * @param owner
-	 * @param visualization null or view that is interactively updated
+	 * @param mainPane
+	 * @param view null or view that is interactively updated
 	 */
 	public DETaskSetStatisticalViewOptions(Frame owner, DEMainPane mainPane, VisualizationPanel2D view) {
 		super(owner, mainPane, view);
@@ -106,10 +96,10 @@ public class DETaskSetStatisticalViewOptions extends DETaskAbstractSetViewOption
 		mComboBoxLineMode.addActionListener(this);
 		scatterPlotPanel.add(mComboBoxLineMode, "3,3");
 
-		mCheckBoxStdDev = new JCheckBox("Display Standard Deviation");
-        mCheckBoxStdDev.setEnabled(false);
-		mCheckBoxStdDev.addActionListener(this);
-		scatterPlotPanel.add(mCheckBoxStdDev, "3,5");
+		mCheckBoxScatterStdDev = new JCheckBox("Display Standard Deviation");
+        mCheckBoxScatterStdDev.setEnabled(false);
+		mCheckBoxScatterStdDev.addActionListener(this);
+		scatterPlotPanel.add(mCheckBoxScatterStdDev, "3,5");
 
 		mCheckBoxMultipleCurves = new JCheckBox("Split By Color-Category");
 		mCheckBoxMultipleCurves.setEnabled(false);
@@ -119,28 +109,46 @@ public class DETaskSetStatisticalViewOptions extends DETaskAbstractSetViewOption
 		tabbedPane.add(scatterPlotPanel, "Scatter Plot");
 
 
-		double[][] boxPlotSize = { {8, TableLayout.PREFERRED, 8, TableLayout.PREFERRED, 8},
-								   {4, TableLayout.PREFERRED, TableLayout.PREFERRED,
-									4, TableLayout.PREFERRED, 4, TableLayout.PREFERRED,
-								   24, TableLayout.PREFERRED, 4, TableLayout.PREFERRED, 4} };
+		boolean isBoxPlot = (!hasInteractiveView()
+				|| getInteractiveVisualization().getChartType() == JVisualization.cChartTypeBoxPlot
+				|| getInteractiveVisualization().getChartType() == JVisualization.cChartTypeWhiskerPlot);
+		double[][] boxPlotSize = { {8, TableLayout.PREFERRED, 8, TableLayout.PREFERRED, TableLayout.FILL},
+								   {4, TableLayout.PREFERRED, TableLayout.PREFERRED, TableLayout.PREFERRED,
+									8, TableLayout.PREFERRED, TableLayout.PREFERRED,
+									4, TableLayout.PREFERRED, 2, TableLayout.PREFERRED,
+								   16, TableLayout.PREFERRED, 4, TableLayout.PREFERRED, 4} };
 		JPanel boxPlotPanel = new JPanel();
 		boxPlotPanel.setLayout(new TableLayout(boxPlotSize));
 
 		CompoundTableModel tableModel = getTableModel();
 
+		mCheckBoxShowStdDev = new JCheckBox("Show standard deviation");
+		mCheckBoxShowStdDev.addActionListener(this);
+		boxPlotPanel.add(mCheckBoxShowStdDev, "1,1,3,1");
+
+		mCheckBoxShowConfInterval = new JCheckBox("Show confidence interval (95 %)");
+		mCheckBoxShowConfInterval.addActionListener(this);
+		boxPlotPanel.add(mCheckBoxShowConfInterval, "1,2,3,2");
+
+		mCheckBoxShowValueCount = new JCheckBox("Show value count N");
+		mCheckBoxShowValueCount.addActionListener(this);
+		boxPlotPanel.add(mCheckBoxShowValueCount, "1,3,3,3");
+
 		mCheckBoxShowPValues = new JCheckBox("Show p-values");
 		mCheckBoxShowPValues.addActionListener(this);
-		boxPlotPanel.add(mCheckBoxShowPValues, "1,1,3,1");
+		mCheckBoxShowPValues.setEnabled(isBoxPlot);
+		boxPlotPanel.add(mCheckBoxShowPValues, "1,5,3,5");
 
 		mCheckBoxShowFoldChange = new JCheckBox("Show fold-change");
 		mCheckBoxShowFoldChange.addActionListener(this);
-		boxPlotPanel.add(mCheckBoxShowFoldChange, "1,2,3,2");
+		mCheckBoxShowFoldChange.setEnabled(isBoxPlot);
+		boxPlotPanel.add(mCheckBoxShowFoldChange, "1,6,3,6");
 
-		boxPlotPanel.add(new JLabel("Compare values on:"), "1,4");
+		boxPlotPanel.add(new JLabel("Compare values on:"), "1,8");
 		if (hasInteractiveView()) {
 			JComboBox cb = new JComboBox();
 			for (int column=0; column<tableModel.getTotalColumnCount(); column++)
-				if (getVisualization().isValidPValueColumn(column))
+				if (getInteractiveVisualization().isValidPValueColumn(column))
 					cb.addItem(tableModel.getColumnTitle(column));
 			cb.addActionListener(this);
 			mSelectorPValueColumn = cb;
@@ -148,9 +156,9 @@ public class DETaskSetStatisticalViewOptions extends DETaskAbstractSetViewOption
 		else {
 			mSelectorPValueColumn = new JTextField();
 			}
-		boxPlotPanel.add(mSelectorPValueColumn, "3,4");
+		boxPlotPanel.add(mSelectorPValueColumn, "3,8");
 
-		boxPlotPanel.add(new JLabel("Reference category:"), "1,6");
+		boxPlotPanel.add(new JLabel("Reference category:"), "1,10");
 		if (hasInteractiveView()) {
 			JComboBox cb = new JComboBox();
 			int column = getTableModel().findColumn((String)((JComboBox)mSelectorPValueColumn).getSelectedItem());
@@ -165,7 +173,7 @@ public class DETaskSetStatisticalViewOptions extends DETaskAbstractSetViewOption
 		else {
 			mSelectorPValueRefCategory = new JTextField();
 			}
-		boxPlotPanel.add(mSelectorPValueRefCategory, "3,6");
+		boxPlotPanel.add(mSelectorPValueRefCategory, "3,10");
 
 		if (hasInteractiveView()
 		 && ((JComboBox)mSelectorPValueColumn).getItemCount() == 0) {
@@ -173,19 +181,19 @@ public class DETaskSetStatisticalViewOptions extends DETaskAbstractSetViewOption
 			mCheckBoxShowFoldChange.setEnabled(false);
 			}
 
-		boxPlotPanel.add(new JLabel("Mean/median mode:"), "1,8");
+		boxPlotPanel.add(new JLabel("Mean/median mode:"), "1,12");
 		mComboBoxBoxplotMeanMode = new JComboBox(JVisualization2D.BOXPLOT_MEAN_MODE_TEXT);
+		mComboBoxBoxplotMeanMode.setEnabled(isBoxPlot);
 		mComboBoxBoxplotMeanMode.addActionListener(this);
-		boxPlotPanel.add(mComboBoxBoxplotMeanMode, "3,8");
+		boxPlotPanel.add(mComboBoxBoxplotMeanMode, "3,12");
 
-		mCheckBoxShowMeanValues = new JCheckBox("Show mean/median values");
-		mCheckBoxShowMeanValues.setEnabled(false);
+		mCheckBoxShowMeanValues = new JCheckBox(isBoxPlot ? "Show mean/median values" : "Show mean values");
 		mCheckBoxShowMeanValues.addActionListener(this);
-		boxPlotPanel.add(mCheckBoxShowMeanValues, "1,10,3,10");
+		boxPlotPanel.add(mCheckBoxShowMeanValues, "1,14,3,14");
 
-		tabbedPane.add(boxPlotPanel, "Box Plot");
+		tabbedPane.add(boxPlotPanel, "Box Plot / Bar Chart");
 
-		if (hasInteractiveView() && getVisualization().getChartType() == JVisualization.cChartTypeBoxPlot)
+		if (hasInteractiveView() && getInteractiveVisualization().getChartType() != JVisualization.cChartTypeScatterPlot)
 			tabbedPane.setSelectedComponent(boxPlotPanel);
 
 		return tabbedPane;
@@ -198,10 +206,13 @@ public class DETaskSetStatisticalViewOptions extends DETaskAbstractSetViewOption
 
 		if (mComboBoxLineMode.getSelectedIndex() != 0) {
 			configuration.setProperty(PROPERTY_MEAN_LINE_TYPE, JVisualization2D.CURVE_MODE_CODE[mComboBoxLineMode.getSelectedIndex()]);
-			configuration.setProperty(PROPERTY_SHOW_STDDEV, mCheckBoxStdDev.isSelected() ? "true" : "false");
+			configuration.setProperty(PROPERTY_SHOW_STDDEV_LINES, mCheckBoxScatterStdDev.isSelected() ? "true" : "false");
 			configuration.setProperty(PROPERTY_SPLIT_BY_CATEGORY, mCheckBoxMultipleCurves.isSelected() ? "true" : "false");
 			}
 
+		configuration.setProperty(PROPERTY_BOXPLOT_SHOW_STDDEV, mCheckBoxShowStdDev.isSelected() ? "true" : "false");
+		configuration.setProperty(PROPERTY_BOXPLOT_SHOW_CONF_INTERVAL, mCheckBoxShowConfInterval.isSelected() ? "true" : "false");
+		configuration.setProperty(PROPERTY_BOXPLOT_SHOW_VALUE_COUNT, mCheckBoxShowValueCount.isSelected() ? "true" : "false");
 		configuration.setProperty(PROPERTY_BOXPLOT_SHOW_PVALUE, mCheckBoxShowPValues.isSelected() ? "true" : "false");
 		configuration.setProperty(PROPERTY_BOXPLOT_SHOW_FOLDCHANGE, mCheckBoxShowFoldChange.isSelected() ? "true" : "false");
 
@@ -232,16 +243,19 @@ public class DETaskSetStatisticalViewOptions extends DETaskAbstractSetViewOption
 																  CorrelationCalculator.TYPE_NAME, -1));
 		mComboBoxLineMode.setSelectedIndex(findListIndex(configuration.getProperty(PROPERTY_MEAN_LINE_TYPE),
 														 JVisualization2D.CURVE_MODE_CODE, 0));
-		mCheckBoxStdDev.setSelected("true".equals(configuration.getProperty(PROPERTY_SHOW_STDDEV)));
+		mCheckBoxScatterStdDev.setSelected("true".equals(configuration.getProperty(PROPERTY_SHOW_STDDEV_LINES)));
 		mCheckBoxMultipleCurves.setSelected("true".equals(configuration.getProperty(PROPERTY_SPLIT_BY_CATEGORY)));
 
+		mCheckBoxShowStdDev.setSelected("true".equals(configuration.getProperty(PROPERTY_BOXPLOT_SHOW_STDDEV)));
+		mCheckBoxShowConfInterval.setSelected("true".equals(configuration.getProperty(PROPERTY_BOXPLOT_SHOW_CONF_INTERVAL)));
+		mCheckBoxShowValueCount.setSelected("true".equals(configuration.getProperty(PROPERTY_BOXPLOT_SHOW_VALUE_COUNT)));
 		mCheckBoxShowPValues.setSelected("true".equals(configuration.getProperty(PROPERTY_BOXPLOT_SHOW_PVALUE)));
 		mCheckBoxShowFoldChange.setSelected("true".equals(configuration.getProperty(PROPERTY_BOXPLOT_SHOW_FOLDCHANGE)));
 
 		String pValueColumn = configuration.getProperty(PROPERTY_PVALUE_COLUMN);
 		if (mSelectorPValueColumn instanceof JComboBox) {
 			int column = getTableModel().findColumn(pValueColumn);
-			if (getVisualization().isValidPValueColumn(column)) {
+			if (getInteractiveVisualization().isValidPValueColumn(column)) {
 				((JComboBox)mSelectorPValueColumn).setSelectedItem(getTableModel().getColumnTitle(column));
 				((JComboBox)mSelectorPValueRefCategory).setSelectedItem(configuration.getProperty(PROPERTY_PVALUE_REF_CATEGORY));
 				}
@@ -262,11 +276,16 @@ public class DETaskSetStatisticalViewOptions extends DETaskAbstractSetViewOption
 	public void setDialogToDefault() {
 		mComboBoxCorrelationType.setSelectedIndex(0);
 		mComboBoxLineMode.setSelectedIndex(0);
+		mCheckBoxShowStdDev.setSelected(false);
+		mCheckBoxShowConfInterval.setSelected(false);
+		mCheckBoxShowValueCount.setSelected(false);
 		mCheckBoxShowPValues.setSelected(false);
 		mCheckBoxShowFoldChange.setSelected(false);
 		((JTextField)mSelectorPValueColumn).setText("");
 		((JTextField)mSelectorPValueRefCategory).setText("");
 		mComboBoxBoxplotMeanMode.setSelectedIndex(JVisualization.BOXPLOT_DEFAULT_MEAN_MODE);
+
+		enableItems();
 		}
 
 	@Override
@@ -275,20 +294,19 @@ public class DETaskSetStatisticalViewOptions extends DETaskAbstractSetViewOption
 		}
 
 	@Override
-	public Properties getRecentConfigurationLocal() {
-		return sRecentConfiguration;
-		}
-
-	@Override
 	public void addViewConfiguration(Properties configuration) {
-		JVisualization2D v2d = (JVisualization2D)getVisualization();
+		JVisualization2D v2d = (JVisualization2D) getInteractiveVisualization();
 		int correlationType = v2d.getShownCorrelationType();
 		if (correlationType != -1)
 			configuration.setProperty(PROPERTY_CORRELATION_TYPE, CorrelationCalculator.TYPE_NAME[correlationType]);
 
 		configuration.setProperty(PROPERTY_MEAN_LINE_TYPE, JVisualization2D.CURVE_MODE_CODE[v2d.getCurveMode()]);
-		configuration.setProperty(PROPERTY_SHOW_STDDEV, v2d.isShowStandardDeviation() ? "true" : "false");
+		configuration.setProperty(PROPERTY_SHOW_STDDEV_LINES, v2d.isShowStandardDeviationLines() ? "true" : "false");
 		configuration.setProperty(PROPERTY_SPLIT_BY_CATEGORY, v2d.isCurveSplitByCategory() ? "true" : "false");
+
+		configuration.setProperty(PROPERTY_BOXPLOT_SHOW_STDDEV, v2d.isShowStandardDeviation() ? "true" : "false");
+		configuration.setProperty(PROPERTY_BOXPLOT_SHOW_CONF_INTERVAL, v2d.isShowConfidenceInterval() ? "true" : "false");
+		configuration.setProperty(PROPERTY_BOXPLOT_SHOW_VALUE_COUNT, v2d.isShowValueCount() ? "true" : "false");
 
 		int pValueColumn = v2d.getPValueColumn();
 		if (pValueColumn != JVisualization.cColumnUnassigned) {
@@ -318,8 +336,11 @@ public class DETaskSetStatisticalViewOptions extends DETaskAbstractSetViewOption
 		visualization.setShownCorrelationType(findListIndex(configuration.getProperty(PROPERTY_CORRELATION_TYPE),
 															 CorrelationCalculator.TYPE_NAME, -1));
 		visualization.setCurveMode(findListIndex(configuration.getProperty(PROPERTY_MEAN_LINE_TYPE), JVisualization2D.CURVE_MODE_CODE, 0),
-									"true".equals(configuration.getProperty(PROPERTY_SHOW_STDDEV)),
+									"true".equals(configuration.getProperty(PROPERTY_SHOW_STDDEV_LINES)),
 									"true".equals(configuration.getProperty(PROPERTY_SPLIT_BY_CATEGORY)));
+		visualization.setShowStandardDeviation("true".equals(configuration.getProperty(PROPERTY_BOXPLOT_SHOW_STDDEV)));
+		visualization.setShowConfidenceInterval("true".equals(configuration.getProperty(PROPERTY_BOXPLOT_SHOW_CONF_INTERVAL)));
+		visualization.setShowValueCount("true".equals(configuration.getProperty(PROPERTY_BOXPLOT_SHOW_VALUE_COUNT)));
 		visualization.setPValueColumn(getTableModel().findColumn(configuration.getProperty(PROPERTY_PVALUE_COLUMN)), configuration.getProperty(PROPERTY_PVALUE_REF_CATEGORY));
 		visualization.setShowPValue("true".equals(configuration.getProperty(PROPERTY_BOXPLOT_SHOW_PVALUE)));
 		visualization.setShowFoldChange("true".equals(configuration.getProperty(PROPERTY_BOXPLOT_SHOW_FOLDCHANGE)));
@@ -328,15 +349,22 @@ public class DETaskSetStatisticalViewOptions extends DETaskAbstractSetViewOption
 		}
 
 	@Override
-	public void setRecentConfiguration(Properties configuration) {
-		sRecentConfiguration = configuration;
-		}
-
-	@Override
 	public void enableItems() {
-    	mCheckBoxStdDev.setEnabled(mComboBoxLineMode.getSelectedIndex() != 0);
-    	mCheckBoxMultipleCurves.setEnabled(mComboBoxLineMode.getSelectedIndex() != 0);
-    	mCheckBoxShowMeanValues.setEnabled(mComboBoxBoxplotMeanMode.getSelectedIndex() != 0);
+		mCheckBoxScatterStdDev.setEnabled(mComboBoxLineMode.getSelectedIndex() != 0);
+		mCheckBoxMultipleCurves.setEnabled(mComboBoxLineMode.getSelectedIndex() != 0);
+
+		boolean isBoxPlot = (!hasInteractiveView() || getInteractiveVisualization().getChartType() == JVisualization.cChartTypeBoxPlot);
+		if (isBoxPlot) {
+			mCheckBoxShowMeanValues.setEnabled(mComboBoxBoxplotMeanMode.getSelectedIndex() != 0);
+
+			boolean needsBoxPlotCategories = mCheckBoxShowPValues.isSelected() || mCheckBoxShowFoldChange.isSelected();
+			mSelectorPValueColumn.setEnabled(needsBoxPlotCategories);
+			mSelectorPValueRefCategory.setEnabled(needsBoxPlotCategories);
+			}
+		else {
+			mSelectorPValueColumn.setEnabled(false);
+			mSelectorPValueRefCategory.setEnabled(false);
+			}
 		}
 
 	@Override

@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,40 +18,28 @@
 
 package com.actelion.research.gui.form;
 
-import java.awt.BorderLayout;
-import java.awt.Component;
-import java.awt.Dimension;
-import java.awt.Graphics;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
-import java.awt.event.ComponentEvent;
-import java.awt.event.ComponentListener;
-import java.awt.event.MouseAdapter;
-import java.awt.event.MouseEvent;
+import com.actelion.research.gui.PopupItemProvider;
+import com.actelion.research.gui.hidpi.JBrowseButtons;
+
+import javax.swing.*;
+import java.awt.*;
+import java.awt.event.*;
 import java.awt.geom.Rectangle2D;
 import java.util.ArrayList;
-
-import javax.swing.JMenuItem;
-import javax.swing.JPanel;
-import javax.swing.JPopupMenu;
-import javax.swing.JScrollPane;
-
-import com.actelion.research.gui.JVerticalBrowseToolbar;
-import com.actelion.research.gui.PopupItemProvider;
 
 public abstract class JResultDetailView extends JPanel
 					implements ActionListener,ComponentListener,PopupItemProvider,ReferencedDataConsumer {
     private static final long serialVersionUID = 0x20110912;
 
     protected Component				mDetailView;
-	private ReferenceResolver		mReferenceResolver;
+	private ReferenceResolver       mReferenceResolver;
 	private ResultDetailPopupItemProvider mPopupItemProvider;
-	private RemoteDetailSource		mDetailSource;
+	private RemoteDetailSource      mDetailSource;
 	private String					mCurrentReference;
 	private String[]				mDetailReference;
 	private int						mCurrentDetailIndex;
 	private boolean					mComponentVisible,mDetailNeedsUpdate,mToolbarVisible;
-	private JVerticalBrowseToolbar	mToolbar;
+	private JPanel                  mToolbarPanel;
     private ArrayList<JMenuItem>    mPopupItemList;
 
 	public JResultDetailView(ReferenceResolver referenceResolver, ResultDetailPopupItemProvider popupItemProvider,
@@ -85,26 +73,47 @@ public abstract class JResultDetailView extends JPanel
 		if (mDetailReference == detailReference)
 			return;
 
+		mDetailReference = detailReference;
+		mCurrentDetailIndex = 0;
+
 		boolean needsToolbar = (detailReference != null && detailReference.length > 1);
 		if (needsToolbar && !mToolbarVisible) {
-			if (mToolbar == null) {
-				mToolbar = new JVerticalBrowseToolbar();
-				mToolbar.addActionListener(this);
+			if (mToolbarPanel == null) {
+//				final JVerticalBrowseToolbar toolbar = new JVerticalBrowseToolbar();
+				final JBrowseButtons toolbar = new JBrowseButtons(true, 0, 0, this);
+				mToolbarPanel = new JPanel() {
+					private static final int FONT_SIZE = 12;
+					@Override
+					public void paintComponent(Graphics g) {
+						super.paintComponent(g);
+						if (mDetailReference != null && mDetailReference.length > 1) {
+							String msg = Integer.toString(mCurrentDetailIndex+1) + " of " + Integer.toString(mDetailReference.length);
+							Graphics2D g2d = (Graphics2D) g;
+//							g2d.setFont(new Font("Helvetica", Font.BOLD, FONT_SIZE));
+							g2d.rotate(Math.PI / 2);
+							g2d.drawString(msg, 8 + toolbar.getHeight(), (g2d.getFont().getSize() - toolbar.getWidth()) / 2 - g2d.getFontMetrics().getDescent());
+							g2d.rotate(-Math.PI / 2);
+							}
+						}
+					};
+//				toolbar.addActionListener(this);
+				mToolbarPanel.setLayout(new BorderLayout());
+				mToolbarPanel.add(toolbar, BorderLayout.NORTH);
 				}
-			add(mToolbar, BorderLayout.EAST);
+			add(mToolbarPanel, BorderLayout.EAST);
 			validate();
 			mToolbarVisible = true;
 			}
 		else if (!needsToolbar && mToolbarVisible) {
-			remove(mToolbar);
+			remove(mToolbarPanel);
 			validate();
 			mToolbarVisible = false;
 			}
 
-		setReference(detailReference == null ? null : detailReference[0]);
+		if (needsToolbar)
+			mToolbarPanel.repaint();
 
-		mDetailReference = detailReference;
-		mCurrentDetailIndex = 0;
+		setReference(detailReference == null ? null : detailReference[0]);
 		}
 
 	/**
@@ -167,7 +176,7 @@ public abstract class JResultDetailView extends JPanel
      * ActionListener. Then adds the popup item to the rendering component's popup menu.
      * If the rendering component does not have an own popup menu,
      * then the mechanism is created to provide one.
-     * @param item
+     * @param itemName
      */
     public void addPopupItem(String itemName) {
         JMenuItem item = new JMenuItem(itemName);
@@ -185,7 +194,7 @@ public abstract class JResultDetailView extends JPanel
         if (mPopupItemList == null) {
             mPopupItemList = new ArrayList<JMenuItem>();
             if (!hasOwnPopupMenu()) {
-	            getPopupComponent().addMouseListener(new MouseAdapter() {
+	            getViewComponent().addMouseListener(new MouseAdapter() {
 	                public void mousePressed(MouseEvent e) {
 	                    handlePopupTrigger(e);
 	                    }
@@ -204,11 +213,11 @@ public abstract class JResultDetailView extends JPanel
             for (JMenuItem item:mPopupItemList)
                 popup.add(item);
 
-            popup.show(getPopupComponent(), e.getX(), e.getY());
+            popup.show(getViewComponent(), e.getX(), e.getY());
             }
         }
 
-    private Component getPopupComponent() {
+    public Component getViewComponent() {
         return (mDetailView instanceof JScrollPane) ?
                 ((JScrollPane)mDetailView).getViewport().getView() : mDetailView;
         }
@@ -241,6 +250,7 @@ public abstract class JResultDetailView extends JPanel
 				setReference(mDetailReference[mCurrentDetailIndex]);
 				}
 			}
+	    mToolbarPanel.repaint();
 		}
 
 	public String getCurrentReference() {
@@ -275,15 +285,25 @@ public abstract class JResultDetailView extends JPanel
 			setDetailData(data);
 		}
 
-	protected void printReferences(Graphics g, Rectangle2D.Float r, float scale, String[] detailReference) {
+	protected void printReferences(Graphics g, Rectangle2D.Double r, float scale, String[] detailReference, boolean isMultipleRows) {
 		if (detailReference == null)	// shouldn't happen but the devil is a squirrel...
 			return;
 
-			// Currently prints only first referenced object.
+			// If we print multiple rows, then prints first referenced object.
 			// Could alternatively print all resolved references within r.
-		print(g, r, scale, mReferenceResolver.resolveReference(mDetailSource, detailReference[0], ReferenceResolver.MODE_FULL_IMAGE));
+		int refIndex = isMultipleRows ? 0 : mCurrentDetailIndex;
+		print(g, r, scale, mReferenceResolver.resolveReference(mDetailSource, detailReference[refIndex], ReferenceResolver.MODE_FULL_IMAGE));
+
+        if (detailReference.length > 1) {
+			String msg = Integer.toString(refIndex+1)+" of "+Integer.toString(detailReference.length);
+	        Graphics2D g2d = (Graphics2D)g;
+	        g2d.setColor(Color.RED);
+	        g2d.setFont(g2d.getFont().deriveFont(Font.BOLD, (int)(9*scale+0.5)));
+	        Rectangle2D bounds = g2d.getFontMetrics().getStringBounds(msg, g2d);
+	        g2d.drawString(msg, (float)(r.x+r.width-bounds.getWidth()-5*scale), (float)(r.y+r.height-5*scale));
+            }
 		}
 
-	abstract protected void print(Graphics g, Rectangle2D.Float r, float scale, Object data);
+	abstract protected void print(Graphics g, Rectangle2D.Double r, float scale, Object data);
 	abstract protected void setDetailData(Object data);
 	}

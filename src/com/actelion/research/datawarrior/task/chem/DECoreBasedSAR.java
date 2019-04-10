@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,30 +18,19 @@
 
 package com.actelion.research.datawarrior.task.chem;
 
-import info.clearthought.layout.TableLayout;
-
-import java.util.ArrayList;
-import java.util.Properties;
-
-import javax.swing.JCheckBox;
-import javax.swing.JLabel;
-import javax.swing.JOptionPane;
-import javax.swing.JPanel;
-
-import com.actelion.research.chem.Canonizer;
-import com.actelion.research.chem.CoordinateInventor;
-import com.actelion.research.chem.IDCodeParser;
-import com.actelion.research.chem.Molecule;
-import com.actelion.research.chem.SSSearcher;
-import com.actelion.research.chem.SSSearcherWithIndex;
-import com.actelion.research.chem.StereoMolecule;
-import com.actelion.research.chem.UniqueStringList;
+import com.actelion.research.chem.*;
+import com.actelion.research.chem.coords.CoordinateInventor;
 import com.actelion.research.chem.descriptor.DescriptorConstants;
 import com.actelion.research.datawarrior.DEFrame;
 import com.actelion.research.gui.CompoundCollectionPane;
 import com.actelion.research.gui.DefaultCompoundCollectionModel;
 import com.actelion.research.gui.clipboard.ClipboardHandler;
-import com.actelion.research.table.CompoundTableModel;
+import com.actelion.research.table.model.CompoundTableModel;
+import info.clearthought.layout.TableLayout;
+
+import javax.swing.*;
+import java.util.ArrayList;
+import java.util.Properties;
 
 public class DECoreBasedSAR extends DETaskAbstractAddChemProperty {
 	public static final String TASK_NAME = "Core-Based SAR Analysis";
@@ -53,28 +42,16 @@ public class DECoreBasedSAR extends DETaskAbstractAddChemProperty {
 	private static final String CORE_FRAGMENT_COLUMN_NAME = "Scaffold";
 	private static final int cTableColumnNew = -2;
 
-	private static Properties sRecentConfiguration;
-
 	private DefaultCompoundCollectionModel.Molecule mScaffoldModel;
 	private JCheckBox			mCheckBoxDistinguishStereocenters,mCheckBoxUseExistingColumns;
 	private String[]			mScaffold;
 	private String[][]			mSubstituent;
-	private int					mScaffoldColumn,mMultipleMatches;
+	private int					mScaffoldColumn,mMultipleMatches,mNewColumnCount;
 	private int[]				mSubstituentColumn;
 
     public DECoreBasedSAR(DEFrame parent) {
 		super(parent, DESCRIPTOR_NONE, false, false);
 	    }
-
-	@Override
-	public Properties getRecentConfiguration() {
-		return sRecentConfiguration;
-		}
-
-	@Override
-	public void setRecentConfiguration(Properties configuration) {
-		sRecentConfiguration = configuration;
-		}
 
 	@Override
 	public String getTaskName() {
@@ -84,6 +61,11 @@ public class DECoreBasedSAR extends DETaskAbstractAddChemProperty {
 	@Override
 	public String getHelpURL() {
 		return "/html/help/chemistry.html#SARTables";
+		}
+
+	@Override
+	public boolean hasExtendedDialogContent() {
+		return true;
 		}
 
 	@Override
@@ -148,12 +130,7 @@ public class DECoreBasedSAR extends DETaskAbstractAddChemProperty {
 
 	@Override
 	protected int getNewColumnCount() {
-		int count = (mScaffoldColumn == cTableColumnNew) ? 1 : 0;
-		if (mSubstituentColumn != null)
-			for (int i=0; i<mSubstituentColumn.length; i++)
-				if (mSubstituentColumn[i] == cTableColumnNew)
-					count++;
-		return count;
+		return mNewColumnCount;
 		}
 
 	@Override
@@ -273,6 +250,12 @@ public class DECoreBasedSAR extends DETaskAbstractAddChemProperty {
 				}
 			}
 
+		mNewColumnCount = (mScaffoldColumn == cTableColumnNew) ? 1 : 0;
+		if (mSubstituentColumn != null)
+			for (int i=0; i<mSubstituentColumn.length; i++)
+				if (mSubstituentColumn[i] == cTableColumnNew)
+					mNewColumnCount++;
+
 		return true;
 		}
 
@@ -331,12 +314,14 @@ public class DECoreBasedSAR extends DETaskAbstractAddChemProperty {
 
 						// store original fragment atom numbers incremented by 1 in atomMapNo
 					for (int i=0; i<matchAtom.length; i++)
-						mol.setAtomMapNo(matchAtom[i], i+1, false);
+						if (matchAtom[i] != -1)
+							mol.setAtomMapNo(matchAtom[i], i+1, false);
 
 						// mark all atoms belonging to core fragment
 					boolean[] isCoreAtom = new boolean[mol.getAllAtoms()];
 					for (int i=0; i<matchAtom.length; i++)
-						isCoreAtom[matchAtom[i]] = true;
+						if (matchAtom[i] != -1)
+							isCoreAtom[matchAtom[i]] = true;
 
 					String stereoInfo = "";
 					int[] coreAtomParity = null;
@@ -345,11 +330,13 @@ public class DECoreBasedSAR extends DETaskAbstractAddChemProperty {
 						boolean[] isExtendedCoreAtom = new boolean[mol.getAllAtoms()];	// core plus direct neighbours
 						for (int i=0; i<matchAtom.length; i++) {
 							int atom = matchAtom[i];
-							isExtendedCoreAtom[atom] = true;
-							for (int j=0; j<mol.getConnAtoms(atom); j++) {
-								int connAtom = mol.getConnAtom(atom, j);
-								if (!isCoreAtom[connAtom])
-									isExtendedCoreAtom[connAtom] = true;
+							if (atom != -1) {
+								isExtendedCoreAtom[atom] = true;
+								for (int j = 0; j < mol.getConnAtoms(atom); j++) {
+									int connAtom = mol.getConnAtom(atom, j);
+									if (!isCoreAtom[connAtom])
+										isExtendedCoreAtom[connAtom] = true;
+									}
 								}
 							}
 
@@ -404,43 +391,46 @@ public class DECoreBasedSAR extends DETaskAbstractAddChemProperty {
 						}
 
 					for (int i=0; i<matchAtom.length; i++)
-						mol.setAtomicNo(matchAtom[i], 0);
+						if (matchAtom[i] != -1)
+							mol.setAtomicNo(matchAtom[i], 0);
 
 					int[] workAtom = new int[mol.getAllAtoms()];
 					for (int i=0; i<matchAtom.length; i++) {
-						boolean[] isSubstituentAtom = new boolean[mol.getAllAtoms()];
-						isSubstituentAtom[matchAtom[i]] = true;
-						workAtom[0] = matchAtom[i];
-						int current = 0;
-						int highest = 0;
-						while (current <= highest) {
-							for (int j=0; j<mol.getConnAtoms(workAtom[current]); j++) {
-								if (current == 0 || !isCoreAtom[workAtom[current]]) {
-									int candidate = mol.getConnAtom(workAtom[current], j);
-									if (!isSubstituentAtom[candidate]
-									 && (current != 0 || !isCoreAtom[candidate])) {
-										isSubstituentAtom[candidate] = true;
-										workAtom[++highest] = candidate;
+						if (matchAtom[i] != -1) {
+							boolean[] isSubstituentAtom = new boolean[mol.getAllAtoms()];
+							isSubstituentAtom[matchAtom[i]] = true;
+							workAtom[0] = matchAtom[i];
+							int current = 0;
+							int highest = 0;
+							while (current <= highest) {
+								for (int j=0; j<mol.getConnAtoms(workAtom[current]); j++) {
+									if (current == 0 || !isCoreAtom[workAtom[current]]) {
+										int candidate = mol.getConnAtom(workAtom[current], j);
+										if (!isSubstituentAtom[candidate]
+										 && (current != 0 || !isCoreAtom[candidate])) {
+											isSubstituentAtom[candidate] = true;
+											workAtom[++highest] = candidate;
+											}
 										}
 									}
+								current++;
 								}
-							current++;
+
+							fragment.deleteMolecule();
+							mol.copyMoleculeByAtoms(fragment, isSubstituentAtom, false, null);
+							fragment.setFragment(false);
+
+							if (!distinguishStereoCenters)
+								fragment.stripStereoInformation();
+
+								// if substituent is a ring forming bridge to the startatom
+							for (int bond=fragment.getAllBonds()-1; bond>=0; bond--)
+								if (fragment.getAtomicNo(fragment.getBondAtom(0, bond)) == 0
+								 && fragment.getAtomicNo(fragment.getBondAtom(1, bond)) == 0)
+									fragment.deleteBond(bond);
+
+							substituent[i][row] = (highest == 0) ? null : new Canonizer(fragment).getIDCode();
 							}
-
-						fragment.deleteMolecule();
-						mol.copyMoleculeByAtoms(fragment, isSubstituentAtom, false, null);
-						fragment.setFragment(false);
-
-						if (!distinguishStereoCenters)
-							fragment.stripStereoInformation();
-
-							// if substituent is a ring forming bridge to the startatom
-						for (int bond=fragment.getAllBonds()-1; bond>=0; bond--)
-							if (fragment.getAtomicNo(fragment.getBondAtom(0, bond)) == 0
-							 && fragment.getAtomicNo(fragment.getBondAtom(1, bond)) == 0)
-								fragment.deleteBond(bond);
-
-						substituent[i][row] = (highest == 0) ? null : new Canonizer(fragment).getIDCode();
 						}
 					}
 				}
@@ -532,16 +522,7 @@ public class DECoreBasedSAR extends DETaskAbstractAddChemProperty {
 		}
 
 	@Override
-	public void processRow(int row, int firstNewColumn, StereoMolecule containerMol) throws Exception {
-		}
-
-	@Override
-	public void postprocess(int firstNewColumn) {
-        if (threadMustDie())
-            return;
-
-		startProgress("Extending table...", 0, getTableModel().getTotalRowCount() / 64);
-
+	protected void setNewColumnProperties(int firstNewColumn) {
 		int lastNewColumn = firstNewColumn;
 		if (mScaffoldColumn == cTableColumnNew)
 			mScaffoldColumn = lastNewColumn++;
@@ -550,41 +531,35 @@ public class DECoreBasedSAR extends DETaskAbstractAddChemProperty {
 				if (mSubstituentColumn[i] == cTableColumnNew)
 					mSubstituentColumn[i] = lastNewColumn++;
 
-		for (int row=0; row<getTableModel().getTotalRowCount(); row++) {
-			if (threadMustDie())
-				break;
+		for (int i=firstNewColumn; i<lastNewColumn; i++)
+            getTableModel().setColumnProperty(i, CompoundTableModel.cColumnPropertySpecialType, CompoundTableModel.cColumnTypeIDCode);
+		}
 
-			if ((row % 64) == 63)
-				updateProgress(row / 64);
-
-			if (mScaffold[row] != null) {
-				getTableModel().setTotalValueAt(mScaffold[row], row, mScaffoldColumn);
-				getTableModel().removeChildDescriptorsAndCoordinates(row, mScaffoldColumn);
-				for (int i=0; i<mSubstituent.length; i++) {
-					if (mSubstituent[i][row] != null) {
-						getTableModel().setTotalValueAt(mSubstituent[i][row], row, mSubstituentColumn[i]);
-						getTableModel().removeChildDescriptorsAndCoordinates(row, mSubstituentColumn[i]);
-						}
+	@Override
+	public void processRow(int row, int firstNewColumn, StereoMolecule containerMol) throws Exception {
+		if (mScaffold[row] != null) {
+			getTableModel().setTotalValueAt(mScaffold[row], row, mScaffoldColumn);
+			getTableModel().removeChildDescriptorsAndCoordinates(row, mScaffoldColumn);
+			for (int i=0; i<mSubstituent.length; i++) {
+				if (mSubstituent[i][row] != null) {
+					getTableModel().setTotalValueAt(mSubstituent[i][row], row, mSubstituentColumn[i]);
+					getTableModel().removeChildDescriptorsAndCoordinates(row, mSubstituentColumn[i]);
 					}
 				}
 			}
+		}
 
+	@Override
+	public void postprocess(int firstNewColumn) {
 		if (mScaffoldColumn < firstNewColumn)
 			getTableModel().finalizeChangeChemistryColumn(mScaffoldColumn, 0, getTableModel().getTotalRowCount(), false);
 		for (int i=0; i<mSubstituent.length; i++)
 			if (mSubstituentColumn[i] < firstNewColumn)
 				getTableModel().finalizeChangeChemistryColumn(mSubstituentColumn[i], 0, getTableModel().getTotalRowCount(), false);
 
-        if (firstNewColumn != -1) {
-            for (int i=firstNewColumn; i<lastNewColumn; i++)
-                getTableModel().setColumnProperty(i, CompoundTableModel.cColumnPropertySpecialType, CompoundTableModel.cColumnTypeIDCode);
-    
-            getTableModel().finalizeNewColumns(firstNewColumn, this);
-            }
-
 		if (isInteractive() && mMultipleMatches > 0) {
-			final String message = "In "+mMultipleMatches+" cases a symmetric scaffold could be matched multiple times./n"
-								 + "In these cases R-groups could not be ssigned in a unique way./n"
+			final String message = "In "+mMultipleMatches+" cases a symmetric scaffold could be matched multiple times.\n"
+								 + "In these cases R-groups could not be ssigned in a unique way.\n"
 								 + "You may try avoiding this by specifying less symmetrical scaffold structures.";
 			showInteractiveTaskMessage(message, JOptionPane.WARNING_MESSAGE);
 			}

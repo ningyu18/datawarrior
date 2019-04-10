@@ -34,6 +34,7 @@ public class SunSkyLight implements LightSource, PrimitiveList, Shader {
     // parameters to the model
     private Vector3 sunDirWorld;
     private float turbidity;
+	private float brightness;	// introduced, because sceenes with groundExtendSky==true seemed to bright; TLS 19Aug2016
     // derived quantities
     private Vector3 sunDir;
     private SpectralCurve sunSpectralRadiance;
@@ -87,6 +88,7 @@ public class SunSkyLight implements LightSource, PrimitiveList, Shader {
         basis = OrthoNormalBasis.makeFromWV(new Vector3(0, 0, 1), new Vector3(0, 1, 0));
         groundExtendSky = false;
         groundColor = Color.BLACK;
+		brightness = 1f;
         initSunSky();
     }
 
@@ -199,6 +201,7 @@ public class SunSkyLight implements LightSource, PrimitiveList, Shader {
         numSkySamples = pl.getInt("samples", numSkySamples);
         sunDirWorld = pl.getVector("sundir", sunDirWorld);
         turbidity = pl.getFloat("turbidity", turbidity);
+		brightness = pl.getFloat("brightness", brightness);
         groundExtendSky = pl.getBoolean("ground.extendsky", groundExtendSky);
         groundColor = pl.getColor("ground.color", groundColor);
         // recompute model
@@ -221,7 +224,7 @@ public class SunSkyLight implements LightSource, PrimitiveList, Shader {
         // XYZColor c = new ChromaticitySpectrum((float) x, (float) y).toXYZ();
         float X = (float) (c.getX() * Y / c.getY());
         float Z = (float) (c.getZ() * Y / c.getY());
-        return RGBSpace.SRGB.convertXYZtoRGB(X, (float) Y, Z);
+        return RGBSpace.SRGB.convertXYZtoRGB(brightness*X, brightness*(float) Y, brightness*Z);
     }
 
     public int getNumSamples() {

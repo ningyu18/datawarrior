@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -25,13 +25,13 @@ import java.util.TreeSet;
 import com.actelion.research.datawarrior.DEFrame;
 import com.actelion.research.datawarrior.DERuntimeProperties;
 import com.actelion.research.datawarrior.DataWarrior;
-import com.actelion.research.datawarrior.task.DETaskWithEmptyConfiguration;
-import com.actelion.research.table.CompoundTableEvent;
-import com.actelion.research.table.CompoundTableHitlistHandler;
-import com.actelion.research.table.CompoundTableModel;
+import com.actelion.research.datawarrior.task.AbstractTaskWithoutConfiguration;
+import com.actelion.research.table.model.CompoundTableEvent;
+import com.actelion.research.table.model.CompoundTableListHandler;
+import com.actelion.research.table.model.CompoundTableModel;
 
 
-public class DETaskNewFileFromSelection extends DETaskWithEmptyConfiguration {
+public class DETaskNewFileFromSelection extends AbstractTaskWithoutConfiguration {
 	public static final String TASK_NAME = "New File From Selection";
 
 	private DEFrame				mSourceFrame,mTargetFrame;
@@ -78,14 +78,14 @@ public class DETaskNewFileFromSelection extends DETaskWithEmptyConfiguration {
 		rp.learn();
 
         CompoundTableModel sourceTableModel = mSourceFrame.getTableModel();
-        CompoundTableHitlistHandler sourceHitlistHandler = sourceTableModel.getHitlistHandler();
+        CompoundTableListHandler sourceHitlistHandler = sourceTableModel.getListHandler();
 
-       	boolean[] hitlistUsed = new boolean[sourceHitlistHandler.getHitlistCount()];
+       	boolean[] hitlistUsed = new boolean[sourceHitlistHandler.getListCount()];
        	long hitlistMask[] = null;
        	if (hitlistUsed.length != 0) {
        		hitlistMask = new long[hitlistUsed.length];
        		for (int i=0; i<hitlistUsed.length; i++)
-       			hitlistMask[i] = sourceHitlistHandler.getHitlistMask(i);
+       			hitlistMask[i] = sourceHitlistHandler.getListMask(i);
        		}
 
 		int selectionCount = 0;
@@ -100,7 +100,7 @@ public class DETaskNewFileFromSelection extends DETaskWithEmptyConfiguration {
 
         mTargetFrame = mApplication.getEmptyFrame("Selection of "+mSourceFrame.getTitle());
         CompoundTableModel targetTableModel = mTargetFrame.getTableModel();
-        CompoundTableHitlistHandler targetHitlistHandler = targetTableModel.getHitlistHandler();
+        CompoundTableListHandler targetHitlistHandler = targetTableModel.getListHandler();
         targetTableModel.initializeTable(selectionCount, sourceTableModel.getTotalColumnCount());
         for (int column=0; column<sourceTableModel.getTotalColumnCount(); column++)
         	targetTableModel.setColumnName(sourceTableModel.getColumnTitleNoAlias(column), column);
@@ -131,8 +131,8 @@ public class DETaskNewFileFromSelection extends DETaskWithEmptyConfiguration {
 
         for (int i=0; i<hitlistUsed.length; i++) {
         	if (hitlistUsed[i]) {
-        		int flagNo = targetHitlistHandler.getHitlistFlagNo(targetHitlistHandler.createHitlist(
-        				sourceHitlistHandler.getHitlistName(i), -1, CompoundTableHitlistHandler.EMPTY_LIST, -1, null));
+        		int flagNo = targetHitlistHandler.getListFlagNo(targetHitlistHandler.createList(
+        				sourceHitlistHandler.getListName(i), -1, CompoundTableListHandler.EMPTY_LIST, -1, null));
                	int tRow = 0;
                	for (int row=0; row<sourceTableModel.getRowCount(); row++) {
         			if (sourceTableModel.isSelected(row)) {

@@ -11,7 +11,6 @@ import java.util.List;
 
 import com.actelion.research.chem.Coordinates;
 import com.actelion.research.chem.FFMolecule;
-import com.actelion.research.chem.calculator.GeometryCalculator;
 
 
 /**
@@ -24,6 +23,7 @@ public final class ToolMeasureAngle extends ToolMeasure {
 		return null;
 	}
 	
+	@Override
 	public void callSub(IPickable shape, final Canvas3D canvas) {
 
 		if(canvas.getPickedShapes().size()>=3) {				
@@ -34,14 +34,15 @@ public final class ToolMeasureAngle extends ToolMeasure {
 			if(a1<0 || a2<0 || a3<0) return;
 
 			canvas.addPaintProcessor(new PaintProcessor() {
+				@Override
 				public void preProcess() {
 					List<Shape> shapes = new ArrayList<Shape>();
 					FFMolecule mol = ((MoleculeCanvas)canvas).getMolecule();
 					if(a1>=mol.getAllAtoms() || a2>=mol.getAllAtoms() || a3>=mol.getAllAtoms()) return;
 					
-					Coordinates c1 = GeometryCalculator.getCoordinates(mol, a1);
-					Coordinates c2 = GeometryCalculator.getCoordinates(mol, a2);
-					Coordinates c3 = GeometryCalculator.getCoordinates(mol, a3);
+					Coordinates c1 = mol.getCoordinates(a1);
+					Coordinates c2 = mol.getCoordinates(a2);
+					Coordinates c3 = mol.getCoordinates(a3);
 			
 					Coordinates cc2 = new Coordinates((3*c1.x + c2.x)/4, (3*c1.y + c2.y)/4, (3*c1.z + c2.z)/4);
 					Coordinates cc3 = new Coordinates((3*c1.x + c3.x)/4, (3*c1.y + c3.y)/4, (3*c1.z + c3.z)/4);

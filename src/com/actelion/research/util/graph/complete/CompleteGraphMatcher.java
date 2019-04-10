@@ -18,8 +18,8 @@ import java.util.List;
  */
 public class CompleteGraphMatcher<T extends ICompleteGraph> {
 	
-	
-	public static final int MIN_NUM_NODES_SIM = 3;
+	// We need at least two pharmacophore points.
+	public static final int MIN_NUM_NODES_SIM = 2;
 	
 	public static final int MAX_NUM_NODES = 127;
 	

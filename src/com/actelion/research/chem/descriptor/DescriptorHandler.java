@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -23,7 +23,7 @@ package com.actelion.research.chem.descriptor;
  * handling StereoMolecules or Reactions
  */
 
-public interface DescriptorHandler<T, U extends Object> extends ISimilarityCalculator<T> {
+public interface DescriptorHandler<T, U> extends ISimilarityCalculator<T> {
     static final String FAILED_STRING = "Calculation Failed";
     static final byte[] FAILED_BYTES = FAILED_STRING.getBytes();
     public abstract DescriptorInfo getInfo();
@@ -33,5 +33,5 @@ public interface DescriptorHandler<T, U extends Object> extends ISimilarityCalcu
     public abstract T decode(byte[] bytes);
     public abstract T createDescriptor(U chemObject);
     public abstract boolean calculationFailed(T o);
-    public abstract DescriptorHandler<T,U> getDeepCopy();
+    public abstract DescriptorHandler<T,U> getThreadSafeCopy();
     }

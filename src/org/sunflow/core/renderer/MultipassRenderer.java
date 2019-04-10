@@ -125,6 +125,8 @@ public class MultipassRenderer implements ImageSampler {
                     bucketCounter += 2;
                 }
                 renderBucket(display, bx, by, threadID, istate, cache);
+                if (display.imageCancelled())
+                    return;
             }
         }
 

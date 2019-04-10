@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -22,14 +22,14 @@ import java.text.DecimalFormat;
 import com.actelion.research.chem.Coordinates;
 import com.actelion.research.chem.FFMolecule;
 import com.actelion.research.forcefield.AbstractTerm;
-import com.actelion.research.forcefield.FFParameters;
 import com.actelion.research.forcefield.TermList;
+import com.actelion.research.forcefield.mm2.MM2Parameters.BondParameters;
 
 /**
  * 
  */
 public final class BondTerm extends AbstractTerm implements Cloneable  {
-	private final static FFParameters parameters = MM2Parameters.getInstance();
+	private final static MM2Parameters parameters = MM2Parameters.getInstance();
 	
 	private final static double BOND_UNIT = 71.94;
 	protected double Kb, eq;
@@ -44,11 +44,11 @@ public final class BondTerm extends AbstractTerm implements Cloneable  {
 	
 	public static BondTerm create(TermList tl, int a1, int a2) {
 		
-		int n1 = tl.getMolecule().getAtomMM2Class(a1);
-		int n2 = tl.getMolecule().getAtomMM2Class(a2);
+		int n1 = tl.getMolecule().getMM2AtomType(a1);
+		int n2 = tl.getMolecule().getMM2AtomType(a2);
 		int[] atoms = new int[]{a1, a2};
 		
-		FFParameters.BondParameters params = parameters.getBondParameters(n1, n2);
+		BondParameters params = parameters.getBondParameters(n1, n2);
 		double Kb = params.fc;
 		double eq = tl.getBondDistance(a1, a2);
 		if(Kb>0) return new BondTerm(tl.getMolecule(), atoms, Kb, eq);
@@ -71,8 +71,9 @@ public final class BondTerm extends AbstractTerm implements Cloneable  {
 		if(gradient!=null) {
 			double deddt = 2 * BOND_UNIT * Kb * dt;
 			double de = deddt/rab;		
-			if(atoms[0]<gradient.length) gradient[atoms[0]].add(cab.scaleC(de));
-			if(atoms[1]<gradient.length) gradient[atoms[1]].add(cab.scaleC(-de)); 						
+			cab.scale(de);
+			if(atoms[0]<gradient.length) gradient[atoms[0]].add(cab);
+			if(atoms[1]<gradient.length) gradient[atoms[1]].sub(cab); 						
 		}
 					
 		return energy;
@@ -87,4 +88,8 @@ public final class BondTerm extends AbstractTerm implements Cloneable  {
 		return Kb>0;
 	}
 	
+	@Override
+	public final boolean isBonded() {
+		return false;
+	}
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -26,16 +26,14 @@ import com.actelion.research.datawarrior.DEFrame;
 import com.actelion.research.datawarrior.DERuntimeProperties;
 import com.actelion.research.datawarrior.DataWarrior;
 import com.actelion.research.datawarrior.task.list.DETaskAbstractListTask;
-import com.actelion.research.table.CompoundRecord;
-import com.actelion.research.table.CompoundTableEvent;
-import com.actelion.research.table.CompoundTableHitlistHandler;
-import com.actelion.research.table.CompoundTableModel;
+import com.actelion.research.table.model.CompoundRecord;
+import com.actelion.research.table.model.CompoundTableEvent;
+import com.actelion.research.table.model.CompoundTableListHandler;
+import com.actelion.research.table.model.CompoundTableModel;
 
 
 public class DETaskNewFileFromList extends DETaskAbstractListTask {
 	public static final String TASK_NAME = "New File From List";
-
-	private static Properties sRecentConfiguration;
 
 	private DEFrame		mSourceFrame,mTargetFrame;
 	private DataWarrior	mApplication;
@@ -44,7 +42,8 @@ public class DETaskNewFileFromList extends DETaskAbstractListTask {
 	 * The listIndex parameter may be used to override the configuration's list name.
 	 * If listIndex is preconfigured (i.e. != -1) and defineAndRun() is called, then
 	 * this task will immediately run without showing a configuration dialog.
-	 * @param parent
+	 * @param sourceFrame
+	 * @param application
 	 * @param listIndex -1 or valid list index
 	 */
 	public DETaskNewFileFromList(DEFrame sourceFrame, DataWarrior application, int listIndex) {
@@ -64,32 +63,22 @@ public class DETaskNewFileFromList extends DETaskAbstractListTask {
 		}
 
 	@Override
-	public Properties getRecentConfiguration() {
-		return sRecentConfiguration;
-		}
-
-	@Override
-	public void setRecentConfiguration(Properties configuration) {
-		sRecentConfiguration = configuration;
-		}
-
-	@Override
 	public void runTask(Properties configuration) {
 		DERuntimeProperties rp = new DERuntimeProperties(mSourceFrame.getMainFrame());
 		rp.learn();
 
 		CompoundTableModel sourceTableModel = mSourceFrame.getTableModel();
-		CompoundTableHitlistHandler sourceHitlistHandler = sourceTableModel.getHitlistHandler();
+		CompoundTableListHandler sourceHitlistHandler = sourceTableModel.getListHandler();
 
-	   	boolean[] hitlistUsed = new boolean[sourceHitlistHandler.getHitlistCount()];
+	   	boolean[] hitlistUsed = new boolean[sourceHitlistHandler.getListCount()];
 	   	long hitlistMask[] = null;
 	   	if (hitlistUsed.length != 0) {
 	   		hitlistMask = new long[hitlistUsed.length];
 	   		for (int i=0; i<hitlistUsed.length; i++)
-	   			hitlistMask[i] = sourceHitlistHandler.getHitlistMask(i);
+	   			hitlistMask[i] = sourceHitlistHandler.getListMask(i);
 	   		}
 
-		long mask = getTableModel().getHitlistHandler().getHitlistMask(getListIndex(configuration));
+		long mask = getTableModel().getListHandler().getListMask(getListIndex(configuration));
 
 		int listMemberCount = 0;
 		for (int row=0; row<sourceTableModel.getTotalRowCount(); row++) {
@@ -104,7 +93,7 @@ public class DETaskNewFileFromList extends DETaskAbstractListTask {
 
 		mTargetFrame = mApplication.getEmptyFrame("Selection of "+mSourceFrame.getTitle());
 		CompoundTableModel targetTableModel = mTargetFrame.getTableModel();
-		CompoundTableHitlistHandler targetHitlistHandler = targetTableModel.getHitlistHandler();
+		CompoundTableListHandler targetHitlistHandler = targetTableModel.getListHandler();
 		targetTableModel.initializeTable(listMemberCount, sourceTableModel.getTotalColumnCount());
 		for (int column=0; column<sourceTableModel.getTotalColumnCount(); column++)
 			targetTableModel.setColumnName(sourceTableModel.getColumnTitleNoAlias(column), column);
@@ -136,8 +125,8 @@ public class DETaskNewFileFromList extends DETaskAbstractListTask {
 
 		for (int i=0; i<hitlistUsed.length; i++) {
 			if (hitlistUsed[i]) {
-				int flagNo = targetHitlistHandler.getHitlistFlagNo(targetHitlistHandler.createHitlist(
-						sourceHitlistHandler.getHitlistName(i), -1, CompoundTableHitlistHandler.EMPTY_LIST, -1, null));
+				int flagNo = targetHitlistHandler.getListFlagNo(targetHitlistHandler.createList(
+						sourceHitlistHandler.getListName(i), -1, CompoundTableListHandler.EMPTY_LIST, -1, null));
 			   	int tRow = 0;
 				for (int row=0; row<sourceTableModel.getTotalRowCount(); row++) {
 			   		CompoundRecord record = sourceTableModel.getTotalRecord(row);

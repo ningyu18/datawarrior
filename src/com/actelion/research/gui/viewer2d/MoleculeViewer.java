@@ -1,41 +1,20 @@
 package com.actelion.research.gui.viewer2d;
 
-import java.awt.BorderLayout;
-import java.awt.Color;
-import java.awt.Dimension;
-import java.awt.GridLayout;
-import java.awt.Point;
-import java.awt.event.ActionEvent;
-import java.awt.event.ComponentEvent;
-import java.awt.event.ComponentListener;
-import java.awt.event.KeyAdapter;
-import java.awt.event.KeyEvent;
-import java.awt.event.MouseEvent;
-import java.awt.event.MouseListener;
+import com.actelion.research.chem.Coordinates;
+import com.actelion.research.chem.FFMolecule;
+import com.actelion.research.chem.Molecule;
+import com.actelion.research.chem.calculator.GeometryCalculator;
+import com.actelion.research.chem.calculator.StructureCalculator;
+
+import javax.imageio.ImageIO;
+import javax.swing.*;
+import java.awt.*;
+import java.awt.event.*;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.Iterator;
+import java.util.*;
 import java.util.List;
-import java.util.Set;
-
-import javax.imageio.ImageIO;
-import javax.swing.AbstractAction;
-import javax.swing.JFrame;
-import javax.swing.JMenu;
-import javax.swing.JMenuItem;
-import javax.swing.JOptionPane;
-import javax.swing.JPanel;
-import javax.swing.JPopupMenu;
-import javax.swing.JSeparator;
-import javax.swing.KeyStroke;
-
-import com.actelion.research.chem.Coordinates;
-import com.actelion.research.chem.FFMolecule;
-import com.actelion.research.chem.calculator.GeometryCalculator;
-import com.actelion.research.chem.calculator.StructureCalculator;
 
 /**
  * 
@@ -196,6 +175,7 @@ public class MoleculeViewer extends MoleculeCanvas implements MouseListener {
 		info.add(createMenuItem(new ActionInfoAxes(), (char)0, isMode(MODE_COORDINATES)));
 		info.add(createMenuItem(new ActionInfoDescriptions(), (char)0, isMode(MODE_COORDINATES)));
 		info.add(createMenuItem(new ActionInfoCoordinates(), (char)0, isMode(MODE_COORDINATES)));
+		info.add(createMenuItem(new ActionInfoAtomLabel(), (char)0, isMode(MODE_COORDINATES)));
 		info.add(new JSeparator());
 		info.add(createMenuItem(new ActionInfoInteractions(), (char)0, isMode(MODE_INTERACTIONS)));	
 		info.add(new JSeparator());
@@ -233,6 +213,7 @@ public class MoleculeViewer extends MoleculeCanvas implements MouseListener {
 			menu.setAccelerator(KeyStroke.getKeyStroke(new Character(accelerator), modif));
 			if(!usedAccelerators.contains(accelerator)) {
 				addKeyListener(new KeyAdapter(){
+					@Override
 					public void keyPressed(KeyEvent e) {
 						if(e.getKeyChar()==accelerator) action.actionPerformed(null);
 					}	
@@ -248,18 +229,23 @@ public class MoleculeViewer extends MoleculeCanvas implements MouseListener {
 	public void keyReleased(KeyEvent event) {}	
 
 	////////////////// MOUSE LISTENER /////////////////////////
+	@Override
 	public void mouseClicked(MouseEvent e) {
 		if (e.getModifiers() == MouseEvent.BUTTON3_MASK) {
 			JPopupMenu menu = createPopupMenu();
 			menu.show(this, e.getX(), e.getY());
 		}
 	}
+	@Override
 	public void mouseEntered(MouseEvent e) {
 	}
+	@Override
 	public void mouseExited(MouseEvent e) {
 	}
+	@Override
 	public void mouseReleased(MouseEvent e) {
 	}
+	@Override
 	public void mousePressed(MouseEvent e) {
 		requestFocus();
 	}
@@ -267,6 +253,7 @@ public class MoleculeViewer extends MoleculeCanvas implements MouseListener {
 	/////////////////// ACTIONS ///////////////////////////////////
 	public class ActionInfoAxes extends AbstractAction {
 		public ActionInfoAxes() {super("Show Axes");}
+		@Override
 		public void actionPerformed(ActionEvent e) {
 
 			Coordinates g2 = StructureCalculator.getLigandCenter((FFMolecule) mol);
@@ -284,9 +271,24 @@ public class MoleculeViewer extends MoleculeCanvas implements MouseListener {
 		}		
 	}
 
-	
+	public class ActionInfoAtomLabel extends AbstractAction {
+		public ActionInfoAtomLabel() {super("Show Atom Label");}
+		@Override
+		public void actionPerformed(ActionEvent e) {
+			if(mol==null) return;
+
+			for(int i = 0; i<mol.getAllAtoms(); i++) {
+				if(isMode(HIDE_HYDROGENS) && mol.getAtomicNo(i)<=1) continue;
+				Shape s = new Text(mol.getCoordinates(i) , " "+i+" "+ Molecule.cAtomLabel[mol.getAtomicNo(i)], 9, Color.CYAN);
+				addShape(s);
+			}
+			repaint();
+		}
+	}
+
 	public class ActionInfoCoordinates extends AbstractAction {
 		public ActionInfoCoordinates() {super("Show Coordinates");}
+		@Override
 		public void actionPerformed(ActionEvent e) {
 			if(mol==null) return;
 		
@@ -301,6 +303,7 @@ public class MoleculeViewer extends MoleculeCanvas implements MouseListener {
 	}
 	public class ActionInfoDescriptions extends AbstractAction {
 		public ActionInfoDescriptions() {super("Show Descriptions");}
+		@Override
 		public void actionPerformed(ActionEvent e) {
 			if(mol==null || !(mol instanceof FFMolecule)) return;
 			FFMolecule mol = (FFMolecule)getMolecule();
@@ -317,6 +320,7 @@ public class MoleculeViewer extends MoleculeCanvas implements MouseListener {
 	
 	public class ActionInfoInteractions extends AbstractAction {
 		public ActionInfoInteractions() {super("Show H-Bonds");}
+		@Override
 		public void actionPerformed(ActionEvent e) {
 			if(mol==null || !(mol instanceof FFMolecule)) return;
 			FFMolecule mol = (FFMolecule) getMolecule();
@@ -338,6 +342,7 @@ public class MoleculeViewer extends MoleculeCanvas implements MouseListener {
 		public ActionSlab() {
 			super(getSlab()==0?"Set Slab to 6 A":"Remove Slab");
 		}
+		@Override
 		public void actionPerformed(ActionEvent e) {
 			setSlab(getSlab()==0?6:0);
 			init(false, false);
@@ -345,69 +350,13 @@ public class MoleculeViewer extends MoleculeCanvas implements MouseListener {
 		}
 	}
 	
-	/*
-	private class ActionCopy extends AbstractAction {
-		public ActionCopy() {
-			super("Copy");
-		}
-		public void actionPerformed(ActionEvent e) {
-			StereoMolecule mol;
-			if(getMolecule() instanceof FFMolecule) {
-				mol = new StereoMolecule(StructureCalculator.extractLigand(getMolecule()).toStereoMolecule());
-			} else {
-				mol = new StereoMolecule(getMolecule().toStereoMolecule());
-			}
-			new ClipboardHandler().copyMolecule(mol);
-			
-		}
-	}
-	
-	private class ActionPaste extends AbstractAction {
-		public ActionPaste() {
-			super("Paste");
-		}
-		public void actionPerformed(ActionEvent e) {
-			ExtendedMolecule mol = new ClipboardHandler().pasteMolecule();
-			if(mol==null) return;
-			if(getMolecule() instanceof FFMolecule) {
-				StructureCalculator.replaceLigand(getMolecule(), new FFMolecule(mol));
-				System.out.println("mol has"+getMolecule());
-			} else {
-				setMolecule(new FFMolecule(mol));
-			}
-
-			init(true, false);
-			repaint();
-		}
-	}	
-	/*
-	private class ActionPaste extends AbstractAction {
-		public ActionPaste() {
-			super("Paste");
-		}
-		public void actionPerformed(ActionEvent e) {
-			ExtendedMolecule mol = new ClipboardHandler().pasteMolecule();
-			System.out.println("PASTE "+mol.getAllAtoms());
-			if(mol==null) return;
-			if(getMolecule() instanceof Molecule3D) {
-				StructureCalculator.replaceLigand((Molecule3D)getMolecule(), new FFMolecule(mol));
-				System.out.println("mol has"+getMolecule());
-			} else {
-				setMolecule(mol);
-			}
-
-			init(true, false);
-			repaint();
-			
-		}
-	}	*/
-	
 	private class ActionRender extends AbstractAction {
 		private final int style;
 		public ActionRender(int style, String text) {
 			super(text);
 			this.style = style;
 		}
+		@Override
 		public void actionPerformed(ActionEvent e) {
 			if(style==0 && defaultStyles!=null) setStyles(defaultStyles);
 			else setStyle(style);
@@ -422,32 +371,12 @@ public class MoleculeViewer extends MoleculeCanvas implements MouseListener {
 		public ActionStereo(String text) {
 			super(text);
 		}
+		@Override
 		public void actionPerformed(ActionEvent e) {
 			setStereo(!isStereo());
 			repaint();
 		}
 	}
-	/*
-	private class ActionSAS2 extends AbstractAction {
-		boolean ligand;
-		public ActionSAS2(String text, boolean ligand) {
-			super(text);
-			this.ligand = ligand;
-		}
-		public void actionPerformed(ActionEvent e) {
-			new ActionDottedSurface(ligand).actionPerformed(MoleculeViewer.this);
-		}
-	}
-	private class ActionSAS extends AbstractAction {
-		boolean ligand;
-		public ActionSAS(String text, boolean ligand) {
-			super(text);
-			this.ligand = ligand;
-		}
-		public void actionPerformed(ActionEvent e) {
-			new ActionLigandSAS().actionPerformed(MoleculeViewer.this);
-		}
-	}*/
 
 	private class ActionColors extends AbstractAction {
 		private final int style;
@@ -455,6 +384,7 @@ public class MoleculeViewer extends MoleculeCanvas implements MouseListener {
 			super(text);
 			this.style = style;
 		}
+		@Override
 		public void actionPerformed(ActionEvent e) {
 			if(style==0) {setMode(SHOW_GROUPS, false); setMode(SHOW_AMINO, false);} 
 			else if(style==1) {setMode(SHOW_GROUPS, true); setMode(SHOW_AMINO, false);}
@@ -465,6 +395,7 @@ public class MoleculeViewer extends MoleculeCanvas implements MouseListener {
 
 	private class ActionResetView extends AbstractAction {
 		public ActionResetView() {super("Recenter View");}
+		@Override
 		public void actionPerformed(ActionEvent e) {
 			resetView();
 			repaint();
@@ -473,12 +404,14 @@ public class MoleculeViewer extends MoleculeCanvas implements MouseListener {
 	
 	private class ActionSaveImage extends AbstractAction {
 		public ActionSaveImage() {super("Save Image");}
+		@Override
 		public void actionPerformed(ActionEvent e) {
 			saveImage();
 		}
 	}
 	private class ActionShowBackbone extends AbstractAction {
 		public ActionShowBackbone() {super((!isMode(MoleculeCanvas.SHOW_BACKBONE)?"Show":"Hide") + " Backbone");}
+		@Override
 		public void actionPerformed(ActionEvent e) {
 			if(getMolecule()!=null && getMolecule().getAllAtoms()>50) setMode(MoleculeCanvas.SHOW_BACKBONE, !isMode(MoleculeCanvas.SHOW_BACKBONE)); repaint();
 		}
@@ -486,24 +419,28 @@ public class MoleculeViewer extends MoleculeCanvas implements MouseListener {
 	
 	private class ActionPickDistance extends AbstractAction {
 		public ActionPickDistance() {super("Measure Distance");}
+		@Override
 		public void actionPerformed(ActionEvent e) {
 			setTool(new ToolMeasureDistance());repaint();
 		}
 	}
 	public class ActionPickAngle extends AbstractAction {
 		public ActionPickAngle() {super("Measure Angle");}
+		@Override
 		public void actionPerformed(ActionEvent e) {
 			setTool(new ToolMeasureAngle());repaint();
 		}
 	}
 	private class ActionPickDihedral extends AbstractAction {
 		public ActionPickDihedral() {super("Measure Torsion");}
+		@Override
 		public void actionPerformed(ActionEvent e) {
 			setTool(new ToolMeasureDihedral());repaint();
 		}
 	}	
 	public class ActionClearDecorations extends AbstractAction {
 		public ActionClearDecorations() {super("Clear Decorations");}
+		@Override
 		public void actionPerformed(ActionEvent e) {
 			paintProcessors.clear();
 			init();
@@ -512,12 +449,14 @@ public class MoleculeViewer extends MoleculeCanvas implements MouseListener {
 	}
 	private class ActionShowHideHydrogen extends AbstractAction {
 		public ActionShowHideHydrogen() {super((isMode(MoleculeCanvas.HIDE_HYDROGENS)?"Show":"Hide") + " Hydrogens");}
+		@Override
 		public void actionPerformed(ActionEvent e) {
 			setMode(MoleculeCanvas.HIDE_HYDROGENS, !isMode(MoleculeCanvas.HIDE_HYDROGENS));repaint();
 		}
 	}
 	private class ActionExternal extends AbstractAction {
 		public ActionExternal(ActionProvider ap) {super(ap.getActionName());}
+		@Override
 		public void actionPerformed(ActionEvent e) {
 			for (ActionProvider ap:mActionProviderList)
 				if (ap.getActionName().equals(e.getActionCommand()))
@@ -541,10 +480,13 @@ public class MoleculeViewer extends MoleculeCanvas implements MouseListener {
 	
 		
 		frame.addComponentListener(new ComponentListener(){
+			@Override
 			public void componentHidden(ComponentEvent e) {}
+			@Override
 			public void componentResized(ComponentEvent e) {}
+			@Override
 			public void componentShown(ComponentEvent e) {};
-
+			@Override
 			public void componentMoved(ComponentEvent e) {
 				Point p = frame.getLocationOnScreen();
 				if(p.x%2==0) frame.setLocation(p.x+1, p.y);

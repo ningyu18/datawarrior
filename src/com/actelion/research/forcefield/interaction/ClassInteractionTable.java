@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -24,8 +24,11 @@ import java.awt.event.ActionListener;
 import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import javax.swing.DefaultListModel;
@@ -42,7 +45,11 @@ import javax.swing.table.DefaultTableModel;
 
 
 /**
- * 
+ *
+ * distance gives the distance of the point of highest potential.
+ * equivalence makes the difference, considering the distance and the potential
+ * distance is absolute, equivalence is relative to another distance
+ *
  * @author freyssj
  */
 public class ClassInteractionTable {
@@ -60,20 +67,21 @@ public class ClassInteractionTable {
 	public static class InteractionDescriptor {
 		public int N;
 		public double optimalDist;
-		public double strength;
+		public double optimalStrength;
 		
 		public InteractionDescriptor(PLFunction plf) {
 			if(plf==null) return;
 			N = plf.getTotalOccurences();
 			try {
 				//Find the minima of this function
-				strength = 100;
+				optimalStrength = 100;
 				optimalDist = -1;
 				for (double d = 1.6; d < 4.5; d+=.05) {
 					double v = plf.getFGValue(d)[0];
-					if(v<strength) {
+					if(optimalStrength<0 && v>optimalStrength+0.5) break; //consider only first min
+					if(v<optimalStrength) {
 						optimalDist = d;
-						strength = v;
+						optimalStrength = v;
 					}
 				}							
 			} catch (Exception e) {
@@ -83,17 +91,17 @@ public class ClassInteractionTable {
 		
 		public double dist(InteractionDescriptor d2) {
 			
-			double s1 = optimalDist>0?strength:0;
+			double s1 = optimalDist>0?optimalStrength:0;
 			double m1 = optimalDist>0?optimalDist:4.5;
-			double s2 = d2.optimalDist>0?d2.strength:0;
+			double s2 = d2.optimalDist>0?d2.optimalStrength:0;
 			double m2 = d2.optimalDist>0?d2.optimalDist:4.5;
 			
-			return (m1-m2)*(m1-m2) + (s1-s2)*(s1-s2)/9;
+			return (m1-m2)*(m1-m2) + (s1-s2)*(s1-s2)/3;
 			 
 		}
 				
 		@Override
-		public String toString() {return new DecimalFormat("0.0").format(optimalDist)+":"+new DecimalFormat("0.00").format(strength)+" ["+N+"]";}
+		public String toString() {return new DecimalFormat("0.0").format(optimalDist)+":"+new DecimalFormat("0.00").format(optimalStrength)+" ["+N+"]";}
 
 		
 	}
@@ -104,8 +112,8 @@ public class ClassInteractionTable {
 	 *  
 	 *
 	 */
-	private ClassInteractionTable() {
-		stats = ClassInteractionStatistics.getInstance(false);
+	private ClassInteractionTable(int version) {
+		stats = ClassInteractionStatistics.getInstance(version, false);
 
 		int N = stats.getNClasses();
 		
@@ -136,8 +144,8 @@ public class ClassInteractionTable {
 		}
 	}
 	
-	public static ClassInteractionTable getInstance() {
-		if(instance==null) instance = new ClassInteractionTable();
+	public static ClassInteractionTable getInstance(int version) {
+		if(instance==null) instance = new ClassInteractionTable(version);
 		return instance;
 	}
 	
@@ -251,11 +259,11 @@ public class ClassInteractionTable {
 	 * @param args
 	 */
 	public static void main(String[] args) {
-		final ClassInteractionTable c = new ClassInteractionTable();
+		final ClassInteractionTable c = new ClassInteractionTable(2);
 		
 		
-		final DefaultListModel model1 = new DefaultListModel();
-		final JList list1 = new JList(model1);		
+		final DefaultListModel<String> model1 = new DefaultListModel<String>();
+		final JList<String> list1 = new JList<>(model1);		
 		final DefaultTableModel model2 = new DefaultTableModel();
 		final JTable list2 = new JTable(model2);
 		final JCheckBox onlyMainTypes = new JCheckBox("Only Main Types");
@@ -277,38 +285,45 @@ public class ClassInteractionTable {
 		list1.addListSelectionListener(new ListSelectionListener() {			
 			@Override
 			public void valueChanged(ListSelectionEvent e) {
-				Object[] objs = list1.getSelectedValues();
+				List<String> objs = list1.getSelectedValuesList();
 				int sel1 = -1;
 				
 				List<Integer> sels = new ArrayList<Integer>();
-				if(objs.length>0) {
-					String s1 = (String) objs[0];
+				if(objs.size()>0) {
+					String s1 = objs.get(0);
 					s1 = s1.substring(s1.indexOf("] ")+2);
 					sel1 = c.stats.getClassId(s1);
 				}
-				for (int i = 0; i < objs.length; i++) {					
-					String s2 = (String) objs[i];
+				for (int i = 0; i < objs.size(); i++) {					
+					String s2 = objs.get(i);
 					s2 = s2.substring(s2.indexOf("] ")+2);
 					sels.add(c.stats.getClassId(s2));
 				}
 				
 				
-				com.actelion.research.util.PriorityQueue<Integer> queue = new com.actelion.research.util.PriorityQueue<Integer>();
+				final Map<Integer, Double> queue = new HashMap<Integer, Double>();
 				if(sel1>=0) {
 					for (int i = 0; i<c.stats.getNClasses();i++) {
 						if(onlyMainTypes.isSelected() && c.stats.getParent(i)!=i) continue;
 						if(!onlyMainTypes.isSelected() && c.stats.getParent(i)==i) continue;
 						if(sels.size()>1 && !sels.contains(i)) continue;
 						if(!c.stats.getDescription(i).startsWith("6*") && !c.stats.getDescription(i).startsWith("7*") && !c.stats.getDescription(i).startsWith("8*") && !c.stats.getDescription(i).startsWith("15*") && !c.stats.getDescription(i).startsWith("16*")) continue;
-						queue.add(i, c.getEquivalence(sel1, i));
+						queue.put(i, c.getEquivalence(sel1, i));
 					}
 				}
+				List<Integer> sorted = new ArrayList<>(queue.keySet());
+				Collections.sort(sorted, new Comparator<Integer>() {
+					@Override
+					public int compare(Integer o1, Integer o2) {
+						return queue.get(o1).compareTo(queue.get(o2));
+					}
+				});
 			
 				Object[][] data = new Object[c.stats.getNClasses()][];
-				for (int i = 0; i < queue.size(); i++) {
-					data[i] = new Object[] { "["+i+"] " + c.stats.getDescription(queue.getElt(i).obj),
-							new DecimalFormat("0.00").format(c.getEquivalence(sel1, queue.getElt(i).obj)), 
-							new DecimalFormat("0.00").format(c.getDistance(sel1, queue.getElt(i).obj))}; 
+				for (int i = 0; i < sorted.size(); i++) {
+					data[i] = new Object[] { "["+i+"] " + c.stats.getDescription(sorted.get(i)),
+							new DecimalFormat("0.00").format(c.getEquivalence(sel1, sorted.get(i))), 
+							new DecimalFormat("0.00").format(c.getDistance(sel1, sorted.get(i)))}; 
 				}
 				
 				model2.setDataVector(data, new String[] {"Type", "Equivalence", "Distance" });

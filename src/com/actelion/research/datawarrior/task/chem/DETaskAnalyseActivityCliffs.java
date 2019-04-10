@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -48,9 +48,9 @@ import com.actelion.research.datawarrior.DEFrame;
 import com.actelion.research.datawarrior.DEMainPane;
 import com.actelion.research.datawarrior.DataWarrior;
 import com.actelion.research.datawarrior.task.ConfigurableTask;
-import com.actelion.research.table.CompoundRecord;
-import com.actelion.research.table.CompoundTableEvent;
-import com.actelion.research.table.CompoundTableModel;
+import com.actelion.research.table.model.CompoundRecord;
+import com.actelion.research.table.model.CompoundTableEvent;
+import com.actelion.research.table.model.CompoundTableModel;
 import com.actelion.research.table.MarkerLabelDisplayer;
 import com.actelion.research.table.view.FocusableView;
 import com.actelion.research.table.view.JStructureGrid;
@@ -81,16 +81,13 @@ public class DETaskAnalyseActivityCliffs extends ConfigurableTask implements Ite
 	private static final int DEFAULT_SIMILARITY = 95;
 	private static final int VIEW_CYCLE_COUNT = 20000;
 
-	private static final String[] IDENTIFIER = { COLUMN_NAME_ROW_ID, "Actelion No" };
+	private static final String[] IDENTIFIER = { COLUMN_NAME_ROW_ID, "Idorsia No" };
 
 	public static final String TASK_NAME = "Analyse Activity Cliffs";
-
-	private static Properties sRecentConfiguration;
 
 	private DataWarrior			mApplication;
 	private DEFrame				mParentFrame,mTargetFrame;
 	private CompoundTableModel	mSourceTableModel;
-	private boolean				mIsInteractive;
 	private JComboBox			mComboBoxDescriptorColumn,mComboBoxActivityColumn,mComboBoxIdentifierColumn,mComboBoxGroupByColumn;
 	private JSlider				mSimilaritySlider;
 	private JCheckBox			mCheckBoxSimilarityAutomatic,mCheckBoxNewSimilarityView,mCheckBoxNewDocument;
@@ -103,22 +100,11 @@ public class DETaskAnalyseActivityCliffs extends ConfigurableTask implements Ite
 	private AtomicInteger		mSMPRecordIndex,mSMPPairCount,mSMPPairIndex,mSMPMaxSali;
 	private CountDownLatch		mSMPDoneSignal;
 
-	public DETaskAnalyseActivityCliffs(DEFrame parent, DataWarrior application, boolean isInteractive) {
+	public DETaskAnalyseActivityCliffs(DEFrame parent, DataWarrior application) {
 		super(parent, true);
 		mParentFrame = parent;
 		mSourceTableModel = parent.getTableModel();
 		mApplication = application;
-		mIsInteractive = isInteractive;
-		}
-
-	@Override
-	public Properties getRecentConfiguration() {
-		return sRecentConfiguration;
-		}
-
-	@Override
-	public void setRecentConfiguration(Properties configuration) {
-		sRecentConfiguration = configuration;
 		}
 
 	@Override
@@ -159,7 +145,7 @@ public class DETaskAnalyseActivityCliffs extends ConfigurableTask implements Ite
 		for (int column=0; column<mSourceTableModel.getTotalColumnCount(); column++)
 			if (qualifiesAsDescriptorColumn(column))
 				mComboBoxDescriptorColumn.addItem(mSourceTableModel.getColumnTitle(column));
-		mComboBoxDescriptorColumn.setEditable(!mIsInteractive);
+		mComboBoxDescriptorColumn.setEditable(!isInteractive());
 		content.add(new JLabel("Similarity on:"), "1,1");
 		content.add(mComboBoxDescriptorColumn, "3,1,5,1");
 
@@ -168,7 +154,7 @@ public class DETaskAnalyseActivityCliffs extends ConfigurableTask implements Ite
 		for (int column=0; column<mSourceTableModel.getTotalColumnCount(); column++)
 			if (qualifiesAsActivityColumn(column))
 				mComboBoxActivityColumn.addItem(mSourceTableModel.getColumnTitle(column));
-		mComboBoxActivityColumn.setEditable(!mIsInteractive);
+		mComboBoxActivityColumn.setEditable(!isInteractive());
 		mComboBoxActivityColumn.addItemListener(this);
 		content.add(new JLabel("Activity column:"), "1,3");
 		content.add(mComboBoxActivityColumn, "3,3,5,3");
@@ -178,7 +164,7 @@ public class DETaskAnalyseActivityCliffs extends ConfigurableTask implements Ite
 			if (qualifiesAsIdentifierColumn(column))
 				mComboBoxIdentifierColumn.addItem(mSourceTableModel.getColumnTitle(column));
 		mComboBoxIdentifierColumn.addItem(ITEM_CREATE_COLUMN);
-		mComboBoxIdentifierColumn.setEditable(!mIsInteractive);
+		mComboBoxIdentifierColumn.setEditable(!isInteractive());
 		content.add(new JLabel("Identifier column:"), "1,5");
 		content.add(mComboBoxIdentifierColumn, "3,5,5,5");
 
@@ -187,7 +173,7 @@ public class DETaskAnalyseActivityCliffs extends ConfigurableTask implements Ite
 		for (int column=0; column<mSourceTableModel.getTotalColumnCount(); column++)
 			if (qualifiesAsGroupByColumn(column))
 				mComboBoxGroupByColumn.addItem(mSourceTableModel.getColumnTitle(column));
-		mComboBoxGroupByColumn.setEditable(!mIsInteractive);
+		mComboBoxGroupByColumn.setEditable(!isInteractive());
 		content.add(new JLabel("Separate groups by:"), "1,7");
 		content.add(mComboBoxGroupByColumn, "3,7,5,7");
 
@@ -285,12 +271,12 @@ public class DETaskAnalyseActivityCliffs extends ConfigurableTask implements Ite
 			int column = mSourceTableModel.findColumn(value);
 			if (column != -1)
 				mComboBoxDescriptorColumn.setSelectedItem(mSourceTableModel.getColumnTitle(column));
-			else if (!mIsInteractive)
+			else if (!isInteractive())
 				mComboBoxDescriptorColumn.setSelectedItem(value);
 			else if (mComboBoxDescriptorColumn.getItemCount() != 0)
 				mComboBoxDescriptorColumn.setSelectedIndex(0);
 			}
-		else if (!mIsInteractive) {
+		else if (!isInteractive()) {
 			mComboBoxDescriptorColumn.setSelectedItem("Structure ["+DescriptorConstants.DESCRIPTOR_SkeletonSpheres.shortName+"]");
 			}
 
@@ -300,7 +286,7 @@ public class DETaskAnalyseActivityCliffs extends ConfigurableTask implements Ite
 			int column = mSourceTableModel.findColumn(value);
 			if (column != -1 && qualifiesAsActivityColumn(column))
 				mComboBoxActivityColumn.setSelectedItem(mSourceTableModel.getColumnTitle(column));
-			else if (!mIsInteractive)
+			else if (!isInteractive())
 				mComboBoxActivityColumn.setSelectedItem(value);
 			}
 
@@ -310,7 +296,7 @@ public class DETaskAnalyseActivityCliffs extends ConfigurableTask implements Ite
 			int column = mSourceTableModel.findColumn(value);
 			if (column != -1 && qualifiesAsIdentifierColumn(column))
 				mComboBoxIdentifierColumn.setSelectedItem(mSourceTableModel.getColumnTitle(column));
-			else if (!mIsInteractive)
+			else if (!isInteractive())
 				mComboBoxIdentifierColumn.setSelectedItem(value);
 			}
 
@@ -319,7 +305,7 @@ public class DETaskAnalyseActivityCliffs extends ConfigurableTask implements Ite
 			int column = mSourceTableModel.findColumn(value);
 			if (column != -1 && qualifiesAsGroupByColumn(column))
 				mComboBoxGroupByColumn.setSelectedItem(mSourceTableModel.getColumnTitle(column));
-			else if (!mIsInteractive)
+			else if (!isInteractive())
 				mComboBoxGroupByColumn.setSelectedItem(value);
 			}
 
@@ -348,7 +334,7 @@ public class DETaskAnalyseActivityCliffs extends ConfigurableTask implements Ite
 				break;
 				}
 			}
-		if (!mIsInteractive) {
+		if (!isInteractive()) {
 			String descriptorColumn = (String)mComboBoxDescriptorColumn.getSelectedItem();
 			if (descriptorColumn == null || descriptorColumn.length() == 0)
 				mComboBoxDescriptorColumn.setSelectedItem("Structure ["+DescriptorConstants.DESCRIPTOR_SkeletonSpheres.shortName+"]");
@@ -835,9 +821,9 @@ public class DETaskAnalyseActivityCliffs extends ConfigurableTask implements Ite
 							if (activityColumn != -1)
 								vpanel1.getVisualization().setMarkerSizeColumn(saliColumn);
 							vpanel1.getVisualization().setMarkerSize(20f/(float)Math.sqrt(rowCount), false);
-							vpanel1.getVisualization().setScaleMode(JVisualization.cScaleModeHideAll);
-							vpanel1.getVisualization().setSuppressGrid(true);
-							((JVisualization2D)vpanel1.getVisualization()).setPreferredChartType(JVisualization.cChartTypeScatterPlot, -1, -1);
+							vpanel1.getVisualization().setScaleMode(JVisualization.cScaleModeHidden);
+							vpanel1.getVisualization().setGridMode(JVisualization.cGridModeHidden);
+							vpanel1.getVisualization().setPreferredChartType(JVisualization.cChartTypeScatterPlot, -1, -1);
 	
 							int colorColumn,colorListMode;
 							Color[] colorList = null;
@@ -901,7 +887,7 @@ public class DETaskAnalyseActivityCliffs extends ConfigurableTask implements Ite
 								vpanel2.getVisualization().setFontSize(2.5f, false);
 								vpanel2.getVisualization().setConnectionColumns(referencingColumn, -1);
 								vpanel2.getVisualization().setConnectionLineWidth(2f, false);
-								vpanel2.getVisualization().setTreeViewMode(JVisualization.cTreeViewModeRadial, 5, false, false);
+								vpanel2.getVisualization().setTreeViewMode(JVisualization.cTreeViewModeRadial, 5, false, false, false);
 								}
 							}
 						} );

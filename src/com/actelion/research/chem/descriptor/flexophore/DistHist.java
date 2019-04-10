@@ -60,25 +60,6 @@ public class DistHist implements Serializable {
 		System.arraycopy(this.arrDistHists, 0, copy.arrDistHists, 0, this.arrDistHists.length);
 	}
 
-	protected void realize(){
-		
-		int nBonds = (int)(((numPPNodes * numPPNodes)-numPPNodes) / 2.0);
-
-		int bytes = nBonds*CGMult.BINS_HISTOGRAM;
-		
-		if(bytes != nBonds*CGMult.BINS_HISTOGRAM) {
-		
-			byte [] arrTmp = new byte[nBonds*CGMult.BINS_HISTOGRAM];
-			
-			System.arraycopy(arrDistHists, 0, arrTmp, 0, arrDistHists.length);		
-			
-			arrDistHists = arrTmp;
-		}
-		
-		scaleDistHist(DescriptorHandlerFlexophore.NUM_CONFORMATIONS);
-		
-	}
-	
 	public int getBonds() {
 		return ((numPPNodes * numPPNodes)-numPPNodes) / 2;
 	}
@@ -274,36 +255,7 @@ public class DistHist implements Serializable {
 		
 		return arr;
 	}
-	
-	private void scaleDistHist(int numConformations) {
-		
-		for (int i = 0; i < getNumPPNodes(); i++) {
-			for (int j = i+1; j < getNumPPNodes(); j++) {
-				
-				byte [] arr = getDistHist(i, j);
-				
-				double fac = numConformations / (double)ArrayUtilsCalc.sum(arr);
 
-				for (int k = 0; k < arr.length; k++) {
-					double dFreq = arr[k];
-					double dFreqSc = dFreq * fac;
-					arr[k] = (byte)(dFreqSc + 0.5); 
-				}
-				
-				double sum = ArrayUtilsCalc.sum(arr);
-				if((sum > 0) && (Math.abs(sum -numConformations) > 10)){
-					StringBuilder sb = new StringBuilder();
-					sb.append("Wrong scaling numConformations " + numConformations + " sum conf in histogram " + sum + ".\n");
-					sb.append(ArrayUtilsCalc.toString(arr) + "\n");
-					
-					throw new RuntimeException(sb.toString());
-				}
-				
-				setDistHist(i, j, arr);
-			}
-		}
-	}
-	
 	/**
 	 * To get the distance in Angstrom the relative distance has to be multiplied with the histogram range <code>CGMult.RANGE_HISTOGRAM</code>.
 	 * @param indexAt1

@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -29,7 +29,7 @@ import com.actelion.research.datawarrior.task.AbstractTask;
 import com.actelion.research.datawarrior.task.TaskUIDelegate;
 import com.actelion.research.gui.FileHelper;
 import com.actelion.research.table.CompoundTableLoader;
-import com.actelion.research.table.CompoundTableModel;
+import com.actelion.research.table.model.CompoundTableModel;
 
 public class DETaskMergeFile extends AbstractTask implements TaskConstantsMergeFile {
 	public static final String TASK_NAME = "Merge File";
@@ -37,25 +37,16 @@ public class DETaskMergeFile extends AbstractTask implements TaskConstantsMergeF
 	private static final int IS_NOT_DISPLAYABLE = -1;
 	private static final int IS_NORMAL_DISPLAYABLE = 0;
 
-	private static Properties sRecentConfiguration;
-
 	private CompoundTableModel	mTableModel;
 	private UIDelegateMergeFile	mUIDelegate;
 	private CompoundTableLoader	mLoader;
 
-	public DETaskMergeFile(DEFrame parent) {
-		super(parent, false);
+	public DETaskMergeFile(DEFrame parent, boolean isInteractive) {
+		super(parent, true);
+		// All tasks that use CompoundTableLoader need to run in an own thread if they run in a macro
+		// to prevent the CompoundTableLoader to run processData() in a new thread without waiting
+		// in the EDT
 		mTableModel = parent.getTableModel();
-		}
-
-	@Override
-	public Properties getRecentConfiguration() {
-		return sRecentConfiguration;
-		}
-
-	@Override
-	public void setRecentConfiguration(Properties configuration) {
-		sRecentConfiguration = configuration;
 		}
 
 	@Override
@@ -144,7 +135,7 @@ public class DETaskMergeFile extends AbstractTask implements TaskConstantsMergeF
 			mLoader = mUIDelegate.getCompoundTableLoader();
 			}
 		else {
-			fileName = resolveVariables(fileName);
+			fileName = resolvePathVariables(fileName);
 			DEFrame parent = (DEFrame)getParentFrame();
 			mLoader = new CompoundTableLoader(parent, parent.getTableModel(), getProgressController());
 			mLoader.readFile(new File(fileName), new DERuntimeProperties(parent.getMainFrame()), FileHelper.getFileType(fileName), CompoundTableLoader.READ_DATA);

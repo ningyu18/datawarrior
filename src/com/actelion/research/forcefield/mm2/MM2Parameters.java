@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -22,19 +22,332 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.URL;
-import java.util.List;
+import java.util.Collection;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 import com.actelion.research.chem.FFMolecule;
 import com.actelion.research.chem.Molecule;
 import com.actelion.research.chem.calculator.StructureCalculator;
-import com.actelion.research.forcefield.FFParameters;
+import com.actelion.research.util.ArrayUtils;
+import com.actelion.research.util.MultipleIntMap;
 
 /**
  * 
  */
-public class MM2Parameters extends FFParameters {
+public class MM2Parameters  {
 
 	private static volatile MM2Parameters instance = null;
+	private static boolean DEBUG = false;
+	
+
+	
+	/**
+	 * Description of an atom's class
+	 * @author freyssj
+	 */
+	public static class AtomClass {
+		public AtomClass(int number, int atomicNo, String description, double charge, int doubleBonds, int tripleBonds, int[] replacement) {
+			this.atomClass = number;
+			this.atomicNo = atomicNo;
+			this.description = description;
+			this.charge = charge;
+			this.replacement = replacement;
+		}
+		
+		public final int atomClass;
+		public final int atomicNo;
+		public final String description;
+		public final double charge;
+		/** Replacement is an array of atomClass, cost used to define
+		 * which atom can be used to replace this one in case of missing parameters
+		 */
+		public final int[] replacement;
+		
+		@Override
+		public String toString() {
+			return description;			
+		}
+	}
+	
+	public static class BondParameters {
+		public BondParameters(double fc, double eq) {
+			this.fc = fc;
+			this.eq = eq;
+		}
+		@Override
+		public String toString() { return "Bond: " + fc + " " + eq;}
+		public double fc;
+		public double eq;
+	}
+	
+	public static class AngleParameters {
+		public AngleParameters(double fc, double eq) {
+			this.fc = fc;
+			this.eq = eq;
+		}
+		@Override
+		public String toString() { return "Angle: " + fc + " " + eq;}
+		public double fc;
+		public double eq;
+	}
+
+	public static class TorsionParameters {
+		public TorsionParameters(double v1, double v2, double v3) {
+			this.v1 = v1;
+			this.v2 = v2;
+			this.v3 = v3;
+		}
+		@Override
+		public String toString() { return "Torsion: " + v1 + " " + v2 + " " + v3;}
+		public double v1, v2, v3;
+	}
+	
+	public static class SingleVDWParameters {
+		public SingleVDWParameters(double radius, double epsilon, double reduct) {
+			this.radius = radius;
+			this.epsilon = epsilon;
+			this.reduct = reduct;
+		}
+		
+		public double radius;	
+		public double epsilon;	
+		public double reduct;	
+	}
+	
+	public static class OutOfPlaneBendParameters {
+		public OutOfPlaneBendParameters(double fopb) {
+			this.fopb = fopb;
+		}
+		
+		public double fopb;	
+	}
+	
+	public static class VDWParameters {
+		public VDWParameters(double radius, double esp) {
+			this.radius = radius;
+			this.esp = esp;
+		}
+		@Override
+		public String toString() { return "VDW: " + radius + " " + esp;}
+		public double radius, esp;
+	}
+	
+	
+
+	protected final Map<String, AtomClass> descriptionToAtom = new ConcurrentHashMap<String, AtomClass>();	 
+	protected final Map<Integer, AtomClass> classNoToAtomClass = new ConcurrentHashMap<Integer, AtomClass>();	 
+	protected final MultipleIntMap<BondParameters> bondParameters = new MultipleIntMap<BondParameters>(2);
+	protected final MultipleIntMap<Double> dipoleParameters = new MultipleIntMap<Double>(2);
+	protected final MultipleIntMap<TorsionParameters> torsionParameters = new MultipleIntMap<TorsionParameters>(5);
+	protected final MultipleIntMap<AngleParameters> angleParameters = new MultipleIntMap<AngleParameters>(5);
+	protected final Map<Integer, SingleVDWParameters> singleVDWParameters = new ConcurrentHashMap<Integer, SingleVDWParameters>();
+	protected final MultipleIntMap<VDWParameters> vdwParameters = new MultipleIntMap<VDWParameters>(2);
+	protected final MultipleIntMap<OutOfPlaneBendParameters> outOfPlaneBendParameters = new MultipleIntMap<OutOfPlaneBendParameters>(2);	
+	protected final Map<Integer, double[]> strBendParameters = new ConcurrentHashMap<Integer, double[]>();	
+	protected final Map<String, double[]> piAtoms = new ConcurrentHashMap<String, double[]>();	
+	protected final Map<String, double[]> piBonds = new ConcurrentHashMap<String, double[]>();	
+	protected final MultipleIntMap<Double> electronegativity = new MultipleIntMap<Double>(3);	
+	
+	public Collection<AtomClass> getAtomClasses() {
+		return descriptionToAtom.values();	
+	}
+	public AtomClass getAtomClass(int classNo) {
+		return classNoToAtomClass.get(classNo);	 
+	}
+	
+	public String getDescription(int classNo) {
+		AtomClass a = classNoToAtomClass.get(classNo);
+		if(a==null) return null;
+		return a.description;
+	}
+	
+	/**
+	 * Get the atomType matching the description
+	 * @param desc
+	 * @return
+	 */
+	public AtomClass getAtomType(String desc) {		
+		AtomClass res = descriptionToAtom.get(desc);	 
+		if(res!=null) return res;
+		
+		for (String s : descriptionToAtom.keySet()) {
+			if(s.equalsIgnoreCase(desc) || s.replace(" ", "").equalsIgnoreCase(desc)) return descriptionToAtom.get(s);
+		}
+		System.err.println("Invalid atomType: "+desc);
+		return null;
+	}
+	
+	public BondParameters getBondParameters(int n1, int n2) {
+		int[] key = n1<n2? new int[]{n1, n2}:  new int[]{n2, n1};		
+		 
+		BondParameters p = (BondParameters) bondParameters.get(key);
+		if(p==null) {
+			int bestCost = 1000;
+			BondParameters bestP = null;
+			for(int[] k: bondParameters.keys()) {
+				int cost = Math.min(cost(n1, k[0]) + cost(n2, k[1]),  cost(n1, k[1]) + cost(n2, k[0]));
+				
+				if(cost<bestCost) {
+					bestCost = cost;
+					bestP = (BondParameters) bondParameters.get(k);
+				}
+			}
+			if(bestP!=null) {
+				bondParameters.put(key, bestP);				
+				p = bestP;
+			}
+			if(p==null) {
+				if(DEBUG) System.err.println("no Bond parameters between "+n1 + " and "+n2);
+				p = new BondParameters(0.5, 1.5);
+				if(n1>=0 && n2>=0) bondParameters.put(key, p);				
+			} 
+		}
+		return p;
+	}
+	
+	public OutOfPlaneBendParameters getOutOfPlaneBendParameters(int n1, int n2) {
+		int[] key = n1<n2? new int[]{n1, n2}: new int[]{n2, n1};
+		OutOfPlaneBendParameters p = null;
+		p = (OutOfPlaneBendParameters) outOfPlaneBendParameters.get(key);
+		return p;
+	}
+	
+	public double getDipoleParameters(int n1, int n2) {
+		if(n1<n2) {
+			Double res = (Double) dipoleParameters.get(new int[]{n1,n2});
+			return res==null? 0: res.doubleValue();
+		} 
+		Double res = (Double) dipoleParameters.get(new int[]{n2,n1});
+		return res==null? 0:  -res.doubleValue();
+	}
+	
+	public AngleParameters getAngleParameters(int n1, int n2, int n3, int nHydrogen, int ringSize) {
+		if(ringSize>4) ringSize = 0;
+		int[] key;
+		if(n1<n3) key = new int[]{n1, n2, n3, nHydrogen, ringSize};
+		else key = new int[]{n3, n2, n1, nHydrogen, ringSize};
+		
+		AngleParameters p = null;
+		p = (AngleParameters) angleParameters.get(key);
+
+		if(p==null) {
+			int bestCost = 1000;
+			AngleParameters bestP = null;
+//			int[] bestKey = null;
+			synchronized (angleParameters) {
+				
+				for(int[] k: angleParameters.keys()) {
+					int cost = Math.min(cost(n1, k[0]) + cost(n2, k[1])*10 + cost(n3, k[2]),
+						cost(n3, k[0]) + cost(n2, k[1])*10 + cost(n1, k[2])) +
+						Math.abs(k[3]-nHydrogen)*2 + Math.abs(ringSize-k[4])*5;
+					if(cost<bestCost) {
+						bestCost = cost;
+						bestP = (AngleParameters) angleParameters.get(k);
+//						bestKey = k;
+					}
+				}
+			}
+			if(bestP!=null) {
+//				logger.fine("approximate Angle for " + ArrayUtils.toString(key) +" with "+ArrayUtils.toString(bestKey)+" (cost:"+bestCost+")");
+				angleParameters.put(key, bestP);
+				p = bestP;				
+			}
+		}
+
+		if(p==null) {
+			if(DEBUG) System.err.println("Guessed Angle for " + ArrayUtils.toString(key));
+			p = new AngleParameters(0.5, 120);
+			angleParameters.put(key, p);
+		} 
+		return p;
+	}
+	
+	public double getElectronegativity(int n1, int n2, int n3) {
+		Double res = (Double) electronegativity.get(new int[]{n1, n2, n3});
+		return res!=null? res.doubleValue(): 0;
+	}
+
+	public TorsionParameters getTorsionParameters(int n1, int n2, int n3, int n4, int ringSize) {
+		int[] key;
+		if(ringSize!=4) ringSize = 0;
+		if(n1<n4 || (n1==n4 && n2<=n3)) key = new int[]{n1, n2, n3, n4, ringSize};		
+		else key = new int[]{n4, n3, n2, n1, ringSize};	
+
+		TorsionParameters p = (TorsionParameters) torsionParameters.get(key);
+		
+		if(p==null) {
+			int bestCost = 1000;
+			TorsionParameters bestP = null;
+			for(int[] k: torsionParameters.keys()) {
+				int cost = Math.min(cost(n1, k[0])*10 + cost(n2, k[1]) + cost(n3, k[2]) + cost(n4, k[3])*10,
+						cost(n1, k[3])*10 + cost(n2, k[2]) + cost(n3, k[1]) + cost(n4, k[0])*10);
+				if(cost<bestCost) {
+					bestCost = cost;
+					bestP = (TorsionParameters) torsionParameters.get(k);
+				}
+			}
+			if(bestP!=null) {
+				torsionParameters.put(key, bestP);			
+				p = bestP;	
+			}
+		}
+		
+//		if(p==null) {
+//				
+//			if(DEBUG) System.err.println("no Torsion parameters for " + ArrayUtils.toString(key));
+//			p = new TorsionParameters(0, 0, 0);
+//			torsionParameters.put(key, p);			
+//		} 
+		return p;
+	}
+	
+	/**
+	 * Returns the costs of replacing class n1 by class n2
+	 * @return the cost or 1000 if none is found
+	 */
+	private int cost(int n1, int n2) {
+		if(n1==n2) return 0;
+		AtomClass claz = classNoToAtomClass.get(n1);
+		if(claz==null) {System.err.println("invalid class "+n1); return 1000;}  
+		if(claz.replacement==null) return 1000;
+		for(int i=0; i<claz.replacement.length; i+=2) {
+			if(claz.replacement[i]==n2) return claz.replacement[i+1]*3+(i/2);
+		}
+		return 1000;
+	}
+	
+	public SingleVDWParameters getSingleVDWParameters(int n1) {
+		SingleVDWParameters p = singleVDWParameters.get(n1);
+		if(p==null && n1>=0) {
+			if(DEBUG) System.err.println("no Single VDW parameters for " + n1);
+		}
+		return p;
+	}
+
+
+	public VDWParameters getVDWParameters(int n1, int n2) {
+		int[] key = n1<n2? new int[]{n1,n2}: new int[]{n2, n1};		
+		VDWParameters p = (VDWParameters) vdwParameters.get(key);
+		return p;
+	}
+	
+	public double[] getPiAtom(int n1) {		
+		return piAtoms.get(""+n1);
+	}
+	
+	public double[] getPiBond(int n1, int n2) {
+		String key = n1<n2? n1+"-"+n2: n2+"-"+n1;		
+		return piBonds.get(key);
+	}
+	
+	public double getStretchBendParameter(int n1, int nHydro) {
+		double[] res = strBendParameters.get(n1);
+		if(nHydro==2) nHydro = 1;
+		return res==null? 0: res[nHydro];
+	}
+	
+
 	
 	public static MM2Parameters getInstance() {
 		if(instance==null) {
@@ -54,9 +367,8 @@ public class MM2Parameters extends FFParameters {
 	
 	private MM2Parameters() throws Exception {
 		//System.out.println("Load MM2 Parameters");
-		URL url = getClass().getResource("/resources/forcefield/MM2.parameters");
-		System.out.println("Loaded MM2 Parameters");
-		if(url==null) throw new Exception("Could not find MM2.parameters in the classpath");
+		URL url = getClass().getResource("/resources/forcefield/mm2/MM2.parameters");
+		if(url==null) throw new Exception("Could not find MM2.parameters in the classpath: /resources/forcefield/mm2/MM2.parameters");
 		try {
 			InputStream is = url.openStream();
 			load(is);
@@ -121,7 +433,9 @@ public class MM2Parameters extends FFParameters {
 							}
 							AtomClass atom = new AtomClass(classNo, atomicNo, description, charge, doubleBonds, tripleBonds, replacement);
 							descriptionToAtom.put(description.toUpperCase(), atom);
-							classNoToAtom.put(classNo, atom);
+							if(classNoToAtomClass.get(classNo)==null) {
+								classNoToAtomClass.put(classNo, atom);
+							}
 							break;
 							
 						} case 2: {// ---- BOND -----
@@ -244,26 +558,24 @@ public class MM2Parameters extends FFParameters {
 		return res;
 	}
 
-	@Override
-	public void setAtomClassesForMolecule(FFMolecule mol) {
-//		long s = System.currentTimeMillis();			
+	public static void setAtomTypes(FFMolecule mol) {
+		MM2Parameters params = getInstance();
 
-		
 		for(int i=0; i<mol.getAllAtoms(); i++) {
-			mol.setAtomMM2Description(i, "");
+			mol.setMM2AtomDescription(i, "");
 		}
 	
 		for(int i=0; i<mol.getAllAtoms(); i++) {
 			if(mol.getAtomicNo(i)>1) {				
 				String description = getAtomDescription(mol, i);				
-				mol.setAtomMM2Description(i, description==null?"???": description);
-			} else if(mol.getAtomicNo(i)==0)  mol.setAtomMM2Description(i, "LP LONE PAIR".intern());
+				mol.setMM2AtomDescription(i, description==null?"???": description);
+			} else if(mol.getAtomicNo(i)==0)  mol.setMM2AtomDescription(i, "LP LONE PAIR".intern());
 		}
 		
 		//HYDROGENS
 		for(int i=0; i<mol.getAllAtoms(); i++) {
 			if(mol.getAtomicNo(i)!=1) continue;
-			String connDesc = mol.getAtomMM2Description(mol.getConnAtom(i,0)).intern();
+			String connDesc = mol.getMM2AtomDescription(mol.getConnAtom(i,0)).intern();
 			String description;
 			
 			//String comparison using the intern() representation
@@ -271,43 +583,50 @@ public class MM2Parameters extends FFParameters {
 			else if(connDesc=="O CARBONYL") 	description = "H CARBOXYL";
 			else if(connDesc=="O CARBOXYL") 	description = "H CARBOXYL";
 			else if(connDesc=="O PHOSPHATE") 	description = "H PHOSPHATE";
+			else if(connDesc=="O WATER")		description = "H WATER";
+			else if(connDesc=="O ENOL")			description = "H ENOL";
 			else if(connDesc.startsWith("O "))	description = "H ALCOHOL";
 			
 			else if(connDesc=="N AMMONIUM") 	description = "H AMMONIUM";
 			else if(connDesc=="N IMMONIUM") 	description = "H AMMONIUM";
 			else if(connDesc=="N PYRIDINIUM")	description = "H AMMONIUM";
+			else if(connDesc=="N GUANIDINE") 	description = "H GUANIDINE";
+			else if(connDesc=="N THIOAMIDE")	description = "H AMIDE";
+			else if(connDesc=="N SULFONAMIDE")	description = "H AMIDE";
 			else if(connDesc=="N AMIDE") 		description = "H AMIDE";
 			else if(connDesc=="N PYRROLE") 		description = "H AMIDE";
-			else if(connDesc=="N GUANIDINE") 	description = "H GUANIDINE";
+			else if(connDesc=="N CONNAROMATIC") description = "H AMIDE";
+			else if(connDesc=="N ENAMINE")		description = "H AMIDE";
 			else if(connDesc.startsWith("N ")) 	description = "H AMINE";
 			
+			else if(connDesc.startsWith("P ")) 	description = "H PHOSPHATE";
+
+			else if(connDesc=="S THIOL") 		description = "H THIOL";
+
 			else if(connDesc=="S THIOL") 		description = "H THIOL";
 			else if(connDesc=="S THIOETHER") 	description = "H THIOL";
 			else description = "H";
-			mol.setAtomMM2Description(i, description.intern());
+			mol.setMM2AtomDescription(i, description.intern());
 		}
 		
 		for(int i=0; i<mol.getAllAtoms(); i++) {
-			AtomClass a = descriptionToAtom.get(mol.getAtomMM2Description(i));
+			AtomClass a = params.getAtomClassFromDescription(mol.getMM2AtomDescription(i));
 			if(a==null) {
-				System.err.println("Invalid description for "+i+": "+mol.getAtomMM2Description(i));
-				mol.setAtomMM2Class(i, 1);
+				System.err.println("MM2Parameters: Invalid description for "+i+": "+mol.getMM2AtomDescription(i)+" > "+mol.getAtomicNo(i));
+				mol.setMM2AtomType(i, 1);
 			} else {
-				mol.setAtomMM2Class(i, a.atomClass);				
+				mol.setMM2AtomType(i, a.atomClass);				
 			}
 		}
 //		logger.finest("MM2 parameters computed in "+(System.currentTimeMillis()-s)+"ms");
 	}
 	
-	@Override
-	public boolean addLonePairs(FFMolecule mol) {
-		return addLonePairs(mol, false);
-	}
-	public boolean addLonePairs(FFMolecule mol, boolean alsoRigid) {
+	public static boolean addLonePairs(FFMolecule mol) {
 		boolean modified = false;
 		//Add Lone Pairs
 		for(int i=0; i<mol.getAllAtoms(); i++) {
-			if(!alsoRigid && mol.isAtomFlag(i, FFMolecule.RIGID)) continue;
+			
+			if(mol.isAtomFlag(i, FFMolecule.RIGID)) continue;
 			
 			int nLonePairs = getNLonePairs(mol, i);
 			for(int j=0; j<mol.getAllConnAtoms(i); j++) {
@@ -322,8 +641,8 @@ public class MM2Parameters extends FFParameters {
 			}
 			for(int j=0; j<nLonePairs; j++) {
 				int lp = mol.addAtom(0);
-				mol.setAtomMM2Description(lp, "LP LONE PAIR".intern());
-				mol.setAtomMM2Class(lp, 20);
+				mol.setMM2AtomDescription(lp, "LP LONE PAIR".intern());
+				mol.setMM2AtomType(lp, 20);
 				mol.setAtomFlags(lp, mol.getAtomFlags(i) & ~FFMolecule.PREOPTIMIZED & ~FFMolecule.RIGID);
 				mol.addBond(i, lp, 1);
 				mol.setCoordinates(lp, mol.getCoordinates(i));
@@ -332,15 +651,15 @@ public class MM2Parameters extends FFParameters {
 		}
 		return modified;			
 	}
-	public int getNLonePairs(FFMolecule mol, int i) {
+	public static int getNLonePairs(FFMolecule mol, int i) {
 		int nLonePairs = 0;
-		if(mol.getAtomMM2Class(i)==6 && mol.getAllConnAtoms(i)>1) nLonePairs = 2;
-		else if(mol.getAtomMM2Class(i)==37) nLonePairs = 1;
-		else if(mol.getAtomMM2Class(i)==8) nLonePairs = 1;
-		else if(mol.getAtomMM2Class(i)==41) nLonePairs = 1;
-		else if(mol.getAtomMM2Class(i)==49) nLonePairs = 2;
-		else if(mol.getAtomMM2Class(i)==82) nLonePairs = 1;
-		else if(mol.getAtomMM2Class(i)==83) nLonePairs = 1;
+		if(mol.getMM2AtomType(i)==6 && mol.getAllConnAtoms(i)>1) nLonePairs = 2;
+		else if(mol.getMM2AtomType(i)==37) nLonePairs = 1;
+		else if(mol.getMM2AtomType(i)==8) nLonePairs = 1;
+		else if(mol.getMM2AtomType(i)==41) nLonePairs = 1;
+		else if(mol.getMM2AtomType(i)==49) nLonePairs = 2;
+		else if(mol.getMM2AtomType(i)==82) nLonePairs = 1;
+		else if(mol.getMM2AtomType(i)==83) nLonePairs = 1;
 
 		return nLonePairs;
 	}
@@ -350,9 +669,10 @@ public class MM2Parameters extends FFParameters {
 		
 		int atomicNo = mol.getAtomicNo(a);
 		int connected = 0;
+		int nHeavy = 0;
 		int valence = 0;
 		
-		int ringSize = mol.getRingSize(a);
+		int ringSize = mol.getAtomRingSize(a);
 		int doubleBonds = 0;
 		int tripleBonds = 0;		
 //		int nonH = 0;
@@ -364,8 +684,8 @@ public class MM2Parameters extends FFParameters {
 			if(mol.getAtomicNo(mol.getConnAtom(a, i))!=0) {
 				connected++;
 				valence+=order;
-//				nonH++;
 			}
+			if(mol.getAtomicNo(mol.getConnAtom(a, i))>1) {nHeavy++;}
 		}
 		int nH = Math.max(0, StructureCalculator.getImplicitHydrogens(mol, a));
 		connected += nH;
@@ -386,14 +706,18 @@ public class MM2Parameters extends FFParameters {
 				if(ringSize==3) {
 					if(doubleBonds==1) description = "C CYCLOPROPENE";
 					else description = "C CYCLOPROPANE";
-				} else if(doubleBonds==1) {
-					if(connected(mol, a, 8, 2)>=0)  description = "C CARBONYL";			
+				} else if(doubleBonds==1 && !mol.isAromaticAtom(a)) {
+					if(connected(mol, a, 7, 2)>=0)  description = "C CARBONYL";			
+					else if(connected(mol, a, 8, 2)>=0)  description = "C CARBONYL";			
+					else if(connected(mol, a, 15, 2)>=0)  description = "C CARBONYL";			
 					else if(connected(mol, a, 16, 2)>=0) description = "C CARBONYL";
-					else description = "C ALKENE";						
+					else description = "C ALKENE";
+				} else if(doubleBonds==1) {
+					description = "C ALKENE";
 				} else if(doubleBonds == 2)  {
 					description = "C CUMULENE";
 				} else if(tripleBonds == 1)  {
-					if(StructureCalculator.connected(mol, a, 7, 3)>=0) description = "C ISONITRILE";
+					if(StructureCalculator.connected(mol, a, 7, 3)>=0 && connected==1) description = "C ISONITRILE";
 					else description = "C ALKYNE";
 				} else {
 					description = "C ALKANE"; 
@@ -404,6 +728,8 @@ public class MM2Parameters extends FFParameters {
 								
 			} case 7: { //N
 								
+				if(connected==3 && mol.getAtomCharge(a)>0 && nConnected(mol, a, 8, -1)>=2) { description = "N NITRO"; break sw;}
+
 				if(valence>3) {
 					if(tripleBonds>0) description = "N ISONITRILE";
 					else if(doubleBonds>0) description = "N IMMONIUM";
@@ -411,9 +737,8 @@ public class MM2Parameters extends FFParameters {
 					break;
 				}
 				
-				//Analyze the rings
-				List<Integer> ringNos = mol.getAtomToRings()[a];
-				for (Integer ringNo : ringNos) {
+				//N in aromatic ring
+				for (Integer ringNo : mol.getAtomToRings()[a]) {
 					if(!mol.isAromaticRing(ringNo)) continue;
 					int[] ringAtoms = mol.getAllRings().get(ringNo);
 					int nN = 0;
@@ -425,110 +750,101 @@ public class MM2Parameters extends FFParameters {
 							nSO++;
 						}
 					}
-					if(ringAtoms.length==6) {
-						//(C1=CC=CN=C1)
-						if(nN>=2) {description = "N PYRIMIDINE"; break sw;}
-						//(C1=CC=NN=C1)
-						else {description = "N PYRIDINE"; break sw;}
+					
+					if(ringAtoms.length==6) {						
+//						if(nN>=2) {description = "N PYRIMIDINE"; break sw;}	
+//						else 
+						{description = "N PYRIDINE"; break sw;} 						
 					} else if(ringAtoms.length==5) {
-						if(doubleBonds==0) {
+						if(doubleBonds==0 && connected==3) {
 							//(C1=CNC1)
 							description = "N PYRROLE";  break sw; 
 						} else {
 							//(N1=COC1)
 							if(nSO>0) {description = "N OXAZOLE"; break sw;}
 							//(N1=CNC1)
-							else if(nN>0) {description = "N OXAZOLE"; break sw;}
+//							else if(nN>1) {description = "N OXAZOLE"; break sw;} //greater than 1 to exclude itself
 							//??
-							else { description = "N IMINE";  break sw;}
+//							else { description = "N IMINE";  break sw;}
+							else { description = "N IMIDAZOLE";  break sw;}  //IMIDAZOLE
 						}
-					}
-					
-				}
-				
-				
-				/*
-				 *     N
-				 * N - C(sp2) - N
-				 */
-				guanidine:for(int i=0; i<mol.getAllConnAtoms(a); i++) {
-					int a2 = mol.getConnAtom(a, i);
-					if(mol.getAtomicNo(a2)==6 && mol.getConnAtoms(a2)==3 && mol.getRingSize(a2)<0 && connected(mol, a2, -1, 2)>=0) {
-						for(int j=0; j<mol.getAllConnAtoms(a2); j++) {
-							if(mol.getAtomicNo(mol.getConnAtom(a2, j))!=7) continue guanidine;
-						}
-						description = "N GUANIDINE"; break sw;
 					}
 				}
 				
 				
 				if(tripleBonds>0) {description = "N NITRILE"; break sw;}
-				
-				for(int i=0; i<mol.getAllConnAtoms(a); i++) {
-					int a2 = mol.getConnAtom(a, i);
-					if(mol.getAtomicNo(a2)==6 && doubleBonds==0 && connected(mol, a2, -1, 2)>=0) {
-						description = "N AMIDE"; break sw;
-					} else if(mol.getAtomicNo(a2)==7 && doubleBonds==0 && connected(mol, a2, -1, 2)>=0) {
-						description = "N AMIDE"; break sw;
-					} else if(mol.getAtomicNo(a2)==16 && doubleBonds==0 && connected(mol, a2, -1, 2)>=0) {
+
+				/*
+				 *     N
+				 * N - C(sp2) - N -
+				 */
+				if(doubleBonds==0) {
+					guanidine:for(int i=0; i<mol.getAllConnAtoms(a); i++) {
+						int a2 = mol.getConnAtom(a, i);
+						if(mol.getAtomicNo(a2)==6 && mol.getConnAtoms(a2)==3 && mol.getAtomRingSize(a2)<0 && connected(mol, a2, -1, 2)>=0) {
+							for(int j=0; j<mol.getAllConnAtoms(a2); j++) {
+								if(mol.getAtomicNo(mol.getConnAtom(a2, j))!=7) continue guanidine;
+							}
+							description = "N GUANIDINE"; break sw;
+						}
+					}
+					if(connected(mol, a, 16, 1, 7, -1)>=0 || connected(mol, a, 16, 1, 8, -1)>=0) {
 						description = "N SULFONAMIDE"; break sw;
-					} else if(!mol.isAromatic(a) && mol.isAromatic(a2)) {
-						description = "N CONNAROMATIC"; break sw; 
-					}  
+					}
+					if((connected(mol, a, -1, 1, 7, 2)>=0 || connected(mol, a, -1, 1, 16, 2)>=0 || connected(mol, a, -1, 1, 8, 2)>=0) && connected(mol, a, 7, 1, 8, 2)<0) {
+						description = "N AMIDE"; break sw;
+					}
 				}
 				
-				if(doubleBonds>0) {description = "N IMINE"; break sw;}				
-				description = "N AMINE"; 
-				break;
+				
+				
+//				if(mol.getAtomToRings()[a].size()<=0 && doubleBonds==0) {
+//					for(int i=0; i<mol.getAllConnAtoms(a); i++) {
+//						int a2 = mol.getConnAtom(a, i);
+//						if(mol.isAromaticAtom(a2)) {
+//							description = "N CONNAROMATIC"; break sw; 
+//						}  
+//					}
+//				}
+				
+				if(doubleBonds==0 && !mol.isAromaticAtom(a) && (connected(mol, a, 6, 1, -1, 2)>=0 || connected(mol, a, 6, 1, -1, 3)>=0)) { description = "N ENAMINE"; break sw;}
+				else if(doubleBonds>0) {description = "N IMINE"; break sw;}				
+				else {description = "N AMINE"; break;}
+				
 			} case 8: { // O
 				
-				if(mol.getConnAtoms(a)==0) {description = "O WATER"; break sw;}
-				
-				if(mol.isAromatic(a)) { description = "O FURAN"; break sw;}
-				if(connected(mol, a, 15, -1)>=0) {description = "O PHOSPHATE"; break sw;}
-				
-				if(mol.getConnAtoms(a)==1 && connected(mol, mol.getConnAtom(a, 0), -1, 2)>=0) {
-					//     R1   R2
-					//        C(sp2)
-					//        OH
-					int a2 = mol.getConnAtom(a, 0);
-					int r1 = mol.getConnAtom(a2, 0);
-					int r2 = mol.getConnAtom(a2, 1);
-					int r3 = mol.getConnAtom(a2, 2);
-				
-					if(r1==a) {r1 = r3; }
-					else if(r2==a) {r2 = r3; }
+				if(nHeavy==0) {
+					description = "O WATER"; break sw;
+				} else if(nHeavy==1) {
+					if(nH>0) {						
+						if(nH>0 && connected(mol, a, 6, 1, 6, 2)>=0) {description = "O ENOL"; break sw;} //O-C=C						
+						else if(connected(mol, a, 6, 1, 8, 2)>=0) {description = "O CARBOXYL"; break sw;} //O-C=O
+						else {description = "O ALCOHOL"; break sw;}
+					} else {
+						if(connected(mol, a, 7, -1, 8, -1)>=0 && mol.getAtomCharge(connected(mol, a, 7, -1))>0) { description = "O NITRO"; break sw;}
+						else if(connected(mol, a, 15, -1)>=0) {description = "O PHOSPHATE"; break sw;}
+						else if(mol.getAtomCharge(a)<0) {description = "O ALKOXIDE"; break sw;}
+						else if(connected(mol, a, 6, 2, 7, 1)>=0) {description = "O AMIDE"; break sw;} //O=CN
+						else if(connected(mol, a, 6, 2, 8, 1)>=0) {description = "O CARBONYL"; break sw;} //O=CO
+						else {description = "O OXO"; break sw;} //O=C
+					}
+
 					
-					//O=(C)C -> Oxo
-					if(doubleBonds>0 && mol.getAtomicNo(r1)==6 && mol.getAtomicNo(r2)==6) {description = "O OXO"; break sw;} 
-					//O=CN -> amide
-					if(doubleBonds>0 && (mol.getAtomicNo(r1)==7 || mol.getAtomicNo(r2)==7)) {description = "O AMIDE"; break sw;}
-					//C(=O)OH -> Carboxyl
-					if((mol.getAtomicNo(r1)==8 && mol.getConnAtoms(r1)==1) || (mol.getAtomicNo(r2)==8 && mol.getConnAtoms(r2)==1)) {description = "O CARBOXYL"; break sw;}					
-					//HO(C)C -> enol
-					if(doubleBonds==0 && mol.getAtomicNo(r1)==6 && mol.getAtomicNo(r2)==6) {description = "O ENOL"; break sw;}
+				} else {//2 heavy atoms
+					if(mol.getAtomCharge(a)>0) {description = "O OXONIUM"; break sw;}
+					if(mol.isAromaticAtom(a)) { description = "O FURAN"; break sw;}
+					
 
-					if(doubleBonds>0) {description = "O CARBONYL"; break sw;}
-				}
-
-				if(mol.getConnAtoms(a)==2) {
-					if(mol.getConnAtoms(mol.getConnAtom(a, 0))==3 || mol.getConnAtoms(mol.getConnAtom(a, 1))==3) {
-						//COC(=C)C
-						description = "O CARBOXYL";
+					if(connected(mol, a, 15, -1)>=0) {
+						description = "O PHOSPHATE"; break sw;
+					} else if(connected(mol, a, 6, 1, -1, 2)>=0) {
+						//ROC(=R)R
+						description = "O CARBOXYL"; break sw;
 					} else {
 						//COC
-						description = "O ETHER";					
+						description = "O ETHER"; break sw;
 					}
-				} else { 
-					if(doubleBonds>0) {
-						//O=...
-						description = "O OXO";
-					} else {
-						//HO-
-						description = "O ALCOHOL";
-					}
-				} 
-				break;
+				}
 				
 			} case 9: { // F
 				description = "F";
@@ -551,13 +867,14 @@ public class MM2Parameters extends FFParameters {
 				break;
 				
 			} case 16: { // S
-				//if(mol.getAtomCharge(a)>0) description = "S SULFONIUM";
-				if(ringSize==5 && mol.isAromatic(a)) description = "S THIOPHENE";
+				if(ringSize==5 && mol.isAromaticAtom(a)) description = "S THIOPHENE";
 				else if(doubleBonds==0 && nH>0) description = "S THIOL";
+				else if(valence>=4 && nConnected(mol, a, 8, -1) + nConnected(mol, a, 7, -1)>=2) description = "S SULFONE";
 				else if(doubleBonds==0) description = "S THIOETHER";
-				else if(connected(mol, a, 8, -1)>=0) description = "S SULFONE";
-				//else if(connected(mol, a, 8, -1)>=0) description = "S SULFOXIDE";
-				//else if(connected(mol, a, 6, 2)>=0) description = "S THIOCARBONYL"; 
+//				else if(mol.getAtomCharge(a)>0) description = "S SULFONIUM";
+				else if(connected>=3 && connected(mol, a, 8, -1)>=0) description = "S SULFOXIDE";
+				else if(connected(mol, a, 6, 2)>=0) description = "S THIOCARBONYL"; 
+				else if(connected(mol, a, 1, 1)>=0) description = "S THIOL"; 
 				//else if(doubleBonds==1 ) description = "S THIO";
 				else description = "S SULFONE";
 				break;
@@ -602,20 +919,26 @@ public class MM2Parameters extends FFParameters {
 				description = "PT SQUARE PLANAR";
 				break;
 				
-			} case 14: { // Pt
+			} case 14: { // SI
 				description = "SI SILANE";
 				break;
 				
+			} case 3: { // Li
+				description = "LI";
+				break;
+				
+			} case 29: { // Cu
+				description = "CU TRIG PLANAR";
+				break;
+				
 			} default: {
-				if(MM2Parameters.descriptionToAtom!=null) {
-					//Find a class with the same atomicNo
-					for(String key : MM2Parameters.descriptionToAtom.keySet()) {
-						AtomClass atom = MM2Parameters.descriptionToAtom.get(key);
-						if(atom.atomicNo==atomicNo /*&& atom.charge==mol.getAtomCharge(a)*/) {
-							if(DEBUG) System.err.println("Warning: used "+atom.description+" for atomicNo "+atomicNo);
-							description = atom.description;
-							break;
-						}
+				MM2Parameters params = getInstance();
+				//Find a class with the same atomicNo
+				for(AtomClass ac : params.getAtomClasses()) {
+					if(ac.atomicNo==atomicNo /*&& atom.charge==mol.getAtomCharge(a)*/) {
+						if(DEBUG) System.err.println("Warning: used "+ac.description+" for atomicNo "+atomicNo);
+						description = ac.description;
+						break;
 					}
 				}
 			}
@@ -629,12 +952,50 @@ public class MM2Parameters extends FFParameters {
 		}
 	}
 	
+	public AtomClass getAtomClassFromDescription(String desc) {
+		return descriptionToAtom.get(desc);
+	}
+	
 	public static int connected(FFMolecule mol, int a, int atomicNo, int bondOrder) {
 		for(int i=0; i<mol.getAllConnAtoms(a); i++) {
 			int atm = mol.getConnAtom(a, i);
 			if(atomicNo>0 && mol.getAtomicNo(atm)!=atomicNo) continue;
 			if(bondOrder>0 && mol.getConnBondOrder(a, i)!=bondOrder) continue;
 			return atm;
+		}
+		return -1;
+	}
+
+	public static int nConnected(FFMolecule mol, int a, int atomicNo, int bondOrder) {
+		assert atomicNo!=1;
+		
+		int n = 0;
+		for(int i=0; i<mol.getAllConnAtoms(a); i++) {
+			int atm = mol.getConnAtom(a, i);
+			if(atomicNo>0 && mol.getAtomicNo(atm)!=atomicNo) continue;
+			if(bondOrder>0 && mol.getConnBondOrder(a, i)!=bondOrder) continue;
+			n++;
+		}
+		return n;
+	}
+
+	public static int connected(FFMolecule mol, int a, int atomicNo, int bondOrder, int atomicNo2, int bondOrder2) {
+		assert atomicNo!=1;
+		assert atomicNo2!=1;
+		for(int i=0; i<mol.getAllConnAtoms(a); i++) {
+			int atm = mol.getConnAtom(a, i);
+			if(atomicNo>0 && mol.getAtomicNo(atm)!=atomicNo) continue;
+			if(bondOrder>0 && mol.getConnBondOrder(a, i)!=bondOrder) continue;
+			
+			for(int j=0; j<mol.getAllConnAtoms(atm); j++) {
+				int atm2 = mol.getConnAtom(atm, j);
+				if(a==atm2) continue;
+				if(atomicNo2>0 && mol.getAtomicNo(atm2)!=atomicNo2) continue;
+				if(bondOrder2>0 && mol.getConnBondOrder(atm, j)!=bondOrder2) continue;
+				return atm2;
+				
+			}
+			
 		}
 		return -1;
 	}

@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -22,8 +22,7 @@ import java.util.ArrayList;
 
 public class RingCollection {
 	public static final int MAX_SMALL_RING_SIZE = 7;
-//  public static final int MAX_LARGE_RING_SIZE = 24;	// disabled ring size limit, because atom ring flags must be
-														// reliable, e.g. for substituent detection. TLS 20130613
+	private static final int MAX_SMALL_RING_COUNT = 256; // to prevent explosions with highly connected metal grids, etc.
 
 	private static final int MODE_SMALL_RINGS = 1;
 	private static final int MODE_LARGE_RINGS = 2;
@@ -43,13 +42,13 @@ public class RingCollection {
 	private int[] mAtomRingSize;
 	private int[] mBondRingSize;
 	private int[] mHeteroPosition;
-	private boolean[] mAromaticityHandled;
 	private boolean[] mIsAromatic;
 	private boolean[] mIsDelocalized;
+	private int mMaxSmallRingSize;
 
 	/**
-	 * Generates the complete set of small rings, which contains all rings
-	 * up to 7 members.<br> If mode includes LARGE_RINGS, then it determines
+	 * Generates the complete set of small rings, which don't contain metal atoms
+	 * and have up to 7 members.<br> If mode includes LARGE_RINGS, then it determines
 	 * for every atom and bond the size of the smallest ring, which they are
 	 * a member of.<br>If mode includes AROMATICITY then every small ring
 	 * is checked, whether it is aromatic.
@@ -57,7 +56,22 @@ public class RingCollection {
 	 * @param mode one of the public MODE_ options
 	 */
 	public RingCollection(ExtendedMolecule mol, int mode) {
+		this(mol, mode, MAX_SMALL_RING_SIZE);
+		}
+
+	/**
+	 * Generates the complete set of small rings, which don't contain metal atoms
+	 * and have up to 7 members.<br> If mode includes LARGE_RINGS, then it determines
+	 * for every atom and bond the size of the smallest ring, which they are
+	 * a member of.<br>If mode includes AROMATICITY then every small ring
+	 * is checked, whether it is aromatic.
+	 * @param mol
+	 * @param mode one of the public MODE_ options
+	 * @param maxSmallRingSize largest ring size considered a small ring
+	 */
+	public RingCollection(ExtendedMolecule mol, int mode, int maxSmallRingSize) {
 		mMol = mol;
+		mMaxSmallRingSize = maxSmallRingSize;
 		mRingAtomSet = new ArrayList<int[]>();
 		mRingBondSet = new ArrayList<int[]>();
 
@@ -100,6 +114,8 @@ public class RingCollection {
 				// find all rings with less than 8 members of all closure bonds
 		int graphAtom[] = new int[mMol.getAtoms()];
 		graphAtom[0] = startAtom;
+		int[] parent = new int[mMol.getAtoms()];
+		parent[0] = -1;
 		int fragmentNo[] = new int[mMol.getAtoms()];
 		fragmentNo[startAtom] = 1;
 		int current = 0;
@@ -108,6 +124,8 @@ public class RingCollection {
 		while (current <= highest) {
 			for (int i=0; i<mMol.getConnAtoms(graphAtom[current]); i++) {
 				int candidate = mMol.getConnAtom(graphAtom[current], i);
+				if (candidate == parent[graphAtom[current]])
+					continue;
 
 				if (fragmentNo[candidate] != 0) {   // closure bond
 					addSmallRingsToSet(mMol.getConnBond(graphAtom[current], i), isConfirmedChainAtom);
@@ -116,6 +134,7 @@ public class RingCollection {
 
 				if (!isConfirmedChainAtom[candidate]) {
 					fragmentNo[candidate] = noOfFragments;
+					parent[candidate] = graphAtom[current];
 					graphAtom[++highest] = candidate;
 					}
 				}
@@ -126,6 +145,7 @@ public class RingCollection {
 					if (fragmentNo[atom] == 0 && !isConfirmedChainAtom[atom]) {
 						fragmentNo[atom] = ++noOfFragments;
 						graphAtom[++highest] = atom;
+						parent[atom] = -1;
 						break;
 						}
 					}
@@ -133,18 +153,17 @@ public class RingCollection {
 			}
 
 		if ((mode & MODE_AROMATICITY) != 0) {
-			mAromaticityHandled = new boolean[mRingAtomSet.size()];
 			mIsAromatic = new boolean[mRingAtomSet.size()];
 			mIsDelocalized = new boolean[mRingAtomSet.size()];
 			mHeteroPosition = new int[mRingAtomSet.size()];
-			determineAromaticity();
+			determineAromaticity(mIsAromatic, mIsDelocalized, mHeteroPosition, false);
 			}
 
 		// find large rings by examining every potential ring bond
 		// which is not a member of a small ring
 		if ((mode & MODE_LARGE_RINGS) != 0) {
 			for (int bond=0; bond<mMol.getBonds(); bond++) {
-				if (!isConfirmedChainBond[bond]) {
+				if (!isConfirmedChainBond[bond] && mMol.getBondOrder(bond) != 0) {
 					int ringAtom[] = findSmallestRing(bond, isConfirmedChainAtom);
 					if (ringAtom != null)
 						updateRingSizes(ringAtom, getRingBonds(ringAtom));
@@ -156,43 +175,41 @@ public class RingCollection {
 
 	private int[] findSmallestRing(int bond, boolean[] isConfirmedChainAtom) {
 		// find smallest ring of given bond
-	int atom1 = mMol.getBondAtom(0, bond);
-	int atom2 = mMol.getBondAtom(1, bond);
-	int graphAtom[] = new int[mMol.getAtoms()];
-	int graphLevel[] = new int[mMol.getAtoms()];
-	int graphParent[] = new int[mMol.getAtoms()];
-	graphAtom[0] = atom1;
-	graphAtom[1] = atom2;
-	graphLevel[atom1] = 1;
-	graphLevel[atom2] = 2;
-	graphParent[atom1] = -1;
-	graphParent[atom2] = atom1;
-	int current = 1;
-	int highest = 1;
-	while (current <= highest) {
-//		if (graphLevel[graphAtom[current]] > MAX_LARGE_RING_SIZE)
-//			return null;		// disabled ring size limit, TLS 20130613
-		for (int i=0; i<mMol.getConnAtoms(graphAtom[current]); i++) {
-			int candidate = mMol.getConnAtom(graphAtom[current], i);
-			if ((current > 1) && candidate == atom1) {
-				int ringAtom[] = new int[graphLevel[graphAtom[current]]];
-				int atom = graphAtom[current];
-				for (int j=0; j<ringAtom.length; j++) {
-					ringAtom[j] = atom;
-					atom = graphParent[atom];
+		int atom1 = mMol.getBondAtom(0, bond);
+		int atom2 = mMol.getBondAtom(1, bond);
+		int graphAtom[] = new int[mMol.getAtoms()];
+		int graphLevel[] = new int[mMol.getAtoms()];
+		int graphParent[] = new int[mMol.getAtoms()];
+		graphAtom[0] = atom1;
+		graphAtom[1] = atom2;
+		graphLevel[atom1] = 1;
+		graphLevel[atom2] = 2;
+		graphParent[atom1] = -1;
+		graphParent[atom2] = atom1;
+		int current = 1;
+		int highest = 1;
+		while (current <= highest) {
+			for (int i=0; i<mMol.getConnAtoms(graphAtom[current]); i++) {
+				int candidate = mMol.getConnAtom(graphAtom[current], i);
+				if ((current > 1) && candidate == atom1) {
+					int ringAtom[] = new int[graphLevel[graphAtom[current]]];
+					int atom = graphAtom[current];
+					for (int j = 0; j < ringAtom.length; j++) {
+						ringAtom[j] = atom;
+						atom = graphParent[atom];
+						}
+					return ringAtom;
 					}
-				return ringAtom;
+				if (graphLevel[candidate] == 0 && !isConfirmedChainAtom[candidate]) {
+					graphAtom[++highest] = candidate;
+					graphLevel[candidate] = graphLevel[graphAtom[current]] + 1;
+					graphParent[candidate] = graphAtom[current];
+					}
 				}
-			if (graphLevel[candidate] == 0 && !isConfirmedChainAtom[candidate]) {
-				graphAtom[++highest] = candidate;
-				graphLevel[candidate] = graphLevel[graphAtom[current]] + 1;
-				graphParent[candidate] = graphAtom[current];
-				}
+			current++;
 			}
-		current++;
+		return null;
 		}
-	return null;
-	}
 
 
 	/**
@@ -222,78 +239,83 @@ public class RingCollection {
 
 
 	private void addSmallRingsToSet(int closureBond, boolean[] isConfirmedChainAtom) {
+		int[] graphAtom = new int[mMaxSmallRingSize];
+		int[] connIndex = new int[mMaxSmallRingSize];
+		boolean[] isUsed = new boolean[mMol.getAtoms()];
+
 		int atom1 = mMol.getBondAtom(0, closureBond);
 		int atom2 = mMol.getBondAtom(1, closureBond);
-		int graphAtom[] = new int[mMol.getAtoms()];
-		int graphLevel[] = new int[mMol.getAtoms()];
-		int graphParent[] = new int[mMol.getAtoms()];
+
 		graphAtom[0] = atom1;
 		graphAtom[1] = atom2;
-		graphLevel[atom1] = 1;
-		graphLevel[atom2] = 2;
-		graphParent[atom1] = -1;
-		graphParent[atom2] = atom1;
+		connIndex[1] = -1;
+		isUsed[atom2] = true;
 		int current = 1;
-		int highest = 1;
-		while (current <= highest) {
-			if (graphLevel[graphAtom[current]] > MAX_SMALL_RING_SIZE)
-				return;
-			for (int i=0; i<mMol.getConnAtoms(graphAtom[current]); i++) {
-				int candidate = mMol.getConnAtom(graphAtom[current], i);
-				if ((current > 1) && candidate == atom1) {
-					int ringAtom[] = new int[graphLevel[graphAtom[current]]];
-					int atom = graphAtom[current];
-					for (int j=0; j<ringAtom.length; j++) {
-						ringAtom[j] = atom;
-						atom = graphParent[atom];
-						}
-					addRingIfNew(ringAtom);
-					continue;
-					}
-				if (graphLevel[candidate] == 0 && !isConfirmedChainAtom[candidate]) {
-					graphAtom[++highest] = candidate;
-					graphLevel[candidate] = graphLevel[graphAtom[current]] + 1;
-					graphParent[candidate] = graphAtom[current];
-					}
+
+		while(current >= 1) {
+			connIndex[current]++;
+			if (connIndex[current] == mMol.getConnAtoms(graphAtom[current])) {
+				isUsed[graphAtom[current]] = false;
+				current--;
+				continue;
 				}
-			current++;
+
+			int candidate = mMol.getConnAtom(graphAtom[current], connIndex[current]);
+			if (isUsed[candidate] || isConfirmedChainAtom[candidate])
+				continue;
+
+			if (candidate == atom1 && current > 1) {
+				addRingIfNew(graphAtom, current+1);
+
+				// if we have already such many rings, we only collect the smallest ring to avoid a combinatorial explosion
+				if (mRingAtomSet.size() >= MAX_SMALL_RING_COUNT)
+					return;
+
+				continue;
+				}
+
+			if (current+1 < mMaxSmallRingSize) {
+				current++;
+				graphAtom[current] = candidate;
+				isUsed[candidate] = true;
+				connIndex[current] = -1;
+				}
 			}
 		}
 
 
-	private void addRingIfNew(int ringAtom[]) {
-		int ringAtoms = ringAtom.length;
+	private void addRingIfNew(int ringAtom[], int ringSize) {
 		int lowAtom = mMol.getMaxAtoms();
 		int lowIndex = 0;
-		for (int i=0; i<ringAtoms; i++) {
+		for (int i=0; i<ringSize; i++) {
 			if (lowAtom > ringAtom[i]) {
 				lowAtom = ringAtom[i];
 				lowIndex = i;
 				}
 			}
 
-		int sortedRing[] = new int[ringAtoms];
-		int leftIndex = (lowIndex > 0) ? lowIndex - 1 : ringAtoms - 1;
-		int rightIndex = (lowIndex < ringAtoms - 1) ? lowIndex + 1 : 0;
+		int sortedRing[] = new int[ringSize];
+		int leftIndex = (lowIndex > 0) ? lowIndex - 1 : ringSize - 1;
+		int rightIndex = (lowIndex < ringSize - 1) ? lowIndex + 1 : 0;
 		boolean inverse = (ringAtom[leftIndex] < ringAtom[rightIndex]);
-		for (int i=0; i<ringAtoms; i++) {
+		for (int i=0; i<ringSize; i++) {
 			sortedRing[i] = ringAtom[lowIndex];
 			if (inverse) {
 				if (--lowIndex < 0)
-					lowIndex = ringAtoms - 1;
+					lowIndex = ringSize - 1;
 				}
 			else {
-				if (++lowIndex == ringAtoms)
+				if (++lowIndex == ringSize)
 					lowIndex = 0;
 				}
 			}
 
 		for (int i=0; i<mRingAtomSet.size(); i++) {
 			int ringOfSet[] = mRingAtomSet.get(i);
-			if (ringOfSet.length != ringAtoms)
+			if (ringOfSet.length != ringSize)
 				continue;
 			boolean equal = true;
-			for (int j=0; j<ringAtoms; j++) {
+			for (int j=0; j<ringSize; j++) {
 				if (ringOfSet[j] != sortedRing[j]) {
 					equal = false;
 					break;
@@ -425,6 +447,19 @@ public class RingCollection {
 		}
 
 
+	/**
+	 * brute force method to check, whether and which ring is shared by two bonds
+	 * @param bond1
+	 * @param bond2
+	 * @return -1 if bond1 and bond2 don't share a common ring
+	 */
+	public int getSharedRing(int bond1, int bond2) {
+		for (int i=0; i<mRingBondSet.size(); i++)
+			if (isBondMember(i, bond1) && isBondMember(i, bond2))
+				return i;
+		return -1;
+		}
+
 	private void updateRingSizes(int[] ringAtom, int[] ringBond) {
 		int ringSize = ringAtom.length;
 		for (int i=0; i<ringSize; i++)
@@ -455,7 +490,15 @@ public class RingCollection {
 		}
 
 
-	private void determineAromaticity() {
+	/**
+	 *
+	 * @param isAromatic empty array sizes as getSize()
+	 * @param isDelocalized
+	 * @param heteroPosition
+	 * @param includeTautomericBonds whether to treat non-methylated amide/thio-amide bonds as pi-bonds
+	 */
+	public void determineAromaticity(boolean[] isAromatic, boolean[] isDelocalized, int[] heteroPosition,
+									  boolean includeTautomericBonds) {
 		int[][] annelatedRing = new int[mRingAtomSet.size()][];
 		for (int i=0; i<mRingAtomSet.size(); i++) {
 			annelatedRing[i] = new int[mRingAtomSet.get(i).length];
@@ -466,7 +509,7 @@ public class RingCollection {
 		int[] ringMembership = new int[mMol.getBonds()];
 		for (int ring=0; ring<mRingBondSet.size(); ring++) {
 			int[] ringBond = mRingBondSet.get(ring);
-			if (ringBond.length >= 5 && ringBond.length <= 7) {
+			if (ringBond.length == 3 || (ringBond.length >= 5 && ringBond.length <= 7)) {
 				for (int i=0; i<ringBond.length; i++) {
 					int bond = ringBond[i];
 					if (mMol.getConnAtoms(mMol.getBondAtom(0, bond)) == 3
@@ -484,14 +527,16 @@ public class RingCollection {
 				}
 			}
 
+		boolean[] aromaticityHandled = new boolean[mRingAtomSet.size()];
 		int ringsHandled = 0;
 		int lastRingsHandled = -1;
 		while (ringsHandled > lastRingsHandled) {
 			lastRingsHandled = ringsHandled;
 			for (int ring=0; ring<mRingAtomSet.size(); ring++) {
-				if (!mAromaticityHandled[ring]) {
-					if (determineAromaticity(ring, annelatedRing)) {
-						mAromaticityHandled[ring] = true;
+				if (!aromaticityHandled[ring]) {
+					if (determineAromaticity(ring, annelatedRing, aromaticityHandled,
+							isAromatic, isDelocalized, heteroPosition, includeTautomericBonds)) {
+						aromaticityHandled[ring] = true;
 						ringsHandled++;
 						}
 					}
@@ -499,7 +544,9 @@ public class RingCollection {
 			}
 		}
 
-	private boolean determineAromaticity(int ringNo, int[][] annelatedRing) {
+	private boolean determineAromaticity(int ringNo, int[][] annelatedRing, boolean[] aromaticityHandled,
+										 boolean []isAromatic, boolean[] isDelocalized, int[] heteroPosition,
+										 boolean includeTautomericBonds) {
 			// returns true if it can successfully determine and set the ring's aromaticity
 		int ringAtom[] = mRingAtomSet.get(ringNo);
 		int ringBond[] = mRingBondSet.get(ringNo);
@@ -510,16 +557,20 @@ public class RingCollection {
 		for (int i=0; i<ringBonds; i++) {
 			bondSequence <<= 1;
 			aromaticButNotDelocalizedSequence <<= 1;
-			if (mMol.getBondOrder(ringBond[i]) > 1
-			 || mMol.getBondType(ringBond[i]) == Molecule.cBondTypeDelocalized)
+			if (qualifiesAsPiBond(ringBond[i])) {
 				bondSequence |= 1;
+				}
+			else if (includeTautomericBonds && qualifiesAsAmideTypeBond(ringBond[i])) {
+				bondSequence |= 1;
+				aromaticButNotDelocalizedSequence |= 1;
+				}
 			else {
 				int annelated = annelatedRing[ringNo][i];
 				if (annelated != -1) {
-					if (mAromaticityHandled[annelated]) {
-						if (mIsAromatic[annelated]) {
+					if (aromaticityHandled[annelated]) {
+						if (isAromatic[annelated]) {
 							bondSequence |= 1;
-							if (!mIsDelocalized[annelated])
+							if (!isDelocalized[annelated])
 								aromaticButNotDelocalizedSequence |= 1;
 							}
 						}
@@ -532,39 +583,61 @@ public class RingCollection {
 
 		boolean hasDelocalizationLeak = false;
 		switch (ringBonds) {
+		case 3:
+			final int[] cSequence3Ring = {
+				2,	 // 010
+				1,	 // 001
+				4 }; // 100
+			hasDelocalizationLeak = true;
+			for (int carbeniumPosition=0; carbeniumPosition<3; carbeniumPosition++) {
+				if ((bondSequence & cSequence3Ring[carbeniumPosition]) == cSequence3Ring[carbeniumPosition]) {
+					if ((mMol.getAtomicNo(ringAtom[carbeniumPosition]) == 6
+							&& mMol.getAtomCharge(ringAtom[carbeniumPosition]) == 1)
+							|| (mMol.getAtomicNo(ringAtom[carbeniumPosition]) == 5
+							&& mMol.getAtomCharge(ringAtom[carbeniumPosition]) == 0)) {
+						isAromatic[ringNo] = true;
+						heteroPosition[ringNo] = carbeniumPosition;
+						if ((aromaticButNotDelocalizedSequence & cSequence3Ring[carbeniumPosition]) == 0)
+							hasDelocalizationLeak = false;
+						}
+					}
+				}
+			break;
 		case 5:
 			final int[] cSequence5Ring = {
 			   10,	// 01010
 				5,	// 00101
 			   18,	// 10010
 				9,	// 01001
-			   20 };  // 01010
+			   20 };// 01010
 			hasDelocalizationLeak = true;
-			for (int heteroPosition=0; heteroPosition<5; heteroPosition++) {
-				if ((bondSequence & cSequence5Ring[heteroPosition]) == cSequence5Ring[heteroPosition]) {
-					switch (mMol.getAtomicNo(ringAtom[heteroPosition])) {
+			for (int position=0; position<5; position++) {
+				if ((bondSequence & cSequence5Ring[position]) == cSequence5Ring[position]) {
+					switch (mMol.getAtomicNo(ringAtom[position])) {
 					case 6:
-						if (mMol.getAtomCharge(ringAtom[heteroPosition]) == -1) {
-							mIsAromatic[ringNo] = true;
-							mHeteroPosition[ringNo] = heteroPosition;
-							if ((aromaticButNotDelocalizedSequence & cSequence5Ring[heteroPosition]) == 0)
+						if (mMol.getAtomCharge(ringAtom[position]) == -1) {
+							isAromatic[ringNo] = true;
+							heteroPosition[ringNo] = position;
+							if ((aromaticButNotDelocalizedSequence & cSequence5Ring[position]) == 0)
 								hasDelocalizationLeak = false;
 							}
 						break;
 					case 7:
-						if (mMol.getAtomCharge(ringAtom[heteroPosition]) <= 0) {
-							mIsAromatic[ringNo] = true;
-							mHeteroPosition[ringNo] = heteroPosition;
+						if (mMol.getAtomCharge(ringAtom[position]) <= 0) {
+							isAromatic[ringNo] = true;
+							heteroPosition[ringNo] = position;
 							}
 						break;
 					case 8:
-						mIsAromatic[ringNo] = true;
-						mHeteroPosition[ringNo] = heteroPosition;
+						isAromatic[ringNo] = true;
+						heteroPosition[ringNo] = position;
 						break;
 					case 16:
-						if (mMol.getConnAtoms(ringAtom[heteroPosition]) == 2) {
-							mIsAromatic[ringNo] = true;
-							mHeteroPosition[ringNo] = heteroPosition;
+					case 34:
+					case 52:
+						if (mMol.getConnAtoms(ringAtom[position]) == 2) {
+							isAromatic[ringNo] = true;
+							heteroPosition[ringNo] = position;
 							}
 						break;
 						}
@@ -574,12 +647,12 @@ public class RingCollection {
 		case 6:
 			hasDelocalizationLeak = true;
 			if ((bondSequence & 21) == 21) {   // 010101
-				mIsAromatic[ringNo] = true;
+				isAromatic[ringNo] = true;
 				if ((aromaticButNotDelocalizedSequence & 21) == 0)
 					hasDelocalizationLeak = false;
 				}
 			if ((bondSequence & 42) == 42) {   // 101010
-				mIsAromatic[ringNo] = true;
+				isAromatic[ringNo] = true;
 				if ((aromaticButNotDelocalizedSequence & 42) == 0)
 					hasDelocalizationLeak = false;
 				}
@@ -600,8 +673,8 @@ public class RingCollection {
 					  && mMol.getAtomCharge(ringAtom[carbeniumPosition]) == 1)
 					 || (mMol.getAtomicNo(ringAtom[carbeniumPosition]) == 5
 					  && mMol.getAtomCharge(ringAtom[carbeniumPosition]) == 0)) {
-						mIsAromatic[ringNo] = true;
-						mHeteroPosition[ringNo] = carbeniumPosition;
+						isAromatic[ringNo] = true;
+						heteroPosition[ringNo] = carbeniumPosition;
 						if ((aromaticButNotDelocalizedSequence & cSequence7Ring[carbeniumPosition]) == 0)
 							hasDelocalizationLeak = false;
 						}
@@ -610,12 +683,48 @@ public class RingCollection {
 			break;
 			}
 		
-		if (mIsAromatic[ringNo] && !hasDelocalizationLeak)
-			mIsDelocalized[ringNo] = true;
+		if (isAromatic[ringNo] && !hasDelocalizationLeak)
+			isDelocalized[ringNo] = true;
 
-		if (mIsAromatic[ringNo])
+		if (isAromatic[ringNo])
 			return true;
 
 		return !unhandledAnnelatedRingFound;
+		}
+
+	private boolean qualifiesAsPiBond(int bond) {
+		return (mMol.getBondOrder(bond) > 1
+			 || mMol.getBondType(bond) == Molecule.cBondTypeDelocalized);
+		}
+
+	/**
+	 * Checks, whether this bond may contribute pi-electrons from an amide-resonance
+	 * to an aromatic ring. According to M J Cook, A R Katritzky, P Linda, R D Tack
+	 * J. Chem. Soc., Perkin Trans. 2, 1972, 1295-1301
+	 * 2-pyridone and 2-pyridinethione retain most of the aromatic resonance
+	 * energy of pyridine unless the nitrogen atom is methylated.
+	 * @param bond
+	 * @return
+	 */
+	public boolean qualifiesAsAmideTypeBond(int bond) {
+		for (int i=0; i<2; i++) {
+			int atom1 = mMol.getBondAtom(i, bond);
+			if (mMol.getAtomicNo(atom1) == 7
+			 && mMol.getConnAtoms(atom1) == 2) {
+				int atom2 = mMol.getBondAtom(1-i, bond);
+				if (mMol.getAtomicNo(atom2) == 6) {
+					for (int j=0; j<mMol.getConnAtoms(atom2); j++) {
+						int connAtom = mMol.getConnAtom(atom2, j);
+						int connBond = mMol.getConnBond(atom2, j);
+						if ((mMol.getAtomicNo(connAtom) == 8 || mMol.getAtomicNo(connAtom) == 16)
+						 && mMol.getBondOrder(connBond) == 2
+						 && mMol.getConnAtoms(connAtom) == 1)
+						return true;
+						}
+					}
+				}
+			}
+
+		return false;
 		}
 	}

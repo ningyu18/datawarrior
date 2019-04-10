@@ -1,37 +1,49 @@
+/*
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
+ *
+ * This file is part of DataWarrior.
+ * 
+ * DataWarrior is free software: you can redistribute it and/or modify it under the terms of the
+ * GNU General Public License as published by the Free Software Foundation, either version 3 of
+ * the License, or (at your option) any later version.
+ * 
+ * DataWarrior is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+ * without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ * See the GNU General Public License for more details.
+ * You should have received a copy of the GNU General Public License along with DataWarrior.
+ * If not, see http://www.gnu.org/licenses/.
+ *
+ * @author Joel Freyss
+ */
 package com.actelion.research.forcefield.mm2;
 
 import java.text.DecimalFormat;
-import java.util.Set;
-import java.util.TreeSet;
 
 import com.actelion.research.chem.FFMolecule;
 import com.actelion.research.chem.calculator.StructureCalculator;
 import com.actelion.research.forcefield.AbstractTerm;
-import com.actelion.research.forcefield.FFConfig;
-import com.actelion.research.forcefield.FFParameters;
 import com.actelion.research.forcefield.TermList;
 import com.actelion.research.forcefield.interaction.ProteinLigandTerm;
+import com.actelion.research.forcefield.mm2.MM2Parameters.BondParameters;
 import com.actelion.research.forcefield.optimizer.PreOptimizer;
 import com.actelion.research.util.MultipleIntMap;
 
 /**
  * The TermList contains and manage the terms of a forcefield
- * 
- * @author freyssj
  */
 public class MM2TermList extends TermList implements Cloneable {
 
-	private final static FFParameters parameters = MM2Parameters.getInstance();
-	private MM2Config config;
+	private final static MM2Parameters parameters = MM2Parameters.getInstance();
 	private PISCF scf;
 
 	private MultipleIntMap<Double> bondDistance = new MultipleIntMap<Double>(2);
 
-	public MM2TermList(TermList tl) {
-		setMolecule(tl.getMolecule());
+	public MM2TermList() {
+		this(new MM2Config());
 	}
 	
-	public MM2TermList() {
+	public MM2TermList(MM2Config config) {
+		super(config);
 	}
 	
 	@Override
@@ -40,46 +52,6 @@ public class MM2TermList extends TermList implements Cloneable {
 	}
 
 	
-	public final BondTerm addBondTerm(int a1, int a2) {
-		BondTerm term = BondTerm.create(this, a1, a2);
-		if(term!=null) add(term);
-		return term;
-	}	
-	public final AngleTerm addAngleTerm(int atm1, int atm2, int atm3, boolean isInPlaneAngleEnabled) {
-		AngleTerm term = AngleTerm.create(this, atm1, atm2, atm3, isInPlaneAngleEnabled);
-		if(term!=null) add(term);
-		return term;
-	}		
-	public final OutOfPlaneAngleTerm addOutOfPlaneBendTerm(int a1, int a2, int a3, int a4) {
-		OutOfPlaneAngleTerm term = OutOfPlaneAngleTerm.create(this, a1, a2, a3, a4);
-		if(term!=null) add(term);
-		return term;
-	}
-	public final InPlaneAngleTerm addInPlaneAngleTerm(int a1, int a2, int a3, int a4) {
-		InPlaneAngleTerm term = InPlaneAngleTerm.create(this, a1, a2, a3, a4);
-		if(term!=null) add(term);
-		return term;
-	}
-	public final StretchBendTerm addStretchBendTerm(int a1, int a2, int a3, BondTerm t1, BondTerm t2) {
-		StretchBendTerm term = StretchBendTerm.create(this, a1, a2, a3, t1, t2);
-		if(term!=null) add(term);
-		return term;
-	}
-	public final DipoleTerm addDipoleTerm(int a1, int a2, int a3, int a4) {
-		DipoleTerm term = DipoleTerm.create(this, a1, a2, a3, a4);
-		if(term!=null) add(term);
-		return term;
-	}
-	public final ChargeDipoleTerm addChargeDipoleTerm(int a1, int a2, int a3) {
-		ChargeDipoleTerm term = ChargeDipoleTerm.create(this, a1, a2, a3);
-		if(term!=null) add(term);
-		return term;
-	}
-	public final TorsionTerm addTorsionTerm(int a1, int a2, int a3, int a4) {
-		TorsionTerm term = TorsionTerm.create(this, a1, a2, a3, a4);
-		if(term!=null) add(term);
-		return term;
-	}	
 	public final AbstractTerm addVDWTerm(int a1, int a2) {
 		AbstractTerm term = VDWLNTerm.create(this, a1, a2);
 		if(term!=null) add(term);
@@ -95,31 +67,7 @@ public class MM2TermList extends TermList implements Cloneable {
 		if(term!=null) add(term);
 		return term;
 	}	
-	public final ChargeTerm addChargeTerm(int a1, int a2) {
-		ChargeTerm term = ChargeTerm.create(this, a1, a2);
-		if(term!=null) add(term);
-		return term;
-	}	
 	
-	public final ProteinLigandTerm addProteinLigandTerm(int proteinAtm, int ligandAtm) {
-		ProteinLigandTerm term = ProteinLigandTerm.create(getConfig().getClassStatistics(), getMolecule(), proteinAtm, ligandAtm);		
-		if(term!=null) add(term);
-		return term;
-	}
-		
-	public final double getInteractionEnergy(double maxDist) {
-		double sum = 0;		
-		for(int i=0; i<size(); i++) {
-			AbstractTerm term = get(i);
-			if(term.isExtraMolecular() ) {
-				double d = mol.getCoordinates(term.getAtoms()[0]).distance(mol.getCoordinates(term.getAtoms()[1]));
-				if(d>maxDist) continue;
-				double e = term.getFGValue(null); 
-				sum += e;
-			}
-		}
-		return sum;
-	}
 	public final double getInteractionEnergyH() {
 		double sum = 0;
 		
@@ -133,27 +81,6 @@ public class MM2TermList extends TermList implements Cloneable {
 
 		return sum;
 	}
-	/*
-	public final double getInteractionEnergyVDW() {
-		double sum = 0;
-		for(int a1=0; a1<mol.getNMovables(); a1++) {
-			for(int a2=a1+1; a2<mol.getAllAtoms(); a2++) {
-				
-				if(mol.isAtomFlag(a1, FFMolecule.RIGID) && mol.isAtomFlag(a2, FFMolecule.RIGID)) continue;
-				
-				boolean interMolecular = (mol.isAtomFlag(a1, FFMolecule.LIGAND) && !mol.isAtomFlag(a2, FFMolecule.LIGAND)) 
-						|| (mol.isAtomFlag(a2, FFMolecule.LIGAND) && !mol.isAtomFlag(a1, FFMolecule.LIGAND));
-				
-				if(interMolecular && mol.getAtomicNo(a1)>1 && mol.getAtomicNo(a2)>1){							
-					VDWLNTerm t = VDWLNTerm.create(this, a1, a2);
-					sum += t.getFGValue(null);
-				}
-				
-			}
-		}
-
-		return sum;
-	}	*/
 	
 	public final double getStructureEnergyNoH() {
 		double sum = 0;
@@ -204,45 +131,37 @@ public class MM2TermList extends TermList implements Cloneable {
 	}
 	
 	@Override
-	public void prepareMolecule(FFMolecule mol, FFConfig conf) {
-		MM2Config config = (MM2Config) conf;
+	public void prepareMolecule(FFMolecule mol) {
+		MM2Config config = (MM2Config) getConfig();
 		
 		boolean changed = false;
 		// Add the hydrogens (or remove), without placing them
-		if (!(config instanceof MM2Config.PreoptimizeConfig)) {
-			if (config.isAddHydrogens()) {
-				changed = StructureCalculator.addHydrogens(mol, config.isUseHydrogenOnProtein()) || changed;
-			} else {
-				changed = StructureCalculator.deleteHydrogens(mol) || changed;
-			}
+		if (config.isPrepareMolecule()) {
+			changed = StructureCalculator.addHydrogens(mol, config.isUseHydrogenOnProtein());
 		}
 
 		//Set the MM2 atom classes
-		MM2Parameters.getInstance().setAtomClassesForMolecule(mol);
+		MM2Parameters.setAtomTypes(mol);
 
 		// Add the lone pairs
-		if (!(config instanceof MM2Config.PreoptimizeConfig)) {
-			if (config.isAddHydrogens() && config.isAddLonePairs())
-				changed = parameters.addLonePairs(mol) || changed;
+		if (config.isPrepareMolecule()) {
+			if(MM2Parameters.addLonePairs(mol)) changed = true;
 		}
 
 		// Set the interactions atom classes
-		if (config.isUsePLInteractions())
-			config.getClassStatistics().setClassIdsForMolecule(mol);
+		if (config.isUsePLInteractions()) config.getClassStatistics().setClassIdsForMolecule(mol);
 
 		// Preoptimize the H
-		if (changed && !(config instanceof MM2Config.PreoptimizeConfig)) {
-			PreOptimizer.preOptimizeHydrogens(mol);
+		if (changed && config.isPrepareMolecule()) {
+			PreOptimizer.preOptimizeHydrogens(mol, config);
 		}
-
 	}
 	
 	@Override
-	public void init(FFMolecule mol, FFConfig conf) {
-		MM2Config config = (MM2Config) conf;
+	public void init(FFMolecule mol) {
+		MM2Config config = (MM2Config) getConfig();
 		
 		this.mol = mol;
-		this.config = config;
 		this.scf = new PISCF(this);
 
 		
@@ -258,27 +177,28 @@ public class MM2TermList extends TermList implements Cloneable {
 			int a1 = mol.getBondAtom(0, i);	
 			int a2 = mol.getBondAtom(1, i);
 			if(mol.isAtomFlag(a1, FFMolecule.RIGID) && mol.isAtomFlag(a2, FFMolecule.RIGID)) continue;
-			BondTerm term = addBondTerm(a1, a2);
+			BondTerm term = BondTerm.create(this, a1, a2);
+			add(term);
 			map.put(new int[]{a1,a2}, term);
 			map.put(new int[]{a2,a1}, term);
 		}
 
 		//Angle and StretchBend Terms
-		for(int a2=0; a2<mol.getNMovables(); a2++) {
+		for(int a2=0; a2<mol.getAllAtoms(); a2++) {
 			for(int i=0; i<mol.getAllConnAtoms(a2); i++) {
 				int a1 = mol.getConnAtom(a2, i);
 				for(int j=0; j<mol.getAllConnAtoms(a1); j++) {
 					int a3 = mol.getConnAtom(a1, j);
-					if(a3<mol.getNMovables() &&  a3<=a2) continue;
+					if(a3<=a2) continue;
 
 					
-					if(mol.isAtomFlag(a2, FFMolecule.RIGID) && 
-						(mol.isAtomFlag(a1, FFMolecule.RIGID) && mol.isAtomFlag(a3, FFMolecule.RIGID))) continue;				
-					addAngleTerm(a2, a1, a3, config.isUseInPlaneAngle());
+					if(mol.isAtomFlag(a1, FFMolecule.RIGID) &&  mol.isAtomFlag(a2, FFMolecule.RIGID) && mol.isAtomFlag(a3, FFMolecule.RIGID)) continue;
+					add(AngleTerm.create(this, a2, a1, a3));
+
 					if(config.isUseStretchBend() && !mol.isAtomFlag(a1, FFMolecule.RIGID)) {
 						BondTerm t1 = (BondTerm) map.get(new int[]{a1, a2});
 						BondTerm t2 = (BondTerm) map.get(new int[]{a1, a3});
-						addStretchBendTerm(a2, a1, a3, t1, t2);					
+						add(StretchBendTerm.create(this, a2, a1, a3, t1, t2));
 					}
 				}			
 			}			
@@ -295,63 +215,70 @@ public class MM2TermList extends TermList implements Cloneable {
 						&& mol.isAtomFlag(a1, FFMolecule.RIGID)
 						&& mol.isAtomFlag(a2, FFMolecule.RIGID)
 						&& mol.isAtomFlag(i, FFMolecule.RIGID)) continue;				
-					addOutOfPlaneBendTerm(a0, i, a1, a2); 
-					addOutOfPlaneBendTerm(a1, i, a0, a2); 
-					addOutOfPlaneBendTerm(a2, i, a0, a1);
+					
+					add(OutOfPlaneAngleTerm.create(this, a0, i, a1, a2));
+					add(OutOfPlaneAngleTerm.create(this, a1, i, a0, a2));
+					add(OutOfPlaneAngleTerm.create(this, a2, i, a0, a1));					
 						
-					if(config.isUseInPlaneAngle()) {
-						addInPlaneAngleTerm(a0, i, a1, a2);
-						addInPlaneAngleTerm(a0, i, a2, a1);
-						addInPlaneAngleTerm(a1, i, a2, a0);
-					}
 				}
 			}			
 		} 
 
 		//Torsion Terms
-		for(int b=0; b<mol.getAllBonds(); b++) {
-			int a2 = mol.getBondAtom(0, b);
-			int a3 = mol.getBondAtom(1, b);
-			for(int i=0; i<mol.getAllConnAtoms(a2); i++) {
-				int a1 = mol.getConnAtom(a2, i);
-				if(a1==a3) continue;
-				for(int j=0; j<mol.getAllConnAtoms(a3); j++) {
-					int a4 = mol.getConnAtom(a3, j);
-					if(a4==a2 || a4==a1) continue;
-					if(mol.isAtomFlag(a1, FFMolecule.RIGID) 
-						&& mol.isAtomFlag(a2, FFMolecule.RIGID)
-						&& mol.isAtomFlag(a3, FFMolecule.RIGID)
-						&& mol.isAtomFlag(a4, FFMolecule.RIGID)) continue;
-					if(mol.getAllConnAtoms(a2)<=2 || mol.getAllConnAtoms(a3)<=2) continue;
-					addTorsionTerm(a1, a2, a3, a4);						
-				}					
+		if(config.isUseTorsion()) {
+			
+			for (int a1=0; a1<mol.getAllAtoms(); a1++) {
+		            for (int j=0; j<mol.getAllConnAtoms(a1); j++) {
+		                int a2 = mol.getConnAtom(a1, j);
+		                for (int k=0; k<mol.getAllConnAtoms(a2); k++) {
+		                    int a3 = mol.getConnAtom(a2, k);
+
+		                    if (a1 == a3)
+		                        continue;
+
+		                    for (int l=0; l<mol.getAllConnAtoms(a3); l++) {
+		                        int a4 = mol.getConnAtom(a3, l);
+
+		                        if (a2 == a4 || a1 == a4)
+		                            continue;
+
+	                        	if(mol.isAtomFlag(a1, FFMolecule.RIGID) && mol.isAtomFlag(a2, FFMolecule.RIGID) && mol.isAtomFlag(a3, FFMolecule.RIGID) && mol.isAtomFlag(a4, FFMolecule.RIGID)) continue;
+//		                        if(a1<mol.getNMovables() || a2<mol.getNMovables() || a3<mol.getNMovables() || a4<mol.getNMovables()) {
+
+			                        if (a4 > a1) {
+			                        	add(TorsionTerm.create(this, a1, a2, a3, a4));
+			                        	
+			                        }
+//		                        }
+		                    }
+		                }
+		            }
 			}
-		}			
+		}
 
 		//VDW and Charge Terms
 		if(config.getMaxDistance()>0) {
 			if(config.getVdwType()>=0 || config.isUseCharge()) { 
 				for(int a1=0; a1<mol.getNMovables(); a1++) {
-					for(int a2=0; a2<mol.getNMovables(); a2++) {
+					for(int a2=0; a2<a1; a2++) {
 						if(mol.getCoordinates(a2).distance(mol.getCoordinates(a1))>config.getMaxDistance()) continue;
+						
 						if(a2g[a1]!=a2g[a2]) continue;
 						
-						if(a2<mol.getNMovables() && dist[a1][a2]>=0 && dist[a1][a2]<=2) continue;
+						if(dist[a1][a2]>=0 && dist[a1][a2]<=3) continue;
 						
-						if(mol.isAtomFlag(a2, FFMolecule.RIGID)) continue;
-						
-						if(config.isUseCharge()) addChargeTerm(a1, a2);						
+						if(config.isUseCharge()) add(ChargeTerm.create(this, a1, a2));					
 	
 						if(config.getVdwType()==0) addVDWTerm(a1, a2);
 						else if(config.getVdwType()==1) addVDW48Term(a1, a2);
 						else if(config.getVdwType()==2) addVDW48NoHTerm(a1, a2);
-						else if(config.getVdwType()==3) addProteinLigandTerm(a1, a2);
 					}			
 				}		
 			}
 	
 			//Dipole Terms 
-			if(config.isUseDipole() || config.isUsePLDipole()) {
+			if(config.isUseDipole()) {
+				double maxDist2 = config.getMaxDistance()*config.getMaxDistance();
 				for(int i=0; i<mol.getAllBonds(); i++) {
 					for(int j=i+1; j<mol.getAllBonds(); j++) {										
 						int a0 = mol.getBondAtom(0,i);
@@ -362,11 +289,8 @@ public class MM2TermList extends TermList implements Cloneable {
 	
 						boolean interMolecular = a2g[a0]!=a2g[a2];
 						
-							//((mol.isAtomFlag(a0, FFMolecule.LIGAND) && !mol.isAtomFlag(a2, FFMolecule.LIGAND)) || 
-							//(mol.isAtomFlag(a2, FFMolecule.LIGAND) && !mol.isAtomFlag(a0, FFMolecule.LIGAND)));
-						if(interMolecular && !mol.isAtomFlag(a0, FFMolecule.LIGAND)) continue;
-						if(interMolecular && !config.isUsePLDipole()) continue;
-						if(!interMolecular && !config.isUseDipole()) continue;
+						if(!mol.isAtomFlag(a0, FFMolecule.LIGAND)) continue;
+						if(interMolecular) continue;
 						
 						if(interMolecular && (mol.getAtomicNo(a0)<=1 || mol.getAtomicNo(a1)<=1 || mol.getAtomicNo(a2)<=1 || mol.getAtomicNo(a3)<=1) ) continue;
 	
@@ -375,16 +299,15 @@ public class MM2TermList extends TermList implements Cloneable {
 							&& mol.isAtomFlag(a2, FFMolecule.RIGID)					 
 							&& mol.isAtomFlag(a3, FFMolecule.RIGID)) continue;
 	
-						double maxDist2 = interMolecular? config.getMaxPLDistance()*config.getMaxPLDistance(): config.getMaxDistance()*config.getMaxDistance();
 						if(mol.getCoordinates(a0).addC(mol.getCoordinates(a1)).scaleC(.5).distSquareTo(mol.getCoordinates(a2).addC(mol.getCoordinates(a3)).scaleC(.5))>maxDist2) continue;
 								
-						addDipoleTerm(a0, a1, a2, a3);
+						add(DipoleTerm.create(this, a0, a1, a2, a3));
 					}			
 				}					
 			} 
 			
 			//Charge-Dipole Terms
-			if(config.isUseChargeDipole() || config.isUsePLDipole()) {
+			if(config.isUseChargeDipole()) {
 				for(int a1=0; a1<mol.getNMovables(); a1++) {
 					for(int i=0; i<mol.getAllBonds(); i++) {
 						int a2 = mol.getBondAtom(0, i); 
@@ -397,87 +320,17 @@ public class MM2TermList extends TermList implements Cloneable {
 						boolean interMolecular = ((mol.isAtomFlag(a1, FFMolecule.LIGAND) && !mol.isAtomFlag(a2, FFMolecule.LIGAND)) || 
 							(mol.isAtomFlag(a2, FFMolecule.LIGAND) && !mol.isAtomFlag(a1, FFMolecule.LIGAND)));
 						
-						if(interMolecular /*&& !config.isUsePLDipole()*/) continue;
+						if(interMolecular) continue;
 						if(!interMolecular && !config.isUseChargeDipole()) continue;
-						addChargeDipoleTerm(a1, a2, a3);
+						add(ChargeDipoleTerm.create(this, a1, a2, a3));
 					}
 				}
 			}
 		}
 		
 		//Protein-Ligand Terms
-		nProteinLigandTerms = 0;
-		if(config.isUsePLInteractions()) {
-			
-			if(config.getMaxPLDistance()==0) return;
-		
-			Set<Integer> proteinAtoms = new TreeSet<Integer>();
-			Set<Integer> ligandAtoms = new TreeSet<Integer>();	 			 
-			for (int a = 0; a < mol.getAllAtoms(); a++) {			
-				
-				if(mol.isAtomFlag(a, FFMolecule.LIGAND)) {
-					ligandAtoms.add(a);
-				} else {
-					proteinAtoms.add(a);
-				}
-			}
-
-			//Add the terms
-			for(int a1: ligandAtoms) {
-				for(int a2: proteinAtoms) {
-					if(mol.isAtomFlag(a1, FFMolecule.RIGID) && mol.isAtomFlag(a2, FFMolecule.RIGID )) continue;
-					if(mol.getCoordinates(a1).distSquareTo(mol.getCoordinates(a2))>config.getMaxPLDistance()*config.getMaxPLDistance()) continue;						
-					if(!config.isUseHydrogenOnProtein() && (mol.getAtomicNo(a1)<=1 || mol.getAtomicNo(a2)<=1)) continue;
-					
-					if(config.getMaxPLDistance()>0) {
-						addProteinLigandTerm(a2, a1);
-					} else {
-						addVDW48Term(a2, a1);						
-					}
-					
-				}			
-			}
-			
-			//Add the Hbonds terms
-		/*	if(config.isUseHBonds()) {
-				for(int a1: ligandAtoms) {
-					for(int a2: proteinAtoms) {
-						if(mol.getAtomicNo(a1)>1 && mol.getAtomicNo(a2)>0) continue;
-						HBondTerm term = HBondTerm.create(this, a2, a1);
-						if(term!=null) add(term);
-					}
-				}
-				/*
-				//Ligand = Donor
-				for(int a1: ligandAtoms) {
-					if(mol.getAtomicNo(a1)!=1 ||  mol.getAllConnAtoms(a1)!=1) continue;
-					int a3 = mol.getConnAtom(a1, 0);
-					if(mol.getAtomicNo(a3)!=8 && mol.getAtomicNo(a3)!=7) continue;
-					for(int a2: proteinAtoms) {
-						if(mol.getAtomicNo(a2)!=8 && mol.getAtomicNo(a2)!=7 && mol.getAtomicNo(a2)!=15) continue;
-						if(grid.getNeighbours(mol.getCoordinates(a2), 6, true, FFMolecule.LIGAND).size()==0) continue;
-						HBondTerm term = HBondTerm.create(this, a2, a1);
-						//System.out.println("creat hbond "+a2+" "+a1+" "+term);
-						if(term!=null) add(term);
-					}
-				}
-				
-				//Ligand = Acceptor
-				for(int a1: ligandAtoms) {
-					if(mol.getAtomicNo(a1)!=8 && mol.getAtomicNo(a1)!=7 && mol.getAtomicNo(a1)!=15) continue;
-					for(int a2: proteinAtoms) {
-						if(mol.getAtomicNo(a2)!=1 ||  mol.getConnAtoms(a2)!=1) continue;
-						if(grid.getNeighbours(mol.getCoordinates(a2), 6, true, FFMolecule.LIGAND).size()==0) continue;
-						int a3 = mol.getConnAtom(a2, 0);
-						if(mol.getAtomicNo(a3)!=8 && mol.getAtomicNo(a3)!=7) continue;
-						HBondTerm term = HBondTerm.create(this, a2, a1);
-						if(term!=null) add(term);
-					}
-				}
-			}
-*/			
-		}
-
+		addProteinLigandTerms(mol);
+	
 		if(config.isUseOrbitals()) {
 			try {
 				scf.updateTerms();
@@ -485,9 +338,7 @@ public class MM2TermList extends TermList implements Cloneable {
 				e.printStackTrace();
 			}
 		}
-		
-		//System.out.println("FF created with "+nTerms+" "+nProteinLigandTerms+" "+mol.getNMovables());
-		
+				
 	}
 
 	
@@ -502,19 +353,19 @@ public class MM2TermList extends TermList implements Cloneable {
 			if(a1>=N && a2>=N) continue;
 			if(mol.getAtomicNo(a1)<=1 && mol.getAtomicNo(a2)<=1) continue;
 			
-			int n1 = mol.getAtomMM2Class(a1);
-			int n2 = mol.getAtomMM2Class(a2);
-			FFParameters.BondParameters params = parameters.getBondParameters(n1, n2);
+			int n1 = mol.getMM2AtomType(a1);
+			int n2 = mol.getMM2AtomType(a2);
+			BondParameters params = parameters.getBondParameters(n1, n2);
 			
 			//Rectify the distance based on the electronegativity
 			double electronegativity = 0;
 			for(int j=0; j<mol.getAllConnAtoms(a1); j++) {
 				int a3 = mol.getConnAtom(a1, j);
-				if(a3!=a2) electronegativity += parameters.getElectronegativity(n2, n1, mol.getAtomMM2Class(a3));
+				if(a3!=a2) electronegativity += parameters.getElectronegativity(n2, n1, mol.getMM2AtomType(a3));
 			}
 			for(int j=0; j<mol.getAllConnAtoms(a2); j++) {
 				int a3 = mol.getConnAtom(a2, j);
-				if(a3!=a1) electronegativity += parameters.getElectronegativity(n1, n2, mol.getAtomMM2Class(a3));
+				if(a3!=a1) electronegativity += parameters.getElectronegativity(n1, n2, mol.getMM2AtomType(a3));
 			}
 			double eq = params.eq + electronegativity;
 			
@@ -550,11 +401,9 @@ public class MM2TermList extends TermList implements Cloneable {
 			
 			for (int i = 0; i < tl.terms.length; i++) {
 				tl.terms[i] = terms[i].clone();
-//				tl.terms[i].setTermList(tl);
 			}
 			for (int i = 0; i < tl.proteinLigandTerms.length; i++) {
 				tl.proteinLigandTerms[i] = (ProteinLigandTerm) proteinLigandTerms[i].clone();
-//				tl.proteinLigandTerms[i].setTermList(tl);
 			}
 			
 			return tl;
@@ -566,8 +415,9 @@ public class MM2TermList extends TermList implements Cloneable {
 		
 	}
 
+	@Override
 	public MM2Config getConfig() {
-		return config;
+		return (MM2Config) config;
 	}
 	
 	/*
@@ -646,8 +496,8 @@ public class MM2TermList extends TermList implements Cloneable {
 	@Override
 	public String toString() {
 		double sum = 0;
-		double sum1 = 0, sum2 = 0, sum3 = 0, sum4 = 0, sum5 = 0, sum6 = 0, sum7 = 0, sum8 = 0, sum10 = 0, sum11 = 0, sum12 = 0;
-		int n1 = 0, n2 = 0, n3 = 0, n4 = 0, n5 = 0, n6 = 0, n7 = 0, n8 = 0, n10 = 0, n11 = 0, n12 = 0;
+		double sum1 = 0, sum2 = 0, sum3 = 0, sum4 = 0, sum5 = 0, sum6 = 0, sum7 = 0, sum10 = 0, sum11 = 0, sum12 = 0;
+		int n1 = 0, n2 = 0, n3 = 0, n4 = 0, n5 = 0, n6 = 0, n7 = 0, n10 = 0, n11 = 0, n12 = 0;
 				
 		double others = 0;
 		int n=0;
@@ -666,12 +516,10 @@ public class MM2TermList extends TermList implements Cloneable {
 			else if(term instanceof VDWLNTerm || term instanceof VDWLN48TermNoH || term instanceof VDWLN48Term) {sum4 += e; n4++;}
 			else if(term instanceof DipoleTerm) {sum5 += e; n5++;}
 			else if(term instanceof OutOfPlaneAngleTerm) {sum6 += e; n6++;}
-			else if(term instanceof InPlaneAngleTerm) {sum8 += e; n8++;}
 			else if(term instanceof StretchBendTerm) {sum10 += e; n10++;}
 			else if(term instanceof ProteinLigandTerm) {sum7 += e; n7++;}
 			else if(term instanceof ChargeTerm) {sum11 += e; n11++;}
 			else if(term instanceof ChargeDipoleTerm) {sum12 += e; n12++;}
-//			else if(term instanceof HBondTerm) {sum13 += e; n13++;}
 			else {others += e; n++;} 
 			
 		}				
@@ -681,7 +529,6 @@ public class MM2TermList extends TermList implements Cloneable {
 		if(n1>0) sb.append(" Bond Stretching:    " + df.format(sum1) + "   (" + n1 + ")" + System.getProperty("line.separator"));
 		if(n2>0) sb.append(" Angle Bending:      " + df.format(sum2) + "   (" + n2 + ")" + System.getProperty("line.separator"));
 		if(n10>0) sb.append(" Stretch-Bend:       " + df.format(sum10) + "   (" + n10 + ")" + System.getProperty("line.separator"));
-		if(n8>0) sb.append(" In-Plane Angle:     " + df.format(sum8) + "   (" + n8 + ")" + System.getProperty("line.separator"));
 		if(n6>0) sb.append(" Out-of-Plane Angle: " + df.format(sum6) + "   (" + n6 + ")" + System.getProperty("line.separator"));
 		if(n3>0) sb.append(" Torsional Angle:    " + df.format(sum3) + "   (" + n3 + ")" + System.getProperty("line.separator"));
 		if(n4>0) sb.append(" Van der Waals:      " + df.format(sum4) + "   (" + n4 + ")" + System.getProperty("line.separator"));

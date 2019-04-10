@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -19,7 +19,6 @@ package com.actelion.research.chem.calculator;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.BitSet;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -43,7 +42,6 @@ import com.actelion.research.chem.prediction.CLogPPredictor;
 import com.actelion.research.chem.prediction.SolubilityPredictor;
 import com.actelion.research.forcefield.mm2.MM2Parameters;
 import com.actelion.research.util.ArrayUtils;
-import com.actelion.research.util.datamodel.IntQueue;
 
 
 
@@ -159,15 +157,11 @@ public class StructureCalculator {
 			return null; 
 		}		
 	}
-	
-	public static int getExtremity(FFMolecule mol, int atm) {
-		List<Integer> l = getLongestChain(mol, atm);
-		return l.get(l.size()-1);
-	}
-	
+		
 	public static boolean[] getBackbones(FFMolecule molecule) {
 		return getBackbones(molecule, 70);
 	}
+	
 	/**
 	 * Gets the backbone 
 	 * @param molecule
@@ -391,9 +385,10 @@ public class StructureCalculator {
 	public static List<FFMolecule> extractFragments(FFMolecule mol) {
 		List<List<Integer>> comps = getConnexComponents(mol);
 		List<FFMolecule> res = new ArrayList<FFMolecule>();
+		int count = 0;
 		for (List<Integer> comp : comps) {
 			
-			FFMolecule m = new FFMolecule();
+			FFMolecule m = new FFMolecule(mol.getName() + " / F" + (++count));
 			
 			extractFragment(mol, m, ArrayUtils.toIntArray(comp));
 			if(m.getAllAtoms()>5) res.add(m);
@@ -423,96 +418,6 @@ public class StructureCalculator {
 
 	}
 	
-	/**
-	 * Extracts the fragment at the given atom.
-	 * A fragment is defined here as:
-	 * 	- a minimum of 3 atoms (if the molecule has 3 atoms)
-	 * 	- no rings cut aparts (maximum length of 6)
-	 *  - atoms in the fragments keep all their bonds 
-	 * 	- the given atom is the atom 0 in the fragment 
-	 *  - No hydrogen
-	 */
-	public static ExtendedMolecule extractFragment(FFMolecule mol, int atom) {
-		ExtendedMolecule res = new ExtendedMolecule(10, 10);
-		int at = addAtom(res, mol, atom);
-		IntQueue sMol = new IntQueue();
-		IntQueue sFrag = new IntQueue();
-		sMol.push(atom);
-		sFrag.push(at);
-
-		Set<Integer> markedBonds = new TreeSet<Integer>();  
-		do {
-			//Treat the first atom on the stack
-			if(sMol.isEmpty()) return res;
-			int aMol = sMol.pop();
-			int aFrag = sFrag.pop();
-						
-			//Add connections
-			for(int i=0; i<mol.getAllConnAtoms(aMol); i++) {
-				int nextMol = mol.getConnAtom(aMol, i);
-				if(mol.getAtomicNo(nextMol)==1) continue;
-				int index = sMol.indexOf(nextMol);
-				int nextFrag;
-				if(index>=0) {
-					//Already treated 				
-					nextFrag = sFrag.get(index);
-				} else {
-					nextFrag = addAtom(res, mol, nextMol);
-					sMol.push(nextMol); 
-					sFrag.push(nextFrag);
-				}								
-				res.addBond(aFrag, nextFrag, mol.getConnBondOrder( aMol, i));
-				markedBonds.add((aFrag<<16) + nextFrag);
-				markedBonds.add((nextFrag<<16) + aFrag);
-			}
-					
-		} while(res.getAllAtoms()<3);
-		
-		//Rings should not be cut apart (there should be no path<6 
-		//from a wait-to-be-treated atom to an other already treated)
-		boolean[] markedAtoms = new boolean[mol.getAllAtoms()];  
-		for(int i=sMol.getBegin(); i<sMol.getEnd(); i++) {
-			markedAtoms[sMol.get(i)]=true;
-		}
-		
-		int end = sMol.getEnd();
-		for(int i=sMol.getBegin(); i<end; i++) {
-			List<Integer> l = getRing(mol, sMol.get(i), 4, markedAtoms, markedBonds);
-			if(l!=null) {
-				Iterator<Integer> iter = l.iterator();
-				while(iter.hasNext()) {
-					long bond = iter.next();
-					int atm1 = (int) ((bond & (256*256-1)<<16 )>> 16);
-					int atm2 = (int) (bond & (256*256-1));
-					int index1 = sMol.indexOf(atm1);
-					int frag1;
-					if(index1>=0) {
-						frag1 = sFrag.get(index1);
-					} else {
-						frag1 = addAtom(res, mol, atm1);
-						sMol.push(atm1); 
-						sFrag.push(frag1);
-					}								
-					int index2 = sMol.indexOf(atm2);
-					int frag2;
-					if(index2>=0) {
-						frag2 = sFrag.get(index2);
-					} else {
-						frag2 = addAtom(res, mol, atm2);
-						sMol.push(atm2); 
-						sFrag.push(frag2);
-					}								
-					res.addBond(frag1, frag2, 1);
-					
-					markedBonds.add((atm1<<16) + atm2);
-					markedBonds.add((atm2<<16) + atm1);
-				}
-			}
-		}
-
-		return res;
-	}
-	
 	public static <T extends FFMolecule> T extractFragment(FFMolecule mol, T res, List<Integer> atoms) {
 		return extractFragment(mol, res, ArrayUtils.toIntArray(atoms));
 		
@@ -539,35 +444,6 @@ public class StructureCalculator {
 		return res;
 	}	
 	
-	/**
-	 * Recursive Function used by extractGroup to check we don't have rings
-	 */
-	private static List<Integer> getRing(FFMolecule mol, int atm, int depth, boolean[] markedAtoms, Set<Integer> markedBonds) {
-		if(depth<=0) return null;
-		for(int j=0; j<mol.getAllConnAtoms(atm); j++) {
-			int newAtm = mol.getConnAtom(atm, j);
-			if(markedBonds.contains((newAtm<<16) + atm)) continue;
-				
-			markedBonds.add((newAtm<<16) + atm);
-			markedBonds.add((atm<<16) + newAtm);
-
-					
-			if(markedAtoms[newAtm]) {
-				//We found a loop
-				List<Integer> l = new ArrayList<Integer>();
-				l.add((newAtm<<16) + atm);
-				return l;
-			}
-			List<Integer> loop = getRing(mol, newAtm, depth-1, markedAtoms, markedBonds);
-			if(loop!=null) {
-				loop.add((newAtm<<16) + atm);
-				return loop;
-			}
-		}		
-		return null;		
-	}
-	
-
 
 	private final static class Node {
 		int atm;
@@ -603,7 +479,7 @@ public class StructureCalculator {
 	 * The memory required is O(nAtoms * nBonds)!!!!
 	 * 
 	 * @param mol
-	 * @param allRings - a List ringNo -> atom No in the ring as int[] 
+	 * @param allRings - a List ringNo -> atom No in the ring as int[] (output)
 	 * @return a List[] atom -> List of rings the atom belongs to
 	 */
 	@SuppressWarnings("unchecked")
@@ -732,8 +608,28 @@ public class StructureCalculator {
 			
 			doRings(mol, allRings, previous, visitedBonds, 7);
 		}
+		//Remove 6 and 7-rings that are contained in 2 smaller rings
+		for (int i = 0; i < allRings.size(); i++) {
+			if(allRings.get(i).length<6) continue;
+			int found = 0;
+			for (int j = 0; j < allRings.size(); j++) {
+				if(i==j || allRings.get(j).length>=6) continue;
+				
+				int atomNotFound=0;
+				nextAtom: for(int a: allRings.get(j)) {
+					for (int a2: allRings.get(i)) {
+						if(a==a2) continue nextAtom;
+					}
+					atomNotFound++;
+				}				
+				if(atomNotFound<=1) found++;
+			}
+			if(found>=2) {
+				allRings.remove(i--);
+			}
+		}
 		
-		//Sort the rings accoriding to their size
+		//Sort the rings according to their size
 		Collections.sort(allRings, new Comparator<int[]>() {
 			@Override
 			public int compare(int[] o1, int[] o2) {
@@ -744,10 +640,9 @@ public class StructureCalculator {
 		//Assign the rings to each atom
 		List<Integer>[] atomToRing = new ArrayList[mol.getAllAtoms()];
 		for(int j=0; j<atomToRing.length; j++) atomToRing[j] = new ArrayList<Integer>();
-		for(int i=0; i<allRings.size(); i++) {
-			int[] atoms = allRings.get(i);
-			for(int j=0; j<atoms.length; j++) {
-				atomToRing[atoms[j]].add(i);
+		for(int r=0; r<allRings.size(); r++) {
+			for(int a: allRings.get(r)) {
+				atomToRing[a].add(r);
 			}			
 		}		
 		return atomToRing;
@@ -781,15 +676,6 @@ public class StructureCalculator {
 		}
 	}
 	
-	private static int addAtom(ExtendedMolecule res, FFMolecule src, int atm) {
-		int a = res.addAtom(src.getAtomicNo(atm));
-		res.setAtomCharge(a, src.getAtomCharge(atm));
-		res.setAtomX(a, src.getAtomX(atm));
-		res.setAtomY(a, src.getAtomY(atm));
-		res.setAtomZ(a, src.getAtomZ(atm));
-		return a;
-	}
-
 	/**
 	 * Checks if rings (List of int[]) contains ring (int[])
 	 * independantly of the order  
@@ -832,7 +718,7 @@ public class StructureCalculator {
 				if(a2<a1) continue;
 				if(mol.getAtomicNo(a2)<=1) continue;
 				if(mol.getAllConnAtoms(a1)>0 && mol.getAllConnAtoms(a2)>0 && atomToGroups[a1]==atomToGroups[a2]) continue;
-				double r2 = GeometryCalculator.getDistanceSquare(mol, a1, a2);
+				double r2 = mol.getCoordinates(a1).distanceSquared(mol.getCoordinates(a2));
 				double vdw = VDWRadii.VDW_RADIUS[mol.getAtomicNo(a1)] + VDWRadii.VDW_RADIUS[mol.getAtomicNo(a2)];
 
 				if( r2>(vdw-.5)*(vdw-.5) && r2 < vdw*vdw) {
@@ -940,17 +826,14 @@ public class StructureCalculator {
 		backbone = StructureCalculator.getLongestChain(lig, backbone.get(backbone.size()-1));
 		return backbone;
 	}
-	public static int getBackboneCenter(FFMolecule lig) {	
-		List<Integer> backbone = StructureCalculator.getBackbone(lig, 0);
-		return backbone.get(backbone.size()/2);			
-		
-	}
-	public static int dfs(FFMolecule lig, int start, boolean[] seen) {
+
+	public static int dfs(FFMolecule lig, int start, Set<Integer> seen) {
 		return dfs(lig, start, seen, 99, false);
 	
 	}
-	public static int dfs(FFMolecule lig, int start, boolean[] seen, int depth, boolean takeRingsAsWhole) {
-		if(seen==null) seen = new boolean[lig.getAllAtoms()];
+	
+	public static int dfs(FFMolecule lig, int start, Set<Integer> seen, int depth, boolean takeRingsAsWhole) {
+		if(seen==null) seen = new HashSet<Integer>();
 		List<Integer> stack = new ArrayList<Integer>();		
 		List<Integer> newStack = new ArrayList<Integer>();		
 		List<Integer> inRings = new ArrayList<Integer>();		
@@ -959,12 +842,12 @@ public class StructureCalculator {
 		while(depth>0 && !stack.isEmpty()) {
 			while(!stack.isEmpty() && depth>0) {
 				int a = stack.remove(0);
-				if(a>=seen.length || seen[a]) continue;
+				if(seen.contains(a)) continue;
 				size++;
-				seen[a]=true;
+				seen.add(a);
 				for (int i = 0; i < lig.getAllConnAtoms(a); i++) {
 					int a2 = lig.getConnAtom(a, i);
-					if(a2>=seen.length || seen[a2]) continue;
+					if(seen.contains(a2)) continue;
 					newStack.add(a2);
 					List<Integer> ring = lig.getAtomToRings()[a2];
 					inRings.addAll(ring);
@@ -977,9 +860,9 @@ public class StructureCalculator {
 		
 		if(takeRingsAsWhole) {
 			for (Integer a : inRings) {
-				if(!seen[a]) {
+				if(!seen.contains(a)) {
 					size++;
-					seen[a] = true;
+					seen.add(a);
 				}
 			}
 		}
@@ -1032,15 +915,6 @@ public class StructureCalculator {
 
 	public static void replaceLigand(FFMolecule mol, FFMolecule lig) {
 		replaceLigand(mol, lig, null);
-	}
-	
-	public static void replaceMovable(FFMolecule mol, FFMolecule movable) {
-		//replaceLigand(mol, lig, null);
-		
-		for(int i=mol.getNMovables()-1; i>=0; i--) {
-			mol.deleteAtom(i);
-		}		
-		if(movable!=null) mol.fusion(movable);
 	}
 	
 	/**
@@ -1219,31 +1093,6 @@ public class StructureCalculator {
 	}
 		
 	
-	/**
-	 * 
-	 * @param mol
-	 */
-	public static void removeLigandBondOrder(FFMolecule mol) {
-		//Delete the previous ligand
-		for(int i=0; i<mol.getAllBonds(); i++) {
-			int a1 = mol.getBondAtom(0, i);
-			int a2 = mol.getBondAtom(1, i);
-			if(mol.isAtomFlag(a1, FFMolecule.LIGAND) && mol.isAtomFlag(a2, FFMolecule.LIGAND)) {
-				mol.setBondOrder(i, 1);
-			}
-		}
-	}
-
-	public static void removeSmallGroups(FFMolecule mol) {
-		List<List<Integer>> groups = StructureCalculator.getConnexComponents(mol);
-		List<Integer> toRemove = new ArrayList<Integer>();
-		for (int i = 0; i < groups.size(); i++) {
-			List<Integer> group = groups.get(i);
-			if(mol.isAtomFlag(group.get(0), FFMolecule.LIGAND)) continue;
-			if(group.size()<70) toRemove.addAll(group);
-		}
-		mol.deleteAtoms(toRemove);
-	}
 	public static void removeWaterSalts(FFMolecule mol) {
 		List<List<Integer>> groups = StructureCalculator.getConnexComponents(mol);
 		List<Integer> toRemove = new ArrayList<Integer>();
@@ -1262,68 +1111,7 @@ public class StructureCalculator {
 			}
 		}
 	}
-	/**
-	 * 
-	 * @param mol
-	 */
-	public static void resetLigandAtomicNo(FFMolecule mol) {
-		//Delete the previous ligand
-		for(int i=0; i<mol.getAllAtoms(); i++) {
-			if(mol.isAtomFlag(i, FFMolecule.LIGAND)) {
-				if(mol.getAtomicNo(i)<=1) mol.deleteAtom(i);
-				else mol.setAtomicNo(i, 6);
-			}
-		}
-	}
-
 	
-	/**
-	 * Crops a Molecule around given bounds
-	 * @param mol
-	 * @param min
-	 * @param max
-	 * @return
-	 */	
-	public static FFMolecule crop(FFMolecule mol, Coordinates[] bounds) {
-		FFMolecule res = new FFMolecule();
-		Map<Integer, Integer> molToCrop = new HashMap<Integer, Integer>();
-		Set<Integer> nonIndivuals = new TreeSet<Integer>();
-		
-		
-		//Crop the atoms
-		for(int i=0; i<mol.getAllAtoms(); i++) {
-			Coordinates c = mol.getCoordinates(i);
-			if(bounds[0].x <= c.x && c.x<=bounds[1].x && bounds[0].y <= c.y && c.y<=bounds[1].y && bounds[0].z <= c.z && c.z<=bounds[1].z) {
-				int n = res.addAtom(mol, i);
-				molToCrop.put(i, n);
-				
-				if(mol.getAllConnAtoms(i)!=0) nonIndivuals.add(n);
-			}
-		}
-		
-		//Add the bonds
-		for(int i=0; i<mol.getAllBonds(); i++) {
-			int mol1 = mol.getBondAtom(0, i);
-			int mol2 = mol.getBondAtom(1, i);
-			
-			Integer crop1 = molToCrop.get(mol1);
-			Integer crop2 = molToCrop.get(mol2);
-			if(crop1!=null && crop2!=null) {
-				 res.addBond(crop1.intValue(), crop2.intValue(), mol.getBondOrder(i));				 
-			}			
-		}
-		
-		//Remove the individual atoms
-		for(int i=res.getAllAtoms()-1; i>=0; i--) {
-			if(res.getAllConnAtoms(i)==0 && nonIndivuals.contains(i)) {
-				res.deleteAtom(i);			
-			}
-		}
-		res.setName(mol.getName() + (res.getAllAtoms()<mol.getAllAtoms()?" Crop":""));
-		res.getAuxiliaryInfos().putAll(mol.getAuxiliaryInfos());
-		return res;
-	}
-
 	public static FFMolecule crop(FFMolecule mol, Coordinates center, double radius) {
 		FFMolecule res = new FFMolecule();
 		Map<Integer, Integer> molToCrop = new HashMap<Integer, Integer>();
@@ -1415,18 +1203,6 @@ public class StructureCalculator {
 		return res;
 		
 	}	
-
-	public static boolean isPolypeptide(FFMolecule mol, List<Integer> group) {
-		int count = 0;
-		for (int a : group) {
-			if(ProteinTools.getAminoLetter(mol.getAtomAmino(a))!='?') {
-				count++;
-				if(count>8) return true;		
-			}
-		}
-		return false;
-	}
-	
 	
 	/**
 	 * Marks a numbered ligand
@@ -1559,6 +1335,16 @@ public class StructureCalculator {
 		return true;
 	}
 	
+	public static Coordinates getCenter(FFMolecule mol) {
+		Coordinates sum = new Coordinates();
+		int n = 0;
+		for(int i = 0; i<mol.getAllAtoms(); i++) {
+			sum = sum.addC(mol.getCoordinates(i));
+			n++;
+		}				
+		return n==0? null: sum.scaleC(1.0/n);
+	}
+	
 	public static Coordinates getLigandCenter(FFMolecule mol) {
 		Coordinates sum = new Coordinates();
 		int n = 0;
@@ -1638,11 +1424,6 @@ public class StructureCalculator {
 		}				
 	}
 		
-	public static void rotateLigandAroundCenter(FFMolecule mol, double angle, Coordinates normal) {
-		Coordinates center = getLigandCenter(mol);
-		rotateLigand(mol, angle, normal, center);
-	}
-	
 	public static void rotateLigand(FFMolecule mol, double angle, Coordinates normal, Coordinates center) {
 		for(int i = 0; i<mol.getAllAtoms(); i++) {
 			if(mol.isAtomFlag(i, FFMolecule.LIGAND)) {
@@ -1662,19 +1443,8 @@ public class StructureCalculator {
 			if(mol.isAtomFlag(i, FFMolecule.LIGAND)) {
 				Coordinates v = new Coordinates(Math.random()-.5, Math.random()-.5, Math.random()-.5);
 				if(v.dist()>0) {
-					v = v.unit().scaleC(Math.random()*radius);
+					v = v.unitC().scaleC(Math.random()*radius);
 				}
-				mol.setCoordinates(i, mol.getCoordinates(i).addC(v));
-			}
-		}		
-	}
-		
-	public static void vibrateHydrogens(FFMolecule mol, double radius) {
-		double scale = radius*2;
-		for(int i = 0; i<mol.getAllAtoms(); i++) {
-			if((mol.getAtomicNo(i)>8 || mol.getAtomicNo(i)<=1 ) && mol.getConnAtoms(i)==1) {
-//				int a = mol.getConnAtom(i, 0);
-				Coordinates v = new Coordinates((Math.random()-.5)*scale, (Math.random()-.5)*scale, (Math.random()-.5)*scale);
 				mol.setCoordinates(i, mol.getCoordinates(i).addC(v));
 			}
 		}		
@@ -1725,17 +1495,6 @@ public class StructureCalculator {
 			}
 	}
 	
-	public static double getLigandSize(FFMolecule mol) {
-		int N = mol.getNMovables();
-		double max = 0;
-		for(int i=0; i<N; i++) {
-			for(int j=i+1; j<N; j++) {
-				max = Math.max(max, mol.getCoordinates(i).distSquareTo(mol.getCoordinates(j)));
-			}
-		} 
-		return Math.sqrt(max);
-	}
-
 	public static int makeProteinFlexible(FFMolecule mol, Coordinates center, double radius, boolean keepBackboneRigid) {
 		boolean[] inBackbone = keepBackboneRigid? StructureCalculator.getBackbones(mol, 0): null;
 		
@@ -1795,6 +1554,7 @@ public class StructureCalculator {
 		if(!isPolar) return false;
 		return getExplicitHydrogens(m, a)>0 || getImplicitHydrogens(m, a)>0;
 	} 
+	
 	public static boolean isAcceptor(FFMolecule m, int a) {
 		int atomicNo = m.getAtomicNo(a);
 		boolean isPolar = (atomicNo==7 || atomicNo==8 || atomicNo==15);
@@ -1802,7 +1562,7 @@ public class StructureCalculator {
 		
 		if(StructureCalculator.connected(m, a, -1, 2)>=0) return true;
 		if(StructureCalculator.connected(m, a, 0, 1)>=0) return true;
-		if(MM2Parameters.getInstance().getNLonePairs(m, a)>0) return true;
+		if(MM2Parameters.getNLonePairs(m, a)>0) return true;
 		return false;
 	}
 
@@ -2051,7 +1811,6 @@ public class StructureCalculator {
 		sm.ensureHelperArrays(ExtendedMolecule.cHelperSymmetrySimple);
 		
 		
-//		boolean changed = false;
 		
 		int N = Math.min(sm.getAtoms(), ref.getAtoms());
 		
@@ -2104,13 +1863,12 @@ public class StructureCalculator {
 				int a1 = sm.getConnAtom(i, 0);
 				int a2 = sm.getConnAtom(i, 1);
 				int a3 = sm.getConnAtom(i, 2);
-				boolean[] seen = new boolean[mol.getAllAtoms()];
-				seen[a1] = seen[a2] = seen[a3] = true; 
+				Set<Integer> seen = new HashSet<Integer>();
+				seen.add(a1); seen.add(a2); seen.add(a3);
 				dfs(mol, i, seen);
-				seen[a1] = seen[a2] = seen[a3] = false;
+				seen.remove(a1); seen.remove(a2); seen.remove(a3);
 				
-				for (int j = 0; j < seen.length; j++) {
-					if(!seen[j]) continue;
+				for (int j:seen) {
 					mol.setCoordinates(j, Coordinates.getMirror(mol.getCoordinates(j), mol.getCoordinates(a1), mol.getCoordinates(a2), mol.getCoordinates(a3)));				
 					if(j<mol.getAllAtoms()) copy.setCoordinates(j, mol.getCoordinates(j));
 				}
@@ -2126,33 +1884,22 @@ public class StructureCalculator {
 	
 	
 	public static void rotateBond(FFMolecule mol, int a2, int a3, double angle) {
-		boolean[] seen = new boolean[mol.getAllAtoms()];
-		seen[a2] = true;
+		Set<Integer> seen = new HashSet<Integer>();
+		seen.add(a2);			
 		dfs(mol, a3, seen);
-		Coordinates normal = mol.getCoordinates(a3).subC(mol.getCoordinates(a2)).unit();
-		for (int j = 0; j < seen.length; j++) {
-			if(seen[j]) {
-				Coordinates c = mol.getCoordinates(j).subC(mol.getCoordinates(a3));
-				mol.setCoordinates(j, c.rotate(normal, angle).addC(mol.getCoordinates(a3)));
-			}
-		}		
+		Coordinates normal = mol.getCoordinates(a3).subC(mol.getCoordinates(a2)).unitC();
+		for (int j: seen) {
+			Coordinates c = mol.getCoordinates(j).subC(mol.getCoordinates(a3));
+			mol.setCoordinates(j, c.rotate(normal, angle).addC(mol.getCoordinates(a3)));
+		}
 	}
 	
-
-	static void move(FFMolecule mol, int a, boolean[] visited, double angleZ, Coordinates center, Coordinates normal) {
-		if(visited[a]) return;
-		visited[a] = true;
-		mol.setCoordinates(a, (mol.getCoordinates(a).subC(center)).rotate(normal, angleZ).addC(center));
-		for (int i = 0; i < mol.getAllConnAtoms(a); i++) {
-			int at = mol.getConnAtom(a, i);
-			move(mol, at, visited, angleZ, center, normal);
-		}
-	}
-
-	public static void removeLonePairs(FFMolecule mol) {
+	public static boolean removeLonePairs(FFMolecule mol) {
+		boolean changed = false;
 		for(int i=0; i<mol.getAllAtoms(); i++) {
-			if(mol.getAtomicNo(i)==0) {mol.deleteAtom(i);i--;}
+			if(mol.getAtomicNo(i)==0) {mol.deleteAtom(i);i--; changed=true;}
 		}
+		return changed;
 	}
 	
 
@@ -2166,113 +1913,7 @@ public class StructureCalculator {
 		return dist;
 		
 	}
-	
-	public static final double[][] getDistanceMatrix(FFMolecule mol) {
-		double dist[][] = new double[mol.getAllAtoms()][mol.getAllAtoms()];
-		for (int a1 = 0; a1 < mol.getAllAtoms(); a1++) {
-			for (int a2 = a1+1; a2 < mol.getAllAtoms(); a2++) {
-				dist[a1][a2] = dist[a2][a1] = mol.getCoordinates(a1).distance(mol.getCoordinates(a2));					
-			}
-		}
-		return dist;
 		
-	}
-	
-	/*
-	 * Sets the 2D field on mol
-	 * @param mols
-	 * @param tresh
-	 * @return
-	 *
-	public static int cluster2D(List<FFMolecule> mols, final double tresh) {
-		//Create the 2D similarity matrix		
-		FingerPrintGenerator fingerPringGenerator = new FingerPrintGenerator();
-		BitSet[] bitsets = new BitSet[mols.size()];
-		for (int i = 0; i < mols.size(); i++) {
-			bitsets[i] = fingerPringGenerator.getFingerprint(new ExtendedMolecule(mols.get(i)));
-		}
-		int cluster2 = 0;
-		for (int i = 0; i < mols.size(); i++) {
-			if(mols.get(i).getData("2D")!=null) continue;
-			mols.get(i).setData("2D", ++cluster2);
-			for (int j = i+1; j < mols.size(); j++) {
-				if(mols.get(j).getData("2D")!=null) continue;
-				double v = getSimilarity2D(bitsets[i], bitsets[j]);
-				if(v>tresh) mols.get(j).setData("2D", cluster2);				
-			}			
-		}	
-		return cluster2;
-	}
-	*/
-	public static int cluster3D(List<FFMolecule> mols, final double tresh) {
-		return cluster3D(mols, tresh, null, 0);
-	}
-	
-	/**
-	 * Set the 3D field on mols
-	 * @param mols
-	 * @param tresh
-	 * @return
-	 */
-	public static int cluster3D(List<FFMolecule> sorted, final double tresh, Coordinates center, double radius) {
-		/*
-		List<FFMolecule> sorted = new ArrayList<FFMolecule>(mols);
-		double r2 = radius * radius;
-		for (FFMolecule m: sorted) {
-			if(center==null) m.setData("size", m.getAtoms());
-			else {
-				int count = 0;
-				for (int i = 0; i < m.getAllAtoms(); i++) {
-					if(m.getAtomicNo(i)>1 && m.getCoordinates(i).distanceSquared(center)<r2) count++;
-				}
-				m.setData("size", count);
-			}
-		}
-		Collections.sort(sorted, new Comparator<FFMolecule>() {
-			public int compare(FFMolecule m1, FFMolecule m2) {
-				return -((Integer)m1.getData("size")).compareTo((Integer)m2.getData("size"));
-			}
-		});
-		for (FFMolecule m: sorted) {
-			m.getData().remove("size");
-		}
-		*/
-		int cluster = 0;
-		for (int i = 0; i < sorted.size(); i++) {
-			if(sorted.get(i).getAuxiliaryInfo("cluster3D")!=null) continue;
-			sorted.get(i).setAuxiliaryInfo("cluster3D", ++cluster);
-			sorted.get(i).setAuxiliaryInfo("prefered", "true");
-			//MoleculeGrid grid = new MoleculeGrid(sorted.get(i));
-			for (int j = i+1; j < sorted.size(); j++) {
-				if(sorted.get(j).getAuxiliaryInfo("cluster3D")!=null) continue;
-				//double v = getSimilarity3DIntransitive(sorted.get(j), sorted.get(i), grid, center, radius);
-				double v = getSimilarity3D(sorted.get(j), sorted.get(i), center, radius);
-				if(v>tresh) {
-					sorted.get(j).setAuxiliaryInfo("cluster3D", cluster);
-					sorted.get(j).setAuxiliaryInfo("prefered", "false");
-				}
-			}			
-		}
-		return cluster;
-	}
-	
-
-	
-	/**
-	 * Tanimoto distance (http://www.daylight.com/dayhtml/doc/theory/theory.finger.html)
-	 * @param b1
-	 * @param b2
-	 * @return
-	 */
-	public static final double getSimilarity2D(BitSet b1, BitSet b2) {
-		int a = 0, c = 0;
-		for (int i = 0; i < b1.size(); i++) {
-			if(b1.get(i)!=b2.get(i)) a++;
-			else if(b1.get(i) && b2.get(i)) c++;
-		}
-		return (double) c / (a+c);
-	}	
-	
 	public static double getSimilarity3D(FFMolecule m1, FFMolecule m2) {
 		return 1-Math.sqrt((1-getSimilarity3DIntransitive(m1, m2, null, null, 0))*(1-getSimilarity3DIntransitive(m2,m1, null, null, 0)));
 	}
@@ -2354,11 +1995,6 @@ public class StructureCalculator {
 		return new int[] {sum1, sum2};
 	}
 	
-	public static final boolean isOverlaped(FFMolecule m1, FFMolecule m2) {
-		int[] ovl = getOverlap(m1, m2);
-		return ovl[0]+ovl[1]==m2.getAtoms();
-	}
-
 	public static String testLipinskiRules(StereoMolecule m) {
 		return testLipinskiRules(m, 600, 5, 10, 10, -1, 5.5, -20, 20);
 	}
@@ -2389,18 +2025,6 @@ public class StructureCalculator {
 	}
 	
 	/**
-	 * Evaluates flexibility L / ( 1 - 1/P3)
-	 * @param mol
-	 * @return
-	 */
-	public static double evaluateFlexibility(FFMolecule mol) {
-		List<Integer> bb = getLongestChain(mol, 0);
-		bb = getLongestChain(mol, bb.get(bb.size()-1));
-		if(bb.size()<3) return 0;		
-		return bb.size() / (1 - 1.0/getMolecularPathCount(mol, 3));		
-	}
-	
-	/**
 	 * Returns the number of paths of the given length (gives an idea of the number of branches) 
 	 * @param mol
 	 * @param length
@@ -2417,47 +2041,6 @@ public class StructureCalculator {
 		return count;
 	}
 	
-	
-	/**
-	 * Return the Coordinates where we have the highest concentration of polar atoms
-	 * @param mol
-	 * @return
-	 */
-	public static Coordinates getActiveSite(FFMolecule mol) {
-		MoleculeGrid grid = new MoleculeGrid(mol);
-		Coordinates[] bounds = StructureCalculator.getBounds(mol);
-		Coordinates c = new Coordinates();
-		Coordinates best = null;
-		int bestScore = -1;
-		for (double x = bounds[0].x+2; x < bounds[1].x-2; x+=.5) {
-			for (double y = bounds[0].y+2; y < bounds[1].y-2; y+=.5) {
-				next: for (double z = bounds[0].z+2; z < bounds[1].z-2; z+=.5) {
-					c.x = x; c.y = y; c.z = z;
-					Set<Integer> set = grid.getNeighbours(c, 1.5);
-					for (int a : set) {
-						if(!mol.isAtomFlag(a, FFMolecule.LIGAND)) {
-							//This coordinate is occupied, continue
-							continue next;
-						}
-					}
-					
-					set = grid.getNeighbours(c, 6);
-					int count = 0;
-					for (int a : set) {
-						if(mol.getAtomicNo(a)==8 || mol.getAtomicNo(a)==7) {
-							count++;
-						}
-					}
-					
-					if(count>bestScore) {
-						bestScore = count;
-						best = new Coordinates(c);
-					}
-				}	
-			}	
-		}
-		return best;
-	}
 	
 	/**
 	 * Find all fragment occurences in mol (only the movable atoms are considered).
@@ -2493,16 +2076,8 @@ public class StructureCalculator {
 				for (int j = 0; j < fragment.getConnAtoms(fragmentMatchIndex); j++) {					
 					int connAtom = fragment.getConnAtom(fragmentMatchIndex, j);
 					if(connAtom>=fragmentMatchIndex) continue;	//Continue to next connection				
-					int b = mol.getBondBetween(a, match[connAtom]);
+					int b = mol.getBond(a, match[connAtom]);
 					if(b<0) continue atomLoop;
-//					if(mol.isAromatic(a) && mol.isAromatic(fragmentMatchIndex)) {
-//						//Ok
-//					} else if(fragment.getConnBondOrder(fragmentMatchIndex, j)==mol.getBondOrder(b)) {
-//						//Ok						
-//					} else {
-//						
-////						continue atomLoop;
-//					}
 				}
 		
 
@@ -2513,26 +2088,43 @@ public class StructureCalculator {
 		}		
 	}
 
-	public static boolean isIn3D(FFMolecule mol) {
-		if(mol.getAllBonds()==0) return true;
-		double bondDistances = 0;
-		for (int i = 0; i < mol.getAllBonds(); i++) {
-			double d = mol.getCoordinates(mol.getBondAtom(0, i)).distance(mol.getCoordinates(mol.getBondAtom(1, i)));
-			bondDistances += d;
+	/**
+	 * 
+	 * @param mols
+	 * @param tresh
+	 * @return
+	 */
+	public static int cluster3D(List<FFMolecule> mols, final double tresh) {
+		return cluster3D(mols, tresh, null, 0);
+	}
+	
+	/**
+	 * Clusters the molectules based solely on the atomtypes and their 3D coordinates. (no superimposition performed)
+	 * 
+	 * @param mols
+	 * @param tresh
+	 * @return
+	 */
+	public static int cluster3D(List<FFMolecule> sorted, final double tresh, Coordinates center, double radius) {		
+		int cluster = 0;
+		for (int i = 0; i < sorted.size(); i++) {
+			if(sorted.get(i).getAuxiliaryInfo("cluster3D")!=null) continue;
+			sorted.get(i).setAuxiliaryInfo("cluster3D", ++cluster);
+			sorted.get(i).setAuxiliaryInfo("prefered", "true");
+			//MoleculeGrid grid = new MoleculeGrid(sorted.get(i));
+			for (int j = i+1; j < sorted.size(); j++) {
+				if(sorted.get(j).getAuxiliaryInfo("cluster3D")!=null) continue;
+				//double v = getSimilarity3DIntransitive(sorted.get(j), sorted.get(i), grid, center, radius);
+				double v = getSimilarity3D(sorted.get(j), sorted.get(i), center, radius);
+				if(v>tresh) {
+					sorted.get(j).setAuxiliaryInfo("cluster3D", cluster);
+					sorted.get(j).setAuxiliaryInfo("prefered", "false");
+				}
+			}			
 		}
-		bondDistances /= mol.getAllBonds();
-		if(bondDistances>2 || bondDistances<1) return false;
-		return true;
+		return cluster;
 	}
 	
-	/*
-	public static void main(String[] args) throws Exception {
-		ExtendedMolecule m = new ExtendedMolecule();
-		//new SmilesParser().parse(m, "CC(C)C(C)C");
-		//new SmilesParser().parse(m, "CCCCCC");
-		System.out.println(evaluateFlexibility(m));
-	}
-	*/
-	
-	
+
+
 }

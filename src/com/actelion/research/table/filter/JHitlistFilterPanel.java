@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -26,13 +26,10 @@ import javax.swing.JComboBox;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 
-import com.actelion.research.table.CompoundTableEvent;
-import com.actelion.research.table.CompoundTableHitlistEvent;
-import com.actelion.research.table.CompoundTableHitlistHandler;
-import com.actelion.research.table.CompoundTableHitlistListener;
-import com.actelion.research.table.CompoundTableModel;
+import com.actelion.research.table.model.*;
+import com.actelion.research.table.model.CompoundTableListHandler;
 
-public class JHitlistFilterPanel extends JFilterPanel implements ActionListener,CompoundTableHitlistListener {
+public class JHitlistFilterPanel extends JFilterPanel implements ActionListener,CompoundTableListListener {
 	private static final long serialVersionUID = 0x20061013;
 	private static final String LIST_ANY = "<any>";
 
@@ -47,17 +44,17 @@ public class JHitlistFilterPanel extends JFilterPanel implements ActionListener,
 		}
 
 	public JHitlistFilterPanel(CompoundTableModel tableModel, int exclusionFlag) {
-		super(tableModel, -4, exclusionFlag, false);	// pass pseudo column for first hitlist
+		super(tableModel, PSEUDO_COLUMN_ROW_LIST, exclusionFlag, false);
 
 		JPanel p1 = new JPanel();
 		p1.setOpaque(false);
 		p1.add(new JLabel("List name:"));
 
 		mComboBox = new JComboBox();
-		mComboBox.addItem(CompoundTableHitlistHandler.HITLISTNAME_NONE);
-		for (int i=0; i<mTableModel.getHitlistHandler().getHitlistCount(); i++)
-			mComboBox.addItem(mTableModel.getHitlistHandler().getHitlistName(i));
-		mComboBox.addItem(CompoundTableHitlistHandler.HITLISTNAME_ANY);
+		mComboBox.addItem(CompoundTableListHandler.LISTNAME_NONE);
+		for (int i = 0; i<mTableModel.getListHandler().getListCount(); i++)
+			mComboBox.addItem(mTableModel.getListHandler().getListName(i));
+		mComboBox.addItem(CompoundTableListHandler.LISTNAME_ANY);
 		if (isActive())
 			mComboBox.addActionListener(this);
 		else
@@ -87,9 +84,9 @@ public class JHitlistFilterPanel extends JFilterPanel implements ActionListener,
 	private int getHitlistIndex() {
 		int selectedIndex = mComboBox.getSelectedIndex();
 		return (selectedIndex == 0) ?
-					CompoundTableHitlistHandler.HITLISTINDEX_NONE
+					CompoundTableListHandler.LISTINDEX_NONE
 			 : (selectedIndex == mComboBox.getItemCount()-1) ?
-					CompoundTableHitlistHandler.HITLISTINDEX_ANY
+					CompoundTableListHandler.LISTINDEX_ANY
 			 :	  selectedIndex - 1;
 		}
 
@@ -106,15 +103,15 @@ public class JHitlistFilterPanel extends JFilterPanel implements ActionListener,
 	@Override
 	public String getInnerSettings() {
 		String selected = (String)mComboBox.getSelectedItem();
-		return (CompoundTableHitlistHandler.HITLISTNAME_NONE.equals(selected)) ? null
-			 : (CompoundTableHitlistHandler.HITLISTNAME_ANY.equals(selected)) ? LIST_ANY
+		return (CompoundTableListHandler.LISTNAME_NONE.equals(selected)) ? null
+			 : (CompoundTableListHandler.LISTNAME_ANY.equals(selected)) ? LIST_ANY
 			 : selected;
 		}
 
 	@Override
 	public void applyInnerSettings(String settings) {
 		if (settings != null
-		 && !CompoundTableHitlistHandler.HITLISTNAME_NONE.equals(settings)) {		// was this an ancient way of encoding???
+		 && !CompoundTableListHandler.LISTNAME_NONE.equals(settings)) {		// was this an ancient way of encoding???
 			if (LIST_ANY.equals(settings)) {
 				mComboBox.setSelectedIndex(mComboBox.getItemCount()-1);
 				}
@@ -123,8 +120,8 @@ public class JHitlistFilterPanel extends JFilterPanel implements ActionListener,
 					mComboBox.setSelectedItem(settings);
 					}
 				else {
-					for (int i=0; i<mTableModel.getHitlistHandler().getHitlistCount(); i++) {
-						if (mTableModel.getHitlistHandler().getHitlistName(i).equals(settings)) {
+					for (int i = 0; i<mTableModel.getListHandler().getListCount(); i++) {
+						if (mTableModel.getListHandler().getListName(i).equals(settings)) {
 							mComboBox.setSelectedIndex(i+1);
 							break;
 							}
@@ -149,23 +146,23 @@ public class JHitlistFilterPanel extends JFilterPanel implements ActionListener,
 		// avoid the default behaviour;
 		}
 
-	public void hitlistChanged(CompoundTableHitlistEvent e) {
-		CompoundTableHitlistHandler hitlistHandler = mTableModel.getHitlistHandler();
-		int hitlistCount = hitlistHandler.getHitlistCount();
-		boolean anySelected = CompoundTableHitlistHandler.HITLISTNAME_ANY.equals(mComboBox.getSelectedItem());
-		boolean changedListSelected = (mComboBox.getSelectedIndex()-1 == e.getHitlistIndex());
+	public void listChanged(CompoundTableListEvent e) {
+		CompoundTableListHandler hitlistHandler = mTableModel.getListHandler();
+		int hitlistCount = hitlistHandler.getListCount();
+		boolean anySelected = CompoundTableListHandler.LISTNAME_ANY.equals(mComboBox.getSelectedItem());
+		boolean changedListSelected = (mComboBox.getSelectedIndex()-1 == e.getListIndex());
 		boolean update = false;
-		if (e.getType() == CompoundTableHitlistEvent.cAdd) {
+		if (e.getType() == CompoundTableListEvent.cAdd) {
 			update = anySelected;
-			mComboBox.insertItemAt(hitlistHandler.getHitlistName(hitlistCount-1), hitlistCount);
+			mComboBox.insertItemAt(hitlistHandler.getListName(hitlistCount-1), hitlistCount);
 			}
-		else if (e.getType() == CompoundTableHitlistEvent.cDelete) {
+		else if (e.getType() == CompoundTableListEvent.cDelete) {
 			update = (anySelected || changedListSelected);
 			if (changedListSelected)
 				mComboBox.setSelectedIndex(0);
-			mComboBox.removeItemAt(e.getHitlistIndex()+1);
+			mComboBox.removeItemAt(e.getListIndex()+1);
 			}
-		else if (e.getType() == CompoundTableHitlistEvent.cChange) {
+		else if (e.getType() == CompoundTableListEvent.cChange) {
 			update = (anySelected || changedListSelected);
 			}
 

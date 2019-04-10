@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -17,6 +17,8 @@
  */
 
 package com.actelion.research.chem;
+
+import com.actelion.research.chem.coords.CoordinateInventor;
 
 import java.util.ArrayList;
 import java.util.Random;
@@ -77,7 +79,7 @@ public class Mutator {
 	            }
 	        }
 
-	    mRandom = new Random();
+	    mRandom = new Random(123L);
 
 		mMinAtoms = cDefaultMinAtoms;
 		mOptAtoms = cDefaultOptAtoms;

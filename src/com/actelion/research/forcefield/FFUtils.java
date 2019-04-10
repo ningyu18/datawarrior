@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -26,95 +26,15 @@ import com.actelion.research.chem.FFMolecule;
 import com.actelion.research.chem.calculator.GeometryCalculator;
 import com.actelion.research.chem.calculator.MoleculeGrid;
 import com.actelion.research.chem.calculator.StructureCalculator;
-import com.actelion.research.forcefield.interaction.ProteinLigandTerm;
 import com.actelion.research.forcefield.mm2.MM2Config;
-import com.actelion.research.forcefield.optimizer.AlgoLBFGS;
-import com.actelion.research.forcefield.optimizer.EvaluableForceField;
 
 /**
  * 
  */
 public class FFUtils {
 
-	
-	/**
-	 * Gets the Free Energy (<0)
-	 * @param mol
-	 * @return
-	 */
-	public static double getFreeEnergy(FFMolecule mol) {		
-		AlgoLBFGS algo = new AlgoLBFGS();
-		algo.setMinRMS(.02);
-		algo.setMaxIterations(1500);
+					
 		
-		//Optimize the ligand inside the cavity
-		FFMolecule copy = new FFMolecule(mol);
-		ForceField f = new ForceField(copy);
-		algo.optimize(new EvaluableForceField(f));
-		
-		//Optimize the ligand outside the cavity
-		FFMolecule lig = StructureCalculator.extractLigand(copy);
-		f = new ForceField(lig);
-		double complexedState = f.getTerms().getStructureEnergy();
-		algo.optimize(new EvaluableForceField(f));
-		double freeState = f.getTerms().getStructureEnergy();
-		return complexedState - freeState;				
-	}
-
-	/**
-	 * Gets the Vaccumm Free Energy (<0)
-	 * @param mol
-	 * @return
-	 */
-	public static double getVaccumEnergy(FFMolecule mol) {		
-		AlgoLBFGS algo = new AlgoLBFGS();
-		algo.setMinRMS(.1);
-		algo.setMaxIterations(1200);
-		
-		//Optimize the ligand outside the cavity
-		FFMolecule lig = StructureCalculator.extractLigand(mol);
-		ForceField f = new ForceField(lig);
-		algo.optimize(new EvaluableForceField(f));	
-		return f.getTerms().getFGValue(null);				
-	}
-		
-			
-	public static double[] getInteractions(FFMolecule m) {
-		ForceField f = new ForceField(m, new MM2Config());
-		TermList  tl = f.getTerms();
-		double[] res = new double[3];
-
-		for (int i = 0; i < tl.size(); i++) {
-			AbstractTerm t = tl.get(i);
-			if(!(t instanceof ProteinLigandTerm)) continue;
-			ProteinLigandTerm te = (ProteinLigandTerm) t;
-			int a1 = t.getAtoms()[0];
-			int a2 = t.getAtoms()[1];
-			
-			int index = m.getAtomicNo(a1)==6 && m.getAtomicNo(a2)==6?0:
-				m.getAtomicNo(a1)==6 || m.getAtomicNo(a2)==6?1:
-				2;
-			
-			res[index]+=te.getFGValue(null);
-		}
-		return res;
-	}		
-	
-	public static double getCompactness(FFMolecule m, double rad) {
-		double sum = 0;
-		int[][] dist = StructureCalculator.getNumberOfBondsBetweenAtoms(m, m.getNMovables(), new int[m.getNMovables()][m.getNMovables()]);
-		for (int i = 0; i < m.getNMovables(); i++) {
-			if(m.getAtomicNo(i)<=1) continue;
-			for (int j = i+1; j < m.getNMovables(); j++) {
-				if(m.getAtomicNo(j)<=1) continue;
-				if(dist[i][j]<=7) continue;
-				double r = m.getCoordinates(i).distance(m.getCoordinates(j));
-				if(r<rad) sum += rad-r;
-			}			
-		}
-		return sum;	
-	}
-	
 	/**
 	 * Returns the DockScore
 	 * Precondition: call computeProperties or this may return a nullpointerexception
@@ -143,7 +63,7 @@ public class FFUtils {
 	}
 	
 	/**
-	 * Precondition: call computeProperties or this may return a nullexception
+	 * Precondition: computeProperties was called or this may return a nullexception
 	 * @param mol
 	 * @return
 	 */
@@ -152,10 +72,9 @@ public class FFUtils {
 	}
 		
 	public static double getActivityScore(FFMolecule mol) {		
-		
-		int constraintsScore = mol.getAuxiliaryInfo("constraints")!=null? ((Integer)mol.getAuxiliaryInfo("constraints")) * 50: 0;
-		
-		return (Double) mol.getAuxiliaryInfo("IE") + constraintsScore;
+		return getDockScore(mol);
+//		return (Double) mol.getAuxiliaryInfo("IE") + (mol.getAuxiliaryInfo("constraints")!=null? ((Integer)mol.getAuxiliaryInfo("constraints")) * 50: 0);
+//		return (Double) mol.getAuxiliaryInfo("IE") + (mol.getAuxiliaryInfo("constraints")!=null? ((Integer)mol.getAuxiliaryInfo("constraints")) * 50: 0);
 	}
 		
 		
@@ -231,7 +150,7 @@ public class FFUtils {
 						int atomicNo2 = mol.getAtomicNo(a3);
 						if(mol.isAtomFlag(a3, FFMolecule.LIGAND)) continue;
 						if(atomicNo2!=7 && atomicNo2!=8) continue; 
-						double dist =  GeometryCalculator.getDistance(mol, a2, a3);
+						double dist =  mol.getCoordinates(a2).distance(mol.getCoordinates(a3));
 						double angle = GeometryCalculator.getAngle(mol, a, a2, a3);
 						if(Math.abs(angle-2*Math.PI/3)<Math.PI/12 && Math.abs(dist-1.97)<.5) {
 							v1 = Math.min(v1, getEnergy(atomicNo, atomicNo2));
@@ -253,7 +172,7 @@ public class FFUtils {
 				if(mol.isAtomFlag(a2, FFMolecule.LIGAND)) continue;
 				if(atomicNo2!=7 && atomicNo2!=8) continue; 
 				if(StructureCalculator.getMaxFreeValence(mol, a2)==0) continue; 
-				double dist =  GeometryCalculator.getDistance(mol, a, a2);
+				double dist =  mol.getCoordinates(a).distance(mol.getCoordinates(a2));
 				if(Math.abs(dist-2.6)<.4) { //2.2<..<2.8
 					v2 = Math.min(v2, getEnergy(atomicNo2, atomicNo));
 					b2 = new int[] {a2, a};
@@ -264,14 +183,6 @@ public class FFUtils {
 			}
 		}
 		return res;
-	}
-	
-	public static double getRelaxedSE(FFMolecule mol) {
-		FFMolecule copy = StructureCalculator.extractLigand(mol);
-		ForceField f = new ForceField(copy);
-		double init = f.getTerms().getStructureEnergy();
-		new AlgoLBFGS().optimize(new EvaluableForceField(f));
-		return f.getTerms().getStructureEnergy() - init;
 	}
 	
 	public static Comparator<FFMolecule> ACTIVITYSCORE_COMPARATOR = new Comparator<FFMolecule>() {

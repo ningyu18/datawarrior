@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -21,6 +21,7 @@ package com.actelion.research.calc;
 public interface ProgressListener {
 	public void startProgress(String text, int min, int max);
 	public void updateProgress(int value);
+	public void updateProgress(int value, String message);
 	public void stopProgress();
 	public void showErrorMessage(String message);
 	}

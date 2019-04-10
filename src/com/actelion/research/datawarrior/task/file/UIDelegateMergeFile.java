@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -46,7 +46,7 @@ import com.actelion.research.datawarrior.task.AbstractTask;
 import com.actelion.research.datawarrior.task.TaskUIDelegate;
 import com.actelion.research.gui.FileHelper;
 import com.actelion.research.table.CompoundTableLoader;
-import com.actelion.research.table.CompoundTableModel;
+import com.actelion.research.table.model.CompoundTableModel;
 
 public class UIDelegateMergeFile implements ActionListener,ItemListener,TaskUIDelegate,TaskConstantsMergeFile {
 	private static final int IS_NOT_DISPLAYABLE = -1;
@@ -62,14 +62,12 @@ public class UIDelegateMergeFile implements ActionListener,ItemListener,TaskUIDe
 	private JPanel				mDialogPanel;
 	private JComponent			mMatchingPanel;
 	private JFilePathLabel		mFilePathLabel;
-	private JLabel[]			mLabelSourceColumn;
 	private JComboBox[]			mComboBoxUsage;
 	private JComboBox[]			mComboBoxOldColumn;
 	private JCheckBox			mCheckBoxAppendRows,mCheckBoxAppendColumns;
 	private CompoundTableLoader	mLoader;
-	private String[]			mTotalFieldName;
+	private String[]			mTotalFieldName,mFieldName,mFieldAlias;
 	private boolean 			mIsInteractive;
-	private int					mFieldCount;
 
 	public UIDelegateMergeFile(DEFrame parent, DETaskMergeFile parentTask, boolean isInteractive) {
 		mParentFrame = parent;
@@ -121,21 +119,47 @@ public class UIDelegateMergeFile implements ActionListener,ItemListener,TaskUIDe
 
 		// parse the file to be merged
 		int fileType = FileHelper.getFileType(file.getName());
+		DERuntimeProperties rtp = new DERuntimeProperties(mParentFrame.getMainFrame());
 		mLoader = new CompoundTableLoader(mParentFrame, mParentFrame.getTableModel(), null);
-		mLoader.readFile(file, new DERuntimeProperties(mParentFrame.getMainFrame()), fileType, CompoundTableLoader.READ_DATA);
+		mLoader.readFile(file, rtp, fileType, CompoundTableLoader.READ_DATA);
 
 		// create arrays with field names
 		mTotalFieldName = mLoader.getFieldNames();
 		ArrayList<String> visibleFieldList = new ArrayList<String>();
 		for (int i=0; i<mTotalFieldName.length; i++) {
 			int displayableType = getDisplayableType(mLoader.getColumnSpecialType(mTotalFieldName[i]));
-			if (displayableType != IS_NOT_DISPLAYABLE)
+			if (displayableType != IS_NOT_DISPLAYABLE) {
 				visibleFieldList.add(mTotalFieldName[i]);
+				}
 			}
-		mFieldCount = visibleFieldList.size();
+		mFieldName = visibleFieldList.toArray(new String[0]);
+		mFieldAlias = new String[mFieldName.length];
+
+		// find and assign column aliases from runtime properties
+		String aliasCount = (String)rtp.get(DERuntimeProperties.cColumnAliasCount);
+		if (aliasCount != null) {
+			try {
+				int count = Integer.parseInt(aliasCount);
+				for (int i=0; i<count; i++) {
+					String columnAlias = (String)rtp.get(DERuntimeProperties.cColumnAlias+"_"+i);
+					if (columnAlias != null) {
+						int index = columnAlias.indexOf('\t');
+						if (index != -1) {
+							String columnName = columnAlias.substring(0, index);
+							for (int j=0; j<mFieldName.length; j++) {
+								if (columnName.equals(mFieldName[j])) {
+									mFieldAlias[j] = columnAlias.substring(index+1);
+									break;
+									}
+								}
+							}
+						}
+					}
+				} catch (NumberFormatException e) {}
+			}
 
 		// From here: create the panel with all field matching options
-		double[] verticalSize = new double[2*mFieldCount+3];
+		double[] verticalSize = new double[2*mFieldName.length+3];
 		verticalSize[0] = 8;
 		verticalSize[1] = TableLayout.PREFERRED;
 		verticalSize[2] = 8;
@@ -160,9 +184,8 @@ public class UIDelegateMergeFile implements ActionListener,ItemListener,TaskUIDe
 				columnListBySpecialType[displayableType].add(mTableModel.getColumnTitle(column));
 			}
 
-		mLabelSourceColumn = new JLabel[mFieldCount];
-		mComboBoxOldColumn = new JComboBox[mFieldCount];
-		mComboBoxUsage = new JComboBox[mFieldCount];
+		mComboBoxOldColumn = new JComboBox[mFieldName.length];
+		mComboBoxUsage = new JComboBox[mFieldName.length];
 
 		JPanel mp0 = new JPanel();
 		mp0.setLayout(new TableLayout(size2));
@@ -171,14 +194,22 @@ public class UIDelegateMergeFile implements ActionListener,ItemListener,TaskUIDe
 		mp0.add(new JLabel("Merge Option"), "6,1");
 		int layoutPosition = 3;
 		boolean selectedFound = false;
-		for (int i=0; i<mFieldCount; i++) {
-			mLabelSourceColumn[i] = new JLabel(visibleFieldList.get(i));
-
-			int displayableType = getDisplayableType(mLoader.getColumnSpecialType(visibleFieldList.get(i)));
+		for (int i=0; i<mFieldName.length; i++) {
+			int displayableType = getDisplayableType(mLoader.getColumnSpecialType(mFieldName[i]));
 			mComboBoxOldColumn[i] = new JComboBox(columnListBySpecialType[displayableType].toArray());
-			for (int j=2; j<columnListBySpecialType[displayableType].size(); j++)
-				if (visibleFieldList.get(i).equalsIgnoreCase(columnListBySpecialType[displayableType].get(j)))
+			for (int j=2; j<columnListBySpecialType[displayableType].size(); j++) {
+				int destColumn = mTableModel.findColumn(columnListBySpecialType[displayableType].get(j));
+				String destColumnName = mTableModel.getColumnTitleNoAlias(destColumn);
+				String destColumnAlias = mIsInteractive ? mTableModel.getColumnAlias(destColumn) : null;
+				if (mFieldName[i].equalsIgnoreCase(destColumnName)
+				 || (mFieldAlias[i] != null && mFieldAlias[i].equalsIgnoreCase(destColumnName))
+				 || (destColumnAlias != null
+				  && mFieldName[i].equalsIgnoreCase(destColumnAlias)
+				   || (mFieldAlias[i] != null && mFieldAlias[i].equalsIgnoreCase(destColumnAlias)))) {
 					mComboBoxOldColumn[i].setSelectedIndex(j);
+					break;
+					}
+				}
 			mComboBoxOldColumn[i].addItemListener(this);
 			mComboBoxOldColumn[i].setEditable(!mIsInteractive);
 
@@ -193,7 +224,7 @@ public class UIDelegateMergeFile implements ActionListener,ItemListener,TaskUIDe
 			mComboBoxUsage[i].addItemListener(this);
 
 			mp0.add(new JLabel("Assign "), "1,"+layoutPosition);
-			mp0.add(mLabelSourceColumn[i], "2,"+layoutPosition);
+			mp0.add(new JLabel(mFieldAlias[i] != null ? mFieldAlias[i] : mFieldName[i]), "2,"+layoutPosition);
 			mp0.add(new JLabel(" to"), "3,"+layoutPosition);
 			mp0.add(mComboBoxOldColumn[i], "4,"+layoutPosition);
 			mp0.add(mComboBoxUsage[i], "6,"+layoutPosition);
@@ -203,7 +234,7 @@ public class UIDelegateMergeFile implements ActionListener,ItemListener,TaskUIDe
 		if (mMatchingPanel != null)
 			mDialogPanel.remove(mMatchingPanel);
 
-		if (mFieldCount <= 8) {
+		if (mFieldName.length <= 8) {
 			mMatchingPanel = mp0;
 			}
 		else {
@@ -212,7 +243,7 @@ public class UIDelegateMergeFile implements ActionListener,ItemListener,TaskUIDe
 				@Override
 				public Dimension getPreferredSize() {
 					return new Dimension(getViewport().getView().getPreferredSize().width+16,
-							8*(COLUMN_LINE_SPACING+mComboBoxUsage[0].getPreferredSize().height));
+							16*(COLUMN_LINE_SPACING+mComboBoxUsage[0].getPreferredSize().height));
 					}
 				};
 			mMatchingPanel = mps;
@@ -243,14 +274,14 @@ public class UIDelegateMergeFile implements ActionListener,ItemListener,TaskUIDe
 	@Override
 	public void actionPerformed(ActionEvent e) {
 		if (e.getActionCommand().equals(JFilePathLabel.BUTTON_TEXT)) {
-			File file = askForFile(mParentTask.resolveVariables(mFilePathLabel.getPath()));
+			File file = askForFile(mParentTask.resolvePathVariables(mFilePathLabel.getPath()));
 			if (file != null) {
 				updateUIFromFile(file);
 				}
 			return;
 			}
 		if (e.getSource() == mFilePathLabel) {
-			updateUIFromFile(new File(mParentTask.resolveVariables(mFilePathLabel.getPath())));
+			updateUIFromFile(new File(mParentTask.resolvePathVariables(mFilePathLabel.getPath())));
 			return;
 			}
 		}
@@ -265,7 +296,7 @@ public class UIDelegateMergeFile implements ActionListener,ItemListener,TaskUIDe
 		if (e.getStateChange() == ItemEvent.SELECTED) {
 			int comboBoxType = -1;
 			int index = 0;
-			while (index<mFieldCount) {
+			while (index<mFieldName.length) {
 				if (e.getSource() == mComboBoxOldColumn[index]) {
 					comboBoxType = 1;
 					break;
@@ -289,7 +320,7 @@ public class UIDelegateMergeFile implements ActionListener,ItemListener,TaskUIDe
 				if (isDestinationItem
 				 && OPTION_TEXT[CompoundTableLoader.MERGE_MODE_IS_KEY].equals(cbUsage.getSelectedItem())) {
 					if (cbUsage.getSelectedIndex() == CompoundTableLoader.MERGE_MODE_IS_KEY) {
-						String newColumnName = mLabelSourceColumn[index].getText();
+						String newColumnName = mFieldName[index];
 						int displayableType = getDisplayableType(mLoader.getColumnSpecialType(newColumnName));
 						cbUsage.removeItemListener(this);
 						cbUsage.setSelectedIndex((displayableType != IS_NORMAL_DISPLAYABLE) ? CompoundTableLoader.MERGE_MODE_USE_IF_EMPTY : CompoundTableLoader.MERGE_MODE_APPEND);
@@ -300,10 +331,10 @@ public class UIDelegateMergeFile implements ActionListener,ItemListener,TaskUIDe
 				}
 			if (comboBoxType == 2) {	// column role changed
 				if (OPTION_TEXT[CompoundTableLoader.MERGE_MODE_APPEND].equals(e.getItem())) {
-					String newColumnName = mLabelSourceColumn[index].getText();
-					int displayableType = getDisplayableType(mLoader.getColumnSpecialType(newColumnName));
+					int displayableType = getDisplayableType(mLoader.getColumnSpecialType(mFieldName[index]));
 					if (displayableType != IS_NORMAL_DISPLAYABLE) {
-						JOptionPane.showMessageDialog(mParentFrame, "Column '"+newColumnName+"' contains a special type and cannot be appended.");
+						String name = (mFieldAlias[index] != null) ? mFieldAlias[index] : mFieldName[index];
+						JOptionPane.showMessageDialog(mParentFrame, "Column '"+name+"' contains a special type and cannot be appended.");
 						mComboBoxUsage[index].removeItemListener(this);
 						mComboBoxUsage[index].setSelectedIndex(CompoundTableLoader.MERGE_MODE_USE_IF_EMPTY);
 						mComboBoxUsage[index].addItemListener(this);
@@ -339,11 +370,14 @@ public class UIDelegateMergeFile implements ActionListener,ItemListener,TaskUIDe
 		if (fileName != null)
 			configuration.setProperty(PROPERTY_FILENAME, fileName);
 
-		configuration.setProperty(PROPERTY_COLUMN_COUNT, Integer.toString(mFieldCount));
-		for (int i=0; i<mFieldCount; i++) {
-			configuration.setProperty(PROPERTY_SOURCE_COLUMN+i, mLabelSourceColumn[i].getText());
+		configuration.setProperty(PROPERTY_COLUMN_COUNT, Integer.toString(mFieldName.length));
+		for (int i=0; i<mFieldName.length; i++) {
+			configuration.setProperty(PROPERTY_SOURCE_COLUMN+i, mFieldName[i]);
 			String destColumn = (mComboBoxOldColumn[i].getSelectedIndex() < DESTINATION_ITEMS.length) ?
-					DESTINATION_CODES[mComboBoxOldColumn[i].getSelectedIndex()] : (String)mComboBoxOldColumn[i].getSelectedItem();
+									DESTINATION_CODES[mComboBoxOldColumn[i].getSelectedIndex()]
+							  : mIsInteractive ?
+									mTableModel.getColumnTitleNoAlias((String)mComboBoxOldColumn[i].getSelectedItem())
+							  : 	(String)mComboBoxOldColumn[i].getSelectedItem();
 			configuration.setProperty(PROPERTY_DEST_COLUMN+i, destColumn);
 			configuration.setProperty(PROPERTY_OPTION+i, OPTION_CODE[mComboBoxUsage[i].getSelectedIndex()]);
 			}
@@ -365,7 +399,7 @@ public class UIDelegateMergeFile implements ActionListener,ItemListener,TaskUIDe
 
 		try {
 			int count = Integer.parseInt(configuration.getProperty(PROPERTY_COLUMN_COUNT, "0"));
-			boolean[] fieldFound = new boolean[mFieldCount];
+			boolean[] fieldFound = new boolean[mFieldName == null ? 0 : mFieldName.length];
 			for (int i=0; i<count; i++) {
 				String sourceColumn = configuration.getProperty(PROPERTY_SOURCE_COLUMN+i);
 				String destColumn = configuration.getProperty(PROPERTY_DEST_COLUMN+i);
@@ -386,8 +420,8 @@ public class UIDelegateMergeFile implements ActionListener,ItemListener,TaskUIDe
 					}
 				String usage = configuration.getProperty(PROPERTY_OPTION+i);
 
-				for (int field=0; field<mFieldCount; field++) {
-					String name = mLabelSourceColumn[field].getText();
+				for (int field=0; field<fieldFound.length; field++) {
+					String name = mFieldName[field];
 					if (name.equals(sourceColumn)) {
 						mComboBoxOldColumn[field].setSelectedItem(destColumn);
 						mComboBoxUsage[field].setSelectedIndex(AbstractTask.findListIndex(usage, OPTION_CODE, 1));
@@ -396,7 +430,7 @@ public class UIDelegateMergeFile implements ActionListener,ItemListener,TaskUIDe
 						}
 					}
 				}
-			for (int field=0; field<mFieldCount; field++)
+			for (int field=0; field<fieldFound.length; field++)
 				if (!fieldFound[field])
 					mComboBoxOldColumn[field].setSelectedItem(DESTINATION_ITEMS[DESTINATION_ITEM_TRASH]);
 			}

@@ -1,0 +1,89 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN">
+<html>
+<head>
+  <title>External Databases</title>
+  <base href="../">
+  <link type="text/css" href="styles.css" rel="stylesheet">
+</head>
+
+<body>
+
+<hr align="left" size="2" width="550">
+<h2><a name="Installation"></a>Program Installation</h2>
+<hr align="left" size="2" width="550">
+
+<h3><a name="Installers"></a>Installing DataWarrior</h3>
+<p><span class="keyword">DataWarrior</span> installers are available for Linux, Macintosh and Windows.
+DataWarrior was written in Java and its complete source code is published under the
+<span class="keyword">GNU Public License</span>. Installers for the three platforms, and the source code
+can be downloaded from www.openmolecules.org. The DataWarrior installation contains various example
+files and a complete user manual, which is accessible from within the application. In addition to
+the embedded documentation the user manual is also accessible online at www.openmolecules.org.</p>
+
+<p>To install <span class="keyword">DataWarrior</span> on <span class="keyword">Windows</span> you need
+a working Java Runtime environment to be installed. If this is not the case, please download and install
+Java from the java.com website. Depending on the Java architecture (32- or 64-bit) you need to download
+the matching <span class="keyword">DataWarrior</span> installer. The <span class="keyword">DataWarrior</span>
+downlod page explains, how you can check, which Java architecture you have installed.
+To install <span class="keyword">DataWarrior</span> itself just double click the downloaded datawarrior.msi
+file and follow the instructions. Anytime later you may traceless uninstall the program using the
+<span class="keyword">Control Panel</span>.
+</p>
+<p>To install <span class="keyword">DataWarrior</span> on the <span class="keyword">Macintosh</span>
+just double click the downloaded datawarrior.dmg file and drag the <span class="keyword">DataWarrior</span>
+application icon onto the Application folder. In the unlikely case you want to de-install the software later,
+just drag the <span class="keyword">DataWarrior</span> folder from the application folder into the trash. 
+</p>
+<p>To install <span class="keyword">DataWarrior</span> on <span class="keyword">Linux</span> unpack the
+downloaded datawarrior.tar.gz file to any location and run the install script with root privileges.
+To later uninstall <span class="keyword">DataWarrior</span> you may run /opt/uninstall with root privileges.
+</p>
+<br>
+
+<br>
+<h3>Updating DataWarrior</h3>
+<p>In order to update an existing <span class="keyword">DataWarrior</span> installation to a newer version,
+we recommend to uninstall the previous version as described above and then to install the new version.
+If you have saved or modified any files in the <span class="keyword">DataWarrior</span> installation directory
+or any of its subfolders (e.g. 'reference', 'example', or the 'macro' folder), then you should copy these files
+to a safe place before uninstalling the outdated <span class="keyword">DataWarrior</span> version.</p>
+<br>
+
+<h3><a name="LookAndFeel"></a>Look & Feel</h3>
+<p>When <span class="keyword">DataWarrior</span> launches for the first time, it uses the <span class="keyword">Graphite
+Look & Feel</span>, which means that all user interface elements and the background are drawn in a dark grayish tone.
+This emphasises in particular color-rich views. Since aesthetic perception depends on the individuum,
+the <span class="menu">Help</span> menu allows to choose from a couple of different <span class="keyword">Look & Feels</span>.
+The chosen <span class="keyword">Look & Feels</span> is stored as part of <span class="keyword">DataWarrior's</span>
+settings.</p>
+<p align="center"><img src="help/img/installation/laf.jpeg"></p>
+<p align="center"><i>Three different Look & Feels on a Macintosh</i></p>
+
+<br>
+<h3><a name="HiDPI"></a>Hi-Resolution Monitors</h3>
+<p>During recent years computer and monitor manufacturers have introduced monitors with substantially
+higher resolutions than what was common before. <span class="keyword">DataWarrior</span> supports
+these monitors on all three platforms, but in a slightly different way, because high resolution
+monitors are handled differently on different operating systems. In general user interface elements
+as buttons, combo boxes and menu items are enlarged to make up for the smaller pixel size. Therefore,
+everything looks much sharper.</p>
+<p>On <span class="keyword">Windows</span> the enlargement factor can be defined for all applications
+in the in the <span class="keyword">Display Control Panel</span> under <span class="keyword">Appearance
+and Personalization</span>. Under some versions of Windows it is also necessary to disable DPI virtualization
+for the DataWarrior application. To do so, right-click the name of the DataWarrior executable file,
+click Properties, click the Compatibility tab, and then select the box labeled <span class="keyword">Disable
+display scaling on high DPI settings</span>.</p>
+<p>On Retina displays of the <span class="keyword">Macintosh</span> this factor is predefined as 2.0.
+And on <span class="keyword">Linux</span> it depends on the Linux dialect. Usually the scaling factor
+can be defined in the display settings dialog. On Ubuntu the relevant slider is called <span class="keyword">
+Scale for menu and title bars</span>, which is recognized by <span class="keyword">DataWarrior</span>.
+For Linux dialects without that setting, or if DataWarrior does not automatically recognize the setting,
+one may add an 'dpifactor' parameter to the script that launches DataWarrior ('/opt/datawarrior/datawarrior').
+For instance to increase all user interface elements by 50% insert a dpifactor of 1.5 into the second line
+after the -X options. It looks then like:<br>
+java -Xms1000m -Xmx4000m -Ddpifactor=1.5 -Ddatapath=...
+</p>
+<br>
+
+</body>
+</html>

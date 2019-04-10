@@ -1,20 +1,18 @@
 package org.sunflow.system;
 
-import java.awt.Dimension;
-import java.awt.Graphics;
+import org.sunflow.core.Display;
+import org.sunflow.image.Color;
+
+import javax.imageio.ImageIO;
+import javax.swing.*;
+import javax.swing.event.MouseInputAdapter;
+import java.awt.*;
 import java.awt.event.InputEvent;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseWheelEvent;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
-
-import javax.imageio.ImageIO;
-import javax.swing.JPanel;
-import javax.swing.event.MouseInputAdapter;
-
-import org.sunflow.core.Display;
-import org.sunflow.image.Color;
 
 @SuppressWarnings("serial")
 public class ImagePanel extends JPanel implements Display {
@@ -229,6 +227,10 @@ public class ImagePanel extends JPanel implements Display {
 
     public void imageEnd() {
         repaint();
+    }
+
+    public boolean imageCancelled() {
+        return false;
     }
 
     public BufferedImage getImage() {

@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,20 +18,14 @@
 
 package com.actelion.research.gui.form;
 
-import java.awt.Color;
-import java.awt.Font;
-import java.awt.Graphics;
-import java.awt.Graphics2D;
-import java.awt.Image;
-import java.awt.Toolkit;
+import com.actelion.research.gui.ImageDataSource;
+import com.actelion.research.gui.JImagePanel;
+
+import javax.swing.border.Border;
+import java.awt.*;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Rectangle2D;
 import java.awt.image.ImageObserver;
-
-import javax.swing.border.Border;
-
-import com.actelion.research.gui.ImageDataSource;
-import com.actelion.research.gui.JImagePanel;
 
 public class JImageDetailView extends JResultDetailView implements ImageObserver,ImageDataSource {
     private static final long serialVersionUID = 0x20070509;
@@ -90,7 +84,7 @@ public class JImageDetailView extends JResultDetailView implements ImageObserver
 		}
 	
     @Override
-	public void print(Graphics g, Rectangle2D.Float r, float scale, Object data) {
+	public void print(Graphics g, Rectangle2D.Double r, float scale, Object data) {
 	    boolean usesThumbNail = ((JImagePanel)mDetailView).usesThumbNail();
 	    String path = ((JImagePanel)mDetailView).getImagePath();
 	    boolean imageReady = false;
@@ -135,10 +129,9 @@ public class JImageDetailView extends JResultDetailView implements ImageObserver
 	    	}
 	    else {
 	        g2d.setColor(Color.RED);
-	        g2d.setFont(new Font("Helvetica", 0, (int)(9*scale+0.5)));
+	        g2d.setFont(g2d.getFont().deriveFont(0, (int)(9*scale+0.5)));
 	        Rectangle2D bounds = g2d.getFontMetrics().getStringBounds("error", g2d);
-	        g2d.drawString("error", (float)(r.x+r.width/2-bounds.getWidth()/2),
-	                				(float)(r.y+r.height/2));
+	        g2d.drawString("error", (float)(r.x+r.width/2-bounds.getWidth()/2),	(float)(r.y+r.height/2));
 	    	}
 	    }
 

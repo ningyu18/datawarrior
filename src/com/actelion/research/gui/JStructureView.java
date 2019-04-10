@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -23,6 +23,8 @@ import com.actelion.research.gui.clipboard.IClipboardHandler;
 import com.actelion.research.gui.dnd.MoleculeDragAdapter;
 import com.actelion.research.gui.dnd.MoleculeDropAdapter;
 import com.actelion.research.gui.dnd.MoleculeTransferable;
+import com.actelion.research.gui.hidpi.HiDPIHelper;
+import com.actelion.research.util.ColorHelper;
 
 import javax.swing.*;
 
@@ -138,12 +140,12 @@ public class JStructureView extends JPanel implements ActionListener,MouseListen
 
 	/**
 	 * Defines additional atom text to be displayed in top right
-	 * position of some/all atom label. If the atom is charged, then
-	 * the atom text follows the charge information.
+	 * position of some/all atom labels. If the atom is charged, then
+	 * the atom text is drawn right of the atom charge.
 	 * If using atom text make sure to update it accordingly, if atom
 	 * indexes change due to molecule changes.
 	 * Atom text is not supported for MODE_REACTION, MODE_MULTIPLE_FRAGMENTS or MODE_MARKUSH_STRUCTURE.
-	 * @param null or String array matching atom indexes (may contain null entries)
+	 * @param atomText null or String array matching atom indexes (may contain null entries)
 	 */
 	public void setAtomText(String[] atomText) {
 		mAtomText = atomText;
@@ -172,9 +174,10 @@ public class JStructureView extends JPanel implements ActionListener,MouseListen
 		return isEnabled();
 	    }
 
-
+	@Override
 	public synchronized void paintComponent(Graphics g) {
         super.paintComponent(g);
+
         Dimension theSize = getSize();
 		Insets insets = getInsets();
 		theSize.width -= insets.left + insets.right;
@@ -192,19 +195,18 @@ public class JStructureView extends JPanel implements ActionListener,MouseListen
             mDepictor.setDisplayMode(mDisplayMode);
             mDepictor.setAtomText(mAtomText);
 
-			if (!getForeground().equals(Color.BLACK))
-				mDepictor.setOverruleColor(getForeground(), getBackground());
-
 			if (!isEnabled())
-                mDepictor.setOverruleColor(Color.GRAY, getBackground());
+                mDepictor.setOverruleColor(ColorHelper.getContrastColor(Color.GRAY, getBackground()), getBackground());
+			else
+				mDepictor.setForegroundColor(getForeground(), getBackground());
 
-			mDepictor.validateView(g, new Rectangle2D.Float(insets.left, insets.top,
-							theSize.width,theSize.height),
-				       AbstractDepictor.cModeInflateToMaxAVBL | mChiralTextPosition);
+			int avbl = HiDPIHelper.scale(AbstractDepictor.cOptAvBondLen);
+			mDepictor.validateView(g, new Rectangle2D.Double(insets.left, insets.top, theSize.width,theSize.height),
+								   AbstractDepictor.cModeInflateToMaxAVBL | mChiralTextPosition | avbl);
             mDepictor.paint(g);
 			}
 
-		if(borderFlag && mShowBorder) {
+		if (borderFlag && mShowBorder) {
 			g.setColor(Color.gray);
 			g.drawRect(insets.left,insets.top,theSize.width - 1,theSize.height - 1);
 			g.drawRect(insets.left + 1,insets.top + 1,theSize.width - 3,theSize.height - 3);

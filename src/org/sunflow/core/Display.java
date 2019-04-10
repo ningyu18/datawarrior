@@ -74,4 +74,11 @@ public interface Display {
      * any other type of buffers.
      */
     void imageEnd();
+
+	/**
+     * Used by the renderer threads to check, whether the display was closed
+     * or otherwise instructed to stop the rendering. (added TLS 6-May-2016)
+     * @return
+     */
+    boolean imageCancelled();
 }

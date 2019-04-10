@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -127,7 +127,7 @@ public class TreeGraphOptimizer {
 		if (isVertical) {
 			int yMid = bounds.y + bounds.height / 2;
 			int levelWidth = Math.min(maxLayerDistance, bounds.width / (nodeList.length + 1));
-			int x = (bounds.width - (nodeList.length - 1) * levelWidth) / 2;
+			int x = bounds.x + (bounds.width - (nodeList.length - 1) * levelWidth) / 2;
 	
 			double factor = Math.min(maxNeighborDistance, (int)((float)bounds.height / (relMax-relMin+2.0f)));
 			if (factor == 0.0)
@@ -149,7 +149,7 @@ public class TreeGraphOptimizer {
 		else {
 			int xMid = bounds.x + bounds.width / 2;
 			int levelHeight = Math.min(maxLayerDistance, bounds.height / (nodeList.length + 1));
-			int y = (bounds.height - (nodeList.length - 1) * levelHeight) / 2;
+			int y = bounds.y + (bounds.height - (nodeList.length - 1) * levelHeight) / 2;
 	
 			double factor = Math.min(maxNeighborDistance, (int)((float)bounds.width / (relMax-relMin+2.0f)));
 			if (factor == 0.0)

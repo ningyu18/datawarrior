@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,25 +18,87 @@
 
 package com.actelion.research.datawarrior.task;
 
-import java.util.Properties;
-
 import com.actelion.research.datawarrior.DEFrame;
 import com.actelion.research.datawarrior.DataWarrior;
 import com.actelion.research.table.CompoundTableLoader;
+import info.clearthought.layout.TableLayout;
 
-public class DETaskPaste extends DETaskWithEmptyConfiguration {
+import javax.swing.*;
+import java.util.Properties;
+
+public class DETaskPaste extends ConfigurableTask {
     public static final String TASK_NAME = "Paste";
 
-    private DataWarrior	mApplication;
-    private DEFrame		mNewFrame;
+	private static final String PROPERTY_HEADER_HANDLING = "header";
+	private static final String[] CODE_HEADER_HANDLING = {"no", "yes", "infer"};
+	private static final String[] TEXT_HEADER_HANDLING = {"No", "Yes", "Analyze"};
+	public static final int HEADER_WITHOUT = 0;
+	public static final int HEADER_WITH = 1;
+	public static final int HEADER_ANALYZE = 2;
+	private static final int DEFAULT_HEADER_HANDLING = HEADER_ANALYZE;
 
-    public DETaskPaste(DEFrame parent, DataWarrior application) {
+	private DataWarrior	mApplication;
+    private DEFrame		mNewFrame;
+	private int         mHeaderHandling;
+	private JComboBox   mComboBoxHeaderHandling;
+
+    public DETaskPaste(DEFrame parent, DataWarrior application, int headerHandling) {
 		super(parent, false);
 		mApplication = application;
+	    mHeaderHandling = headerHandling;
+		}
+
+	public Properties getPredefinedConfiguration() {
+		if (!isInteractive())
+			return null;
+
+		Properties configuration = new Properties();
+		configuration.setProperty(PROPERTY_HEADER_HANDLING, CODE_HEADER_HANDLING[mHeaderHandling]);
+		return configuration;
 		}
 
 	@Override
+	public JPanel createDialogContent() {
+		double[][] size = { {8, TableLayout.PREFERRED, 4, TableLayout.PREFERRED, 8},
+				{8, TableLayout.PREFERRED, 8} };
+
+		JPanel content = new JPanel();
+		content.setLayout(new TableLayout(size));
+		content.add(new JLabel("Includes header row:"), "1,1");
+		mComboBoxHeaderHandling = new JComboBox(TEXT_HEADER_HANDLING);
+		content.add(mComboBoxHeaderHandling, "3,1");
+
+		return content;
+		}
+
+	@Override
+	public Properties getDialogConfiguration() {
+		Properties configuration = new Properties();
+		configuration.setProperty(PROPERTY_HEADER_HANDLING,
+				CODE_HEADER_HANDLING[mComboBoxHeaderHandling.getSelectedIndex()]);
+		return configuration;
+		}
+
+	@Override
+	public void setDialogConfiguration(Properties configuration) {
+		mComboBoxHeaderHandling.setSelectedIndex(
+				findListIndex(configuration.getProperty(PROPERTY_HEADER_HANDLING),
+						CODE_HEADER_HANDLING, DEFAULT_HEADER_HANDLING));
+		}
+
+	@Override
+	public void setDialogConfigurationToDefault() {
+		mComboBoxHeaderHandling.setSelectedIndex(DEFAULT_HEADER_HANDLING);
+	}
+
+
+	@Override
 	public boolean isConfigurable() {
+		return true;
+		}
+
+	@Override
+	public boolean isConfigurationValid(Properties configuration, boolean isLive) {
 		return true;
 		}
 
@@ -48,11 +110,13 @@ public class DETaskPaste extends DETaskWithEmptyConfiguration {
 	@Override
 	public void runTask(Properties configuration) {
 		mNewFrame = mApplication.getEmptyFrame(null);
-		new CompoundTableLoader(mNewFrame, mNewFrame.getTableModel()).paste();
+		int headerHandling = findListIndex(configuration.getProperty(PROPERTY_HEADER_HANDLING),
+				CODE_HEADER_HANDLING, DEFAULT_HEADER_HANDLING);
+		new CompoundTableLoader(mNewFrame, mNewFrame.getTableModel(), null).paste(headerHandling);
 		}
 
 	@Override
 	public DEFrame getNewFrontFrame() {
 		return mNewFrame;
 		}
-	}
+}

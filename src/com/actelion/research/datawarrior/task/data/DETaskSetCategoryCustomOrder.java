@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,32 +18,6 @@
 
 package com.actelion.research.datawarrior.task.data;
 
-import info.clearthought.layout.TableLayout;
-
-import java.awt.Dimension;
-import java.awt.Frame;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
-import java.util.Arrays;
-import java.util.Comparator;
-import java.util.Properties;
-
-import javax.swing.DefaultListModel;
-import javax.swing.DropMode;
-import javax.swing.JButton;
-import javax.swing.JComboBox;
-import javax.swing.JComponent;
-import javax.swing.JLabel;
-import javax.swing.JList;
-import javax.swing.JPanel;
-import javax.swing.JRadioButton;
-import javax.swing.JScrollPane;
-import javax.swing.JTextArea;
-import javax.swing.ListCellRenderer;
-import javax.swing.ListSelectionModel;
-import javax.swing.event.ListDataEvent;
-import javax.swing.event.ListDataListener;
-
 import com.actelion.research.chem.IDCodeParser;
 import com.actelion.research.chem.SortedStringList;
 import com.actelion.research.chem.StereoMolecule;
@@ -55,9 +29,20 @@ import com.actelion.research.gui.CompoundCollectionModel;
 import com.actelion.research.gui.CompoundCollectionPane;
 import com.actelion.research.gui.DefaultCompoundCollectionModel;
 import com.actelion.research.gui.clipboard.ClipboardHandler;
+import com.actelion.research.gui.hidpi.HiDPIHelper;
 import com.actelion.research.gui.table.ChemistryCellRenderer;
-import com.actelion.research.table.CompoundTableModel;
-import com.actelion.research.table.DetailTableCellRenderer;
+import com.actelion.research.table.model.CompoundTableModel;
+import info.clearthought.layout.TableLayout;
+
+import javax.swing.*;
+import javax.swing.event.ListDataEvent;
+import javax.swing.event.ListDataListener;
+import java.awt.*;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.Properties;
 
 public class DETaskSetCategoryCustomOrder extends ConfigurableTask implements ActionListener {
 	public static final String TASK_NAME = "Set Category Custom Order";
@@ -80,8 +65,6 @@ public class DETaskSetCategoryCustomOrder extends ConfigurableTask implements Ac
 
 	public static final String[] SORT_ORDER_NAME = { "in ascending order", "in descending order" };
 
-	private static Properties sRecentConfiguration;
-
 	private JComboBox			mComboBoxColumn,mComboBoxSortMode,mComboBoxSortOrder,mComboBoxSortColumn;
 	private CompoundTableModel  mTableModel;
 	private JRadioButton		mRadioButton,mRadioButtonIsStructure,mRadioButtonSort;
@@ -94,7 +77,7 @@ public class DETaskSetCategoryCustomOrder extends ConfigurableTask implements Ac
 	private ListCellRenderer	mDefaultRenderer;
 	private DefaultListModel	mListModel;
 	private int					mDefaultColumn,mActiveSortMode,mActiveSortColumn;
-	private boolean				mActiveSortIsAscending,mIsStructure;
+	private boolean				mActiveSortIsAscending,mIsStructure,mNeglectListEvents;
 
 	/**
 	 * 
@@ -106,6 +89,7 @@ public class DETaskSetCategoryCustomOrder extends ConfigurableTask implements Ac
 		super(parent, false);
 		mTableModel = tableModel;
 		mDefaultColumn = defaultColumn;
+		mActiveSortMode = -1;
 		}
 
 	@Override
@@ -138,6 +122,8 @@ public class DETaskSetCategoryCustomOrder extends ConfigurableTask implements Ac
 
 		mDialogPanel.add(new JLabel("Define order of category items:"), "1,5,3,5");
 
+		int scaled80 = HiDPIHelper.scale(80);
+
 		if (mDefaultColumn != -1) {
 			mListModel = new DefaultListModel();
 			mList = new JList(mListModel);
@@ -148,29 +134,32 @@ public class DETaskSetCategoryCustomOrder extends ConfigurableTask implements Ac
 			mList.getModel().addListDataListener(new ListDataListener() {
 				@Override
 				public void intervalAdded(ListDataEvent e) {
-					mActiveSortMode = -1;
+					if (!mNeglectListEvents)
+						mActiveSortMode = -1;
 					}
 
 				@Override
 				public void intervalRemoved(ListDataEvent e) {
-					mActiveSortMode = -1;
+					if (!mNeglectListEvents)
+						mActiveSortMode = -1;
 					}
 
 				@Override
 				public void contentsChanged(ListDataEvent e) {
-					mActiveSortMode = -1;
+					if (!mNeglectListEvents)
+						mActiveSortMode = -1;
 					}
 				});
 
 			mScrollPane = new JScrollPane(mList);
-			int height = Math.max(240, Math.min(640, (1 + mTableModel.getCategoryCount(mDefaultColumn))
-						* ((mTableModel.getColumnSpecialType(mDefaultColumn) == null) ? 20 : 80)));
-			mScrollPane.setPreferredSize(new Dimension(240, height));
+			int height = Math.max(3*scaled80, Math.min(8*scaled80, (1 + mTableModel.getCategoryCount(mDefaultColumn))
+						* ((mTableModel.getColumnSpecialType(mDefaultColumn) == null) ? scaled80/4 : scaled80)));
+			mScrollPane.setPreferredSize(new Dimension(3*scaled80, height));
 			}
 		else {
 			mTextArea = new JTextArea();
 			mScrollPane = new JScrollPane(mTextArea);
-			mScrollPane.setPreferredSize(new Dimension(240, 240));
+			mScrollPane.setPreferredSize(new Dimension(3*scaled80, 3*scaled80));
 			mIsStructure = false;
 			}
 
@@ -330,7 +319,7 @@ public class DETaskSetCategoryCustomOrder extends ConfigurableTask implements Ac
 				mDefaultRenderer = mList.getCellRenderer();
 
 			ChemistryCellRenderer renderer = new ChemistryCellRenderer();
-			renderer.setAlternatingRowBackground(DetailTableCellRenderer.TOGGLE_ROW_BACKGROUND);
+			renderer.setAlternateRowBackground(true);
 			mList.setCellRenderer(renderer);
 			mList.setFixedCellHeight(80);
 			}
@@ -349,13 +338,15 @@ public class DETaskSetCategoryCustomOrder extends ConfigurableTask implements Ac
 				String[] idcodeList = mTextArea.getText().split("\\n");
 				if (mStructurePane == null) {
 					DefaultCompoundCollectionModel.IDCode collectionModel = new DefaultCompoundCollectionModel.IDCode();
+					int scaled80 = HiDPIHelper.scale(80);
 					mStructurePane = new CompoundCollectionPane<String>(collectionModel, true);
 					mStructurePane.setSelectable(true);
 					mStructurePane.setEditable(true);
 					mStructurePane.setClipboardHandler(new ClipboardHandler());
 					mStructurePane.setShowValidationError(true);
-					mStructurePane.setStructureSize(80);
-					mStructurePane.setPreferredSize(new Dimension(240, Math.max(240, Math.min(640, 80 * idcodeList.length))));
+					mStructurePane.setStructureSize(scaled80);
+					mStructurePane.setPreferredSize(new Dimension(3*scaled80,
+							Math.max(3*scaled80, Math.min(8*scaled80, scaled80 * idcodeList.length))));
 					mStructurePane.setEnabled(mRadioButton.isSelected() && !mRadioButtonSort.isSelected());
 					}
 				mStructurePane.getModel().clear();
@@ -527,7 +518,10 @@ public class DETaskSetCategoryCustomOrder extends ConfigurableTask implements Ac
 			mActiveSortMode = mComboBoxSortMode.getSelectedIndex();
 			mActiveSortColumn = (mActiveSortMode == cSortModeSize) ? -1 : mTableModel.findColumn((String)mComboBoxSortColumn.getSelectedItem());
 			mActiveSortIsAscending = (mComboBoxSortOrder.getSelectedIndex() == 0);
+
+			mNeglectListEvents = true;
 			updateList(sortCategories(mDefaultColumn, mActiveSortMode, mActiveSortColumn, mActiveSortIsAscending), true);
+			mNeglectListEvents = false;
 			}
 		}
 
@@ -556,7 +550,19 @@ public class DETaskSetCategoryCustomOrder extends ConfigurableTask implements Ac
 		int column = mTableModel.findColumn(configuration.getProperty(PROPERTY_COLUMN, ""));
 		String itemString = configuration.getProperty(PROPERTY_LIST, "");
 		if (itemString.length() != 0) {
-			mTableModel.setCategoryCustomOrder(column, itemString.split("\\t"));
+			String[] category = itemString.split("\\t");
+
+			// TODO use attached id-coordinates in List and configuration
+			// in case of idcodes get rid of potentially attached coordinates
+			if (CompoundTableConstants.cColumnTypeIDCode.equals(mTableModel.getColumnSpecialType(column))) {
+				for (int i=0; i<category.length; i++) {
+					int index = category[i].indexOf(' ');
+					if (index != -1)
+						category[i] = category[i].substring(0, index);
+					}
+				}
+
+			mTableModel.setCategoryCustomOrder(column, category);
 			return;
 			}
 
@@ -587,7 +593,7 @@ public class DETaskSetCategoryCustomOrder extends ConfigurableTask implements Ac
 					category[cat].value++;
 					}
 				else {
-					float v = mTableModel.getDoubleAt(row, sortColumn);
+					float v = mTableModel.getTotalDoubleAt(row, sortColumn);
 					if (!Float.isNaN(v)) {
 						category[cat].count++;
 						switch (sortMode) {
@@ -650,15 +656,5 @@ public class DETaskSetCategoryCustomOrder extends ConfigurableTask implements Ac
 	@Override
 	public DEFrame getNewFrontFrame() {
 		return null;
-		}
-	
-	@Override
-	public Properties getRecentConfiguration() {
-		return sRecentConfiguration;
-		}
-	
-	@Override
-	public void setRecentConfiguration(Properties configuration) {
-		sRecentConfiguration = configuration;
 		}
 	}

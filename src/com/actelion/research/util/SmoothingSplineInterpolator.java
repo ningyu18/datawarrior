@@ -133,7 +133,6 @@ public class SmoothingSplineInterpolator  {
 			polynomials[i] = new FastSpline.Polynome(new double[] {d[i], c[i], b[i], a[i]});
 		}
 		return new FastSpline(x, polynomials);
-		//return new PolynomialSplineFunction(x, polynomials);
 	}
 	
 	public double getResiduals() {
@@ -168,42 +167,4 @@ public class SmoothingSplineInterpolator  {
 		return sigma[index];
 	}
 	
-	
-/*
-	public static void main(String[] args) throws Exception {
-		double[] X = {0,1,2,3, 4, 5,6,7,8};
-		//double[] Y = {10000,5,-5,-5,0,0,0,0,0};
-		double[] Y = {2,-2,-6,-26,-14,-18,-16,12,10};
-		double[] sigma = new double[10];
-		Arrays.fill(sigma, .1);
-		sigma[0]=1000;
-		sigma[1]=100;
-
-		com.actelion.research.gui.graph.Graph g = new com.actelion.research.gui.graph.Graph();
-		g.getAxisY().setRangeMin(-27);
-		g.getAxisY().setRangeMax(20);
-		for(double lambda=0; lambda<100000; lambda+=4*lambda+.05)
-		{		
-			SmoothingSplineInterpolator interpolator = new SmoothingSplineInterpolator();
-			interpolator.setLambda(lambda);		
-			interpolator.setSigma(sigma);				
-			PolynomialSplineFunction poly = (PolynomialSplineFunction)interpolator.interpolate(X, Y);
-			
-			System.out.println("RESIDUALS = "+ interpolator.getResiduals());
-			System.out.println("SMOOTHING = "+ interpolator.getSmoothing());
-			double[] Xv = new double[8*12];
-			double[] Yv = new double[8*12];
-			for (int i = 0; i < Xv.length; i++) {
-				Xv[i] = i/12.0;
-				Yv[i] = poly.value(Xv[i]);
-			}
-			g.addCurve(new com.actelion.research.gui.graph.XYCurve("toto", lambda==0?java.awt.Color.black:lambda<1?java.awt.Color.blue:java.awt.Color.gray, new java.awt.BasicStroke(), 0, Xv, Yv));	
-		}
-		g.addCurve(new com.actelion.research.gui.graph.XYCurve("toto", java.awt.Color.red, null, 1, X, Y));
-		g.setLegendLocation(com.actelion.research.gui.graph.Graph.LEGEND_NONE);	
-		g.preview();
-	}*/
-	
-
-
 }

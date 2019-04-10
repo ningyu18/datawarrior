@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,37 +18,25 @@
 
 package com.actelion.research.datawarrior.task.file;
 
-import info.clearthought.layout.TableLayout;
-
-import java.awt.Color;
-import java.awt.Dimension;
-import java.awt.Graphics;
-import java.awt.image.BufferedImage;
-import java.io.BufferedInputStream;
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.Properties;
-import java.util.TreeMap;
-
-import javax.imageio.ImageIO;
-import javax.swing.JLabel;
-import javax.swing.JList;
-import javax.swing.JPanel;
-import javax.swing.JScrollPane;
-
 import com.actelion.research.datawarrior.DEFrame;
 import com.actelion.research.datawarrior.DEPruningPanel.FilterException;
 import com.actelion.research.datawarrior.DataWarrior;
 import com.actelion.research.datawarrior.task.ConfigurableTask;
-import com.actelion.research.table.CompoundRecord;
-import com.actelion.research.table.CompoundTableEvent;
-import com.actelion.research.table.CompoundTableModel;
+import com.actelion.research.table.model.CompoundRecord;
+import com.actelion.research.table.model.CompoundTableEvent;
+import com.actelion.research.table.model.CompoundTableModel;
 import com.actelion.research.table.view.JVisualization;
 import com.actelion.research.table.view.VisualizationPanel2D;
 import com.actelion.research.util.ByteArrayArrayComparator;
+import info.clearthought.layout.TableLayout;
+
+import javax.imageio.ImageIO;
+import javax.swing.*;
+import java.awt.*;
+import java.awt.image.BufferedImage;
+import java.io.BufferedInputStream;
+import java.io.IOException;
+import java.util.*;
 
 
 public class DETaskNewFileFromPivoting extends ConfigurableTask {
@@ -58,9 +46,7 @@ public class DETaskNewFileFromPivoting extends ConfigurableTask {
 
 	public static final String TASK_NAME = "New File From Pivoting";
 
-	private static Properties sRecentConfiguration;
-
-	private CompoundTableModel  
+	private CompoundTableModel
 	mSourceTableModel;
 	private JList				mGroupColumns,mSplitColumns,mDataColumns;
 	private DEFrame				mSourceFrame,mTargetFrame;
@@ -416,7 +402,7 @@ public class DETaskNewFileFromPivoting extends ConfigurableTask {
         int column = 0;
 		for (int i=0; i<groupColumn.length; i++) {
 			if (isUsedTargetColumn[i])
-				targetTableModel.setColumnName(mSourceTableModel.getColumnTitle(groupColumn[i]), usedTargetColumn[column]);
+				targetTableModel.setColumnName(mSourceTableModel.getColumnTitleNoAlias(groupColumn[i]), usedTargetColumn[column]);
 			column++;
 			}
 		for (int i=0; i<dataColumn.length; i++) {
@@ -467,16 +453,14 @@ public class DETaskNewFileFromPivoting extends ConfigurableTask {
 
         for (int i=0; i<groupColumn.length; i++) {
         	if (isUsedTargetColumn[i]) {
-	        	HashMap<String,String> properties = mSourceTableModel.getColumnProperties(groupColumn[i]);
-	        	for (String key:properties.keySet())
-	        		targetTableModel.setColumnProperty(usedTargetColumn[i], key, properties.get(key));
+		        mSourceTableModel.copyColumnProperties(groupColumn[i], usedTargetColumn[i], targetTableModel, true);
         		}
         	}
         for (int i=0; i<dataColumn.length; i++) {
         	for (int j=0; j<categoryCount; j++) {
         		column = groupColumn.length + i*categoryCount + j;
         		if (isUsedTargetColumn[column])
-        			mSourceTableModel.copyColumnProperties(dataColumn[i], usedTargetColumn[column], targetTableModel);
+        			mSourceTableModel.copyColumnProperties(dataColumn[i], usedTargetColumn[column], targetTableModel, false);
         		}
         	}
 
@@ -522,15 +506,5 @@ public class DETaskNewFileFromPivoting extends ConfigurableTask {
 	@Override
 	public DEFrame getNewFrontFrame() {
 		return mTargetFrame;
-		}
-
-	@Override
-	public Properties getRecentConfiguration() {
-		return sRecentConfiguration;
-		}
-
-	@Override
-	public void setRecentConfiguration(Properties configuration) {
-		sRecentConfiguration = configuration;
 		}
 	}

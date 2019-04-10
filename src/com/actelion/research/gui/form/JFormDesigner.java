@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,12 +18,14 @@
 
 package com.actelion.research.gui.form;
 
+import com.actelion.research.gui.JScrollablePopupMenu;
+import info.clearthought.layout.TableLayoutConstants;
+import info.clearthought.layout.TableLayoutConstraints;
+
+import javax.swing.*;
 import java.awt.*;
 import java.awt.event.*;
-import java.util.*;
-import javax.swing.*;
-
-import info.clearthought.layout.*;
+import java.util.ArrayList;
 
 public class JFormDesigner extends JComponent implements ActionListener,MouseListener, MouseMotionListener {
     private static final long serialVersionUID = 0x20061016;
@@ -126,6 +128,8 @@ public class JFormDesigner extends JComponent implements ActionListener,MouseLis
 
 	public void paintComponent(Graphics g) {
 		super.paintComponent(g);
+
+		((Graphics2D)g).setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
 
 		Dimension size = getSize();
 		if (mSize == null)
@@ -558,24 +562,26 @@ public class JFormDesigner extends JComponent implements ActionListener,MouseLis
         if (handlePopupTrigger(e))
             return;
 
-        if (mDraggingMode == MODE_CLOSING) {
-			mItemList.remove(mItemInFocus);
-			mItemInFocus = null;
-			repaint();
-        	}
-        else if (mDraggingMode == MODE_RESIZING_GRID)
-			mMouseLocation = e.getPoint();
-		else
-			mMouseLocation = getGridLocation(e.getPoint());
+        if (e.getButton() == MouseEvent.BUTTON1) {
+			if (mDraggingMode == MODE_CLOSING) {
+				mItemList.remove(mItemInFocus);
+				mItemInFocus = null;
+				repaint();
+				}
+			else if (mDraggingMode == MODE_RESIZING_GRID)
+				mMouseLocation = e.getPoint();
+			else
+				mMouseLocation = getGridLocation(e.getPoint());
 
-        if (mDraggingMode == MODE_SELECTING) {
-            if (!e.isShiftDown())
-                mIsSelected[mRulerNo] = new boolean[mLayoutType[mRulerNo].length];
-            mIsSelected[1-mRulerNo] = new boolean[mLayoutType[1-mRulerNo].length];
-			int index = (mRulerNo == 0) ? mMouseLocation.x : mMouseLocation.y;
-            mIsSelected[mRulerNo][index] = true;
-            repaint();
-        	}
+			if (mDraggingMode == MODE_SELECTING) {
+				if (!e.isShiftDown())
+					mIsSelected[mRulerNo] = new boolean[mLayoutType[mRulerNo].length];
+				mIsSelected[1-mRulerNo] = new boolean[mLayoutType[1-mRulerNo].length];
+				int index = (mRulerNo == 0) ? mMouseLocation.x : mMouseLocation.y;
+				mIsSelected[mRulerNo][index] = true;
+				repaint();
+				}
+			}
     	}
 
     public void mouseReleased(MouseEvent e) {
@@ -858,7 +864,7 @@ public class JFormDesigner extends JComponent implements ActionListener,MouseLis
 				mMouseLocation = getGridLocation(e.getPoint());
 				FormModel model = mFormView.getModel();
 				if (mItemInFocus != null) {
-					JPopupMenu popup = new JPopupMenu();
+					JPopupMenu popup = new JScrollablePopupMenu();
 					JMenuItem menuItem1 = new JMenuItem("Remove Item");
 					menuItem1.addActionListener(this);
 					popup.add(menuItem1);
@@ -880,7 +886,7 @@ public class JFormDesigner extends JComponent implements ActionListener,MouseLis
 					popup.show(this, x, y);
 					}
 				else {
-					JPopupMenu popup = new JPopupMenu();
+					JPopupMenu popup = new JScrollablePopupMenu();
 					for (int i=0; i<model.getKeyCount(); i++) {
 						String key = model.getKey(i);
 						String title = model.getTitle(key);

@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -23,18 +23,16 @@ package com.actelion.research.forcefield.interaction;
 public class DiscreteFunction  {
 	private final double[] Y;
 	
-	public DiscreteFunction(int size) {
-		Y = new double[size];
-	}	
-	
 	public DiscreteFunction(double[] src) {
-		this(src.length);
+		Y = new double[src.length];
 		System.arraycopy(src, 0, Y, 0, src.length);
+		normalize();
 	}	
 
 	public DiscreteFunction(int[] src) {
-		this(src.length);
+		Y = new double[src.length];
 		for(int i=0; i<src.length; i++) Y[i] = src[i];
+		normalize();
 	}	
 	
 	public double value(double x) {
@@ -64,7 +62,7 @@ public class DiscreteFunction  {
 	
 	 
 	//////////////////////////////////////////////////////
-	public void normalize() {
+	private void normalize() {
 		double normalizedSum = 0;
 		for(int index=0; index<Y.length; index++) {
 			double v = Math.PI * 4.0/3 * (Math.pow(PLFunctionSplineCalculator.DELTA_RADIUS*(index+.5),3)-Math.pow(PLFunctionSplineCalculator.DELTA_RADIUS*(index-.5),3));
@@ -77,6 +75,7 @@ public class DiscreteFunction  {
 		}
 	}
 
+	/*
 	public void removeArtifacts() {
 		for(int index=0; index<Y.length-2; index++) {
 			if(Y[index]>0 && Y[index+1]==0) Y[index] = 0;
@@ -95,20 +94,7 @@ public class DiscreteFunction  {
 				(index+1<Y.length? copy[index+1]*.1: 0);
 		}				
 	}
-	/*
-	public void postProcess() {
-		double[] copy = new double[Y.length];
-		System.arraycopy(Y, 0, copy, 0, Y.length);
-		for(int index=0; index<Y.length; index++) {
-			Y[index] = 
-				(index-1>=0? copy[index-1]*.1: 0) + 
-				copy[index]*.8 + 
-				(index+1<Y.length? copy[index+1]*.1: 0);
-		}
-		
-						
-	}
-	*/
+	
 	public void smoothExp() {
 		double[] copy = new double[Y.length];
 		System.arraycopy(Y, 0, copy, 0, Y.length);
@@ -119,7 +105,7 @@ public class DiscreteFunction  {
 			}
 		}				
 	}
-
+	*/
 	public static final int distanceToIndex(double x) {
 		return (int)( .5 + x / PLFunctionSplineCalculator.DELTA_RADIUS);
 	}						

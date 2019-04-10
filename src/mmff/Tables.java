@@ -1,5 +1,5 @@
 /*
- * Copyright 2015 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of ActelionMMFF94.
  * 
@@ -112,7 +112,7 @@ public final class Tables {
      * when running the project using ant/eclipse or from the same
      * directory as build.xml and the README.
      */
-    public static Tables newMMFF94() {
+    public static Tables newMMFF94(String tableSet) {
         return new mmff.Tables(
         		RESOURCE_PATH + "angle.csv",
         		RESOURCE_PATH + "atom.csv",
@@ -123,33 +123,10 @@ public final class Tables {
         		RESOURCE_PATH + "dfsb.csv",
         		RESOURCE_PATH + "def.csv",
         		RESOURCE_PATH + "herschbachlaurie.csv",
-        		RESOURCE_PATH + "outofplane.csv",
+        		RESOURCE_PATH + (tableSet.equals(ForceField.MMFF94S)?"94s/outofplane.csv":"outofplane.csv"),
         		RESOURCE_PATH + "pbci.csv",
         		RESOURCE_PATH + "stbn.csv",
-        		RESOURCE_PATH + "torsion.csv",
-        		RESOURCE_PATH + "vanderwaals.csv");
-    }
-
-    /**
-     * Returns a new MMFF94s table. The paths provided here are correct
-     * when running the project using ant/eclipse or from the same
-     * directory as build.xml and the README.
-     */
-    public static Tables newMMFF94s() {
-        return new mmff.Tables(
-        		RESOURCE_PATH + "angle.csv",
-        		RESOURCE_PATH + "atom.csv",
-        		RESOURCE_PATH + "bci.csv",
-        		RESOURCE_PATH + "bndk.csv",
-        		RESOURCE_PATH + "bond.csv",
-        		RESOURCE_PATH + "covrad.csv",
-        		RESOURCE_PATH + "dfsb.csv",
-        		RESOURCE_PATH + "def.csv",
-        		RESOURCE_PATH + "herschbachlaurie.csv",
-        		RESOURCE_PATH + "94s/outofplane.csv",
-        		RESOURCE_PATH + "pbci.csv",
-        		RESOURCE_PATH + "stbn.csv",
-        		RESOURCE_PATH + "94s/torsion.csv",
+        		RESOURCE_PATH + (tableSet.equals(ForceField.MMFF94S)?"94s/torsion.csv":tableSet.equals(ForceField.MMFF94SPLUS)?"94s/torsionPlus.csv":"torsion.csv"),
         		RESOURCE_PATH + "vanderwaals.csv");
     }
 }

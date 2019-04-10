@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,15 +18,23 @@
 
 package com.actelion.research.gui.form;
 
+import com.actelion.research.gui.hidpi.HiDPIHelper;
+import info.clearthought.layout.TableLayout;
+import info.clearthought.layout.TableLayoutConstants;
+import info.clearthought.layout.TableLayoutConstraints;
+
+import javax.swing.*;
 import java.awt.*;
 import java.awt.geom.Rectangle2D;
-import java.awt.print.*;
-import java.util.*;
-import javax.swing.*;
-import info.clearthought.layout.*;
+import java.awt.print.PageFormat;
+import java.awt.print.Printable;
+import java.util.ArrayList;
+import java.util.StringTokenizer;
 
 public class JFormView extends JPanel implements FormObjectListener,Printable {
 	private static final long serialVersionUID = 0x20061016;
+
+	public static final int DEFAULT_FONT_SIZE = 10;
 
 	private ArrayList<AbstractFormObject> mComponentList;
 	private FormModel			mFormModel;
@@ -37,6 +45,7 @@ public class JFormView extends JPanel implements FormObjectListener,Printable {
 	public JFormView() {
 		mObjectFactory = new FormObjectFactory();
 		mComponentList = new ArrayList<AbstractFormObject>();
+		setFont(getFont().deriveFont(Font.PLAIN, HiDPIHelper.scale(DEFAULT_FONT_SIZE)));
 		}
 
 	public void setModel(FormModel model) {
@@ -45,6 +54,10 @@ public class JFormView extends JPanel implements FormObjectListener,Printable {
 
 	public FormModel getModel() {
 		return mFormModel;
+		}
+
+	public boolean isEditable() {
+		return mEditable;
 		}
 
 	public void setEditable(boolean b) {
@@ -59,6 +72,19 @@ public class JFormView extends JPanel implements FormObjectListener,Printable {
 			}
 		}
 
+	public void setFontSize(int fontSize) {
+		Font font = getFont().deriveFont(Font.PLAIN, HiDPIHelper.scale(fontSize));
+		setFont(font);
+		for (AbstractFormObject fo:mComponentList)
+			fo.setFont(font);
+		invalidate();
+		repaint();
+		}
+
+	public int getFontSize() {
+		return Math.round((float)getFont().getSize() / HiDPIHelper.getUIScaleFactor());
+		}
+
 	public void addSupportedType(String typeString, Class<?> formObjectClass) {
 		mObjectFactory.addSupportedType(typeString, formObjectClass);
 		}
@@ -69,6 +95,7 @@ public class JFormView extends JPanel implements FormObjectListener,Printable {
 			// this function does not set set the form objects initial content
 		AbstractFormObject formObject = mObjectFactory.createFormObject(key, type);
 		if (formObject != null) {
+			formObject.setFont(getFont());
 			formObject.setEditable(mEditable);
 			formObject.addFormObjectListener(this);
 			mComponentList.add(formObject);
@@ -220,18 +247,18 @@ public class JFormView extends JPanel implements FormObjectListener,Printable {
 		if (pageIndex != 0)
 			return NO_SUCH_PAGE;
 
-		Rectangle2D.Float bounds = new Rectangle2D.Float((float)f.getImageableX(),
-														 (float)f.getImageableY(),
-														 (float)f.getImageableWidth(),
-														 (float)f.getImageableHeight());
-		print((Graphics2D)g, bounds, 1.0f, mFormModel);
+		Rectangle2D.Double bounds = new Rectangle2D.Double(f.getImageableX(),
+														   f.getImageableY(),
+														   f.getImageableWidth(),
+														   f.getImageableHeight());
+		print((Graphics2D)g, bounds, 1.0f, mFormModel, false);
 
 		return PAGE_EXISTS;
 		}
 
-	public int print(Graphics2D g2D, Rectangle2D.Float bounds, float scale, FormModel formModel) {
+	public int print(Graphics2D g2D, Rectangle2D.Double bounds, float scale, FormModel formModel, boolean isMultipleRows) {
 		// calculate TableLayout coordinates
-		float[][] coord = new float[2][];
+		double[][] coord = new double[2][];
 		for (int i=0; i<2; i++) {
 			int columnsAssigned = 0;
 			double remainingSize = (i == 0) ? bounds.width : bounds.height;
@@ -262,7 +289,7 @@ public class JFormView extends JPanel implements FormObjectListener,Printable {
 						size[j] = remainingSize;
 				}
 			
-			coord[i] = new float[mLayoutDesc[i].length+1];
+			coord[i] = new double[mLayoutDesc[i].length+1];
 			coord[i][0] = (i == 0) ? bounds.x : bounds.y;
 			for (int j=0; j<mLayoutDesc[i].length; j++)
 				coord[i][j+1] = coord[i][j] + (float)size[j];
@@ -270,13 +297,13 @@ public class JFormView extends JPanel implements FormObjectListener,Printable {
 
 		for (int i=0; i<mComponentList.size(); i++) {
 			TableLayoutConstraints constraints = getFormObjectConstraints(i);
-			float x1 = coord[0][constraints.col1];
-			float x2 = coord[0][constraints.col2+1];
-			float y1 = coord[1][constraints.row1];
-			float y2 = coord[1][constraints.row2+1];
-			Rectangle2D.Float objectRect = new Rectangle2D.Float(x1, y1, x2-x1, y2-y1);
+			double x1 = coord[0][constraints.col1];
+			double x2 = coord[0][constraints.col2+1];
+			double y1 = coord[1][constraints.row1];
+			double y2 = coord[1][constraints.row2+1];
+			Rectangle2D.Double objectRect = new Rectangle2D.Double(x1, y1, x2-x1, y2-y1);
 			AbstractFormObject formObject = mComponentList.get(i);
-			formObject.print(g2D, objectRect, scale, formModel.getValue(formObject.getKey()));
+			formObject.print(g2D, objectRect, scale, formModel.getValue(formObject.getKey()), isMultipleRows);
 			}
 
 		return PAGE_EXISTS;

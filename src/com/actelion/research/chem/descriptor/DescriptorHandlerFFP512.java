@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -58,8 +58,7 @@ public class DescriptorHandlerFFP512 extends AbstractDescriptorHandlerFP<StereoM
 		return (descriptor == null) ? FAILED_OBJECT : descriptor;
 		}
 	
-	
-	public DescriptorHandler<int[], StereoMolecule> getDeepCopy() {
-		return new DescriptorHandlerFFP512();
+	public DescriptorHandler<int[], StereoMolecule> getThreadSafeCopy() {
+		return this;
 		}
 	}

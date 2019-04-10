@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,24 +18,26 @@
 
 package com.actelion.research.chem;
 
+import com.actelion.research.calc.DataProcessor;
+import com.actelion.research.chem.descriptor.DescriptorHandler;
+
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import com.actelion.research.calc.DataProcessor;
-import com.actelion.research.chem.descriptor.DescriptorHandler;
-
 public class Clusterer<T> extends DataProcessor {
-	private int[]			mClusterNo,mNoOfMembers;
-	private int				mNoOfCompounds,mNoOfClusters,mThreadCount;
-	private float[][]		mSimilarityMatrix;
-	private T[]		mDescriptor;
-	private DescriptorHandler<T,StereoMolecule> mDescriptorHandler;
-	private boolean[]		mIsRepresentative;
-	private AtomicInteger	mSMPCompoundIndex;
-	private ExecutorService	mExecutor;
-	private ClusterWorker<T>[]	mClusterWorker;
+	private volatile int[]			mClusterNo,mNoOfMembers;
+	private volatile int			mNoOfCompounds;
+	private volatile float[][]		mSimilarityMatrix;
+	private volatile T[]			mDescriptor;
+	private volatile DescriptorHandler<T,StereoMolecule> mDescriptorHandler;
+	private volatile AtomicInteger	mSMPCompoundIndex;
+
+	private boolean[]				mIsRepresentative;
+	private int						mNoOfClusters,mThreadCount;
+	private ExecutorService			mExecutor;
+	private ClusterWorker<T>[]		mClusterWorker;
 
     @SuppressWarnings("unchecked")
     public Clusterer(DescriptorHandler<T,StereoMolecule> descriptorHandler, T[] descriptor) {
@@ -76,15 +78,14 @@ public class Clusterer<T> extends DataProcessor {
 			mClusterNo[i] = i;
 			}
 
-		if (clusterCountLimit < 2)
-			clusterCountLimit = 2;
+		if (clusterCountLimit < 1)
+			clusterCountLimit = 1;
 
 		if (similarityLimit != 0.0)
 			startProgress("Clustering Compounds...", 0, (int)(5000.0*(1.0-similarityLimit)));
 		else
 			startProgress("Clustering Compounds...", 0, mNoOfClusters - clusterCountLimit);
 
-//		int cycleNo = 0;
 		mNoOfClusters = mNoOfCompounds;
 		while (mNoOfClusters > clusterCountLimit) {
 			float maxSimValue = 0;		// find highest similarity level
@@ -152,16 +153,20 @@ public class Clusterer<T> extends DataProcessor {
 				return;
 				}
 
-//System.out.println("Cycle: "+cycleNo+", Clusters: "+mNoOfClusters+", similarity value: "+maxSimValue);
+//System.out.println("Clusters: "+mNoOfClusters+", similarity value: "+maxSimValue);
 		    if (similarityLimit != 0.0)
 			    updateProgress((int)(5000.0*(1.0 - maxSimValue)));
 			else
 			    updateProgress(mNoOfClusters - clusterCountLimit);
-
-//			cycleNo++;
 			}
 
 		findRepresentatives();
+
+		mExecutor.shutdown();
+
+		while(!mExecutor.isTerminated()){
+			try {Thread.sleep(500);} catch (InterruptedException e) {e.printStackTrace();}
+		}
 
 	    stopProgress("clustering finished");
 		}
@@ -282,11 +287,13 @@ public class Clusterer<T> extends DataProcessor {
 		private CountDownLatch mDoneSignal;
 		private int mWhatToDo,mCluster1,mCluster2;
 		private float mMaxSimilarity;
+		private DescriptorHandler<T,StereoMolecule> mThreadSafeDH;
 
 		public void initJob(int whatToDo, CountDownLatch doneSignal) {
 			mWhatToDo = whatToDo;
 			mDoneSignal = doneSignal;
 	    	mSMPCompoundIndex = new AtomicInteger(mNoOfCompounds);
+			mThreadSafeDH = mDescriptorHandler.getThreadSafeCopy();
 			}
 
 		public void run() {
@@ -295,7 +302,7 @@ public class Clusterer<T> extends DataProcessor {
 				int compound2 = mSMPCompoundIndex.decrementAndGet();
 				while (compound2 >= 1 && !threadMustDie()) {
 					for (int compound1=0; compound1<compound2; compound1++)
-						mSimilarityMatrix[compound2][compound1] = (float)mDescriptorHandler.getSimilarity(mDescriptor[compound1], mDescriptor[compound2]);
+						mSimilarityMatrix[compound2][compound1] = (float)mThreadSafeDH.getSimilarity(mDescriptor[compound1], mDescriptor[compound2]);
 
     				compound2 = mSMPCompoundIndex.decrementAndGet();
     				updateProgress(1000-(int)(1000.0*compound2*compound2/mNoOfCompounds/mNoOfCompounds));
@@ -306,7 +313,7 @@ public class Clusterer<T> extends DataProcessor {
 				while (compound2 >= 1 && !threadMustDie()) {
 					for (int compound1=0; compound1<compound2; compound1++)
 						if (mClusterNo[compound1] == mClusterNo[compound2])
-							mSimilarityMatrix[compound2][compound1] = (float)mDescriptorHandler.getSimilarity(mDescriptor[compound1], mDescriptor[compound2]);
+							mSimilarityMatrix[compound2][compound1] = (float)mThreadSafeDH.getSimilarity(mDescriptor[compound1], mDescriptor[compound2]);
 
     				compound2 = mSMPCompoundIndex.decrementAndGet();
     				updateProgress(1000-(int)(1000.0*compound2*compound2/mNoOfCompounds/mNoOfCompounds));

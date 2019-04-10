@@ -194,38 +194,7 @@ public class MathUtils {
 	}
 	
 	
-	/**
-	 * Return an array of [M, dM/d1, dM/d2, dM/d3] where M is the transformation Matrix and dM/di its derivate  
-	 * @param angles
-	 * @return
-	 */
-	public final static Matrix3d[] anglesToMatrixAndDerivates(double[] angles) {
-		double c1 = Math.cos(angles[0]);
-		double c2 = Math.cos(angles[1]);
-		double c3 = Math.cos(angles[2]);
-
-		double s1 = Math.sin(angles[0]);
-		double s2 = Math.sin(angles[1]);
-		double s3 = Math.sin(angles[2]);
 		
-		return new Matrix3d[]{
-			new Matrix3d(new double[]{
-				c2*c3,				c2*s3,			-s2,	
-				-c1*s3+s1*s2*c3,	c1*c3+s1*s2*s3,	s1*c2,	
-				c1*s2*c3+s1*s3,		c1*s2*s3-s1*c3,	c1*c2}),			
-			new Matrix3d(new double[]{
-				0,					0,					0,			
-				(c1*s2*c3+s1*s3),	(c1*s2*s3-s1*c3),	(c1*c2),	
-				(c1*s3-s1*s2*c3),	-(c1*c3+s1*s2*s3),	- (s1*c2)}),
-			new Matrix3d(new double[]{
-				(-s2*c3),	- (s2*s3),	- (c2),		
-				(c2*s1*c3),(c2*s1*s3),	- (s2*s1),	
-				(c2*c1*c3),(c2*c1*s3),	- (s2*c1)}),
-			new Matrix3d(new double[]{
-				(-s3*c2),			(c3*c2),			0,	
-				(-c3*c1-s3*s1*s2),	(c3*s1*s2-s3*c1),	0,	
-				(c3*s1-s3*c1*s2),	(c3*c1*s2+s3*s1),	0})};	
-	}			
 
 
 	public static Matrix3d[] rotationMatrixAndDerivate(double[] vector, double angle) {

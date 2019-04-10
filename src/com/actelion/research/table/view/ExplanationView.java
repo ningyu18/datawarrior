@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,15 +18,14 @@
 
 package com.actelion.research.table.view;
 
-import javax.swing.BorderFactory;
-import javax.swing.JScrollPane;
-import javax.swing.JTextPane;
-
 import com.actelion.research.chem.io.CompoundTableConstants;
-import com.actelion.research.table.CompoundTableEvent;
-import com.actelion.research.table.CompoundTableHitlistEvent;
-import com.actelion.research.table.CompoundTableModel;
+import com.actelion.research.table.model.CompoundTableEvent;
+import com.actelion.research.table.model.CompoundTableListEvent;
+import com.actelion.research.table.model.CompoundTableModel;
 import com.actelion.research.table.view.data.Handler;
+
+import javax.swing.*;
+import java.awt.*;
 
 public class ExplanationView extends JScrollPane implements CompoundTableConstants,CompoundTableView {
     private static final long serialVersionUID = 0x20130114;
@@ -42,6 +41,7 @@ public class ExplanationView extends JScrollPane implements CompoundTableConstan
 		mTextPane.setBorder(null);
 		mTextPane.setContentType("text/html");
 		mTextPane.setEditable(false);
+		mTextPane.setBackground(Color.white);
 
 		setVerticalScrollBarPolicy(VERTICAL_SCROLLBAR_AS_NEEDED);
 		setViewportView(mTextPane);
@@ -76,7 +76,7 @@ public class ExplanationView extends JScrollPane implements CompoundTableConstan
 		}
 
 	@Override
-	public void hitlistChanged(CompoundTableHitlistEvent e) {
+	public void listChanged(CompoundTableListEvent e) {
 		}
 
 	@Override

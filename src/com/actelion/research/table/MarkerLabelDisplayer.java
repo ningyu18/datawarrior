@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -19,20 +19,26 @@
 package com.actelion.research.table;
 
 public interface MarkerLabelDisplayer extends MarkerLabelConstants {
-	/**
-	 * Assigns a label position (or 'no position') to a column.
-	 * @param column a valid compound table column
-	 * @param position a valid position index or -1
-	 * @param inTreeViewOnly
-	 */
+	public static final int cLabelsOnAllRows = -1;
+	public static final int cLabelsOnSelection = -2;
+
 	public void setMarkerLabels(int[] columnAtPosition);
+	public void setMarkerLabelList(int listNo);
     public void setMarkerLabelSize(float size, boolean isAdjusting);
 	public void setMarkerLabelsInTreeViewOnly(boolean inTreeViewOnly);
-    public float getMarkerLabelSize();
+	public void setShowLabelBackground(boolean b);
+	public void setLabelTransparency(float transparency, boolean isAdjusting);
+	public float getMarkerLabelSize();
 	public int getMarkerLabelColumn(int position);
+	public int getMarkerLabelList();
 	public int getMarkerLabelTableEntryCount();
+	public float getLabelTransparency();
 	public boolean supportsMidPositionLabels();
 	public boolean supportsMarkerLabelTable();
-	public boolean isTreeViewModeEnabled();
+	public boolean supportsLabelsByList();
+	public boolean supportsLabelBackground();
+	public boolean supportsLabelBackgroundTransparency();
 	public boolean isMarkerLabelsInTreeViewOnly();
+	public boolean isShowLabelBackground();
+	public boolean isTreeViewModeEnabled();
 	}

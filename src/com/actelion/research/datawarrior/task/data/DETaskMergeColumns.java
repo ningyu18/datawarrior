@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,44 +18,57 @@
 
 package com.actelion.research.datawarrior.task.data;
 
-import java.awt.BorderLayout;
-import java.awt.Dimension;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Comparator;
-import java.util.Properties;
+import info.clearthought.layout.TableLayout;
 
-import javax.swing.BorderFactory;
+import java.awt.Dimension;
+import java.util.*;
+
+import javax.swing.JCheckBox;
+import javax.swing.JLabel;
 import javax.swing.JList;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTextArea;
+import javax.swing.JTextField;
 
 import com.actelion.research.datawarrior.DEFrame;
 import com.actelion.research.datawarrior.task.ConfigurableTask;
-import com.actelion.research.table.CompoundRecord;
-import com.actelion.research.table.CompoundTableModel;
+import com.actelion.research.table.model.CompoundRecord;
+import com.actelion.research.table.model.CompoundTableModel;
 
 public class DETaskMergeColumns extends ConfigurableTask {
+	private static final String PROPERTY_NEW_COLUMN = "newColumn";
+	private static final String PROPERTY_REMOVE_SOURCE_COLUMNS = "remove";
 	private static final String PROPERTY_COLUMN_LIST = "columnList";
 
 	public static final String TASK_NAME = "Merge Columns";
 
-	private static Properties sRecentConfiguration;
-
 	private CompoundTableModel	mTableModel;
-	private JList				mListColumns;
+	private JList<String>		mListColumns;
+	private JTextField			mTextFieldNewColumn;
 	private JTextArea			mTextArea;
-	private boolean				mIsInteractive;
+	private JCheckBox			mCheckBoxRemove;
 
-	public DETaskMergeColumns(DEFrame owner, boolean isInteractive) {
+	public DETaskMergeColumns(DEFrame owner) {
 		super(owner, false);
 		mTableModel = owner.getTableModel();
-		mIsInteractive = isInteractive;
 		}
 
 	@Override
 	public JPanel createDialogContent() {
+		JPanel content = new JPanel();
+		double[][] size = { {8, TableLayout.PREFERRED, 4, TableLayout.PREFERRED, 8},
+							{8, TableLayout.PREFERRED, 4, TableLayout.PREFERRED, 20,
+								TableLayout.PREFERRED, 4, TableLayout.PREFERRED, 8, TableLayout.PREFERRED, 8 } };
+		content.setLayout(new TableLayout(size));
+
+		content.add(new JLabel("New column name:"), "1,1");
+		mTextFieldNewColumn = new JTextField(10);
+		content.add(mTextFieldNewColumn, "3,1");
+		content.add(new JLabel("(keep empty to merge all into first selected column)"), "1,3,3,3");
+
+		content.add(new JLabel("Select columns to be merged:"), "1,5,3,5");
+
 		ArrayList<String> columnList = new ArrayList<String>();
 		for (int column=0; column<mTableModel.getTotalColumnCount(); column++)
 			if (mTableModel.getColumnSpecialType(column) == null)
@@ -67,8 +80,8 @@ public class DETaskMergeColumns extends ConfigurableTask {
 						}
 					} );
 		JScrollPane scrollPane = null;
-		if (mIsInteractive) {
-			mListColumns = new JList(itemList);
+		if (isInteractive()) {
+			mListColumns = new JList<String>(itemList);
 			scrollPane = new JScrollPane(mListColumns);
 			}
 		else {
@@ -76,36 +89,35 @@ public class DETaskMergeColumns extends ConfigurableTask {
 			scrollPane = new JScrollPane(mTextArea);
 			}
 		scrollPane.setPreferredSize(new Dimension(240,160));
-		JPanel sp = new JPanel();
-		sp.add(scrollPane, BorderLayout.CENTER);
-		sp.setBorder(BorderFactory.createEmptyBorder(8,8,8,8));
-		return sp;
+		content.add(scrollPane, "1,7,3,7");
+
+		mCheckBoxRemove = new JCheckBox("Remove source columns after merging");
+		content.add(mCheckBoxRemove, "1,9,3,9");
+
+		return content;
 		}
 
 	@Override
 	public Properties getDialogConfiguration() {
 		Properties p = new Properties();
-		String columnNames = mIsInteractive ?
+
+		if (mTextFieldNewColumn.getText().length() != 0)
+			p.setProperty(PROPERTY_NEW_COLUMN, mTextFieldNewColumn.getText());
+
+		String columnNames = isInteractive() ?
 				  getSelectedColumnsFromList(mListColumns, mTableModel)
 				: mTextArea.getText().replace('\n', '\t');
 		if (columnNames != null && columnNames.length() != 0)
 			p.setProperty(PROPERTY_COLUMN_LIST, columnNames);
-		return p;
-		}
 
-	@Override
-	public String getDialogTitle() {
-		return "Select Columns to be Merged";
+		p.setProperty(PROPERTY_REMOVE_SOURCE_COLUMNS, mCheckBoxRemove.isSelected() ? "true" : "false");
+
+		return p;
 		}
 
 	@Override
 	public DEFrame getNewFrontFrame() {
 		return null;
-		}
-
-	@Override
-	public Properties getRecentConfiguration() {
-		return sRecentConfiguration;
 		}
 
 	@Override
@@ -146,9 +158,12 @@ public class DETaskMergeColumns extends ConfigurableTask {
 					return false;
 					}
 				}
-			for (int i=1; i<column.length; i++) {
-				if (!shareSameProperties(column[0], column[i])) {
-					showErrorMessage("Columns '"+columnName[0]+"' and  '"+columnName[i]+"' cannot be merged because of incompatible properties.");
+			if (!isExecuting()) {
+				StringBuilder conflictingProperties = new StringBuilder();
+				mergeColumnProperties(column, conflictingProperties);
+				if (conflictingProperties.length() != 0) {
+					// we might give the user a warning and accept to live with conflicting properties
+					showErrorMessage("Some column properties cannot be merged because of conflicts:\n"+conflictingProperties.toString());
 					return false;
 					}
 				}
@@ -157,49 +172,93 @@ public class DETaskMergeColumns extends ConfigurableTask {
 		return true;
 		}
 
-	private boolean shareSameProperties(int column1, int column2) {
-		return mTableModel.getColumnProperties(column1).equals(mTableModel.getColumnProperties(column2));
+	private HashMap<String,String> mergeColumnProperties(int[] columns, StringBuilder conflictingProperties) {
+		HashMap<String,String> mergedProperties = new HashMap<String,String>();
+		for (int column:columns) {
+			HashMap<String,String> properties = mTableModel.getColumnProperties(column);
+			for (String key:properties.keySet()) {
+				if (mergedProperties.containsKey(key)) {
+					if (!mergedProperties.get(key).equals(properties.get(key))
+					 && conflictingProperties != null) {
+						if (conflictingProperties.length() != 0)
+							conflictingProperties.append(", ");
+						conflictingProperties.append(key);
+						}
+					}
+				else {
+					mergedProperties.put(key, properties.get(key));
+					}
+				}
+			}
+
+		return mergedProperties;
 		}
 
 	@Override
 	public void runTask(Properties configuration) {
+		String targetColumnName = configuration.getProperty(PROPERTY_NEW_COLUMN, "");
 		String[] columnName = configuration.getProperty(PROPERTY_COLUMN_LIST).split("\\t");
+		boolean removeSourceColumns = "true".equals(configuration.getProperty(PROPERTY_REMOVE_SOURCE_COLUMNS, "true"));
+
 		int[] column = new int[columnName.length];
 		for (int i=0; i<columnName.length; i++)
 			column[i] = mTableModel.findColumn(columnName[i]);
-		for (int row=0; row<mTableModel.getTotalRowCount(); row++)
-			mergeCellContent(mTableModel.getTotalRecord(row), column);
-		mTableModel.finalizeChangeAlphaNumericalColumn(column[0], 0, mTableModel.getTotalRowCount());
 
-		boolean[] removeColumn = new boolean[mTableModel.getTotalColumnCount()];
-		for (int i=1; i<column.length; i++)
-			removeColumn[column[i]] = true;
-		mTableModel.removeColumns(removeColumn, column.length-1);
+		HashMap<String,String> columnProperties = mergeColumnProperties(column, null);
+
+		int targetColumn = column[0];
+		if (targetColumnName.length() != 0) {
+			String[] title = new String[1];
+			title[0] = targetColumnName;
+			targetColumn = mTableModel.addNewColumns(title);
+			}
+
+		for (int row=0; row<mTableModel.getTotalRowCount(); row++)
+			mergeCellContent(mTableModel.getTotalRecord(row), column, targetColumn);
+
+		mTableModel.setColumnProperties(targetColumn, columnProperties);
+
+		if (targetColumnName.length() != 0)
+			mTableModel.finalizeNewColumns(targetColumn, this);
+		else
+			mTableModel.finalizeChangeAlphaNumericalColumn(column[0], 0, mTableModel.getTotalRowCount());
+
+		if (removeSourceColumns) {
+			boolean[] removeColumn = new boolean[mTableModel.getTotalColumnCount()];
+			int firstColumnIndex = (targetColumnName.length() != 0) ? 0 : 1;
+			int removalCount = column.length - firstColumnIndex;
+			for (int i=firstColumnIndex; i<column.length; i++)
+				removeColumn[column[i]] = true;
+			mTableModel.removeColumns(removeColumn, removalCount);
+			}
 		}
 
 	@Override
 	public void setDialogConfiguration(Properties configuration) {
+		mTextFieldNewColumn.setText(configuration.getProperty(PROPERTY_NEW_COLUMN, ""));
+
 		String columnNames = configuration.getProperty(PROPERTY_COLUMN_LIST, "");
-		if (mIsInteractive)
+		if (isInteractive())
 			selectColumnsInList(mListColumns, columnNames, mTableModel);
 		else
 			mTextArea.setText(columnNames.replace('\t', '\n'));
+
+		mCheckBoxRemove.setSelected("true".equals(configuration.getProperty(PROPERTY_REMOVE_SOURCE_COLUMNS, "true")));
 		}
 
 	@Override
 	public void setDialogConfigurationToDefault() {
-		if (mIsInteractive)
+		mTextFieldNewColumn.setText("Merged Data");
+
+		if (isInteractive())
 			mListColumns.clearSelection();
 		else
 			mTextArea.setText("");
+
+		mCheckBoxRemove.setSelected(true);
 		}
 
-	@Override
-	public void setRecentConfiguration(Properties configuration) {
-		sRecentConfiguration = configuration;
-		}
-
-	private void mergeCellContent(CompoundRecord record, int[] column) {
+	private void mergeCellContent(CompoundRecord record, int[] column, int targetColumn) {
 		StringBuffer buf = new StringBuffer(mTableModel.encodeData(record, column[0]));
 		String separator = mTableModel.isMultiLineColumn(column[0]) ?
 				CompoundTableModel.cLineSeparator : CompoundTableModel.cEntrySeparator;
@@ -240,8 +299,8 @@ public class DETaskMergeColumns extends ConfigurableTask {
 				}
 			}
 
-		record.setData(mTableModel.decodeData(buf.toString(), column[0]), column[0]);
+		record.setData(mTableModel.decodeData(buf.toString(), targetColumn), targetColumn);
 		if (detail != null)
-			record.setDetailReferences(column[0], detail);
+			record.setDetailReferences(targetColumn, detail);
 		}
 	}

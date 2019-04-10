@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -29,8 +29,6 @@ import com.actelion.research.table.view.VisualizationPanel;
 public class DETaskSetMarkerColor extends DETaskAbstractSetColor {
 	public static final String TASK_NAME = "Set Marker Color";
 
-    private static Properties sRecentConfiguration;
-
 	public DETaskSetMarkerColor(Frame owner,
 								DEMainPane mainPane,
 								VisualizationPanel view) {
@@ -55,15 +53,5 @@ public class DETaskSetMarkerColor extends DETaskAbstractSetColor {
 	@Override
 	public String getTaskName() {
 		return TASK_NAME;
-		}
-
-	@Override
-	public Properties getRecentConfigurationLocal() {
-		return sRecentConfiguration;
-		}
-	
-	@Override
-	public void setRecentConfiguration(Properties configuration) {
-		sRecentConfiguration = configuration;
 		}
 	}

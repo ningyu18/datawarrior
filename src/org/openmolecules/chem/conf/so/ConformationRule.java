@@ -42,8 +42,8 @@ public abstract class ConformationRule {
 		mIsEnabled = b;
 		}
 
-	public abstract boolean apply(Conformer conformer, float cycleFactor);
-	public abstract float addStrain(Conformer conformer, float[] atomStrain);
+	public abstract boolean apply(Conformer conformer, double cycleFactor);
+	public abstract double addStrain(Conformer conformer, double[] atomStrain);
 	public abstract int getRuleType();
 	public abstract String toString();
 
@@ -72,9 +72,9 @@ public abstract class ConformationRule {
 	 * @param dy
 	 * @param dz
 	 */
-	protected void moveGroup(Conformer conformer, int atom, int[] notList, float dx, float dy, float dz) {
+	protected void moveGroup(Conformer conformer, int atom, int[] notList, double dx, double dy, double dz) {
 //System.out.print("move atom: "+atom);
-		moveAtom(conformer, atom, dx, dy, dz);
+		conformer.getCoordinates(atom).add(dx, dy, dz);
 	    StereoMolecule mol = conformer.getMolecule();
         for (int i=0; i<mol.getAllConnAtoms(atom); i++) {
         	int connAtom = mol.getConnAtom(atom, i);
@@ -89,11 +89,11 @@ public abstract class ConformationRule {
         		}
             if (!found) {
             	if (mol.getAllConnAtoms(connAtom) == 1) {
-            		moveAtom(conformer, connAtom, dx, dy, dz);
+		            conformer.getCoordinates(connAtom).add(dx, dy, dz);
 //System.out.print(" conn"+i+":"+connAtom);
             		}
             	else if (mol.isRingBond(mol.getConnBond(atom, i))) {
-            		moveAtom(conformer, connAtom, dx/3, dy/3, dz/3);
+		            conformer.getCoordinates(connAtom).add(dx/3, dy/3, dz/3);
 //System.out.print(" rconn"+i+":"+connAtom);
             		}
             	else {
@@ -121,8 +121,8 @@ System.out.println();
 	 * @param dy
 	 * @param dz
 	 */
-	protected void moveSubstituent(Conformer conformer, int rootAtom, int firstAtom, float dx, float dy, float dz) {
-		moveAtom(conformer, firstAtom, dx, dy, dz);
+	protected void moveSubstituent(Conformer conformer, int rootAtom, int firstAtom, double dx, double dy, double dz) {
+		conformer.getCoordinates(firstAtom).add(dx, dy, dz);
 
 		StereoMolecule mol = conformer.getMolecule();
 
@@ -140,26 +140,20 @@ System.out.println();
 				if (!isMemberAtom[candidate]) {
 					isMemberAtom[candidate] = true;
 					graphAtom[++highest] = candidate;
-            		moveAtom(conformer, candidate, dx, dy, dz);
+					conformer.getCoordinates(candidate).add(dx, dy, dz);
 					}
 				}
 			current++;
 			}
 		}
 
-	protected void moveAtomWithUnboundedNeighbors(Conformer conformer, int atom, float dx, float dy, float dz) {
-		moveAtom(conformer, atom, dx, dy, dz);
+	protected void moveAtomWithUnboundedNeighbors(Conformer conformer, int atom, double dx, double dy, double dz) {
+		conformer.getCoordinates(atom).add(dx, dy, dz);
 		StereoMolecule mol = conformer.getMolecule();
 	    for (int i=0; i<mol.getAllConnAtoms(atom); i++) {
 	    	int connAtom = mol.getConnAtom(atom, i);
         	if (mol.getAllConnAtoms(connAtom) == 1)
-        		moveAtom(conformer, connAtom, dx, dy, dz);
+		        conformer.getCoordinates(connAtom).add(dx, dy, dz);
 	    	}
-	    }
-
-	protected void moveAtom(Conformer conformer, int atom, float dx, float dy, float dz) {
-        conformer.x[atom] += dx;
-        conformer.y[atom] += dy;
-        conformer.z[atom] += dz;
 	    }
 	}

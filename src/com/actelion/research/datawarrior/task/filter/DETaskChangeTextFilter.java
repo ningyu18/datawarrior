@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -23,12 +23,10 @@ import java.util.Properties;
 
 import com.actelion.research.datawarrior.DEPruningPanel;
 import com.actelion.research.table.filter.JFilterPanel;
-import com.actelion.research.table.filter.JStringFilterPanel;
+import com.actelion.research.table.filter.JTextFilterPanel;
 
 public class DETaskChangeTextFilter extends DEAbstractFilterTask {
 	public static final String TASK_NAME = "Change Text Filter";
-
-	private static Properties sRecentConfiguration;
 
 	public DETaskChangeTextFilter(Frame parent, DEPruningPanel pruningPanel, JFilterPanel filter) {
 		super(parent, pruningPanel, filter);
@@ -40,18 +38,8 @@ public class DETaskChangeTextFilter extends DEAbstractFilterTask {
 		}
 
 	@Override
-	public Properties getRecentConfiguration() {
-		return sRecentConfiguration;
-		}
-
-	@Override
-	public void setRecentConfiguration(Properties configuration) {
-		sRecentConfiguration = configuration;
-		}
-
-	@Override
 	public JFilterPanel createFilterUI() {
-		return new JStringFilterPanel(getTableModel());
+		return new JTextFilterPanel(getTableModel());
 		}
 
 	@Override
@@ -62,6 +50,6 @@ public class DETaskChangeTextFilter extends DEAbstractFilterTask {
 
 	@Override
 	public int getFilterType() {
-		return JFilterPanel.FILTER_TYPE_STRING;
+		return JFilterPanel.FILTER_TYPE_TEXT;
 		}
 	}

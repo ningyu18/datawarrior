@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -19,7 +19,7 @@
 package com.actelion.research.datawarrior.task.jep;
 
 import com.actelion.research.chem.descriptor.DescriptorEncoder;
-import com.actelion.research.table.CompoundRecord;
+import com.actelion.research.table.model.CompoundRecord;
 
 /**
  * Passing a JEPParameter rather than a value object allows
@@ -27,8 +27,18 @@ import com.actelion.research.table.CompoundRecord;
  * ColumnTableModel. All values in columns with specialColumnType
  * are passed as JEPParameters.
  */
-public class JEPParameter implements Comparable<JEPParameter> {    public int column;    public CompoundRecord record;
-    /**	 * Constructor	 */	public JEPParameter(CompoundRecord record, int column) {	    this.record = record;        this.column = column;	    }
+public class JEPParameter implements Comparable<JEPParameter> {
+    public int column;
+    public CompoundRecord record;
+
+    /**
+	 * Constructor
+	 */
+	public JEPParameter(CompoundRecord record, int column) {
+	    this.record = record;
+        this.column = column;
+	    }
+
 	@Override
 	public int compareTo(JEPParameter p) {
 		return this.toString().compareTo(p.toString());
@@ -45,4 +55,4 @@ public class JEPParameter implements Comparable<JEPParameter> {    public int c
             return new String(new DescriptorEncoder().encode((int[])data));
 	    return data.toString();
 	    }
-    }
+    }

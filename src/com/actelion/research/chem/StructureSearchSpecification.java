@@ -8,6 +8,7 @@ public class StructureSearchSpecification implements Serializable {
     static final long serialVersionUID = 0x20120402;
 
 	private static final int TYPE_MASK				= 0x0000FF;
+	public static final int TYPE_NO_STRUCTURE		= 0x000000; // no structure search (other criteria only)
 	public static final int TYPE_SUBSTRUCTURE		= 0x000001;
 	public static final int TYPE_SIMILARITY			= 0x000002;
 	public static final int TYPE_EXACT_STRICT		= 0x000003;
@@ -36,6 +37,7 @@ public class StructureSearchSpecification implements Serializable {
 	public StructureSearchSpecification(int searchType, byte[][] idcode, Object[] descriptor, String descriptorShortName, float similarityThreshold) {
 		mSearchType = searchType;
 		mIDCode = idcode;
+		mDescriptor = descriptor;
 		mDescriptorShortName = descriptorShortName;
 		mSimilarityThreshold = similarityThreshold;
 		}
@@ -75,6 +77,13 @@ public class StructureSearchSpecification implements Serializable {
 
 	public boolean isSimilaritySearch() {
 		return (mSearchType & TYPE_MASK) == TYPE_SIMILARITY;
+		}
+
+	/**
+	 * @return whether this search does not include a structure search component is uses exclusively external criteria
+	 */
+	public boolean isNoStructureSearch() {
+		return (mSearchType & TYPE_MASK) == TYPE_NO_STRUCTURE;
 		}
 
 	public boolean isSubstructureSearch() {
@@ -132,6 +141,16 @@ public class StructureSearchSpecification implements Serializable {
 	 */
 	public boolean isLargestFragmentOnly() {
 		return (mSearchType & MODE_LARGEST_FRAGMENT_ONLY) != 0;
+		}
+
+	public void removeDescriptors() {
+		mDescriptor = null;
+		}
+
+	public void setLargestFragmentOnly(boolean b) {
+		mSearchType &= ~MODE_LARGEST_FRAGMENT_ONLY;
+		if (b)
+			mSearchType |= MODE_LARGEST_FRAGMENT_ONLY;
 		}
 
 	public String getDescriptorShortName() {

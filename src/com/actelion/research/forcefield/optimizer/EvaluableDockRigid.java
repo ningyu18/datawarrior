@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -26,7 +26,7 @@ import com.actelion.research.forcefield.transformation.*;
  * trans/rot (degreesOfFreedom = 6)
  * 
  */
-public class EvaluableDockRigid extends EvaluableTransformation {
+public class EvaluableDockRigid extends AbstractEvaluableTransformation {
 
 	private EvaluableDockRigid(EvaluableDockRigid e) {
 		super(e.forcefield, (ChainOfTransformations) e.chain.clone(), e.initial);		
@@ -37,7 +37,7 @@ public class EvaluableDockRigid extends EvaluableTransformation {
 	
 	
 	/**
-	 * @see com.actelion.research.forcefield.optimizer.IEvaluable#clone()
+	 * @see com.actelion.research.forcefield.optimizer.AbstractEvaluable#clone()
 	 */
 	@Override
 	public EvaluableDockRigid clone() {

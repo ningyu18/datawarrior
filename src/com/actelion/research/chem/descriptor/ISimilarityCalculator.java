@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -28,6 +28,6 @@ public interface ISimilarityCalculator<T extends Object> {
      * 
      * @return a deep copy for parallel computing.
      */
-    public abstract ISimilarityCalculator<T> getDeepCopy();
+    public abstract ISimilarityCalculator<T> getThreadSafeCopy();
 
 }

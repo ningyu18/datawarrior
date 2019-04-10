@@ -143,7 +143,7 @@ public class Measures extends Shape {
       return;
     }
     
-    //any one of the following clears the "select measures" business
+    //any one of the following clears the "select measures" simple
     
     bsSelected = null;
     if ("pending".equals(propertyName)) {

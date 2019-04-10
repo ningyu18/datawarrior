@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -28,8 +28,6 @@ import com.actelion.research.table.filter.JFilterPanel;
 public class DETaskChangeCategoryBrowser extends DEAbstractFilterTask {
 	public static final String TASK_NAME = "Change Category Browser";
 
-	private static Properties sRecentConfiguration;
-
 	public DETaskChangeCategoryBrowser(Frame parent, DEPruningPanel pruningPanel, JFilterPanel filter) {
 		super(parent, pruningPanel, filter);
 		}
@@ -42,16 +40,6 @@ public class DETaskChangeCategoryBrowser extends DEAbstractFilterTask {
 	@Override
 	public String getTaskName() {
 		return TASK_NAME;
-		}
-
-	@Override
-	public Properties getRecentConfiguration() {
-		return sRecentConfiguration;
-		}
-
-	@Override
-	public void setRecentConfiguration(Properties configuration) {
-		sRecentConfiguration = configuration;
 		}
 
 	@Override

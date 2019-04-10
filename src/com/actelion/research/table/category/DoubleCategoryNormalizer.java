@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -39,6 +39,6 @@ public class DoubleCategoryNormalizer implements CategoryNormalizer<Float> {
 
 	@Override
 	public String normalizeOut(Float v) {
-		return v.isNaN() ? "" : DoubleFormat.toString(mIsLogarithmic ? Math.pow(10.0, v.floatValue()) : v);
+		return v.isNaN() ? "NaN" : DoubleFormat.toString(mIsLogarithmic ? Math.pow(10.0, v.floatValue()) : v);
 		}
 	}

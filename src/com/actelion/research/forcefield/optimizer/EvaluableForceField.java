@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -26,7 +26,7 @@ import com.actelion.research.forcefield.*;
  * (degrees of freedom=3*nAtoms)
  * @author freyssj
  */
-public class EvaluableForceField implements IEvaluable {
+public class EvaluableForceField extends AbstractEvaluable {
 	protected ForceField forcefield;
 	
 	public EvaluableForceField(EvaluableForceField e) {
@@ -37,42 +37,66 @@ public class EvaluableForceField implements IEvaluable {
 	}
 	
 	@Override
-	public void setState(MultiVariate v) {
+	public void setState(double[] v) {
+		for(int i=0; i<v.length; i++) {
+			assert !Double.isNaN(v[i]);
+		}
 		FFMolecule mol = forcefield.getMolecule();
-		for(int i=0, a = 0; i<v.vector.length; i+=3, a++) {
-			if(!mol.isAtomFlag(a, FFMolecule.RIGID)) mol.setCoordinates(a, new Coordinates(v.vector[i], v.vector[i+1], v.vector[i+2]));
+		for(int i=0, a = 0; i<v.length; i+=3, a++) {			
+			if(!mol.isAtomFlag(a, FFMolecule.RIGID)) {
+				mol.setAtomX(a, v[i]);
+				mol.setAtomY(a, v[i+1]);
+				mol.setAtomZ(a, v[i+2]);
+			}
 		}
 	}
+
 	@Override
-	public MultiVariate getState() {
+	public double[] getState() {
 		FFMolecule mol = forcefield.getMolecule();
-		MultiVariate v = new MultiVariate(mol.getNMovables()*3);
+		return getState(new double[mol.getNMovables()*3]);
+	}
+	
+	@Override
+	public double[] getState(double[] v) {
+		FFMolecule mol = forcefield.getMolecule();
 		for(int i=0, a = 0; a<mol.getNMovables(); a++) {
 			Coordinates c = mol.getCoordinates(a);
-			v.vector[i++] = c.x;
-			v.vector[i++] = c.y;
-			v.vector[i++] = c.z;
+			v[i++] = c.x;
+			v[i++] = c.y;
+			v[i++] = c.z;
 		}
 		return v;
 	}
-	@Override
-	public double getFGValue(MultiVariate grad) {
-		FFMolecule mol = forcefield.getMolecule();
-		//Compute the Gradient in the cartesian referential			
-		Coordinates[] g = new Coordinates[mol.getNMovables()];
-		for(int i=0; i<g.length; i++) g[i] = new Coordinates(); 
-		double e = forcefield.getTerms().getFGValue(g);
 	
-		for(int i=0, a = 0; i<grad.vector.length; a++) {
-			grad.vector[i++] = g[a].x;
-			grad.vector[i++] = g[a].y;
-			grad.vector[i++] = g[a].z;
+	
+	private Coordinates[] g = null; 
+	
+	@Override
+	public double getFGValue(double[] grad) {
+		FFMolecule mol = forcefield.getMolecule();
+		
+		if(grad==null) {
+			return forcefield.getTerms().getFGValue(null);
+		} else {
+			//Compute the Gradient in the cartesian referential, ie vector of coordinates
+			if(g==null || g.length!=mol.getNMovables()) {
+				g = new Coordinates[mol.getNMovables()];
+			}
+			double e = forcefield.getTerms().getFGValue(g);
+			for(int i=0, a = 0; i<grad.length; a++) {
+				grad[i++] = g[a].x;
+				grad[i++] = g[a].y;
+				grad[i++] = g[a].z;
+			}
+			
+			
+			return e;		
 		}
-		return e;		
 	}
 	
 	/**
-	 * @see com.actelion.research.forcefield.optimizer.IEvaluable#clone()
+	 * @see com.actelion.research.forcefield.optimizer.AbstractEvaluable#clone()
 	 */
 	@Override
 	public EvaluableForceField clone() {

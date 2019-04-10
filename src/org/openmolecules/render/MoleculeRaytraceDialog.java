@@ -1,28 +1,19 @@
 package org.openmolecules.render;
 
+import com.actelion.research.chem.Coordinates;
+import com.actelion.research.chem.conf.Conformer;
+import com.actelion.research.util.ColorHelper;
 import info.clearthought.layout.TableLayout;
+import org.openmolecules.chem.conf.render.MoleculeArchitect;
 
-import java.awt.BorderLayout;
-import java.awt.Frame;
-import java.awt.GridLayout;
+import javax.swing.*;
+import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
-
-import javax.swing.JButton;
-import javax.swing.JCheckBox;
-import javax.swing.JComboBox;
-import javax.swing.JDialog;
-import javax.swing.JLabel;
-import javax.swing.JPanel;
-
-import com.actelion.research.chem.StereoMolecule;
 
 public class MoleculeRaytraceDialog extends JDialog implements ActionListener {
 	private static final long serialVersionUID = 20150604L;
 
-	private static final String[] LIGHT_OPTIONS = {
-			"Bright sun",
-			"Black background" };
 	private static final String[] SIZE_OPTIONS = {
 			"640 x 480", 
 			"1024 x 768",
@@ -31,42 +22,48 @@ public class MoleculeRaytraceDialog extends JDialog implements ActionListener {
 			"2560 x 1600",
 			"4000 x 3000" };
 
-	private JComboBox		mComboboxSize,mComboboxLight;
-	private JCheckBox		mCheckboxFillImage;
-	private StereoMolecule	mMol;
+	private JComboBox		mComboboxSize,mComboboxMode,mComboboxAtomMaterial,mComboboxBondMaterial;
+	private JCheckBox		mCheckboxFillImage,mCheckboxUseBackground,mCheckboxUseFloor,mCheckboxOptimizeRotation,mCheckboxShinyFloor;
+	private ColorPanel      mBackgroundColorPanel,mFloorColorPanel;
+	private JButton         mBackgroundButton,mFloorButton;
+	private Conformer       mConformer;
 	private float			mCameraDistance,mCameraX,mCameraZ,mFieldOfView;
 
 	/**
 	 * Creates a raytrace dialog that will render an image with the default parameters
 	 * for camera distance (12.5) and field of view (40f). 
 	 * @param parent
-	 * @param mol
+	 * @param conformer
 	 */
-	public MoleculeRaytraceDialog(Frame parent, StereoMolecule mol) {
-		this(parent, mol, MoleculeRenderer.DEFAULT_CAMERA_DISTANCE,
-						  MoleculeRenderer.DEFAULT_CAMERA_X,
-						  MoleculeRenderer.DEFAULT_CAMERA_Z,
-						  MoleculeRenderer.DEFAULT_FIELD_OF_VIEW);
+	public MoleculeRaytraceDialog(Frame parent, Conformer conformer) {
+		this(parent, conformer, SunflowMoleculeBuilder.DEFAULT_CAMERA_DISTANCE,
+								SunflowMoleculeBuilder.DEFAULT_CAMERA_X,
+								SunflowMoleculeBuilder.DEFAULT_CAMERA_Z,
+								SunflowMoleculeBuilder.DEFAULT_FIELD_OF_VIEW);
 		}
 
 	/**
 	 * 
 	 * @param parent
-	 * @param mol
+	 * @param conformer
 	 * @param cameraDistance
 	 * @param fieldOfView
 	 */
-	public MoleculeRaytraceDialog(Frame parent, StereoMolecule mol, float cameraDistance, float cameraX, float cameraZ, float fieldOfView) {
+	public MoleculeRaytraceDialog(Frame parent, Conformer conformer, float cameraDistance, float cameraX, float cameraZ, float fieldOfView) {
 		super(parent, "Create Photo-Realistic Image", true);
 
-		mMol = mol;
+		mConformer = conformer;
 		mCameraDistance = cameraDistance;
 		mCameraX = cameraX;
 		mCameraZ = cameraZ;
 		mFieldOfView = fieldOfView;
 
 		double[][] size = { {8, TableLayout.PREFERRED, 8, TableLayout.PREFERRED, 8},
-							{8, TableLayout.PREFERRED, 8, TableLayout.PREFERRED, 8, TableLayout.PREFERRED, 24, TableLayout.PREFERRED, 8} };
+							{8, TableLayout.PREFERRED, 4, TableLayout.PREFERRED, 4, TableLayout.PREFERRED, 4, TableLayout.PREFERRED,
+							16, TableLayout.PREFERRED, 4, TableLayout.PREFERRED,
+							16, TableLayout.PREFERRED, 4, TableLayout.PREFERRED, 4, TableLayout.PREFERRED,
+							16, TableLayout.PREFERRED, 4, TableLayout.PREFERRED,
+							16, TableLayout.PREFERRED, 8} };
 
 		getContentPane().setLayout(new TableLayout(size));
 
@@ -75,13 +72,56 @@ public class MoleculeRaytraceDialog extends JDialog implements ActionListener {
 		mComboboxSize.setSelectedIndex(0);
 		getContentPane().add(mComboboxSize, "3,1");
 
-		getContentPane().add(new JLabel("Environment:"), "1,3");
-		mComboboxLight = new JComboBox(LIGHT_OPTIONS);
-		mComboboxLight.setSelectedIndex(0);
-		getContentPane().add(mComboboxLight, "3,3");
+		getContentPane().add(new JLabel("Render mode:"), "1,3");
+		mComboboxMode = new JComboBox(MoleculeArchitect.MODE_TEXT);
+		mComboboxMode.setSelectedIndex(MoleculeArchitect.DEFAULT_CONSTRUCTION_MODE);
+		getContentPane().add(mComboboxMode, "3,3");
+
+		getContentPane().add(new JLabel("Atom material:"), "1,5");
+		mComboboxAtomMaterial = new JComboBox(SunflowMoleculeBuilder.MATERIAL_TEXT);
+		mComboboxAtomMaterial.setSelectedIndex(SunflowMoleculeBuilder.DEFAULT_ATOM_MATERIAL);
+		getContentPane().add(mComboboxAtomMaterial, "3,5");
+
+		getContentPane().add(new JLabel("Bond material:"), "1,7");
+		mComboboxBondMaterial = new JComboBox(SunflowMoleculeBuilder.MATERIAL_TEXT);
+		mComboboxBondMaterial.setSelectedIndex(SunflowMoleculeBuilder.DEFAULT_BOND_MATERIAL);
+		getContentPane().add(mComboboxBondMaterial, "3,7");
+
+		double[][] sizeColorPanel = { {TableLayout.FILL, 64, 12, TableLayout.PREFERRED}, {TableLayout.PREFERRED} };
+
+		mCheckboxUseBackground = new JCheckBox("Use opaque background", SunflowMoleculeBuilder.DEFAULT_USE_BACKGROUND);
+		mCheckboxUseBackground.addActionListener(this);
+		getContentPane().add(mCheckboxUseBackground, "1,9,3,9");
+
+		JPanel backgroundPanel = new JPanel();
+		backgroundPanel.setLayout(new TableLayout(sizeColorPanel));
+		mBackgroundButton = new JButton("Change");
+		mBackgroundButton.setActionCommand("background");
+		mBackgroundColorPanel = addColorChooser(mBackgroundButton, 0, SunflowMoleculeBuilder.DEFAULT_BACKGROUND, backgroundPanel);
+		getContentPane().add(backgroundPanel, "1,11,3,11");
+
+		mCheckboxUseFloor = new JCheckBox("Use floor to cast shadows", SunflowMoleculeBuilder.DEFAULT_USE_FLOOR);
+		mCheckboxUseFloor.addActionListener(this);
+		getContentPane().add(mCheckboxUseFloor, "1,13,3,13");
+
+		JPanel floorPanel = new JPanel();
+		floorPanel.setLayout(new TableLayout(sizeColorPanel));
+		mFloorButton = new JButton("Change");
+		mFloorButton.setActionCommand("floor");
+		mFloorColorPanel = addColorChooser(mFloorButton, 0, SunflowMoleculeBuilder.DEFAULT_FLOOR_COLOR, floorPanel);
+		getContentPane().add(floorPanel, "1,15,3,15");
+
+		mCheckboxShinyFloor = new JCheckBox("Glossy floor", SunflowMoleculeBuilder.DEFAULT_GLOSSY_FLOOR);
+		mCheckboxShinyFloor.setHorizontalAlignment(JCheckBox.CENTER);
+		getContentPane().add(mCheckboxShinyFloor, "1,17,3,17");
 
 		mCheckboxFillImage = new JCheckBox("Move and zoom to fill image", true);
-		getContentPane().add(mCheckboxFillImage, "1,5,3,5");
+		getContentPane().add(mCheckboxFillImage, "1,19,3,19");
+
+		mCheckboxOptimizeRotation = new JCheckBox("Rotate for best view", true);
+		getContentPane().add(mCheckboxOptimizeRotation, "1,21,3,21");
+
+		enableItems();
 
 		JPanel buttonPanel = new JPanel();
 		buttonPanel.setLayout(new GridLayout(1, 2, 8, 8));
@@ -94,7 +134,7 @@ public class MoleculeRaytraceDialog extends JDialog implements ActionListener {
 		JPanel bottomPanel = new JPanel();
 		bottomPanel.setLayout(new BorderLayout());
 		bottomPanel.add(buttonPanel, BorderLayout.EAST);
-		getContentPane().add(bottomPanel, "1,7,3,7");
+		getContentPane().add(bottomPanel, "1,23,3,23");
 
 		getRootPane().setDefaultButton(bok);
 
@@ -103,17 +143,58 @@ public class MoleculeRaytraceDialog extends JDialog implements ActionListener {
 		setVisible(true);
 		}
 
+	private ColorPanel addColorChooser(JButton button, int position, Color color, JPanel backgroundPanel) {
+		ColorPanel colorPanel = new ColorPanel(color);
+		backgroundPanel.add(colorPanel, "1,"+position);
+		button.addActionListener(this);
+		backgroundPanel.add(button, "3,"+position);
+		return colorPanel;
+		}
+
 	@Override
 	public void actionPerformed(ActionEvent e) {
+		if (e.getSource() == mCheckboxUseBackground
+		 || e.getSource() == mCheckboxUseFloor) {
+			enableItems();
+			return;
+			}
+		if (e.getActionCommand() == "background") {
+			Color newColor = JColorChooser.showDialog(this, "Select Background Color", mBackgroundColorPanel.getColor());
+			if (newColor == null || newColor.equals(mBackgroundColorPanel.getColor()))
+				return;
+			mBackgroundColorPanel.setColor(newColor);
+			return;
+			}
+		if (e.getActionCommand() == "floor") {
+			Color newColor = JColorChooser.showDialog(this, "Select Floor Color", mFloorColorPanel.getColor());
+			if (newColor == null || newColor.equals(mFloorColorPanel.getColor()))
+				return;
+			mFloorColorPanel.setColor(newColor);
+			return;
+			}
 		if (e.getActionCommand().equals("OK")) {
-			renderMolecule((String)mComboboxSize.getSelectedItem(), (String)mComboboxLight.getSelectedItem(), mCheckboxFillImage.isSelected());
+			renderMolecule((String)mComboboxSize.getSelectedItem(), mComboboxMode.getSelectedIndex(),
+					mComboboxAtomMaterial.getSelectedIndex(), mComboboxBondMaterial.getSelectedIndex(),
+					mCheckboxUseBackground.isSelected() ? mBackgroundColorPanel.getColor() : null,
+					mCheckboxUseFloor.isSelected() ? mFloorColorPanel.getColor() : null, mCheckboxShinyFloor.isSelected(),
+					mCheckboxFillImage.isSelected(), mCheckboxOptimizeRotation.isSelected());
 			}
 
 		setVisible(false);
 		dispose();
 		}
 
-	private void renderMolecule(final String sizeOption, final String lightOption, final boolean fillImage) {
+	private void enableItems() {
+		mBackgroundColorPanel.setEnabled(mCheckboxUseBackground.isSelected());
+		mBackgroundButton.setEnabled(mCheckboxUseBackground.isSelected());
+		mFloorColorPanel.setEnabled(mCheckboxUseFloor.isSelected());
+		mFloorButton.setEnabled(mCheckboxUseFloor.isSelected());
+		mCheckboxShinyFloor.setEnabled(mCheckboxUseFloor.isSelected());
+		}
+
+	private void renderMolecule(final String sizeOption, final int renderMode, final int atomMaterial, final int bondMaterial,
+	                            final Color background, final Color floorColor, final boolean glossyFloor,
+	                            final boolean fillImage, final boolean optimizeRotation) {
 		final boolean moveToCenter = fillImage;
 		final boolean zoomToOptimum = fillImage;
 		new Thread(new Runnable() {
@@ -122,32 +203,63 @@ public class MoleculeRaytraceDialog extends JDialog implements ActionListener {
 				int i = sizeOption.indexOf(" x ");
 				int width = Integer.parseInt(sizeOption.substring(0, i));
 				int height = Integer.parseInt(sizeOption.substring(i+3));
-				boolean onBlack = lightOption.startsWith("Black");
-
-				StereoMolecule mol = new StereoMolecule(mMol);
 
 				if (moveToCenter) {
-					float[] cog = new float[3];	// center of gravity
-					for (int atom=0; atom<mol.getAllAtoms(); atom++) {
-						cog[0] += mol.getAtomX(atom);
-						cog[1] += mol.getAtomY(atom);
-						cog[2] += mol.getAtomZ(atom);
-						}
-					for (int j=0; j<3; j++)
-						cog[j] /= mol.getAllAtoms();
+					Coordinates cog = new Coordinates();	// center of gravity
+					for (int atom=0; atom<mConformer.getSize(); atom++)
+						cog.add(mConformer.getCoordinates(atom));
+					cog.scale(1.0 / mConformer.getSize());
 	
-					for (int atom=0; atom<mol.getAllAtoms(); atom++) {
-						mol.setAtomX(atom, mol.getAtomX(atom) - cog[0]);
-						mol.setAtomY(atom, mol.getAtomY(atom) - cog[1]);
-						mol.setAtomZ(atom, mol.getAtomZ(atom) - cog[2]);
-						}
+					for (int atom=0; atom<mConformer.getSize(); atom++)
+						mConformer.getCoordinates(atom).sub(cog);
 					}
 
-				MoleculeRenderer mr = fillImage ? new MoleculeRenderer() : new MoleculeRenderer(mCameraDistance, mCameraX, mCameraZ, mFieldOfView);
-				mr.drawMolecule(mol, width, height, false, zoomToOptimum, onBlack);
+				SunflowMoleculeBuilder mr = fillImage ? new SunflowMoleculeBuilder()
+						: new SunflowMoleculeBuilder(mCameraDistance, mCameraX, mCameraZ, mFieldOfView);
+				mr.setRenderMode(renderMode);
+				mr.setAtomMaterial(atomMaterial);
+				mr.setBondMaterial(bondMaterial);
+				mr.setBackgroundColor(background);
+				mr.setFloorColor(floorColor);
+				mr.setGlossyFloor(glossyFloor);
+				mr.initializeScene(width, height);
+				mr.drawMolecule(mConformer, optimizeRotation, zoomToOptimum, -1f);
+				mr.finalizeScene(-1);
 //				mr.render("/home/thomas/sunflowTest.png");
 				mr.render();
 				}
 			} ).start();
+		}
+
+	class ColorPanel extends JPanel {
+		private static final long serialVersionUID = 0x20110427;
+		private Color mOriginalColor,mColor;
+
+		public ColorPanel(Color c) {
+			super();
+			mOriginalColor = mColor = c;
+			}
+
+		public void paintComponent(Graphics g) {
+			super.paintComponent(g);
+			g.setColor(isEnabled() ? mColor
+					: ColorHelper.intermediateColor(mColor, UIManager.getColor("Panel.background"), 0.7f));
+			g.fillRoundRect(1, 1, getWidth()-2, getHeight()-2, 2, 2);
+			g.setColor(UIManager.getColor("Panel.background").darker());
+			g.drawRoundRect(0, 0, getWidth()-1, getHeight()-1, 6, 6);
+			}
+
+		public Color getColor() {
+			return mColor;
+		}
+
+		public void setColor(Color c) {
+			mColor = c;
+			repaint();
+			}
+
+		public Color getOriginalColor() {
+			return mOriginalColor;
+			}
 		}
 	}

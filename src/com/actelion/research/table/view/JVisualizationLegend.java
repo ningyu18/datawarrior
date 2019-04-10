@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,22 +18,21 @@
 
 package com.actelion.research.table.view;
 
-import java.awt.Color;
-import java.awt.Rectangle;
+import com.actelion.research.chem.AbstractDepictor;
+import com.actelion.research.chem.IDCodeParser;
+import com.actelion.research.chem.StereoMolecule;
+import com.actelion.research.table.model.CompoundTableEvent;
+import com.actelion.research.table.model.CompoundTableListHandler;
+import com.actelion.research.table.model.CompoundTableModel;
+import com.actelion.research.util.DoubleFormat;
+import com.actelion.research.util.ScaleLabel;
+import com.actelion.research.util.ScaleLabelCreator;
+
+import java.awt.*;
 import java.awt.geom.Rectangle2D;
 import java.text.DateFormat;
 import java.util.ArrayList;
 import java.util.Date;
-
-import com.actelion.research.chem.AbstractDepictor;
-import com.actelion.research.chem.IDCodeParser;
-import com.actelion.research.chem.StereoMolecule;
-import com.actelion.research.table.CompoundTableEvent;
-import com.actelion.research.table.CompoundTableHitlistHandler;
-import com.actelion.research.table.CompoundTableModel;
-import com.actelion.research.util.DoubleFormat;
-import com.actelion.research.util.ScaleLabel;
-import com.actelion.research.util.ScaleLabelCreator;
 
 public class JVisualizationLegend {
     public static final int cScaleLabelCount = 4;
@@ -75,7 +74,7 @@ public class JVisualizationLegend {
 			mColumn = e.getMapping()[mColumn];
 		}
 
-	public void paint(Rectangle bounds) {
+	public void paint(Rectangle bounds, boolean transparentBG) {
 		mVisualization.setFontHeight(mFontHeight);
 		switch (mType) {
 		case cLegendTypeColorDouble:
@@ -104,10 +103,15 @@ public class JVisualizationLegend {
 				for (int i=0; i<noOfColors; i++) {
 					Color baseColor = mVisualizationColor.getColor(i);
 					for (int j=height-1; j>0; j--) {
-					    mVisualization.setColor(new Color(baseColor.getRed()+j*(neutralColor.getRed()-baseColor.getRed())/height,
-											 baseColor.getGreen()+j*(neutralColor.getGreen()-baseColor.getGreen())/height,
-											 baseColor.getBlue()+j*(neutralColor.getBlue()-baseColor.getBlue())/height));
-					    mVisualization.fillRect(x+i*width/noOfColors, centerY-j, width/noOfColors+1, j*2);
+						Color bgColor = transparentBG ?
+								new Color(baseColor.getRed(), baseColor.getGreen(), baseColor.getBlue(), 255/height)
+								: new Color(baseColor.getRed()+j*(neutralColor.getRed()-baseColor.getRed())/height,
+											baseColor.getGreen()+j*(neutralColor.getGreen()-baseColor.getGreen())/height,
+											baseColor.getBlue()+j*(neutralColor.getBlue()-baseColor.getBlue())/height);
+					    mVisualization.setColor(bgColor);
+						int x1 = x+i*width/noOfColors;
+						int x2 = x+(i+1)*width/noOfColors;
+					    mVisualization.fillRect(x1, centerY-j, x2-x1, j*2);
 						}
 					}
 				mVisualization.setColor(mVisualization.getContrastGrey(0.80f));
@@ -171,7 +175,7 @@ public class JVisualizationLegend {
 
 				// set individual labels to null, if labels overlap
 				if (labelCount > 2) {
-					float gap = (labelList.get(1).position - labelList.get(0).position) * width;
+					float gap = (float)(labelList.get(1).position - labelList.get(0).position) * width;
 
 					// try using all labels
 					boolean labelsOverlap = false;
@@ -213,7 +217,7 @@ public class JVisualizationLegend {
 				
 				for (int i=labelCount-1; i>=0; i--) {
 					ScaleLabel sl = labelList.get(i);
-					scaleX = x+Math.round(sl.position*width);
+					scaleX = x+Math.round((float)sl.position*width);
 					mVisualization.drawLine(scaleX, y+height+1, scaleX, y+height+height/8);
 					if (sl.label != null) {
 						scaleX -= mVisualization.getStringWidth(sl.label)/2;
@@ -232,38 +236,66 @@ public class JVisualizationLegend {
 				}
 			break;
 		case cLegendTypeSize:
-			x = mX + mCellWidth * mTitleCells;
+			x = mX;
 			y = mY + mCellHeight/2;
-			mVisualization.setColor(mVisualization.getContrastGrey(0.80f));
-		    mVisualization.drawString(mColumnName, x - mVisualization.getStringWidth(mColumnName) - mFontHeight, y+mFontHeight*2/5);
+			int cell = mTitleCells;
+
+			Color textColor = mVisualization.getContrastGrey(0.80f);
+			mVisualization.setColor(textColor);
+			if (!mColumnNameOnTop && mTitleCells == 0)
+			    mVisualization.drawString(mColumnName, x - mVisualization.getStringWidth(mColumnName) - mFontHeight, y+mFontHeight*2/5);
+			else
+				mVisualization.drawString(mColumnName, x, y+mFontHeight*2/5);
+
+			if (mColumnNameOnTop)
+				y += mCellHeight;
+			else
+				x += mCellWidth * mTitleCells;
+
 			for (int i=0; i<mCategoryList.length; i++) {
 				mVisualization.drawMarker(Color.lightGray, 0, mMarkerSize[i], x+mFontHeight/3+mMarkerSize[i]/2, y);
+				mVisualization.setColor(textColor);
 			    mVisualization.drawString(mCategoryList[i], x+mFontHeight*2/3+mMarkerSize[i], y+mFontHeight*2/5);
 
-				if ((i+mTitleCells)%mCellsPerLine == mCellsPerLine-1) {
+				if (cell%mCellsPerLine == mCellsPerLine-1) {
 					x = mX;
 					y += mCellHeight;
 					}
 				else {
 					x += mCellWidth;
 					}
+				cell++;
 				}
 			break;
 		case cLegendTypeColorCategory:
 		case cLegendTypeBackgroundColorCategory:
 		case cLegendTypeShapeCategory:
 		case cLegendTypeMultiValueMarker:
-			x = mX + mCellWidth * mTitleCells;
+			// three options to position column title:
+			// -top: starting just above first marker; mColumnNameOnTop=true, mTitleCells=0
+			// -left: ending just left of first marker, markers start new line at mX; mColumnNameOnTop=false, mTitleCells=0
+			// -embedded: starting at mX, first marker starts mTitleCells further right; mColumnNameOnTop=false, mTitleCells!=0
+			x = mX;
 			y = mY + mCellHeight/2;
+			cell = mTitleCells;
+
 			mVisualization.setColor(mVisualization.getContrastGrey(0.80f));
-		    mVisualization.drawString(mColumnName, x - mVisualization.getStringWidth(mColumnName) - mFontHeight, y+mFontHeight*2/5);
+			if (!mColumnNameOnTop && mTitleCells == 0)
+				mVisualization.drawString(mColumnName, x - mVisualization.getStringWidth(mColumnName) - mFontHeight, y+mFontHeight*2/5);
+			else
+				mVisualization.drawString(mColumnName, x, y+mFontHeight*2/5);
+
+			if (mColumnNameOnTop)
+				y += mCellHeight;
+			else
+				x += mCellWidth * mTitleCells;
+
 			for (int i=0; i<mCategoryList.length; i++) {
-				if (mType == cLegendTypeColorCategory) {
-				    int size = mFontHeight*8/10+1;
-				    mVisualization.setColor(mVisualizationColor.getColor(i));
-				    mVisualization.fillRect(x+mFontHeight-size, y-size/2, size, size);
-					mVisualization.setColor(mVisualization.getContrastGrey(0.75f));
-					mVisualization.drawRect(x+mFontHeight-size, y-size/2, size, size);
+				if (mType == cLegendTypeColorCategory || mType == cLegendTypeShapeCategory) {
+					int shape = (mColumn == mVisualization.getMarkerShapeColumn()) ? i : 0;
+					Color color = (mType == cLegendTypeColorCategory && i<mVisualizationColor.getColorCount()) ?
+							mVisualizationColor.getColor(i) : Color.lightGray;
+					mVisualization.drawMarker(color, shape, mFontHeight*8/10, x+mFontHeight*2/3-1, y);
 					}
 				else if (mType == cLegendTypeMultiValueMarker) {
 					if (mVisualization.getMarkerColor().getColorColumn() == JVisualization.cColumnUnassigned) {
@@ -292,12 +324,6 @@ public class JVisualizationLegend {
 						}
 					mVisualization.setColor(mVisualization.getContrastGrey(0.80f));
 					}
-				else if (mType == cLegendTypeShapeCategory) {
-				    if (mVisualization instanceof JVisualization2D)
-						mVisualization.drawMarker(Color.lightGray, i, mFontHeight*8/10, x+mFontHeight*2/3-1, y);
-				    else
-				        mVisualization.drawMarker(Color.lightGray, i, mFontHeight, x+mFontHeight*2/3-1, y);
-					}
 
 				if (mCategoryListContainsIDCodes) {
 					String idcode = mCategoryList[i];
@@ -308,7 +334,7 @@ public class JVisualizationLegend {
 								  : new IDCodeParser(true).getCompactMolecule(idcode.substring(0, index),
 																		  idcode.substring(index+1));
 						mVisualization.drawMolecule(mol, mVisualization.getContrastGrey(0.80f),
-										   new Rectangle2D.Float(x+mFontHeight*4/3,
+										   new Rectangle2D.Double(x+mFontHeight*4/3,
 			                			   y-mCellHeight/2,
 			                			   mCellWidth*9/10-mFontHeight*4/3,
 			                			   mCellHeight),
@@ -319,13 +345,14 @@ public class JVisualizationLegend {
 				    mVisualization.drawString(mCategoryList[i], x+mFontHeight*4/3, y+mFontHeight*2/5);
 					}
 
-				if ((i+mTitleCells)%mCellsPerLine == mCellsPerLine-1) {
+				if (cell%mCellsPerLine == mCellsPerLine-1) {
 					x = mX;
 					y += mCellHeight;
 					}
 				else {
 					x += mCellWidth;
 					}
+				cell++;
 				}
 			break;
 			}
@@ -353,8 +380,8 @@ public class JVisualizationLegend {
 	    mColumnNameOnTop = false;
 
 		mColumnName = (mType == cLegendTypeMultiValueMarker) ? "Value Name"
-			  : CompoundTableHitlistHandler.isHitlistColumn(mColumn) ?
-				"Member of '" + mTableModel.getHitlistHandler().getHitlistName(CompoundTableHitlistHandler.getHitlistFromColumn(mColumn)) + "'"
+			  : CompoundTableListHandler.isListColumn(mColumn) ?
+				"Member of '" + mTableModel.getListHandler().getListName(CompoundTableListHandler.getListFromColumn(mColumn)) + "'"
 			  : mTableModel.getColumnTitleExtended(mColumn);
 
 		int columnNameWidth = mFontHeight + mVisualization.getStringWidth(mColumnName);
@@ -372,7 +399,7 @@ public class JVisualizationLegend {
 			mY = bounds.y + bounds.height - mHeight;
 			break;
 		case cLegendTypeSize:
-			if (CompoundTableHitlistHandler.isHitlistColumn(mColumn)) {
+			if (CompoundTableListHandler.isListColumn(mColumn)) {
 				mCategoryList = new String[2];
 				mCategoryList[0] = "yes";
 				mCategoryList[1] = "no";
@@ -388,9 +415,16 @@ public class JVisualizationLegend {
 					  : ScaleLabelCreator.createLinearLabelList(rangeLow, rangeHigh);
 				int labelCount = (labelList == null) ? 0 : labelList.size();
 
+				// if we have too many labels, then remove every second one
+				if (labelCount > 7) {
+					for (int i = labelCount - ((labelCount & 1) == 0 ? 1 : 2); i > 0; i -= 2)
+						labelList.remove(i);
+					labelCount = labelList.size();
+					}
+
 				// limit markers shown to 4 times font size
 				for (int i=0; i<labelCount; i++) {
-					if (Math.round(mVisualization.getMarkerSizeFromValue(labelList.get(i).value)) > mFontHeight*4) {
+					if (Math.round(mVisualization.getMarkerSizeFromValue((float)labelList.get(i).value)) > mFontHeight*4) {
 						labelCount = i;
 						break;
 						}
@@ -400,7 +434,7 @@ public class JVisualizationLegend {
 				mMarkerSize = new int[labelCount];
 				for (int i=0; i<labelCount; i++) {
 					mCategoryList[i] = labelList.get(i).label;
-					mMarkerSize[i] = Math.round(mVisualization.getMarkerSizeFromValue(labelList.get(i).value));
+					mMarkerSize[i] = Math.round(mVisualization.getMarkerSizeFromValue((float)labelList.get(i).value));
 					}
 				}
 
@@ -409,7 +443,7 @@ public class JVisualizationLegend {
 		case cLegendTypeColorCategory:
 		case cLegendTypeShapeCategory:
 		case cLegendTypeBackgroundColorCategory:
-			if (CompoundTableHitlistHandler.isHitlistColumn(mColumn)) {
+			if (CompoundTableListHandler.isListColumn(mColumn)) {
 				mCategoryList = new String[2];
 				mCategoryList[0] = "yes";
 				mCategoryList[1] = "no";
@@ -463,13 +497,37 @@ public class JVisualizationLegend {
 		int lineWidth = bounds.width - mFontHeight/2;
 		if (mCellWidth > lineWidth)
 			mCellWidth = lineWidth;
-		int maxCellsPerLine = (mCellWidth == 0) ? categories : lineWidth / mCellWidth;
-		mTitleCells = Math.min(1 + (columnNameWidth - 1) / Math.max(1, mCellWidth), maxCellsPerLine / 2);
-		int noOfLines = 1 + (mTitleCells+categories-1) / maxCellsPerLine;
-		mCellsPerLine = 1 + (mTitleCells+categories-1) / noOfLines;
+		int maxCellsPerLine = (mCellWidth == 0) ? categories : Math.max(1, lineWidth / mCellWidth);
+
+		mColumnNameOnTop = false;
+		mTitleCells = 0;
+
+		int noOfLines = 1 + (categories-1) / maxCellsPerLine;
+		mCellsPerLine = 1 + (categories-1) / noOfLines;
+
+		// if column title at the left reduces number of categories per line, then we check, whether top or embedded are better options
+		if (lineWidth - mCellWidth * mCellsPerLine - mFontHeight < columnNameWidth) {
+			int titleCells = 1 + (columnNameWidth - 1) / Math.max(1, mCellWidth);
+			int emptyCells = noOfLines * mCellsPerLine - categories;
+			if (titleCells > emptyCells) {
+				mColumnNameOnTop = true;
+				noOfLines++;
+				}
+			else {
+				mTitleCells = titleCells;
+				}
+			}
+
 		mHeight = mCellHeight * noOfLines + legendSpacing;
 		mX = bounds.x + (bounds.width - mCellsPerLine * mCellWidth) / 2;
 		mY = bounds.y + bounds.height - mHeight;
+
+		if (!mColumnNameOnTop && mTitleCells == 0)
+			mX += columnNameWidth / 2;
+		}
+
+	protected int getColumn() {
+		return mColumn;
 		}
 
 	protected int getHeight() {

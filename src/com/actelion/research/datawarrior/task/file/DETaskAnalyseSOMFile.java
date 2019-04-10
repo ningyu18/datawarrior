@@ -17,24 +17,10 @@ import com.actelion.research.table.view.VisualizationPanel2D;
 
 public class DETaskAnalyseSOMFile extends DETaskAbstractOpenFile {
 	public static final String TASK_NAME = "Analyse SOM-File";
-    private static Properties sRecentConfiguration;
-
-    private DataWarrior	mApplication;
 
     public DETaskAnalyseSOMFile(DataWarrior application) {
-		super(application.getActiveFrame(), "Open SOM-File And Analyse Content", FileHelper.cFileTypeSOM);
-		mApplication = application;
+		super(application, "Open SOM-File And Analyse Content", FileHelper.cFileTypeSOM);
 		}
-
-	@Override
-	public Properties getRecentConfiguration() {
-    	return sRecentConfiguration;
-    	}
-
-	@Override
-	public void setRecentConfiguration(Properties configuration) {
-    	sRecentConfiguration = configuration;
-    	}
 
 	@Override
 	public String getTaskName() {
@@ -43,7 +29,7 @@ public class DETaskAnalyseSOMFile extends DETaskAbstractOpenFile {
 
 	@Override
 	public DEFrame openFile(File file, Properties configuration) {
-		final DEFrame newFrame = mApplication.getEmptyFrame("SOM Analysis of "+file.getName());
+		final DEFrame newFrame = getApplication().getEmptyFrame("SOM Analysis of "+file.getName());
 		try {
 			CompoundTableSOM som = DETaskApplySOMFile.readSOMFile(file, newFrame.getTableModel(), getProgressController());
 			som.createSimilarityMap(newFrame.getTableModel());

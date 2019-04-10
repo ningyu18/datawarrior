@@ -93,6 +93,60 @@ The <a href="help/../jep.html">Help</a> button opens a window explaining the exp
 all operators and available functions.</p>
 <br>
 
+<h3><a name="Gini"></a>The Gini Selectivity Score</h3>
+
+<p>The <span class="keyword">Gini Coefficient</span> was originally invented to represent the income or wealth
+distribution of a nation's residents, and is today the most commonly used measure of inequality.
+For instance, in the context of medicinal chemistry P. Graczyk applied it to express the selectivity of
+kinase inhibitors (doi:10.1021/jm070562u). A <span class="keyword">Gini Coefficient</span> of 0.0 expresses
+perfect equality, where all values are the same, while a value of 1.0 represents maximal inequality, e.g. a
+totally selective inhibitor that is only active on one of many kinases.
+Typically, the <span class="keyword">Gini Coefficient</span>
+is used for a large number of positive numerical values of which a few are much larger than the rest.
+Thus, inhibition values are a perfect input, while logarithmic data is a less meaningful data source.</p>
+<p>To calculate the <span class="keyword">Gini Coefficient</span> in <span class="keyword">DataWarrior</span>
+one needs to provide the input values in columns. The <span class="menu">Calculate Selectivity Score...</span>
+item in the <span class="menu">Data</span> menu opens a dialog that lets you define a set of columns by
+either selecting them indiviually from a list or by specifying a common element of the columns' names.
+In addition one may select an option that converts effect values to inhibition values by subtracting the
+original value from 100. <span class="keyword">DataWarrior</span> then calculates a new column containing the
+<span class="keyword">Gini Coefficient</span> using the trapez method as described in the paper by Graczyk.
+However, <span class="keyword">DataWarrior</span> does not change input values to limit the value range
+to 0 to 100, because this would reduce the noise in an unsymmetrical fashion. We consider the
+<span class="keyword">Gini Coefficient</span> robust enough to digest negative input data without
+sacrificing its usefulness.</p>
+<br>
+
+<h3><a name="Fuzzy"></a>Defining a Fuzzy Score</h3>
+
+<p>Sometimes it is helpful to express the fitness or usefulness of an object with a single numerical value,
+which somehow summarizes the fitness of multiple properties. For this purpose
+<span class="keyword">DataWarrior</span> allows to calculate a <span class="keyword">fuzzy score</span>
+from multiple contributing property values. These values may be taken from numerical columns of the data set
+or they may be calculated on-the-fly from a chemical structure. No matter, which individual properties
+are used, <span class="keyword">DataWarrior</span> derives from every contributing property an individual
+score between 0.0 and 1.0. This is done using a smooth sigmoid curve defined for every property.
+In the dialog (see below) this curve is drawn in magenta color. The curve's slope and inflection point(s)
+can be adjusted by setting the <span class="menu">Minimum</span> and <span class="menu">Maximum</span>
+values as well as by moving the <span class="menu">Slope</span> slider.
+An additional <span class="menu">Weight</span> slider allows to reduce or increase the contribution of
+the associated property's score to the overall score.</p>
+<p>The individual valuation scores are then summarized by calculating their mean value or by multiplying all
+individual scores (geometrical mean). Usually the latter method is chosen, if an object can be considered
+useless, if one bad property alone can ruin it.</p>
+<p>The properties that contribute to the overall fuzzy score are compiled by adding property specific
+panels to the lower scrollable part of the dialog. This is done by selecting the property's name in the
+<span class="menu">Contributing Values</span> popup menu and pressing the <span class="menu">Add Value</span>
+button. Then a new panel appears at the end of the property panel list letting you define the valuation curve.
+If the property refers to the current data set, then the distribution of the associated column's data is
+shown as a histogram in the curve area. This helps defining proper valuation curves.</p>
+<p>Defining a fuzzy score profile is often done once and then applied multiple times on the same, but updated
+data set or on different data sets. Therefore, this functionality is often used within a macro.</p>
+<p align="center"><img src="help/img/analysis/fuzzy.jpeg"></p>
+<p><center><i>Fuzzy score dialog defined to reward low IC50 values and low molecular weights.</i></center></p>
+<p></p>
+<br>
+
 <h3><a name="PCA"></a>Principal Component Analysis</h3>
 
 <p><span class="keyword">The Principal Component Analysis</span>

@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -26,8 +26,6 @@ import com.actelion.research.datawarrior.DEFrame;
 public class DETaskSelectRowsFromList extends DETaskAbstractListTask {
 	public static final String TASK_NAME = "Select Rows From List";
 
-    private static Properties sRecentConfiguration;
-
     /**
      * The listIndex parameter may be used to override the configuration's list name.
      * If listIndex is preconfigured (i.e. != -1) and defineAndRun() is called, then
@@ -46,21 +44,11 @@ public class DETaskSelectRowsFromList extends DETaskAbstractListTask {
 
 	@Override
 	public void runTask(Properties configuration) {
-		getTableModel().selectByList(getTableModel().getHitlistHandler().getHitlistFlagNo(getListIndex(configuration)));
+		getTableModel().selectByList(getTableModel().getListHandler().getListFlagNo(getListIndex(configuration)));
 		}
 
 	@Override
 	public DEFrame getNewFrontFrame() {
 		return null;
 		}
-
-	@Override
-	public Properties getRecentConfiguration() {
-    	return sRecentConfiguration;
-    	}
-
-	@Override
-	public void setRecentConfiguration(Properties configuration) {
-    	sRecentConfiguration = configuration;
-    	}
     }

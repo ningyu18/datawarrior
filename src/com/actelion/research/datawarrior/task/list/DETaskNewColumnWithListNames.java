@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,6 +18,7 @@
 
 package com.actelion.research.datawarrior.task.list;
 
+import com.actelion.research.table.model.CompoundTableListHandler;
 import info.clearthought.layout.TableLayout;
 
 import java.util.Properties;
@@ -29,9 +30,8 @@ import javax.swing.JTextField;
 
 import com.actelion.research.datawarrior.DEFrame;
 import com.actelion.research.datawarrior.task.ConfigurableTask;
-import com.actelion.research.table.CompoundRecord;
-import com.actelion.research.table.CompoundTableHitlistHandler;
-import com.actelion.research.table.CompoundTableModel;
+import com.actelion.research.table.model.CompoundRecord;
+import com.actelion.research.table.model.CompoundTableModel;
 
 public class DETaskNewColumnWithListNames extends ConfigurableTask {
 	public static final String TASK_NAME = "New Column With List Names";
@@ -39,8 +39,6 @@ public class DETaskNewColumnWithListNames extends ConfigurableTask {
 	private static final String DEFAULT_COLUMN_NAME = "List Membership";
 
 	private static final String PROPERTY_COLUMN_NAME = "columnName";
-
-    private static Properties sRecentConfiguration;
 
 	private CompoundTableModel	mTableModel;
     private JTextField          mTextFieldColumnName;
@@ -64,7 +62,7 @@ public class DETaskNewColumnWithListNames extends ConfigurableTask {
 
 	@Override
 	public boolean isConfigurable() {
-		if (mTableModel.getHitlistHandler().getHitlistCount() == 0) {
+		if (mTableModel.getListHandler().getListCount() == 0) {
 			showErrorMessage("No row lists found.");
 			return false;
 			}
@@ -106,7 +104,7 @@ public class DETaskNewColumnWithListNames extends ConfigurableTask {
 		columnName[0] = configuration.getProperty(PROPERTY_COLUMN_NAME, DEFAULT_COLUMN_NAME);
         int column = mTableModel.addNewColumns(columnName);
 
-        CompoundTableHitlistHandler hitlistHandler = mTableModel.getHitlistHandler();
+        CompoundTableListHandler hitlistHandler = mTableModel.getListHandler();
 
         startProgress("Compiling List Names...", 0, mTableModel.getTotalRowCount());
 
@@ -119,13 +117,13 @@ public class DETaskNewColumnWithListNames extends ConfigurableTask {
 
             StringBuilder buf = null;
             CompoundRecord record = mTableModel.getTotalRecord(row);
-            for (int i=0; i<hitlistHandler.getHitlistCount(); i++) {
-                if (record.isFlagSet(hitlistHandler.getHitlistFlagNo(i))) {
+            for (int i = 0; i<hitlistHandler.getListCount(); i++) {
+                if (record.isFlagSet(hitlistHandler.getListFlagNo(i))) {
                     if (buf == null)
                         buf = new StringBuilder();
                     else
                         buf.append(CompoundTableModel.cEntrySeparator);
-                    buf.append(hitlistHandler.getHitlistName(i));
+                    buf.append(hitlistHandler.getListName(i));
                     }
                 }
 
@@ -139,14 +137,4 @@ public class DETaskNewColumnWithListNames extends ConfigurableTask {
 	public DEFrame getNewFrontFrame() {
 		return null;
 		}
-
-	@Override
-	public Properties getRecentConfiguration() {
-    	return sRecentConfiguration;
-    	}
-
-	@Override
-	public void setRecentConfiguration(Properties configuration) {
-    	sRecentConfiguration = configuration;
-    	}
     }

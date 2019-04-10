@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,30 +18,27 @@
 
 package com.actelion.research.table;
 
-import java.awt.Color;
-import java.awt.Component;
-
-import javax.swing.JComponent;
-import javax.swing.JTable;
-import javax.swing.JTextArea;
-import javax.swing.UIManager;
-import javax.swing.table.DefaultTableCellRenderer;
-
 import com.actelion.research.chem.StereoMolecule;
 import com.actelion.research.chem.reaction.Reaction;
 import com.actelion.research.gui.table.ChemistryCellRenderer;
 import com.actelion.research.gui.table.ChemistryRenderPanel;
+import com.actelion.research.table.model.CompoundRecord;
+import com.actelion.research.table.model.DetailTableModel;
+import com.actelion.research.table.view.VisualizationColor;
+
+import javax.swing.*;
+import javax.swing.table.DefaultTableCellRenderer;
+import java.awt.*;
 
 public class DetailTableCellRenderer extends DefaultTableCellRenderer {
     private static final long serialVersionUID = 0x20061009;
-    public static final Color TOGGLE_ROW_BACKGROUND = new Color(230, 235, 240); 
 
-    private CompoundTableModel          mTableModel;
+    private DetailTableModel mTableModel;
     private ChemistryCellRenderer       mChemistryRenderer;
 	private MultiLineCellRenderer       mMultiLineRenderer;
 	private CompoundTableColorHandler	mColorHandler;
 
-    public DetailTableCellRenderer(CompoundTableModel tableModel) {
+    public DetailTableCellRenderer(DetailTableModel tableModel) {
 		super();
 		mTableModel = tableModel;
     	}
@@ -54,12 +51,11 @@ public class DetailTableCellRenderer extends DefaultTableCellRenderer {
         if (mTableModel.getColumnCount() == 0)
             return null;
 
-        int column = mTableModel.convertFromDisplayableColumnIndex(row);
-//	    if (mTableModel.getColumnSpecialType(column) != null) {
-        if (value instanceof StereoMolecule || value instanceof Reaction) {
+        int column = mTableModel.getParentModel().convertFromDisplayableColumnIndex(row);
+        if (col == 1 && (value instanceof StereoMolecule || value instanceof Reaction)) {
             if (mChemistryRenderer == null) {
                 mChemistryRenderer = new ChemistryCellRenderer();
-                mChemistryRenderer.setAlternatingRowBackground(TOGGLE_ROW_BACKGROUND);
+                mChemistryRenderer.setAlternateRowBackground(true);
                 }
 
             return colorize((ChemistryRenderPanel)mChemistryRenderer.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, col), column);
@@ -67,7 +63,7 @@ public class DetailTableCellRenderer extends DefaultTableCellRenderer {
         else {
             if (mMultiLineRenderer == null) {
                 mMultiLineRenderer = new MultiLineCellRenderer();
-                mMultiLineRenderer.setAlternatingRowBackground(TOGGLE_ROW_BACKGROUND);
+                mMultiLineRenderer.setAlternateRowBackground(true);
                 }
 
             return colorize((JTextArea)mMultiLineRenderer.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, col), column);
@@ -76,18 +72,16 @@ public class DetailTableCellRenderer extends DefaultTableCellRenderer {
 
 	private JComponent colorize(JComponent c, int column) {
 		if (mColorHandler != null) {
-	    	CompoundRecord record = mTableModel.getHighlightedRow();
+	    	CompoundRecord record = mTableModel.getCompoundRecord();
 	    	if (record != null) {
 	    		if (mColorHandler.hasColorAssigned(column, CompoundTableColorHandler.FOREGROUND)) {
-	    			c.setForeground(mColorHandler.getVisualizationColor(column, CompoundTableColorHandler.FOREGROUND).getDarkerColor(record));
+				    VisualizationColor vc = mColorHandler.getVisualizationColor(column, CompoundTableColorHandler.FOREGROUND);
+	    			c.setForeground(vc.getColorForForeground(record));
 	    			}
 
 	    		if (mColorHandler.hasColorAssigned(column, CompoundTableColorHandler.BACKGROUND)) {
-		    		// Quaqua does not use the defined background color if CellRenderer is translucent
-		    		if (UIManager.getLookAndFeel().getName().startsWith("Quaqua"))
-		    			c.setOpaque(true);
-	
-	    			c.setBackground(mColorHandler.getVisualizationColor(column, CompoundTableColorHandler.BACKGROUND).getLighterColor(record));
+				    VisualizationColor vc = mColorHandler.getVisualizationColor(column, CompoundTableColorHandler.BACKGROUND);
+	    			c.setBackground(vc.getColorForBackground(record));
 	    			}
 	    		}
 			}

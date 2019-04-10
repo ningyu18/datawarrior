@@ -70,6 +70,8 @@ public class SimpleRenderer implements ImageSampler {
                     bucketCounter++;
                 }
                 renderBucket(bx, by, istate);
+                if (display.imageCancelled())
+                    return;
             }
         }
 

@@ -1,20 +1,25 @@
 package com.actelion.research.gui.table;
 
+import com.actelion.research.chem.AbstractDepictor;
+import com.actelion.research.chem.Depictor2D;
+import com.actelion.research.chem.ExtendedDepictor;
+import com.actelion.research.chem.StereoMolecule;
+import com.actelion.research.chem.reaction.Reaction;
+import com.actelion.research.gui.LookAndFeelHelper;
+import com.actelion.research.gui.hidpi.HiDPIHelper;
+import com.actelion.research.util.ColorHelper;
+
+import javax.swing.*;
+import javax.swing.border.EmptyBorder;
 import java.awt.*;
 import java.awt.geom.Rectangle2D;
-
-import javax.swing.JPanel;
-import javax.swing.UIManager;
-import javax.swing.border.EmptyBorder;
-
-import com.actelion.research.chem.*;
-import com.actelion.research.chem.reaction.Reaction;
 
 public class ChemistryRenderPanel extends JPanel {
     static final long serialVersionUID = 0x20070312;
 
     private Object  mChemistry;
-    private Color   mAlternatingBackgroundColor,mForeGround;
+    private Color mOverruleForeground;
+    private boolean mAlternateBackground;
 
     public void setChemistry(Object chemistry) {
         mChemistry = chemistry;
@@ -32,10 +37,8 @@ public class ChemistryRenderPanel extends JPanel {
             }
         else {
             setForeground(UIManager.getColor("Table.foreground"));
-            if (mAlternatingBackgroundColor != null)
-                setBackground(mAlternatingBackgroundColor);
-            else
-                setBackground(UIManager.getColor("Table.background"));
+            Color bg = UIManager.getColor("Table.background");
+            setBackground(!mAlternateBackground ? bg : ColorHelper.darker(bg, 0.94f));
             }
         }
 
@@ -46,14 +49,12 @@ public class ChemistryRenderPanel extends JPanel {
             setBorder(new EmptyBorder(1, 1, 1, 1));
         }
 
-    public void setForeground(Color fg) {
-		mForeGround = fg;
-    	if (Color.black.equals(mForeGround))
-    		mForeGround = null;
+    public void setOverruleForeground(Color fg) {
+		mOverruleForeground = fg;
     	}
 
-    public void setAlternatingBackground(Color bg) {
-        mAlternatingBackgroundColor = bg;
+    public void setAlternateBackground(boolean b) {
+        mAlternateBackground = b;
         }
 
     public void paintComponent(Graphics g) {
@@ -62,6 +63,13 @@ public class ChemistryRenderPanel extends JPanel {
         ((Graphics2D)g).setRenderingHint(RenderingHints.KEY_STROKE_CONTROL, RenderingHints.VALUE_STROKE_PURE);
 
         Rectangle r = new Rectangle(new java.awt.Point(0,0), getSize());
+
+        // Substance Graphite LaF does not consider the defined background
+        if (LookAndFeelHelper.isNewSubstance()) {
+            g.setColor(getBackground());
+            ((Graphics2D) g).fill(r);
+            }
+
         r.grow(-2, -2);
 
         Insets insets = getInsets();
@@ -73,17 +81,21 @@ public class ChemistryRenderPanel extends JPanel {
         if (mChemistry != null && r.width > 0 && r.height > 0) {
             if (mChemistry instanceof StereoMolecule) {
                 Depictor2D d = new Depictor2D((StereoMolecule)mChemistry, Depictor2D.cDModeSuppressChiralText);
-                if (mForeGround != null)
-                	d.setOverruleColor(mForeGround, getBackground());
-                d.validateView(g, new Rectangle2D.Float(r.x, r.y, r.width, r.height), AbstractDepictor.cModeInflateToMaxAVBL);
+                d.setForegroundColor(getForeground(), getBackground());
+                if (mOverruleForeground != null)
+                	d.setOverruleColor(mOverruleForeground, getBackground());
+                int avbl = HiDPIHelper.scale(AbstractDepictor.cOptAvBondLen);
+                d.validateView(g, new Rectangle2D.Double(r.x, r.y, r.width, r.height), AbstractDepictor.cModeInflateToMaxAVBL | avbl);
                 d.paint(g);
                 }
             if (mChemistry instanceof Reaction) {
             	Reaction rxn = (Reaction)mChemistry;
                 ExtendedDepictor d = new ExtendedDepictor(rxn, rxn.getDrawingObjects(), rxn.isReactionLayoutRequired(), true);
-                if (mForeGround != null)
-                	d.setOverruleColor(mForeGround, getBackground());
-                d.validateView(g, new Rectangle2D.Float(r.x, r.y, r.width, r.height), AbstractDepictor.cModeInflateToMaxAVBL);
+                d.setForegroundColor(getForeground(), getBackground());
+                if (mOverruleForeground != null)
+                	d.setOverruleColor(mOverruleForeground, getBackground());
+                int avbl = HiDPIHelper.scale(AbstractDepictor.cOptAvBondLen);
+                d.validateView(g, new Rectangle2D.Double(r.x, r.y, r.width, r.height), AbstractDepictor.cModeInflateToMaxAVBL | avbl);
                 d.paint(g);
                 }
             }

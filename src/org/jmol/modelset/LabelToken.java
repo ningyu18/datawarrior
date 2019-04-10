@@ -39,7 +39,7 @@ public class LabelToken {
   /*
    * by Bob Hanson, 5/28/2009
    * 
-   * a compiler for the atom label business.
+   * a compiler for the atom label simple.
    * 
    * Prior to this, once for every atom, twice for every bond, and 2-4 times for every
    * measurement we were scanning the format character by character. And if data were
@@ -47,11 +47,11 @@ public class LabelToken {
    * value. Now you can still do that, but the Jmol code doesn't. 
    * 
    * Instead, we now first compile a set of tokens -- either pure text or some
-   * sort of %xxxx business. Generally we would alternate between these, so the
+   * sort of %xxxx simple. Generally we would alternate between these, so the
    * compiler is set up to initialize an array that has 2n+1 elements, where n is the
    * number of % signs in the string. This is guaranteed to be more than really necessary.
    * 
-   * Because we are working with tokens, we can go beyond the limiting A-Za-z business
+   * Because we are working with tokens, we can go beyond the limiting A-Za-z simple
    * that we had before. That still works, but now we can have any standard token be
    * used in brackets:
    * 

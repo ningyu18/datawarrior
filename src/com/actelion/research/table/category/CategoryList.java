@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -77,7 +77,7 @@ public abstract class CategoryList<T extends Comparable<? super T>> {
 		return mCategoryList;
 		}
 
-	/*	public CategoryNormalizer<T> getNormalizer() {
+	public CategoryNormalizer<T> getNormalizer() {
 		return mNormalizer;
-		}	*/
+		}
 	}

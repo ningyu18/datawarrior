@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,6 +18,7 @@
 
 package com.actelion.research.datawarrior.task.view;
 
+import com.actelion.research.gui.hidpi.HiDPIHelper;
 import info.clearthought.layout.TableLayout;
 
 import java.awt.Dimension;
@@ -31,7 +32,7 @@ import javax.swing.JPanel;
 import javax.swing.JSlider;
 
 import com.actelion.research.datawarrior.DEMainPane;
-import com.actelion.research.table.CompoundTableHitlistHandler;
+import com.actelion.research.table.model.CompoundTableListHandler;
 import com.actelion.research.table.view.CompoundTableView;
 import com.actelion.research.table.view.JVisualization2D;
 import com.actelion.research.table.view.VisualizationColor;
@@ -49,8 +50,6 @@ public class DETaskSetMarkerBackgroundColor extends DETaskAbstractSetColor {
 
 	private static final String ITEM_VISIBLE_ROWS = "Visible Rows";
 	private static final String ITEM_ALL_ROWS = "All Rows";
-
-	private static Properties sRecentConfiguration;
 
     private JSlider		mSliderRadius,mSliderFading;
     private JComboBox	mComboBoxConsider;
@@ -88,8 +87,8 @@ public class DETaskSetMarkerBackgroundColor extends DETaskAbstractSetColor {
 		mComboBoxConsider = new JComboBox();
         mComboBoxConsider.addItem(ITEM_VISIBLE_ROWS);
         mComboBoxConsider.addItem(ITEM_ALL_ROWS);
-		for (int i=0; i<getTableModel().getHitlistHandler().getHitlistCount(); i++) {
-			int pseudoColumn = CompoundTableHitlistHandler.getColumnFromHitlist(i);
+		for (int i = 0; i<getTableModel().getListHandler().getListCount(); i++) {
+			int pseudoColumn = CompoundTableListHandler.getColumnFromList(i);
 			mComboBoxConsider.addItem(getTableModel().getColumnTitleExtended(pseudoColumn));
 			}
 		mComboBoxConsider.setEditable(!hasInteractiveView());
@@ -107,7 +106,7 @@ public class DETaskSetMarkerBackgroundColor extends DETaskAbstractSetColor {
 		mSliderRadius.setMajorTickSpacing(5);
 		mSliderRadius.setPaintTicks(true);
 		mSliderRadius.setPaintLabels(true);
-		mSliderRadius.setPreferredSize(new Dimension(160, 42));
+		mSliderRadius.setPreferredSize(new Dimension(HiDPIHelper.scale(160), HiDPIHelper.scale(42)));
 		sliderpanel.add(new JLabel("Radius:"), "1,1");
 		sliderpanel.add(mSliderRadius, "1,3");
 
@@ -117,7 +116,7 @@ public class DETaskSetMarkerBackgroundColor extends DETaskAbstractSetColor {
 		mSliderFading.setMajorTickSpacing(5);
 		mSliderFading.setPaintTicks(true);
 		mSliderFading.setPaintLabels(true);
-		mSliderFading.setPreferredSize(new Dimension(160, 42));
+		mSliderFading.setPreferredSize(new Dimension(HiDPIHelper.scale(160), HiDPIHelper.scale(42)));
 		sliderpanel.add(new JLabel("Fading:"), "3,1");
 		sliderpanel.add(mSliderFading, "3,3");
 
@@ -182,15 +181,15 @@ public class DETaskSetMarkerBackgroundColor extends DETaskAbstractSetColor {
 	@Override
 	public void addViewConfiguration(Properties configuration) {
 		super.addViewConfiguration(configuration);
-		int hitlist = ((JVisualization2D)getVisualization()).getBackgroundColorConsidered();
+		int hitlist = ((JVisualization2D) getInteractiveVisualization()).getBackgroundColorConsidered();
 		if (hitlist == JVisualization2D.BACKGROUND_VISIBLE_RECORDS)
 			configuration.setProperty(PROPERTY_CONSIDER, PROPERTY_CONSIDER_VISIBLE);
 		else if (hitlist == JVisualization2D.BACKGROUND_ALL_RECORDS)
 			configuration.setProperty(PROPERTY_CONSIDER, PROPERTY_CONSIDER_ALL);
 		else
-			configuration.setProperty(PROPERTY_CONSIDER, getTableModel().getColumnTitleNoAlias(CompoundTableHitlistHandler.getColumnFromHitlist(hitlist)));
-		configuration.setProperty(PROPERTY_RADIUS, ""+((JVisualization2D)getVisualization()).getBackgroundColorRadius());
-		configuration.setProperty(PROPERTY_FADING, ""+((JVisualization2D)getVisualization()).getBackgroundColorFading());
+			configuration.setProperty(PROPERTY_CONSIDER, getTableModel().getColumnTitleNoAlias(CompoundTableListHandler.getColumnFromList(hitlist)));
+		configuration.setProperty(PROPERTY_RADIUS, ""+((JVisualization2D) getInteractiveVisualization()).getBackgroundColorRadius());
+		configuration.setProperty(PROPERTY_FADING, ""+((JVisualization2D) getInteractiveVisualization()).getBackgroundColorFading());
 		}
 
 	@Override
@@ -221,7 +220,7 @@ public class DETaskSetMarkerBackgroundColor extends DETaskAbstractSetColor {
 		else if (consider.equals(PROPERTY_CONSIDER_ALL))
 			v2D.setBackgroundColorConsidered(JVisualization2D.BACKGROUND_ALL_RECORDS);
 		else
-			v2D.setBackgroundColorConsidered(CompoundTableHitlistHandler.getHitlistFromColumn(getTableModel().findColumn(consider)));
+			v2D.setBackgroundColorConsidered(CompoundTableListHandler.getListFromColumn(getTableModel().findColumn(consider)));
 
 		try {
 			v2D.setBackgroundColorRadius(Math.max(1, Integer.parseInt(configuration.getProperty(PROPERTY_RADIUS, "10"))));
@@ -229,18 +228,8 @@ public class DETaskSetMarkerBackgroundColor extends DETaskAbstractSetColor {
 		catch (NumberFormatException nfe) {}
 
 		try {
-			v2D.setBackgroundColorFading(Math.max(1, 20-Integer.parseInt(configuration.getProperty(PROPERTY_FADING, "10"))));
+			v2D.setBackgroundColorFading(Math.max(1, Integer.parseInt(configuration.getProperty(PROPERTY_FADING, "10"))));
 			}
 		catch (NumberFormatException nfe) {}
-		}
-
-	@Override
-	public Properties getRecentConfigurationLocal() {
-		return sRecentConfiguration;
-		}
-	
-	@Override
-	public void setRecentConfiguration(Properties configuration) {
-		sRecentConfiguration = configuration;
 		}
 	}

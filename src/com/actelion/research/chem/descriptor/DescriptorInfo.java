@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -19,17 +19,18 @@
 package com.actelion.research.chem.descriptor;
 
 public class DescriptorInfo extends SimilarityCalculatorInfo {
-	
+
+    public String version;
     public int type;
-    
     public boolean isBinary;
     public boolean isGraphSimilarity;
     public boolean needsCoordinates;
 
-    public DescriptorInfo(String name, String shortName, int type,
+    public DescriptorInfo(String name, String shortName, String version, int type,
                           boolean isBinary, boolean isGraphSimilarity, boolean needsCoordinates) {
     	super(name,shortName);
-    	
+
+        this.version = version;
         this.type = type;
         this.isBinary = isBinary;
         this.isGraphSimilarity = isGraphSimilarity;

@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -29,11 +29,11 @@ public class ScaleLabelCreator {
 	 * @param rangeHigh high limit of numerical range
 	 * @return list of labels with relative positions
 	 */
-	public static ArrayList<ScaleLabel> createLinearLabelList(float rangeLow, float rangeHigh) {
+	public static ArrayList<ScaleLabel> createLinearLabelList(double rangeLow, double rangeHigh) {
 		if (rangeHigh <= rangeLow)
 			return null;
 
-		float range = rangeHigh - rangeLow;
+		double range = rangeHigh - rangeLow;
 
 		int exponent = 0;
 		while (range >= 50.0) {
@@ -60,10 +60,10 @@ public class ScaleLabelCreator {
 			: (int)(rangeLow + 0.0000001 + gridSpacing - (rangeLow % gridSpacing));
 
 		ArrayList<ScaleLabel> labelList = new ArrayList<ScaleLabel>();
-		while ((float)value < (rangeLow + range)) {
-			float position = ((float)value-rangeLow) / range;
+		while (value < (rangeLow + range)) {
+			double position = (value-rangeLow) / range;
 
-			labelList.add(new ScaleLabel(DoubleFormat.toShortString(value, exponent), position, (float)value*(float)Math.pow(10, exponent)));
+			labelList.add(new ScaleLabel(DoubleFormat.toShortString(value, exponent), position, value*Math.pow(10, exponent)));
 
 			value += gridSpacing;
 			}
@@ -78,11 +78,11 @@ public class ScaleLabelCreator {
 	 * @param rangeHigh log10 of high limit of numerical range
 	 * @return list of labels with relative positions
 	 */
-	public static ArrayList<ScaleLabel> createLogarithmicLabelList(float rangeLow, float rangeHigh) {
+	public static ArrayList<ScaleLabel> createLogarithmicLabelList(double rangeLow, double rangeHigh) {
 		if (rangeHigh <= rangeLow)
 			return null;
 
-		float range = rangeHigh - rangeLow;
+		double range = rangeHigh - rangeLow;
 
         int intMin = (int)Math.floor(rangeLow);
         int intMax = (int)Math.floor(rangeHigh);
@@ -116,9 +116,23 @@ public class ScaleLabelCreator {
                 addLogarithmicScaleLabel(labelList, i + 0.84509804f, rangeLow, range);
                 }
             }
+		else if (range > 0.6) {
+			for (int i=intMin; i<=intMax; i++) {
+				addLogarithmicScaleLabel(labelList, i, rangeLow, range);						// 1.0
+				addLogarithmicScaleLabel(labelList, i + 0.113943352f, rangeLow, range);	// 1.3
+				addLogarithmicScaleLabel(labelList, i + 0.204119983f, rangeLow, range);	// 1.6
+				addLogarithmicScaleLabel(labelList, i + 0.301029996f, rangeLow, range);	// 2.0
+				addLogarithmicScaleLabel(labelList, i + 0.397940009f, rangeLow, range);	// 2.5
+				addLogarithmicScaleLabel(labelList, i + 0.505149978f, rangeLow, range);	// 3.2
+				addLogarithmicScaleLabel(labelList, i + 0.602059991f, rangeLow, range);	// 4.0
+				addLogarithmicScaleLabel(labelList, i + 0.698970004f, rangeLow, range);	// 5.0
+				addLogarithmicScaleLabel(labelList, i + 0.806179974f, rangeLow, range);	// 6.4
+				addLogarithmicScaleLabel(labelList, i + 0.903089987f, rangeLow, range);	// 8.0
+				}
+			}
         else {
-            float start = (float)Math.pow(10, rangeLow);
-            float length = (float)Math.pow(10, rangeLow+range) - start;
+			double start = Math.pow(10, rangeLow);
+			double length = Math.pow(10, rangeLow+range) - start;
 
             int exponent = 0;
             while (length >= 50.0) {
@@ -143,9 +157,9 @@ public class ScaleLabelCreator {
             int value = (start < 0) ?
                   (int)(start - 0.0000001 - (start % gridSpacing))
                 : (int)(start + 0.0000001 + gridSpacing - (start % gridSpacing));
-            while ((float)value < (start + length)) {
-                float log = (float)Math.log10(value) + exponent;
-                float position = (float)(log-rangeLow) / range;
+            while (value < (start + length)) {
+				double log = Math.log10(value) + exponent;
+				double position = (log-rangeLow) / range;
                 labelList.add(new ScaleLabel(DoubleFormat.toShortString(value, exponent), position, log));
                 value += gridSpacing;
                 }
@@ -154,9 +168,9 @@ public class ScaleLabelCreator {
         return labelList;
 		}
 
-    private static void addLogarithmicScaleLabel(ArrayList<ScaleLabel> labelList, float value, float rangeLow, float range) {
+    private static void addLogarithmicScaleLabel(ArrayList<ScaleLabel> labelList, double value, double rangeLow, double range) {
         if (value >= rangeLow && value <= rangeLow+range) {
-            float position = (value-rangeLow) / range;
+			double position = (value-rangeLow) / range;
             labelList.add(new ScaleLabel(DoubleFormat.toString(Math.pow(10, value), 3, true), position, value));
             }
         }

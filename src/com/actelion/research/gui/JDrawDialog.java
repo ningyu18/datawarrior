@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -32,6 +32,7 @@ import com.actelion.research.chem.reaction.IReactionMapper;
 import com.actelion.research.chem.reaction.Reaction;
 import com.actelion.research.chem.reaction.ReactionMapper;
 import com.actelion.research.gui.clipboard.ClipboardHandler;
+import com.actelion.research.gui.hidpi.HiDPIHelper;
 
 public class JDrawDialog extends JDialog implements ActionListener,KeyListener {
     static final long serialVersionUID = 0x20061019;
@@ -88,7 +89,7 @@ public class JDrawDialog extends JDialog implements ActionListener,KeyListener {
 
 		mArea = new JDrawArea(mMolecule, mode);
 		mArea.setClipboardHandler(new ClipboardHandler());
-		mArea.setPreferredSize(new Dimension(400, 300));
+		mArea.setPreferredSize(new Dimension(HiDPIHelper.scale(480), HiDPIHelper.scale(300)));
 		getContentPane().add(mArea, BorderLayout.CENTER);
 
 		mToolBar = new JDrawToolbar(mArea, mode);

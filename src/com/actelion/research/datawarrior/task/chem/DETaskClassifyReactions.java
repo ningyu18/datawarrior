@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -27,32 +27,27 @@ import javax.swing.JComboBox;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 
-import com.actelion.research.chem.descriptor.DescriptorConstants;
 import com.actelion.research.chem.reaction.Classification;
 import com.actelion.research.chem.reaction.Reaction;
 import com.actelion.research.chem.reaction.ReactionClassifier;
 import com.actelion.research.datawarrior.DEFrame;
 import com.actelion.research.datawarrior.task.ConfigurableTask;
-import com.actelion.research.table.CompoundTableModel;
+import com.actelion.research.table.model.CompoundTableModel;
 
 public class DETaskClassifyReactions extends ConfigurableTask implements Runnable {
 	public static final String TASK_NAME = "Classify Reactions";
 
 	private static final String PROPERTY_REACTION_COLUMN = "structureColumn";
 
-	private static Properties sRecentConfiguration;
-
 	private JComboBox			mComboBoxReactionColumn;
 
 	private volatile CompoundTableModel	mTableModel;
 	private volatile int				mReactionColumn;
 	private AtomicInteger				mSMPRecordIndex,mSMPWorkingThreads,mSMPErrorCount;
-	private boolean						mIsInteractive;
 
-	public DETaskClassifyReactions(DEFrame parent, boolean isInteractive) {
+	public DETaskClassifyReactions(DEFrame parent) {
 		super(parent, true);
 		mTableModel = parent.getTableModel();
-		mIsInteractive = isInteractive;
 		}
 
 	@Override
@@ -89,7 +84,7 @@ public class DETaskClassifyReactions extends ConfigurableTask implements Runnabl
 		if (reactionColumn != null)
 			for (int i=0; i<reactionColumn.length; i++)
 				mComboBoxReactionColumn.addItem(mTableModel.getColumnTitle(reactionColumn[i]));
-		mComboBoxReactionColumn.setEditable(!mIsInteractive);
+		mComboBoxReactionColumn.setEditable(!isInteractive());
 		content.add(new JLabel("Reaction column:"), "1,1");
 		content.add(mComboBoxReactionColumn, "3,1");
 
@@ -115,12 +110,12 @@ public class DETaskClassifyReactions extends ConfigurableTask implements Runnabl
 			int column = mTableModel.findColumn(value);
 			if (column != -1)
 				mComboBoxReactionColumn.setSelectedItem(mTableModel.getColumnTitle(column));
-			else if (!mIsInteractive)
+			else if (!isInteractive())
 				mComboBoxReactionColumn.setSelectedItem(value);
 			else if (mComboBoxReactionColumn.getItemCount() != 0)
 				mComboBoxReactionColumn.setSelectedIndex(0);
 			}
-		else if (!mIsInteractive) {
+		else if (!isInteractive()) {
 			mComboBoxReactionColumn.setSelectedItem("Reaction");
 			}
 		}
@@ -129,7 +124,7 @@ public class DETaskClassifyReactions extends ConfigurableTask implements Runnabl
 	public void setDialogConfigurationToDefault() {
 		if (mComboBoxReactionColumn.getItemCount() != 0)
 			mComboBoxReactionColumn.setSelectedIndex(0);
-		else if (!mIsInteractive)
+		else if (!isInteractive())
 			mComboBoxReactionColumn.setSelectedItem("Reaction");
 		}
 
@@ -224,14 +219,4 @@ public class DETaskClassifyReactions extends ConfigurableTask implements Runnabl
 	private int[] getCompatibleReactionColumnList() {
 		return mTableModel.getSpecialColumnList(CompoundTableModel.cColumnTypeRXNCode);
 		}
-
-	@Override
-	public Properties getRecentConfiguration() {
-    	return sRecentConfiguration;
-    	}
-
-	@Override
-	public void setRecentConfiguration(Properties configuration) {
-    	sRecentConfiguration = configuration;
-    	}
 	}

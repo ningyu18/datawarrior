@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,40 +18,31 @@
 
 package com.actelion.research.datawarrior;
 
+import com.actelion.research.gui.form.AbstractFormObject;
+import com.actelion.research.gui.form.FormObjectFactory;
+import com.actelion.research.gui.form.JFormDesigner;
+import com.actelion.research.gui.form.JStructure3DFormObject;
+import com.actelion.research.gui.hidpi.JBrowseButtons;
+import com.actelion.research.table.*;
+import com.actelion.research.table.model.CompoundRecord;
+import com.actelion.research.table.model.CompoundTableEvent;
+import com.actelion.research.table.model.CompoundTableListEvent;
+import com.actelion.research.table.model.CompoundTableModel;
+import com.actelion.research.table.view.CompoundTableView;
+import com.actelion.research.table.view.JCompoundTableForm;
 import info.clearthought.layout.TableLayout;
 
-import java.awt.BorderLayout;
-import java.awt.Frame;
+import javax.swing.*;
+import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 
-import javax.swing.JButton;
-import javax.swing.JComponent;
-import javax.swing.JLabel;
-import javax.swing.JPanel;
-import javax.swing.JPopupMenu;
-import javax.swing.OverlayLayout;
-
-import com.actelion.research.gui.JBrowseToolbar;
-import com.actelion.research.gui.form.AbstractFormObject;
-import com.actelion.research.gui.form.FormObjectFactory;
-import com.actelion.research.gui.form.JFormDesigner;
-import com.actelion.research.gui.form.JStructure3DFormObject;
-import com.actelion.research.table.CompoundRecord;
-import com.actelion.research.table.CompoundTableColorHandler;
-import com.actelion.research.table.CompoundTableEvent;
-import com.actelion.research.table.CompoundTableHitlistEvent;
-import com.actelion.research.table.CompoundTableModel;
-import com.actelion.research.table.DetailPopupProvider;
-import com.actelion.research.table.view.CompoundTableView;
-import com.actelion.research.table.view.JCompoundTableForm;
-
 public class DEFormView extends JComponent implements ActionListener,CompoundTableView {
     private static final long serialVersionUID = 0x20080620;
 
-    private CompoundTableModel	mTableModel;
+    private CompoundTableModel mTableModel;
 	private JCompoundTableForm	mCompoundTableForm;
 	private JLabel				mLabel;
 	private JPanel				mFormView;
@@ -64,8 +55,10 @@ public class DEFormView extends JComponent implements ActionListener,CompoundTab
 	public DEFormView(Frame parent, CompoundTableModel tableModel, CompoundTableColorHandler colorHandler) {
 		mTableModel = tableModel;
 
-		if (JStructure3DFormObject.getActionProvider() == null)
-			JStructure3DFormObject.setActionProvider(new RayTraceActionProvider(parent));
+		if (JStructure3DFormObject.getCopyActionProvider() == null)
+			JStructure3DFormObject.setCopyActionProvider(new MolViewerActionCopy(parent));
+		if (JStructure3DFormObject.getRaytraceActionProvider() == null)
+			JStructure3DFormObject.setRaytraceActionProvider(new MolViewerActionRaytrace(parent));
 
 		mFormView = new JPanel();
 		mFormView.setLayout(new BorderLayout());
@@ -120,22 +113,29 @@ public class DEFormView extends JComponent implements ActionListener,CompoundTab
 		mFormView.add(mCompoundTableForm, BorderLayout.CENTER);
 
 		JComponent controlPanel = new JPanel();
-		double[][] size = { { 8, TableLayout.PREFERRED, TableLayout.FILL, TableLayout.PREFERRED , TableLayout.FILL, TableLayout.PREFERRED, 8 },
+		double[][] size = { { 8, TableLayout.FILL, TableLayout.PREFERRED , TableLayout.FILL, 8 },
 							{ 4, TableLayout.FILL, TableLayout.PREFERRED, 4 } };
 		controlPanel.setLayout(new TableLayout(size));
-		
+
 		mButtonNew = new JButton("New Row");
 		mButtonNew.setVisible(false);
 		mButtonNew.addActionListener(this);
-        controlPanel.add(mButtonNew, "1,2");
+		JPanel leftPanel = new JPanel();
+		leftPanel.setLayout(new BorderLayout());
+		leftPanel.add(mButtonNew, BorderLayout.WEST);
+        controlPanel.add(leftPanel, "1,2");
 
-		JBrowseToolbar browseToolbar = new JBrowseToolbar();
-		browseToolbar.addActionListener(this);
-		controlPanel.add(browseToolbar, "3,1,3,2");
+		JBrowseButtons browseToolbar = new JBrowseButtons(false, this);
+//		JBrowseToolbar browseToolbar = new JBrowseToolbar();
+//		browseToolbar.addActionListener(this);
+		controlPanel.add(browseToolbar, "2,1,2,2");
 
 		mLabel = new JLabel();
 		updateRecordNo(mTableModel.getActiveRowIndex());
-		controlPanel.add(mLabel, "5,2");
+		JPanel rightPanel = new JPanel();
+		rightPanel.setLayout(new BorderLayout());
+		rightPanel.add(mLabel, BorderLayout.EAST);
+		controlPanel.add(rightPanel, "3,2");
 
 		mFormView.add(controlPanel, BorderLayout.SOUTH);
 
@@ -194,7 +194,7 @@ public class DEFormView extends JComponent implements ActionListener,CompoundTab
 			int firstNewRow = mTableModel.getTotalRowCount();
 		    mTableModel.addNewRows(1);
 		    mTableModel.finalizeNewRows(firstNewRow, null);
-		    CompoundRecord record = mTableModel.getRecord(firstNewRow);
+		    CompoundRecord record = mTableModel.getTotalRecord(firstNewRow);
 		    if (mTableModel.isVisible(record)) {
                 mTableModel.setActiveRow(rowCount);
                 updateRecordNo(rowCount);
@@ -241,7 +241,7 @@ public class DEFormView extends JComponent implements ActionListener,CompoundTab
 			updateRecordNo(mTableModel.getActiveRowIndex());
 		}
 
-	public void hitlistChanged(CompoundTableHitlistEvent e) {}
+	public void listChanged(CompoundTableListEvent e) {}
 
 	public JCompoundTableForm getCompoundTableForm() {
 		return mCompoundTableForm;

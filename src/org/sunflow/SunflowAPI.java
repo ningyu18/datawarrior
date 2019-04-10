@@ -1,44 +1,26 @@
 package org.sunflow;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.IOException;
-import java.io.StringReader;
-import java.util.Locale;
-
 import org.codehaus.janino.ClassBodyEvaluator;
 import org.codehaus.janino.CompileException;
-import org.codehaus.janino.Scanner;
 import org.codehaus.janino.Parser.ParseException;
+import org.codehaus.janino.Scanner;
 import org.codehaus.janino.Scanner.ScanException;
-import org.sunflow.core.Camera;
-import org.sunflow.core.CameraLens;
-import org.sunflow.core.Display;
-import org.sunflow.core.Geometry;
-import org.sunflow.core.ImageSampler;
-import org.sunflow.core.Instance;
-import org.sunflow.core.LightSource;
-import org.sunflow.core.Modifier;
-import org.sunflow.core.Options;
-import org.sunflow.core.ParameterList;
-import org.sunflow.core.PrimitiveList;
-import org.sunflow.core.Scene;
-import org.sunflow.core.SceneParser;
-import org.sunflow.core.Shader;
-import org.sunflow.core.Tesselatable;
+import org.sunflow.core.*;
 import org.sunflow.core.ParameterList.InterpolationType;
 import org.sunflow.image.ColorFactory;
 import org.sunflow.image.ColorFactory.ColorSpecificationException;
-import org.sunflow.math.BoundingBox;
-import org.sunflow.math.Matrix4;
-import org.sunflow.math.Point2;
-import org.sunflow.math.Point3;
-import org.sunflow.math.Vector3;
+import org.sunflow.math.*;
 import org.sunflow.system.FileUtils;
 import org.sunflow.system.SearchPath;
 import org.sunflow.system.Timer;
 import org.sunflow.system.UI;
 import org.sunflow.system.UI.Module;
+
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.StringReader;
+import java.util.Locale;
 
 /**
  * This API gives a simple interface for creating scenes procedurally. This is
@@ -247,8 +229,7 @@ public class SunflowAPI implements SunflowAPIInterface {
      * include search path.
      * 
      * @param filename filename
-     * @return a path which matches the filename, or filename if no matches are
-     *         found
+     * @return a path which matches the filename, or filename if no matches are found
      */
     public final String resolveIncludeFilename(String filename) {
         return includeSearchPath.resolvePath(filename);
@@ -258,8 +239,14 @@ public class SunflowAPI implements SunflowAPIInterface {
         if (!isIncremental(shaderType)) {
             // we are declaring a shader for the first time
             if (renderObjects.has(name)) {
+
+                // added this line and outcommented the next two lines; TLS 3Feb2016
+//                update(name);
+
+	            // original handling
                 UI.printError(Module.API, "Unable to declare shader \"%s\", name is already in use", name);
                 parameterList.clear(true);
+
                 return;
             }
             Shader shader = PluginRegistry.shaderPlugins.createObject(shaderType);

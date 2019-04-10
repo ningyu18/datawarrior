@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
  *
  * This file is part of DataWarrior.
  * 
@@ -18,36 +18,16 @@
 
 package com.actelion.research.table.view;
 
-import java.awt.Color;
-import java.awt.Font;
-import java.awt.Frame;
-import java.awt.Graphics;
-import java.awt.Graphics2D;
-import java.awt.RenderingHints;
+import com.actelion.research.gui.form.*;
+import com.actelion.research.table.*;
+import com.actelion.research.table.model.*;
+
+import javax.swing.*;
+import java.awt.*;
 import java.awt.geom.Rectangle2D;
 import java.awt.print.PageFormat;
 import java.awt.print.Pageable;
 import java.awt.print.Printable;
-
-import com.actelion.research.gui.form.AbstractFormObject;
-import com.actelion.research.gui.form.FormModel;
-import com.actelion.research.gui.form.FormObjectFactory;
-import com.actelion.research.gui.form.JFormView;
-import com.actelion.research.gui.form.JHTMLDetailView;
-import com.actelion.research.gui.form.JHTMLFormObject;
-import com.actelion.research.gui.form.JImageDetailView;
-import com.actelion.research.gui.form.JImageFormObject;
-import com.actelion.research.gui.form.JResultDetailView;
-import com.actelion.research.gui.form.JSVGDetailView;
-import com.actelion.research.gui.form.JSVGFormObject;
-import com.actelion.research.gui.form.JStructure3DFormObject;
-import com.actelion.research.gui.form.ReferenceFormObject;
-import com.actelion.research.table.CompoundRecord;
-import com.actelion.research.table.CompoundTableColorHandler;
-import com.actelion.research.table.CompoundTableDetailSpecification;
-import com.actelion.research.table.CompoundTableEvent;
-import com.actelion.research.table.CompoundTableListener;
-import com.actelion.research.table.CompoundTableModel;
 
 public class JCompoundTableForm extends JFormView implements CompoundTableColorHandler.ColorListener,CompoundTableListener,Pageable {
     private static final long serialVersionUID = 0x20060921;
@@ -57,7 +37,7 @@ public class JCompoundTableForm extends JFormView implements CompoundTableColorH
     public static final int PRINT_MODE_ALL_RECORDS = 2;
 
     private Frame				mParentFrame;
-	private CompoundTableModel	mTableModel;
+	private CompoundTableModel mTableModel;
 	private CompoundTableColorHandler	mColorHandler;
 	private int					mLastPageIndex;
 	private int					mPrintMode,mPrintColumns,mPrintRows;
@@ -73,6 +53,7 @@ public class JCompoundTableForm extends JFormView implements CompoundTableColorH
 		addSupportedType(JHTMLDetailView.TYPE_TEXT_PLAIN, JHTMLFormObject.class);
 		addSupportedType(JHTMLDetailView.TYPE_TEXT_HTML, JHTMLFormObject.class);
 		addSupportedType(JSVGDetailView.TYPE_IMAGE_SVG, JSVGFormObject.class);
+		addSupportedType(JFXPDBDetailView.TYPE_CHEMICAL_PDB, JFXPDBFormObject.class);
 
 		mParentFrame = parent;
 		mTableModel = tableModel;
@@ -270,11 +251,12 @@ public class JCompoundTableForm extends JFormView implements CompoundTableColorH
 			}
 		else if (e.getType() == CompoundTableEvent.cChangeColumnName) {
 			boolean needsUpdate = false;
-			int column = e.getColumn();
-			String key = mTableModel.getColumnTitleNoAlias(column);
+			String columnTitle = mTableModel.getColumnTitleNoAlias(e.getColumn());
 			for (int i=0; i<getFormObjectCount(); i++) {
-				if (key.equals(getFormObject(i).getKey())) {
-					setFormObjectTitle(mTableModel.getColumnTitle(column), i);
+				String key = getFormObject(i).getKey();
+				if (key.equals(columnTitle)
+				 || key.startsWith(columnTitle+CompoundTableFormModel.KEY_DETAIL_SEPARATOR)) {
+					getFormObject(i).setTitle(getModel().getTitle(key));
 					needsUpdate = true;
 					}
 				}
@@ -285,15 +267,19 @@ public class JCompoundTableForm extends JFormView implements CompoundTableColorH
 
 	public void colorChanged(int column, int type, VisualizationColor color) {
 		CompoundRecord record = ((CompoundTableFormModel)getModel()).getCompoundRecord();
-		if (record != null) {
+		if (record != null && !isEditable()) {
 			boolean needsUpdate = false;
 			String key = mTableModel.getColumnTitleNoAlias(column);
 			for (int i=0; i<getFormObjectCount(); i++) {
 				if (key.equals(getFormObject(i).getKey())) {
-					if (type == CompoundTableColorHandler.BACKGROUND)
-						getFormObject(i).getComponent().setBackground(color.getLighterColor(record));
-					else if (type == CompoundTableColorHandler.FOREGROUND)
-						getFormObject(i).getComponent().setForeground(color.getDarkerColor(record));
+					if (type == CompoundTableColorHandler.BACKGROUND) {
+						Color bg = color.getColorForBackground(record);
+						getFormObject(i).setBackground(bg != null ? bg : UIManager.getColor("TextArea.inactiveBackground"));
+						}
+					else if (type == CompoundTableColorHandler.FOREGROUND) {
+						Color fg = color.getColorForForeground(record);
+						getFormObject(i).setForeground(fg != null ? fg : UIManager.getColor("TextArea.foreground"));
+						}
 					needsUpdate = true;
 					}
 				}
@@ -314,15 +300,17 @@ public class JCompoundTableForm extends JFormView implements CompoundTableColorH
 				AbstractFormObject fo = getFormObject(i);
 				int column = mTableModel.findColumn(fo.getKey());
 
-				Color bg = Color.WHITE;
-				if (record != null && mColorHandler.hasColorAssigned(column, CompoundTableColorHandler.BACKGROUND))
-					bg = mColorHandler.getVisualizationColor(column, CompoundTableColorHandler.BACKGROUND).getLighterColor(record);
-				fo.getComponent().setBackground(bg);
+				Color bg = UIManager.getColor(isEditable() ? "TextArea.background" : "TextArea.inactiveBackground");
+				if (!isEditable() && record != null && mColorHandler.hasColorAssigned(column, CompoundTableColorHandler.BACKGROUND)) {
+					bg = mColorHandler.getVisualizationColor(column, CompoundTableColorHandler.BACKGROUND).getColorForBackground(record);
+					}
+				fo.setBackground(bg);
 
-				Color fg = Color.BLACK;
-				if (record != null && mColorHandler.hasColorAssigned(column, CompoundTableColorHandler.FOREGROUND))
-					fg = mColorHandler.getVisualizationColor(column, CompoundTableColorHandler.FOREGROUND).getDarkerColor(record);
-				fo.getComponent().setForeground(fg);
+				Color fg = UIManager.getColor("TextArea.foreground");
+				if (!isEditable() && record != null && mColorHandler.hasColorAssigned(column, CompoundTableColorHandler.FOREGROUND)) {
+					fg = mColorHandler.getVisualizationColor(column, CompoundTableColorHandler.FOREGROUND).getColorForForeground(record);
+					}
+				fo.setForeground(fg);
 				}
 			}
 		}
@@ -451,7 +439,7 @@ public class JCompoundTableForm extends JFormView implements CompoundTableColorH
 		double x2 = f.getImageableX()+f.getImageableWidth();
 		double y2 = f.getImageableY()+f.getImageableHeight()-FOOTER_FONT_SIZE/4;
 		g.setColor(Color.black);
-		g.setFont(new Font("Helvetica", Font.PLAIN, (int)FOOTER_FONT_SIZE));
+		g.setFont(g.getFont().deriveFont(Font.PLAIN, (int)FOOTER_FONT_SIZE));
 	    String docTitle = mParentFrame.getTitle();
 		g.drawString(docTitle, (int)x1, (int)y2);
 		String page = "page "+(pageIndex+1)+" of "+(maxPageIndex+1);
@@ -480,9 +468,9 @@ public class JCompoundTableForm extends JFormView implements CompoundTableColorH
 
 	            updatePrintColors(record);
 
-	            Rectangle2D.Float bounds = new Rectangle2D.Float((float)(0.5+x+column*(dx+s)), (float)(0.5f+y+row*(dy+s)), (float)dx, (float)dy);
+	            Rectangle2D.Double bounds = new Rectangle2D.Double((float)(0.5+x+column*(dx+s)), (float)(0.5f+y+row*(dy+s)), (float)dx, (float)dy);
 	            float scale = (float)Math.sqrt(1.0/recordsPerPage);
-	            print(g2D, bounds, scale, model);
+	            print(g2D, bounds, scale, model, true);
 	        	}
 	    	}
 
@@ -497,12 +485,12 @@ public class JCompoundTableForm extends JFormView implements CompoundTableColorH
 
 				Color bg = Color.WHITE;
 				if (record != null && mColorHandler.hasColorAssigned(tableColumn, CompoundTableColorHandler.BACKGROUND))
-					bg = mColorHandler.getVisualizationColor(tableColumn, CompoundTableColorHandler.BACKGROUND).getLighterColor(record);
+					bg = mColorHandler.getVisualizationColor(tableColumn, CompoundTableColorHandler.BACKGROUND).getColorForPrintBackground(record);
 				fo.setPrintBackground(bg);
 
 				Color fg = Color.BLACK;
 				if (record != null && mColorHandler.hasColorAssigned(tableColumn, CompoundTableColorHandler.FOREGROUND))
-					fg = mColorHandler.getVisualizationColor(tableColumn, CompoundTableColorHandler.FOREGROUND).getDarkerColor(record);
+					fg = mColorHandler.getVisualizationColor(tableColumn, CompoundTableColorHandler.FOREGROUND).getColorForPrintForeground(record);
 				fo.setPrintForeground(fg);
 				}
 			}

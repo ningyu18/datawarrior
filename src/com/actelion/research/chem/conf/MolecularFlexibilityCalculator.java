@@ -5,7 +5,7 @@ import com.actelion.research.chem.StereoMolecule;
 
 public class MolecularFlexibilityCalculator {
 	public MolecularFlexibilityCalculator() {
-		TorsionDB.initialize(TorsionDB.MODE_ANGLES | TorsionDB.MODE_FREQUENCIES | TorsionDB.MODE_RANGES);
+		TorsionDB.initialize(TorsionDB.MODE_ANGLES);
 		}
 
 	/**
@@ -68,32 +68,18 @@ public class MolecularFlexibilityCalculator {
 					range = prediction.getTorsionRanges();
 					}
 
-				bondFlexibility[bond] = calculateBondFlexibility(torsion, frequency, range);
+				if (!mol.isAromaticBond(bond)) {
+					bondFlexibility[bond] = calculateBondFlexibility(torsion, frequency, range);
 
-				// we need to reduce in rings increasingly with ring size, because flexibility is hampered
-				if (mol.isRingBond(bond))
-					bondFlexibility[bond] *= (1f - 3f / mol.getBondRingSize(bond));
-				}
-			}
-
-		// calculate a bond importance factor based on bond location in the molecule
-		float[] bondImportance = new float[mol.getBonds()];
-		for (int bond=0; bond<mol.getBonds(); bond++) {
-			if (mol.isRingBond(bond)) {
-				bondImportance[bond] = 0.33f;
-				}
-			else {
-				int atom1 = mol.getBondAtom(0, bond);
-				int atom2 = mol.getBondAtom(1, bond);
-				if (mol.getConnAtoms(atom1) == 1 || mol.getConnAtoms(atom2) == 1) {
-					bondImportance[bond] = (float)Math.sqrt(2f / mol.getAtoms());
-					}
-				else {
-					int atomCount = mol.getSubstituentSize(atom1, atom2) - 1;
-					bondImportance[bond] = (float)Math.sqrt(2.0 * Math.min(atomCount, mol.getAtoms() - atomCount) / mol.getAtoms());
+					// we need to reduce in rings increasingly with ring size, because flexibility is hampered
+					if (mol.isRingBond(bond))
+						bondFlexibility[bond] *= 0.5f * (1f - 3f / mol.getBondRingSize(bond));
 					}
 				}
 			}
+
+		float[] bondImportance = TorsionRelevanceHelper.getRelevance(mol, (boolean[])null);
+
 /*
 System.out.println();
 System.out.println("Molecular flexibility:"+calculateMoleculeFlexibility(bondFlexibility, bondImportance));
@@ -126,6 +112,9 @@ for (int bond=0; bond<mol.getBonds(); bond++) {
 		}
 
 	private float calculateBondFlexibility(short[] torsion, short[] frequency, short[][] range) {
+//		for (int i=0; i<torsion.length; i++)
+//			System.out.println("torsion:"+torsion[i]+" frequency:"+frequency[i]+" range:"+range[i][0]+"-"+range[i][1]);
+
 		int count = torsion.length;
 
 		float maxFrequency = 0f;
@@ -188,7 +177,7 @@ for (int bond=0; bond<mol.getBonds(); bond++) {
 			meanFlexibility += bondWeight[i] * bondFlexibility[i];
 			weightSum += bondWeight[i];
 			}
-		float rawFlexibility = meanFlexibility / weightSum;
+		float rawFlexibility = (weightSum == 0f) ? 0f : meanFlexibility / weightSum;
 		return (float)(1.0-Math.pow(1-Math.pow(rawFlexibility, CORRECTION_FACTOR) ,1.0/CORRECTION_FACTOR));
 		}
 	}

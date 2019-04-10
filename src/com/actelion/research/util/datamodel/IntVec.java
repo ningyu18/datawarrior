@@ -1473,23 +1473,23 @@ public class IntVec implements Comparable<IntVec> {
     }
 
     public String toStringBinary() {
-        StringBuilder str = new StringBuilder();
+        StringBuilder sb = new StringBuilder();
         int si = size();
         for (int i = 0; i < si; i++) {
             String s = toStringBinary(get(i)) + " ";
-            str.append(s);
+            sb.append(s);
         }
-        return str.toString().trim();
+        return sb.toString().trim();
     }
     
     public String toStringBinaryDense() {
-        StringBuilder str = new StringBuilder();
+        StringBuilder sb = new StringBuilder();
         int si = size();
         for (int i = 0; i < si; i++) {
             String s = toStringBinary(get(i), false);
-            str.append(s);
+            sb.append(s);
         }
-        return str.toString().trim();
+        return sb.toString().trim();
     }
    
 	public static String toStringBinary(int v) {
@@ -1528,8 +1528,8 @@ public class IntVec implements Comparable<IntVec> {
     }
 
     public double [] toDoubleBitWise() {
-        double [] arr = new double [size() * Integer.SIZE];
 
+        double [] arr = new double [size() * Integer.SIZE];
         int cc = 0;
         for (int ii = 0; ii < data.length; ii++) {
             int v = data[ii];
@@ -1547,6 +1547,7 @@ public class IntVec implements Comparable<IntVec> {
 
         return arr;
     }
+
     public int [] toIntByteWise() {
     	int [] arr = new int [size() * 4];
         
