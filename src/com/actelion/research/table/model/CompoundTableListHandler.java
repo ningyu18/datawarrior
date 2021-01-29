@@ -18,10 +18,9 @@
 
 package com.actelion.research.table.model;
 
+import javax.swing.*;
 import java.util.ArrayList;
 import java.util.TreeSet;
-
-import javax.swing.SwingUtilities;
 
 public class CompoundTableListHandler {
 	public static final int		EMPTY_LIST = 0;
@@ -38,11 +37,14 @@ public class CompoundTableListHandler {
 
     public static final int		LISTINDEX_NONE = -1;
     public static final int 	LISTINDEX_ANY = -2;
+	public static final int 	LISTINDEX_SELECTION = -3;
 
     public static final String	LISTNAME_NONE = "<none>";
     public static final String	LISTNAME_ANY = "<any>";
-	public static final String	LISTNAME_SELECTION = "<selection>";  // pseudo list used to store the selection in files
+	public static final String	LIST_CODE_SELECTION = "<selection>";	// list code used to store the selection in files
+	public static final String	LIST_NAME_SELECTION = "<Row Selection>";// pseudo list name shown to the user
 
+	public static final int		PSEUDO_COLUMN_SELECTION = -3;
 	private static final int	PSEUDO_COLUMN_FIRST_LIST = -4;
 	// a pseudo columnIndex = PSEUDO_COLUMN_FIRST_LIST - listIndex;
 
@@ -51,18 +53,29 @@ public class CompoundTableListHandler {
 	private ArrayList<CompoundTableListListener> mListener;
 
 	/**
-	 * Negative column indexes smaller than PSEUDO_COLUMN_FIRST_LIST encode and refer to
-	 * list indexes rather than compound table columns.
-	 * @param column (pseudo) column index that refers to a column, a list or nothing at all
+	 * Negative column indexes, e.g. PSEUDO_COLUMN_SELECTION may refer to the selection, to list indexes,
+	 * or to no column, rather than a real compound table column.
+	 * @param column (pseudo) column index that refers to a column, selection, a list or nothing at all
+	 * @return true if the column index refers to a list or to the selection
+	 */
+	public static boolean isListOrSelectionColumn(int column) {
+			// certain negative column numbers actually refer to a list rather than a column
+		return column == PSEUDO_COLUMN_SELECTION || isListColumn(column);
+		}
+
+	/**
+	 * Negative column indexes, e.g. PSEUDO_COLUMN_SELECTION may refer to the selection, to list indexes,
+	 * or to no column, rather than a real compound table column.
+	 * @param column (pseudo) column index that refers to a column, selection, a list or nothing at all
 	 * @return true if the column index refers to a list
 	 */
 	public static boolean isListColumn(int column) {
-			// certain negative column numbers actually refer to a list rather than a column
+		// certain negative column numbers actually refer to a list rather than a column
 		return (column <= PSEUDO_COLUMN_FIRST_LIST);
 		}
 
-	 public static int getListFromColumn(int column) {
-		return (column == -1) ? LISTINDEX_NONE : PSEUDO_COLUMN_FIRST_LIST - column;
+	public static int convertToListIndex(int column) {
+		return (column == PSEUDO_COLUMN_SELECTION) ? LISTINDEX_SELECTION : isListColumn(column) ? PSEUDO_COLUMN_FIRST_LIST - column : LISTINDEX_NONE;
 		}
 
 	public static int getColumnFromList(int list) {
@@ -87,41 +100,67 @@ public class CompoundTableListHandler {
 		return mListInfoList.size();
 		}
 
-	public String getListName(int i) {
-		return mListInfoList.get(i).name;
+	/**
+	 * @param listIndex valid list index, LISTNAME_NONE, LISTNAME_ANY, or LIST_NAME_SELECTION
+	 * @return list name from listIndex inlcuding pseudo list names
+	 */
+	public String getListName(int listIndex) {
+		return listIndex == LISTINDEX_NONE ? LISTNAME_NONE
+		 	 : listIndex == LISTINDEX_ANY ? LISTNAME_ANY
+		 	 : listIndex == LISTINDEX_SELECTION ? LIST_NAME_SELECTION
+			 : mListInfoList.get(listIndex).name;
+		}
+
+	/**
+	 * @param column pseudo column no
+	 * @return list index from pseudo column, LISTINDEX_SELECTION, or LISTINDEX_NONE, if list doesn't exist
+	 */
+	public int getListIndex(int column) {
+		int index = convertToListIndex(column);
+		return index != LISTINDEX_SELECTION && (index < 0 || index >= mListInfoList.size()) ? LISTINDEX_NONE : index;
 		}
 
 	public int getListIndex(String name) {
 		for (int i = 0; i< mListInfoList.size(); i++)
 			if (mListInfoList.get(i).name.equals(name))
 				return i;
-		return -1;
+
+		if (LIST_NAME_SELECTION.equals(name))
+			return LISTINDEX_SELECTION;
+
+		return LISTINDEX_NONE;
 		}
 
     public int getListFlagNo(String name) {
         for (ListInfo info: mListInfoList)
             if (info.name.equals(name))
                 return info.flagNo;
+
+        if (LIST_NAME_SELECTION.equals(name))
+        	return CompoundRecord.cFlagSelected;
+
         return 0;
         }
 
     /**
      * Returns the compound record flag that is associated with this list.
-     * @param index valid list index (>= 0)
+     * @param index valid list index (>= 0) or LISTINDEX_SELECTION
      * @return flagNo
      */
     public int getListFlagNo(int index) {
-        return mListInfoList.get(index).flagNo;
+        return (index == LISTINDEX_SELECTION) ? CompoundRecord.cFlagSelected : index < 0 ? -1 : mListInfoList.get(index).flagNo;
         }
 
     /**
      * Creates a mask containing one all flags of those lists specified in index
-     * @param index list index or LISTINDEX_NONE or LISTINDEX_ANY
+     * @param index list index or LISTINDEX_NONE, LISTINDEX_SELECTION or LISTINDEX_ANY
      * @return mask
      */
     public long getListMask(int index) {
         if (index == LISTINDEX_NONE)
             return 0;
+		if (index == LISTINDEX_SELECTION)
+			return CompoundRecord.cFlagMaskSelected;
         if (index == LISTINDEX_ANY) {
             long mask = 0;
             for (int i = 0; i< mListInfoList.size(); i++)
@@ -129,6 +168,20 @@ public class CompoundTableListHandler {
             return mask;
             }
 		return (1L << mListInfoList.get(index).flagNo);
+		}
+
+
+	/**
+	 * Creates an empty list with the given name. If the name is already taken, a modified name is used and returned
+	 * @param name
+	 * @return unique list name which may differ from the intended 'name'
+	 */
+	public String createList(String name) {
+		return createList(name, -1, EMPTY_LIST, -1, null,false);
+		}
+
+	public String createList(String name, int extentionColumn, int source, int keyColumn, TreeSet<String> keySet) {
+		return createList(name,extentionColumn,source,keyColumn,keySet,false);
 		}
 
     /**
@@ -143,9 +196,10 @@ public class CompoundTableListHandler {
      * @param source EMPTY_LIST,FROM_VISIBLE,FROM_HIDDEN, FROM_SELECTED or FROM_KEY_SET
      * @param keyColumn the column in which to look for keys that make a row a list member
      * @param keySet the set of keys, which if present makes a row a list member
+	 * @param keySetIsLowerCase if true, then keySet entries were converted to lower case for case insensitive matching
      * @return unique list name which may differ from the intended 'name'
      */
-	public String createList(String name, int extentionColumn, int source, int keyColumn, TreeSet<String> keySet) {
+	public String createList(String name, int extentionColumn, int source, int keyColumn, TreeSet<String> keySet, boolean keySetIsLowerCase) {
 		int flagNo = mTableModel.getUnusedRowFlag(false);
 		if (flagNo == -1)
 			return null;
@@ -178,6 +232,8 @@ public class CompoundTableListHandler {
     				case FROM_KEY_SET:
                         String[] items = mTableModel.separateEntries(mTableModel.encodeData(record, keyColumn));
                         for (String item:items) {
+                        	if (keySetIsLowerCase)
+                        		item = item.toLowerCase();
                         	if (keySet.contains(item)) {
 	                            record.setFlag(flagNo);
 	                            break;
@@ -208,6 +264,8 @@ public class CompoundTableListHandler {
     				case FROM_KEY_SET:
                         String[] items = mTableModel.separateEntries(mTableModel.encodeData(record, keyColumn));
                         for (String item:items) {
+							if (keySetIsLowerCase)
+								item = item.toLowerCase();
                         	if (keySet.contains(item)) {
                                 entry = mTableModel.separateEntries(mTableModel.encodeData(record, extentionColumn));
 	                            break;
@@ -385,7 +443,7 @@ public class CompoundTableListHandler {
 	public String getUniqueName(String name) {
 		while (name.equals(LISTNAME_NONE)
             || name.equals(LISTNAME_ANY)
-			|| name.equals(LISTNAME_SELECTION)
+			|| name.equals(LIST_NAME_SELECTION)
             || indexOf(name) != -1) {
 			int i = name.lastIndexOf('_');
 			if (i == -1)

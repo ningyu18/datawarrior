@@ -27,8 +27,6 @@ package org.jmol.g3d;
 import javax.vecmath.Point3f;
 import javax.vecmath.Point3i;
 
-import org.jmol.util.Logger;
-
 /**
  * renders triangles
  *<p>
@@ -409,9 +407,6 @@ class Triangle3D {
         Rgb16 north = rgb16sGouraud[iN];
         Rgb16 generated = gouraud[iRaster];
         if (north.getArgb() != generated.getArgb()) {
-          if (Logger.debugging) {
-            Logger.debug("north=" + north + "\ngenerated=" + generated);
-          }
           throw new NullPointerException();
         }
         /*

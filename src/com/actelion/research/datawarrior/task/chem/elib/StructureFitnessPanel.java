@@ -18,16 +18,6 @@
 
 package com.actelion.research.datawarrior.task.chem.elib;
 
-import info.clearthought.layout.TableLayout;
-
-import java.awt.Dimension;
-import java.awt.Frame;
-import java.awt.event.ActionEvent;
-import java.util.ArrayList;
-
-import javax.swing.JComboBox;
-import javax.swing.JLabel;
-
 import com.actelion.research.chem.Canonizer;
 import com.actelion.research.chem.IDCodeParser;
 import com.actelion.research.chem.StereoMolecule;
@@ -38,6 +28,13 @@ import com.actelion.research.gui.CompoundCollectionPane;
 import com.actelion.research.gui.DefaultCompoundCollectionModel;
 import com.actelion.research.gui.FileHelper;
 import com.actelion.research.gui.clipboard.ClipboardHandler;
+import com.actelion.research.gui.hidpi.HiDPIHelper;
+import info.clearthought.layout.TableLayout;
+
+import javax.swing.*;
+import java.awt.*;
+import java.awt.event.ActionEvent;
+import java.util.ArrayList;
 
 public class StructureFitnessPanel extends FitnessPanel {
 	private static final long serialVersionUID = 20140724L;
@@ -88,18 +85,20 @@ public class StructureFitnessPanel extends FitnessPanel {
 		mComboBoxRefStructures.addActionListener(this);
 		mComboBoxDescriptor = new JComboBox();
 		for (int i=0; i<DescriptorConstants.DESCRIPTOR_LIST.length; i++)
-			mComboBoxDescriptor.addItem(DescriptorConstants.DESCRIPTOR_LIST[i].shortName);
+			if (DescriptorConstants.DESCRIPTOR_LIST[i].type == DescriptorConstants.DESCRIPTOR_TYPE_MOLECULE)
+				mComboBoxDescriptor.addItem(DescriptorConstants.DESCRIPTOR_LIST[i].shortName);
 		mComboBoxDescriptor.setSelectedItem(DescriptorConstants.DESCRIPTOR_SkeletonSpheres.shortName);
 
 		DefaultCompoundCollectionModel.Molecule collectionModel = new DefaultCompoundCollectionModel.Molecule();
-		mStructurePane = new CompoundCollectionPane<StereoMolecule>(collectionModel, false);
+		mStructurePane = new CompoundCollectionPane<>(collectionModel, false);
 		mStructurePane.setEditable(true);
 		mStructurePane.setClipboardHandler(new ClipboardHandler());
 		mStructurePane.setShowValidationError(true);
-		mStructurePane.setPreferredSize(new Dimension(160, 80));
+		mStructurePane.setPreferredSize(new Dimension(HiDPIHelper.scale(160), HiDPIHelper.scale(80)));
 
-		double[][] cpsize = { {4, TableLayout.PREFERRED, TableLayout.PREFERRED, 8, TableLayout.PREFERRED, TableLayout.FILL, TableLayout.PREFERRED, 4},
-							  {4, TableLayout.PREFERRED, 4, TableLayout.PREFERRED, TableLayout.FILL, TableLayout.PREFERRED, 4} };
+		int gap = HiDPIHelper.scale(4);
+		double[][] cpsize = { {gap, TableLayout.PREFERRED, TableLayout.PREFERRED, 2*gap, TableLayout.PREFERRED, TableLayout.FILL, TableLayout.PREFERRED, gap},
+							  {gap, TableLayout.PREFERRED, gap, TableLayout.PREFERRED, TableLayout.FILL, TableLayout.PREFERRED, gap} };
 		setLayout(new TableLayout(cpsize));
 
 		add(new JLabel("Create molecules "), "1,1");

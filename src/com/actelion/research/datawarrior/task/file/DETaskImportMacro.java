@@ -56,7 +56,7 @@ public class DETaskImportMacro extends DETaskAbstractOpenFile {
 			ArrayList<DEMacro> macroList = (ArrayList<DEMacro>) mTableModel.getExtensionData(CompoundTableConstants.cExtensionNameMacroList);
 			DEMacro macro = new DEMacro(file, macroList);
 			if (macroList == null)
-				macroList = new ArrayList<DEMacro>();
+				macroList = new ArrayList<>();
 			macroList.add(macro);
 			mTableModel.setExtensionData(CompoundTableConstants.cExtensionNameMacroList, macroList);
 
@@ -71,13 +71,7 @@ public class DETaskImportMacro extends DETaskAbstractOpenFile {
 
 	private void selectMacroInEDT(final DEMacroEditor editor, final DEMacro macro) {
 		try {
-			SwingUtilities.invokeAndWait(new Runnable() {
-				@Override
-				public void run() {
-					editor.selectMacro(macro);
-				}
-			});
-		} catch (Exception e) {
-		}
+			SwingUtilities.invokeAndWait(() -> editor.selectMacro(macro) );
+		} catch (Exception e) {}
 	}
 }

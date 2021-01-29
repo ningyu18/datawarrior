@@ -57,6 +57,8 @@ public class DEDialogRecordMacro extends JDialog implements ActionListener {
 
 		mRadioButtonStartNew = new JRadioButton("Create new macro", true);
 		mRadioButtonExtendExisting = new JRadioButton("Extend Existing macro", false);
+		mRadioButtonStartNew.addActionListener(this);
+		mRadioButtonExtendExisting.addActionListener(this);
 		ButtonGroup bg = new ButtonGroup();
 		bg.add(mRadioButtonStartNew);
 		bg.add(mRadioButtonExtendExisting);
@@ -75,8 +77,8 @@ public class DEDialogRecordMacro extends JDialog implements ActionListener {
 			}
 		else {
 			mRadioButtonExtendExisting.setEnabled(false);
-			mComboBoxExistingMacro.setEnabled(false);
 			}
+		mComboBoxExistingMacro.setEnabled(false);
 		content.add(new JLabel("Existing Macro:"), "1,7");
 		content.add(mComboBoxExistingMacro, "3,7");
 
@@ -106,6 +108,14 @@ public class DEDialogRecordMacro extends JDialog implements ActionListener {
 
 	@Override
 	public void actionPerformed(ActionEvent e) {
+		if (e.getSource() == mRadioButtonStartNew) {
+			mComboBoxExistingMacro.setEnabled(!mRadioButtonStartNew.isSelected());
+			return;
+			}
+		if (e.getSource() == mRadioButtonExtendExisting) {
+			mComboBoxExistingMacro.setEnabled(mRadioButtonExtendExisting.isSelected());
+			return;
+			}
 		if (e.getActionCommand().equals("OK")) {
 			if (mRadioButtonStartNew.isSelected()) {
 				String macroName = mTextFieldMacroName.getText();

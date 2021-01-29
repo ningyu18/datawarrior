@@ -32,21 +32,11 @@ At any time any visible view can be maximized in size to cover the entire main v
 
 <br>
 <h3><a name="TableView"></a>The Table View</h3>
-<p>The <span class="keyword">Table View</span> is a mandatory view, which means that 
+<p>The <span class="keyword">Table View</span> is the only mandatory view, which means that
 it is automatically created when you open data from any source and it cannot be closed.
-It gives a spreadsheet like overview of the <span class="keyword">visible data</span>,
-i.e. the data that is not hidden by any filter. Text colors and background colors of individual columns
-can be set to reflect the cell values of this or another column. Color may also dynamically represent
-the similarity between molecule in this row and the molecule in the <span class="keyword">Current Row</span>.
-Column colors can be defined in the popup menu of the column's header area.</p>
-
-<p align="center"><img src="help/img/views/tableView.jpeg"></p>
-
-<p>The <span class="keyword">Table View</span> also permits editing the data. After
-double clicking into a cell a data type specific editor lets you edit the cell's content.
-After choosing <span class="menu">OK</span> the entire column is re-evaluated, because its
-perceived data type may have been changed as well. All filters and views are updated
-to reflect the change and to avoid conflicts that might arise from a changed data type.</p>
+It offers a spreadsheet like view on all <span class="keyword">visible rows</span>,
+i.e. those data rows that are not hidden by any filter. It also shows visible columns only.
+Columns may be inherently invisible or they may be temporarily defined to be invisible.</p>
 
 <p>Any column that is shown in the <span class="keyword">Table View</span> displays data
 of an associated column of the underlying data table. Typically, all cells of a column contain
@@ -57,11 +47,41 @@ column and hold supporting information for various purposes. Descriptors are use
 of chemical similarities or to accelerate sub-structure filterung. Atom coordinates or atom
 color information are used by the molecule depiction of 2D-structures or conformers.</p>
 
+<p><b>Cell coloring:</b> Typically, text and chemical structures are drawn in black or white, depending on the chosen look and feel.
+However, for any column the foreground drawing color as well as the cell's background colors can be chosen
+to reflect the data values of this or other columns' cell values. Colors may also represent
+the similarity of this row's molecule compared to the molecule in the <span class="keyword">Reference Row</span>.
+In this case colors change dynamically, whenever the <span class="keyword">Reference Row</span> is changed.
+Column color assignments can be done with <span class="menu">Set Text/Structure/Background Color...</span> from
+the popup menu that opens upon a right click on the respective column title.</p>
+
+<p align="center"><img src="help/img/views/tableView.png" width="680" height="370"></p>
+<p align="center"><i>Table View with buttons; 1: Scroll to Reference Row, 2: Expand Column Titles, 3: Column Filter</i></p>
+
+<p>Column content is automatically analysed whether it is numerical data, date values,
+categories, or just unstructed text.
+For numerical and date columns the covered data range is determined and for category data a list
+of found categories is maintained. What <span class="keyword">DataWarrior</span> can do with a column
+depends on the kind of data it contains. When you hover with the mouse over a column title,
+then a tooltip with the column's characteristics is shown.</p>
+
+<p align="center"><img src="help/img/views/tabletooltip.png" width="342" height="158"></p>
+<p align="center"><i>Tooltip over column title showing column characteristics</i></p>
+
 <p>Table cells may contain multiple values of a kind, e.g. multiple numerical values. These
 have to be, however, separated by "; " (semicolon and space) separated in multiple lines.
 Therefore, if a column contains category assignments, a row may belong to multiple categories.</p>
 
-<p>Numerical columns may be defined to show rounded values by selecting the
+<p><b>Note:</b> There are two popup menus to access table view related functionality.
+The popup menu that opens on the table view's header (i.e. title bar) give you acces to
+general view and table view related functionality as font size and column order. The second
+popup menu available from any column title mainly related to functionality concerning that
+respective column. However, there is a gray zone.</p>
+
+<p align="center"><img src="help/img/views/tablemenus.png" width="400" height="340"></p>
+<p align="center"><i>Popup menus available from table view header and column title</i></p>
+
+<p><b>Display mode:</b> Numerical columns may be defined to show rounded values by selecting the
 <span class="menu">Show Rounded Values...</span> option from the column header's popup menu.
 For columns containing multiple values in at least one cell,
 the <span class="menu">Show Multiple Values As...</span> option from the same popup menu
@@ -77,7 +97,7 @@ If <span class="menu">All Values</span> are shown, then DataWarrior automaticall
 a mean value in graphical views and filters. If the column is set to <span class="keyword">logarithmic mode</span>
 then geometric mean values are used.</p>
 
-<p>Selecting cells in the <span class="keyword">Table View</span> works in a 2-dimensional way,
+<p><b>Selecting cells</b> in the <span class="keyword">Table View</span> works in a 2-dimensional way,
 which means that by selecting cells you modify the selection of columns and rows. The latter
 affects all views, because the row selection is shared among all views.
 The column selection, however, is affecting the <span class="keyword">Table View</span> only.
@@ -91,11 +111,13 @@ selecting one cell first and clicking another cell while pressing the <span clas
 key. Doing the same thing with the <span class="menu">Ctrl</span> key (<span class="menu">Cmd</span> key on the Macintosh)
 allows to select disconnected cells, columns and rows.</p>
 
-<p>The <span class="keyword">Current Row</span> is indicated by a red border around it.
-In the <span class="keyword">Table View</span> you may change the <span class="keyword">Current Row</span>
-by clicking on the row number on the left hand side.</p>
+<p>The <span class="keyword">Reference Row</span> is indicated by a red border around it.
+In the <span class="keyword">Table View</span> you may change the <span class="keyword">Reference Row</span>
+by clicking on the row number on the left hand side. If the <span class="keyword">Reference Row</span>
+is not visible because it is scrolled out of the visible range, then the table can be scrolled to reveal
+the current <span class="keyword">Reference Row</span> by clicking the top left arrow-button.</p>
 
-<p>The rows of a <span class="keyword">Table View</span> may be sorted by clicking 
+<p><b>Sorting:</b> The rows of a <span class="keyword">Table View</span> may be sorted by clicking
 on the respective column header. Depending on the column's data content the sorting will
 be numerically, alphabetically or by the size of chemical structures. Where cells have the same content,
 the previous sort order is retained. The selection of rows and columns is unaffected by sorting.
@@ -108,15 +130,54 @@ now start at the top. If some rows are selected and the <span class="menu">Shift
 key is pressed during sorting, then all selected rows are moved to the top of the
 table; selected and unselected rows are still sorted independently.</p>
 
-<p>In DataWarrior a table cell may have associated detail information like pictures 
-or formatted text. Such detail information is not shown in the <span class="keyword">Table View</span>. 
-However, cells with detail content display a small number on a colored background
-in the right upper corner indicating how many detail objects are available.
-The detail content itself may be part of the <span class="keyword">DataWarrior</span> file
-or the file may contain only references to the details along with the information of how to access it.
+<p><b>Column order:</b> The order of visible columns in a table can easily be changed by dragging one
+column title horizontally to a new position. For files with hundreds of columns, however, a complete
+re-organization of the column order this way would be a very tiresome task. This can be done
+more efficiently using a dedicated dialog that opens when selecting <span class="menu">Change
+Column Order...</span> from the view header popup menu. The dialog allows to drag single or multiple
+column titles at once to a new position.</p>
+
+<p><b>Column grouping:</b> Another set of features, which is particularly useful for files with many
+columns is the ability to associate a subset of all column in a group. A column may be member of multiple
+groups. If groups are defined every group has an associated color, which is used to decorate its
+members' column titles. A column that is member of multiple groups, has a decoration in gray.</p>
+
+<p><b>Column visibility:</b> Another set of features, which is particularly useful for files with many
+columns is column hiding. The column title popup menu allows to reversibly hide individual or selected
+columns from the view. When column groups are defined then one can show only those columns that
+belong to a particular group.</p>
+
+<p><b>Column filtering:</b> Clicking the spy glass button at the top left of the table view opens
+a text field that can be used to define filter criteria, which immediately hide not matching columns.
+When the field contains a text string, then only columns are shown, whose title contains the query string.
+Multiple query strings can be given by separating them with commas (','). If the text string starts
+with 'regex:', then everything that follows is interpreted as a <a class="links" href="help/regex.html">
+regular expression</a> for full search flexibility.</p>
+
+<p><b>Editing:</b> The <span class="keyword">Table View</span> also permits editing the data. After
+double clicking into a cell a data type specific editor lets you edit the cell's content.
+After choosing <span class="menu">OK</span> the entire column is re-evaluated, because its
+perceived data type may have been changed after the edit. Filters and views may be updated
+to reflect the change and to avoid conflicts that might arise from a changed data type.</p>
+
+<p><b>Detail data:</b> In DataWarrior a table cell may have associated detail information like pictures
+or formatted text. Such detail information is not shown in the <span class="keyword">Table View</span>.
+Detail information is shown in the <span class="keyword">Detail View</span> in the lower right
+part of every <span class="keyword">DataWarrior</span> window. And it may be shown in form views.
+In the <span class="keyword">Table View</span> cells with detail content display a number
+on a small colored rectangle in the right upper corner indicating how many detail objects are available.
+The detail content itself may be either part of the <span class="keyword">DataWarrior</span> file
+or the file may only contain references to the details along with the information of how to access it.
 Green or brown backgrounds indicate file internal detail or referenced details, respectively.</p>
 
 <p align="center"><img src="help/img/views/detailMarkers.jpeg"></p>
+<p align="center"><i>Table with green detail markers indicating file-embedded detail text and pictures.</i></p>
+
+<p><b>Links:</b> Columns may also contain clickable web links. These may be valid complete URLs,
+or they may just contain keys or names of some kind and the column meta data tells
+<span class="keyword">DataWarrior</span>
+how to construct a full URL from it. Examples are the tables generated by a <span class="keyword">
+Wikipedia</span> retrieval or a <span class="keyword">Google Patents</span> search.</p>
 
 <br>
 
@@ -125,14 +186,22 @@ Green or brown backgrounds indicate file internal detail or referenced details, 
 <p>The graphical 2D- and 3D-Views incorporate plenty of functionality. Most important
 are the two or three axes that define the numerical/category space in which the data
 is shown. The <span class="menu">xyz</span> button on the the view's header area opens
-a popup menu for defining, which axis is used in which way. Here you can assign a data
-column to each axis and you may zoom into the numerical/category space of any axis.
+a popup menu for defining, which axis is used in which way. Here you may assign a data
+column to any of the axes by selecting it within the respective axis popup menu.
 Columns that don't contain numerical values, date values, category information or chemical descriptors
 cannot be assigned to axes and, therefore, don't appear in the column menus.
 Columns with incomplete data, i.e. with some empty cells, appear in red color indicating
 that some rows of the data may not be shown, if this column is selected. Non-numerical 
 category columns appear in blue color, while complete numerical or date columns
-are shown in black.</p>
+are shown in black.<br>
+You may use the double ended range sliders to zoom into the numerical or category space of any axis.
+This is done by dragging the slider's left or right thumb area towards the middle. Pressing the Ctrl-key
+while dragging the thumb increases the resolution by a factor of 20. You may also double click
+the thumb area to type-in an exact value. Finally, using the scroll wheel of a mouse or
+or a scroll gesture on a touch pad will also zoom into or out of the view. After zooming into a 2D-view,
+you may move the visible area by dragging the middle of the range slider. Alternatively, you may
+drag the view  itself with the mouse while pressing the Ctrl-key.
+</p>
 
 <p align="center"><img src="help/img/views/axesColumnMenu.jpeg"></p>
 
@@ -281,28 +350,34 @@ For an example see the image below.</p>
 
 <h3><a name="ConnectionLines"></a>Connection Lines</b></h3>
 
-If some numerical parameter of one or more objects change over time, to visualize
-some kind of logical connection between different objects or to diplay a graph, drawing
-lines between markers is a crucual funtionality. In <span class="keyword">DataWarrior</span>
-connection lines can be defined in the dialog accessible through
-<span class="menu">Set Connection Lines...</span>.
+Whenever the change of a numerical parameter over time shall be visualized, or when
+some logical connection between objects needs to be shown, or whenever a tree graph
+needs to be displayed, then drawing lines between markers is a crucial functionality.
+In <span class="keyword">DataWarrior</span> connection lines can be defined in the dialog
+accessible through <span class="menu">Set Connection Lines...</span>.
 
-<p align="center"><img src="help/img/views/connectionLineDialog.jpeg"></p>
+<p align="center"><img width=357 height=306 src="help/img/views/connectionLineDialog.jpeg"></p>
 
-<p><b>Group & connect by:</b> This setting defines whether to show connection lines and
-which category column is used to group markers. Every group of markers is then independently
-connected by lines. Select the option <span class="menu">&lt;Don't group, connect all&gt;</span>
-if you want all markers to be connected with one line.<br>
+<p><b>Group & connect by:</b> This setting defines whether to show connection lines and whether
+in this case a category column is used to group markers. If a category column is chosen, then
+all markers belonging to one category are independently connected by lines.
+Select the option <span class="menu">&lt;Don't group, connect all&gt;</span> if you want all markers
+to be connected with one line.<br>
 Some datasets, e.g. after an <span class="keyword">Activity Cliff Analysis</span>
 contain columns, with define links beween rows. Such row connecting columns also show up
-in this menu and cause, if selected, the links to be shown as connecting line.</p> 
+in this menu and cause, if selected, those links to be shown as connecting lines.</p>
 
-<p><b>Connection order by:</b> This menu defines in which order individual markers of
+<p><b>Connection order by:</b> This option defines in which order individual markers of
 the selected groups are connected. Typically, marker are simply connected from left to right,
 i.e. along the x-axis. Alternatively, any numerical column can be selected here to define
 the order.</p>
 
 <p><b>Relative line width:</b> This defines the width of the connection lines.</p>
+
+<p><b>Invert arrow direction:</b> If markers are connected by a column, which references key values
+of another column in a directional way, e.g. after creating an <span class="keyword">Evolutionary Library</span>,
+then connection lines are automatically drawn with arrows indicating the direction to the parent marker.
+This option allows to invert the arrow direction..</p>
 
 <p align="center"><img src="help/img/views/connectionLines.jpeg"></p>
 
@@ -310,23 +385,39 @@ the order.</p>
 <span class="menu">&lt;X-axis&gt;</span> was selected as the connection order. The marker size
 was reduced to zero to effectively hide any markers.</p>
 
-<p><b>Detail graph mode:</b> This mode can only be selected, if in <b>Group & connect by:</b>
-a column is selected that contains link among rows. If a detail graph mode is chosen,
-and if a <span class="keyword">Current Row</span> is selected, then the view changes
-from showing all visible markers to showing the <span class="keyword">Current Row</span>
-as root node a a detail graph. Connected to the root it shows n levels of neighbors,
-which are the rows being linked to from the root of from the previous level of root neighbors.
+<p><b>Detail tree mode:</b> This mode can only be selected, if in <b>Group & connect by:</b>
+a column is selected that contains references to other rows. If a detail tree mode is chosen,
+and if a <span class="keyword">Reference Row</span> is selected, then the view does not show
+markers being positioned by values of columns assigned to axes. Instead, it takes the
+<span class="keyword">Reference Row</span> as root node of a detail graph. Then it adds all
+directly connected rows as second layer of the graph. All not yet used rows connected to any
+second layer row are added as third layer and so forth until the defined number of graph levels is reached.
 The layout of the detail graph is either radial or a horizontal or vertical tree, depending
 on this menu's setting (see following image).</p>
 
 <p align="center"><img src="help/img/views/detailTrees.jpeg"></p>
 
-<p>If a detail graph mode is selected, one may toggle between seeing all markers and a specific
-detail tree by clicking either on a marker to make this the new root or by clicking into the empty
-space to see all markers again. If a view is meant to be a detail graph view only, one may
-deselect the checkbox beneath the detail graph mode menu.</p>
+<p><span class="menu">Show all markers if no tree root is chosen:</span> If a detail tree mode is selected,
+one may toggle between seeing all markers and a specific detail tree by clicking either on a marker to make
+this the new root or by clicking into the empty space to see all markers again. If a view is meant to show
+a detail graph view only and should never show marker assigned to selected axes, then one may
+deselect this checkbox.</p>
 
-<p><b>Detail graph levels:</b> This defines the maximum number of displayed neighbor levels around
+<p><b>If nodes get invisible, re-arrange and remove sub-branches:</b> Like all other views, a detail tree
+view shows markers only, if they are not hidden by filters or other views. If this option is not selected,
+then the graph is constructed once after the root is chosen and using all its visible and non-visible neighbours.
+When rows are hidden, they just disappear with their connection lines from the view. If, however, this option
+is selected, then the layout of the graph is freshly created, whenever rows are hidden or un-hidden, taking only
+those neighbours into consideration that are currently visible. This way marker positions change with visibility,
+but the avaliable space is evenly used.</p>
+
+<p><b>Invert tree line directions:</b> If markers are connected by a column, which references key values
+of another column in a directional way, e.g. after creating an <span class="keyword">Evolutionary Library</span>,
+then a detail graph layer is compiled by taking all rows referenced by the previous layer's rows.
+If this option is chosen, then the next layer is always build from rows referencing the current layer's rows.
+This effectively inverts the direction of reference.</p>
+
+<p><b>Detail tree layers:</b> This defines the maximum number of displayed neighbor levels around
 or beneath the root row.</p>
 <br>
 
@@ -363,7 +454,7 @@ marker shapes and marker sizes cannot be used with bars, because there are no di
 
 <p>If a column contains numerical values, e.g. molecular weights of some molecules, and
 if a histogram of the distribution of this value shall be shown, then a category column
-must be created artificially with a process called <a href="help/analysis.html#Binning">
+must be created artificially with a process called <a href="help/data.html#Binning">
 <span class="keyword">Binning</span></a>.</p>
 
 <p>Pie charts can be configured analogously to bar charts and can represent the same kind
@@ -494,7 +585,7 @@ reflect the settings defined in the <span class="keyword">Table View</span>.</p>
 or directly into the <span class="keyword">Structure Editor</span>.</p>
 
 <br>
-<p align="center">Continue with <a href="help/analysis.html">Analysing Data</a>...</p>
+<p align="center">Continue with <a href="help/data.html">Analysing Data</a>...</p>
 <br>
 </body>
 </html>

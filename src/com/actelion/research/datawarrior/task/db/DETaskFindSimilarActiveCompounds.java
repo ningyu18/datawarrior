@@ -21,7 +21,7 @@ package com.actelion.research.datawarrior.task.db;
 import com.actelion.research.chem.StereoMolecule;
 import com.actelion.research.chem.io.CompoundTableConstants;
 import com.actelion.research.datawarrior.DEFrame;
-import com.actelion.research.datawarrior.task.chem.DETaskAbstractAddChemProperty;
+import com.actelion.research.datawarrior.task.chem.DETaskAbstractFromStructure;
 import com.actelion.research.table.model.CompoundRecord;
 import com.actelion.research.table.model.CompoundTableModel;
 import com.actelion.research.util.ByteArrayComparator;
@@ -30,7 +30,7 @@ import org.openmolecules.chembl.ChemblServerConstants;
 import java.util.*;
 
 
-public class DETaskFindSimilarActiveCompounds extends DETaskAbstractAddChemProperty implements ChemblServerConstants,Runnable {
+public class DETaskFindSimilarActiveCompounds extends DETaskAbstractFromStructure implements ChemblServerConstants,Runnable {
 	public static final String TASK_NAME = "Find Similar Compounds In ChEMBL Actives";
 
 	private static final int MAX_COMPOUNDS = 10000;
@@ -72,7 +72,7 @@ public class DETaskFindSimilarActiveCompounds extends DETaskAbstractAddChemPrope
 
 	@Override
     protected boolean preprocessRows(Properties configuration) {
-		int idcodeColumn = getStructureColumn();
+		int idcodeColumn = getChemistryColumn();
 		TreeSet<byte[]> idcodeSet = new TreeSet<byte[]>(new ByteArrayComparator());
 		for (int row=0; row<getTableModel().getTotalRowCount(); row++) {
 			byte[] idcode = (byte[])getTableModel().getTotalRecord(row).getData(idcodeColumn);
@@ -106,7 +106,7 @@ public class DETaskFindSimilarActiveCompounds extends DETaskAbstractAddChemPrope
 			for (int i=0; i<sublistLength; i++)
 				sublist[i] = idcodeList[sublistIndex+i];
 			
-		    byte[][][] resultTable = new ChemblCommunicator(this).findActiveCompoundsSkelSpheres(sublist);
+		    byte[][][] resultTable = new ChemblCommunicator(this, "datawarrior").findActiveCompoundsSkelSpheres(sublist);
 			if (resultTable != null && resultTable.length != 0) {
 				for (byte[][] row:resultTable) {
 					byte[] idcode = row[FIND_ACTIVES_RESULT_COLUMN_QUERY_IDCODE];
@@ -140,7 +140,7 @@ public class DETaskFindSimilarActiveCompounds extends DETaskAbstractAddChemPrope
 
 	@Override
 	public void processRow(int row, int firstNewColumn, StereoMolecule containerMol) throws Exception {
-		byte[] idcode = (byte[])getTableModel().getTotalRecord(row).getData(getStructureColumn());
+		byte[] idcode = (byte[])getTableModel().getTotalRecord(row).getData(getChemistryColumn());
 		if (idcode != null) {
 			byte[][][] resultList = mResultMap.get(idcode);
 			if (resultList != null) {

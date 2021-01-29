@@ -18,10 +18,6 @@
 
 package com.actelion.research.datawarrior.task.file;
 
-import java.io.File;
-import java.util.ArrayList;
-import java.util.Properties;
-
 import com.actelion.research.chem.io.CompoundTableConstants;
 import com.actelion.research.datawarrior.DEFrame;
 import com.actelion.research.datawarrior.DERuntimeProperties;
@@ -32,6 +28,9 @@ import com.actelion.research.gui.FileHelper;
 import com.actelion.research.table.CompoundTableLoader;
 
 import javax.swing.*;
+import java.io.File;
+import java.util.ArrayList;
+import java.util.Properties;
 
 public class DETaskOpenFile extends DETaskAbstractOpenFile {
 	public static final String TASK_NAME = "Open File";
@@ -68,6 +67,7 @@ public class DETaskOpenFile extends DETaskAbstractOpenFile {
 				}
 			};
 		loader.addDataDependentPropertyReader(CustomLabelPositionWriter.PROPERTY_NAME, new CustomLabelPositionReader(emptyFrame));
+		loader.addDataDependentPropertyReader(CardViewPositionWriter.PROPERTY_NAME, new CardViewPositionReader(emptyFrame));
 		loader.readFile(file, new DERuntimeProperties(emptyFrame.getMainFrame()), filetype);
 		return emptyFrame;
 		}

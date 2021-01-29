@@ -18,24 +18,17 @@
 
 package com.actelion.research.datawarrior.task.view;
 
-import com.actelion.research.gui.hidpi.HiDPIHelper;
-import info.clearthought.layout.TableLayout;
-
-import java.awt.Dimension;
-import java.awt.Frame;
-import java.util.Properties;
-
-import javax.swing.JComboBox;
-import javax.swing.JComponent;
-import javax.swing.JLabel;
-import javax.swing.JPanel;
-import javax.swing.JSlider;
-
 import com.actelion.research.datawarrior.DEMainPane;
+import com.actelion.research.gui.hidpi.HiDPIHelper;
 import com.actelion.research.table.model.CompoundTableModel;
 import com.actelion.research.table.view.CompoundTableView;
 import com.actelion.research.table.view.JVisualization;
 import com.actelion.research.table.view.VisualizationPanel;
+import info.clearthought.layout.TableLayout;
+
+import javax.swing.*;
+import java.awt.*;
+import java.util.Properties;
 
 /**
  * Title:
@@ -75,7 +68,12 @@ public class DETaskSeparateCases extends DETaskAbstractSetViewOptions {
 		}
 
 	@Override
-	public JComponent createInnerDialogContent() {
+	public OTHER_VIEWS getOtherViewMode() {
+		return OTHER_VIEWS.GRAPHICAL2D;
+		}
+
+	@Override
+	public JComponent createViewOptionContent() {
 		double[][] size = { {8, TableLayout.PREFERRED, 8, TableLayout.PREFERRED, 8},
 							{8, TableLayout.PREFERRED, 8, TableLayout.PREFERRED, 8} };
 
@@ -138,9 +136,10 @@ public class DETaskSeparateCases extends DETaskAbstractSetViewOptions {
 		}
 
 	@Override
-	public void addViewConfiguration(Properties configuration) {
+	public void addViewConfiguration(CompoundTableView view, Properties configuration) {
+		JVisualization visualization = ((VisualizationPanel)view).getVisualization();
 		configuration.setProperty(PROPERTY_COLUMN, ""+getTableModel().getColumnTitleNoAlias(getInteractiveVisualization().getCaseSeparationColumn()));
-		configuration.setProperty(PROPERTY_AMOUNT, ""+ getInteractiveVisualization().getCaseSeparationValue());
+		configuration.setProperty(PROPERTY_AMOUNT, ""+ visualization.getCaseSeparationValue());
 		}
 
 	@Override
@@ -170,6 +169,9 @@ public class DETaskSeparateCases extends DETaskAbstractSetViewOptions {
 
 	@Override
 	public void applyConfiguration(CompoundTableView view, Properties configuration, boolean isAdjusting) {
+		if (!(view instanceof VisualizationPanel))
+			return;
+
 		int column = getTableModel().findColumn(configuration.getProperty(PROPERTY_COLUMN, CompoundTableModel.cColumnUnassignedCode));
 
 		float amount = 0.5f;

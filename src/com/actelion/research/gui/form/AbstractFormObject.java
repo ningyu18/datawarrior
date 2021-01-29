@@ -31,12 +31,14 @@ public abstract class AbstractFormObject {
 
 	private ArrayList<FormObjectListener> mListener;
 	private String				mKey;
+	private int                 mRelativeHeight;
 
 	public AbstractFormObject(String key, String type) {
 			// overwrite to set mComponent
 		mKey = key;
 		mType = type;
-		mListener = new ArrayList<FormObjectListener>();
+		mListener = new ArrayList<>();
+		mRelativeHeight = -1;
 		}
 
 	public JComponent getComponent() {
@@ -130,8 +132,16 @@ public abstract class AbstractFormObject {
 			mBorder.setEditMode(b);
 		}
 
+	public int getRelativeHeight() {
+		return mRelativeHeight != -1 ? mRelativeHeight : getDefaultRelativeHeight();
+		}
+
+	public void setRelativeHeight(int h) {
+		mRelativeHeight = h;
+		}
+
 	public abstract Object getData();
 	public abstract void setData(Object data);
-	public abstract int getRelativeHeight();
+	public abstract int getDefaultRelativeHeight();
 	public abstract void printContent(Graphics2D g2D, Rectangle2D.Double r, float scale, Object data, boolean isMultipleRows);
 	}

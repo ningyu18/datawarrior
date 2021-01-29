@@ -23,7 +23,9 @@ import com.actelion.research.table.model.CompoundTableListener;
 import com.actelion.research.table.model.CompoundTableModel;
 
 public interface CompoundTableView extends CompoundTableListener {
+	public void setViewSelectionHelper(ViewSelectionHelper l);
 	public void listChanged(CompoundTableListEvent e);
 	public void cleanup();
+	public boolean copyViewContent();
 	public CompoundTableModel getTableModel();
 	}

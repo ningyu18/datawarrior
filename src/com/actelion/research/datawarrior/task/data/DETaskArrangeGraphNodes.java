@@ -18,27 +18,6 @@
 
 package com.actelion.research.datawarrior.task.data;
 
-import info.clearthought.layout.TableLayout;
-
-import java.awt.Color;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
-import java.util.Arrays;
-import java.util.Comparator;
-import java.util.Properties;
-import java.util.TreeMap;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicIntegerArray;
-
-import javax.swing.JCheckBox;
-import javax.swing.JComboBox;
-import javax.swing.JLabel;
-import javax.swing.JPanel;
-import javax.swing.SwingUtilities;
-
 import com.actelion.research.chem.io.CompoundTableConstants;
 import com.actelion.research.datawarrior.DEFrame;
 import com.actelion.research.datawarrior.DEMainPane;
@@ -50,6 +29,21 @@ import com.actelion.research.table.view.JVisualization2D;
 import com.actelion.research.table.view.VisualizationColor;
 import com.actelion.research.table.view.VisualizationPanel2D;
 import com.actelion.research.util.SortedList;
+import info.clearthought.layout.TableLayout;
+
+import javax.swing.*;
+import java.awt.*;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.Properties;
+import java.util.TreeMap;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicIntegerArray;
 
 
 public class DETaskArrangeGraphNodes extends ConfigurableTask implements ActionListener,Runnable {
@@ -509,7 +503,7 @@ public class DETaskArrangeGraphNodes extends ConfigurableTask implements ActionL
 						VisualizationPanel2D vpanel1 = mainPane.add2DView(title, null);
 						vpanel1.setAxisColumnName(0, mSourceTableModel.getColumnTitle(xColumn));
 						vpanel1.setAxisColumnName(1, mSourceTableModel.getColumnTitle(yColumn));
-						vpanel1.getVisualization().setMarkerSize(20f/(float)Math.sqrt(rowCount), false);
+						vpanel1.getVisualization().setMarkerSize(12f/(float)Math.sqrt(rowCount), false);
 						vpanel1.getVisualization().setScaleMode(JVisualization.cScaleModeHidden);
 						vpanel1.getVisualization().setGridMode(JVisualization.cGridModeHidden);
 						((JVisualization2D)vpanel1.getVisualization()).setPreferredChartType(JVisualization.cChartTypeScatterPlot, -1, -1);
@@ -524,9 +518,7 @@ public class DETaskArrangeGraphNodes extends ConfigurableTask implements ActionL
 		
 						if (referencingColumn != -1) {
 							vpanel1.getVisualization().setConnectionColumns(referencingColumn, -1);
-							vpanel1.getVisualization().setConnectionLineWidth(Math.min(50f/(float)Math.sqrt(rowCount),
-																			  Math.max(5f/(float)Math.sqrt(rowCount),
-																					  2500f/rowCount)), false);
+							vpanel1.getVisualization().setConnectionLineWidth(Math.max(0.5f, 10f/(float)Math.sqrt(rowCount)), false);
 							}
 
 						// create a tree view panel
@@ -540,7 +532,7 @@ public class DETaskArrangeGraphNodes extends ConfigurableTask implements ActionL
 						vpanel2.getVisualization().setFontSize(2.5f, false);
 						vpanel2.getVisualization().setConnectionColumns(referencingColumn, -1);
 						vpanel2.getVisualization().setConnectionLineWidth(2f, false);
-						vpanel2.getVisualization().setTreeViewMode(JVisualization.cTreeViewModeVTree, 5, false, false, false);
+						vpanel2.getVisualization().setTreeViewMode(JVisualization.cTreeViewModeLeftRoot, 5, false, false, false);
 						}
 					} );
 				}

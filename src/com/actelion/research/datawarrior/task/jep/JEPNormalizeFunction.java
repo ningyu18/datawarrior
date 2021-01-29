@@ -1,5 +1,6 @@
 package com.actelion.research.datawarrior.task.jep;
 
+import com.actelion.research.datawarrior.task.data.DETaskAddCalculatedValues;
 import com.actelion.research.table.model.CompoundTableModel;
 import com.actelion.research.util.ByteArrayComparator;
 import org.nfunk.jep.ParseException;
@@ -9,14 +10,16 @@ import java.util.Stack;
 import java.util.TreeMap;
 
 public class JEPNormalizeFunction extends PostfixMathCommand {
+	private DETaskAddCalculatedValues mParentTask;
 	private CompoundTableModel mTableModel;
 	private TreeMap<Integer,double[]> mColumnToSkalingParamMap;
 
 	/**
 	 * Constructor
 	 */
-	public JEPNormalizeFunction(CompoundTableModel tableModel) {
+	public JEPNormalizeFunction(CompoundTableModel tableModel, DETaskAddCalculatedValues parentTask) {
 		super();
+		mParentTask = parentTask;
 		mTableModel = tableModel;
 		numberOfParameters = 2;
 		}
@@ -73,31 +76,24 @@ public class JEPNormalizeFunction extends PostfixMathCommand {
 		checkStack(inStack);
 
 		// get the parameters from the stack
-		Object param2 = inStack.pop();
-		Object param1 = inStack.pop();
+		Object param = inStack.pop();
+		if (!(param instanceof String))
+			throw new ParseException("Parameter type is not 'String'");
 
-		if (param2 instanceof String) {
-			int column = mTableModel.findColumn((String)param2);
-			if (column == -1)
-				throw new ParseException("Column '"+param2+"' not found.");
+		int column = mTableModel.findColumn((String)param);
+		if (column == -1)
+			throw new ParseException("Column '"+param+"' not found.");
+		if (!mTableModel.isColumnTypeDouble(column))
+			throw new ParseException("Column '"+param+"' is not numerical.");
 
-			if (param1 instanceof Double) {
-				double value = ((Double)param1).doubleValue();
-				if (Double.isNaN(value)) {
-					inStack.push(new Double(Double.NaN));
-					}
-				else {
-					double[] params = getSkalingParams(column);
-					value = (value - params[0]) / params[1];
-					inStack.push(new Double(value));
-					}
-				}
-			else {
-				throw new ParseException("1st parameter type is not numerical");
-				}
+		double value = mTableModel.getTotalDoubleAt(mParentTask.getCurrentRow(), column);
+		if (Double.isNaN(value)) {
+			inStack.push(new Double(Double.NaN));
 			}
 		else {
-			throw new ParseException("2nd parameter type is not 'String'");
+			double[] params = getSkalingParams(column);
+			value = (value - params[0]) / params[1];
+			inStack.push(new Double(value));
 			}
 		}
 	}

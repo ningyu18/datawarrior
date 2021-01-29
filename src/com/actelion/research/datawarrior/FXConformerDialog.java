@@ -18,22 +18,21 @@
 
 package com.actelion.research.datawarrior;
 
+import com.actelion.research.calc.Matrix;
+import com.actelion.research.calc.SingularValueDecomposition;
 import com.actelion.research.chem.*;
-import com.actelion.research.chem.calculator.SuperposeCalculator;
-import com.actelion.research.chem.calculator.TorsionCalculator;
 import com.actelion.research.chem.conf.Conformer;
-import com.actelion.research.chem.conf.TorsionDB;
 import com.actelion.research.chem.conf.TorsionDescriptor;
-import com.actelion.research.forcefield.ForceField;
-import com.actelion.research.forcefield.optimizer.EvaluableConformation;
-import com.actelion.research.forcefield.optimizer.EvaluableForceField;
-import com.actelion.research.forcefield.optimizer.OptimizerLBFGS;
+import com.actelion.research.chem.conf.TorsionDescriptorHelper;
+import com.actelion.research.chem.forcefield.mmff.ForceFieldMMFF94;
+import com.actelion.research.datawarrior.task.chem.DETaskAdd3DCoordinates;
 import com.actelion.research.gui.FileHelper;
 import com.actelion.research.gui.JDrawDialog;
+import com.actelion.research.gui.form.JFXConformerPanel;
 import com.actelion.research.gui.hidpi.HiDPIHelper;
-import com.actelion.research.gui.viewer2d.MoleculeViewer;
 import com.actelion.research.util.DoubleFormat;
 import info.clearthought.layout.TableLayout;
+import javafx.geometry.Point3D;
 import javafx.scene.paint.Color;
 import org.openmolecules.chem.conf.gen.ConformerGenerator;
 import org.openmolecules.chem.conf.so.ConformationSelfOrganizer;
@@ -42,8 +41,6 @@ import org.openmolecules.chem.conf.so.SelfOrganizedConformer;
 import javax.swing.*;
 import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
-import javax.vecmath.Matrix4d;
-import javax.vecmath.Point3d;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
@@ -52,8 +49,8 @@ import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
-import java.util.List;
 
 public class FXConformerDialog extends JDialog implements ActionListener,ChangeListener {
 	private static final long serialVersionUID = 0x20130605;
@@ -61,11 +58,10 @@ public class FXConformerDialog extends JDialog implements ActionListener,ChangeL
 	private static final String DATAWARRIOR_DEBUG_FILE = "/home/thomas/data/debug/conformationGeneratorConformers.dwar";
 	private static final String[] OPTION_COUNT = { "one conformer","2 conformers","4 conformers","8 conformers","16 conformers","32 conformers","64 conformers","128 conformers" };
 
-	private static final String[] MINIMIZE_TEXT = { "MMFF94s+", "MMFF94s", "Idorsia-FF", "Don't minimize" };
+	private static final String[] MINIMIZE_TEXT = { "MMFF94s+", "MMFF94s", "Don't minimize" };
 	private static final int MINIMIZE_MMFFSPLUS = 0;
 	private static final int MINIMIZE_MMFFS = 1;
-	private static final int MINIMIZE_IDFF = 2;
-	private static final int MINIMIZE_NONE = 3;
+	private static final int MINIMIZE_NONE = 2;
 	private static final int DEFAULT_MINIMIZATION = MINIMIZE_MMFFSPLUS;
 
 	private static final String[] SURFACE_TEXT = { "None", "Wires", "Filled" };
@@ -85,13 +81,12 @@ public class FXConformerDialog extends JDialog implements ActionListener,ChangeL
 	private static final String NAME_ENERGY_SEPARATOR = ", ";
 
 	private static final String[] ALGO_TEXT = { "Random, low energy bias", "Pure random", "Adaptive collision avoidance", "Systematic, low energy bias", "Self-organized" };
-	private static final String ALGO_TEXT_ACTELION3D = "Actelion3D";
 
 	private static final int DEFAULT_COUNT = 16;
 
 	private StereoMolecule		mMol;
 	private JComboBox			mComboBoxCount, mComboBoxAlgo, mComboBoxMinimization,mComboBoxSurface;
-	private FXConformerPanel	mConformationPanel;
+	private JFXConformerPanel	mConformationPanel;
 	private JSlider             mSliderSplitting;
 	private int					mPreviousAlgo,mPreviousMinimization;
 	private int[]               mSuperposeAtoms;
@@ -102,13 +97,14 @@ public class FXConformerDialog extends JDialog implements ActionListener,ChangeL
 		mMol = new StereoMolecule(mol);
 		mMol.stripSmallFragments(true);
 
-		mConformationPanel = new FXConformerPanel();
+		mConformationPanel = new JFXConformerPanel(false, true, false);
 
-		double[][] size = { {8, TableLayout.PREFERRED, 8, TableLayout.PREFERRED, 8, TableLayout.PREFERRED,
-				8, TableLayout.PREFERRED, TableLayout.FILL, TableLayout.PREFERRED, TableLayout.PREFERRED, 8,
-				TableLayout.PREFERRED, TableLayout.PREFERRED, 8, TableLayout.PREFERRED, TableLayout.FILL,
-				TableLayout.PREFERRED, 8},
-							{8, TableLayout.PREFERRED, 8} };
+		int gap = HiDPIHelper.scale(8);
+		double[][] size = { {gap, TableLayout.PREFERRED, gap, TableLayout.PREFERRED, gap, TableLayout.PREFERRED,
+				gap, TableLayout.PREFERRED, TableLayout.FILL, TableLayout.PREFERRED, TableLayout.PREFERRED, gap,
+				TableLayout.PREFERRED, TableLayout.PREFERRED, gap, TableLayout.PREFERRED, TableLayout.FILL,
+				TableLayout.PREFERRED, gap},
+							{gap, TableLayout.PREFERRED, gap} };
 		JPanel buttonPanel = new JPanel();
 		buttonPanel.setLayout(new TableLayout(size));
 
@@ -117,8 +113,6 @@ public class FXConformerDialog extends JDialog implements ActionListener,ChangeL
 		buttonPanel.add(mComboBoxCount, "1,1");
 
 		mComboBoxAlgo = new JComboBox(ALGO_TEXT);
-		if (System.getProperty("development") != null)
-			mComboBoxAlgo.addItem(ALGO_TEXT_ACTELION3D);
 		mComboBoxAlgo.setSelectedIndex(DEFAULT_ALGO);
 		buttonPanel.add(mComboBoxAlgo, "3,1");
 
@@ -195,38 +189,40 @@ public class FXConformerDialog extends JDialog implements ActionListener,ChangeL
 			JDrawDialog dd = new JDrawDialog((Frame)getOwner(), new StereoMolecule(mMol), "Select Atoms to be Superposed...");
 			dd.setVisible(true);
 
-			mMol = dd.getStructure();
-			String idcode2 = new Canonizer(mMol).getIDCode();
-			boolean isPreviousStructure = idcode1.equals(idcode2);
+			if (!dd.isCancelled()) {
+				mMol = dd.getStructure();
+				String idcode2 = new Canonizer(mMol).getIDCode();
+				boolean isPreviousStructure = idcode1.equals(idcode2);
 
-			// if we have selected atoms, we use them as core atoms
-			int count = 0;
-			for (int atom = 0; atom< mMol.getAllAtoms(); atom++)
-				if (mMol.isSelectedAtom(atom))
-					count++;
-			if (count != 0) {
-				mSuperposeAtoms = new int[count];
-				int index = 0;
+				// if we have selected atoms, we use them as core atoms
+				int count = 0;
 				for (int atom = 0; atom< mMol.getAllAtoms(); atom++)
 					if (mMol.isSelectedAtom(atom))
-						mSuperposeAtoms[index++] = atom;
-				}
-			else if (!isPreviousStructure) {
-				mSuperposeAtoms = null; // for a new structure we need also new superpose atoms
-				}
+						count++;
+				if (count != 0) {
+					mSuperposeAtoms = new int[count];
+					int index = 0;
+					for (int atom = 0; atom< mMol.getAllAtoms(); atom++)
+						if (mMol.isSelectedAtom(atom))
+							mSuperposeAtoms[index++] = atom;
+					}
+				else if (!isPreviousStructure) {
+					mSuperposeAtoms = null; // for a new structure we need also new superpose atoms
+					}
 
-			if (isPreviousStructure) {  // remove, superpose and add existing conformers
-				ArrayList<Conformer> conformerList = mConformationPanel.getConformers();
-				mConformationPanel.clear();
-				mSliderSplitting.setValue(0);
-				mComboBoxSurface.setSelectedIndex(0);
-				addConformersToPanel(conformerList);
-				}
-			else {
-				int algo = mComboBoxAlgo.getSelectedIndex();
-				int minimization = mComboBoxMinimization.getSelectedIndex();
-				count = (1 << mComboBoxCount.getSelectedIndex());
-				generateConformers(algo, minimization, count);
+				if (isPreviousStructure) {  // remove, superpose and add existing conformers
+					ArrayList<StereoMolecule> conformerList = mConformationPanel.getConformers();
+					mConformationPanel.clear();
+					mSliderSplitting.setValue(0);
+					mComboBoxSurface.setSelectedIndex(0);
+					addConformersToPanel(conformerList);
+					}
+				else {
+					int algo = mComboBoxAlgo.getSelectedIndex();
+					int minimization = mComboBoxMinimization.getSelectedIndex();
+					count = (1 << mComboBoxCount.getSelectedIndex());
+					generateConformers(algo, minimization, count);
+					}
 				}
 
 			return;
@@ -282,24 +278,22 @@ public class FXConformerDialog extends JDialog implements ActionListener,ChangeL
 
 		ConformerGenerator cg = null;
 		ConformationSelfOrganizer cs = null;
-		List<FFMolecule> isomerList = null;
-		int[] rotatableBond = null;
-		ArrayList<TorsionDescriptor> torsionDescriptorList = null;
 
-		ArrayList<Conformer> conformerList = new ArrayList<Conformer>();
+		ArrayList<StereoMolecule> conformerList = new ArrayList<StereoMolecule>();
 
 		int maxTorsionSets = (int) Math.max(2 * maxConformers, (1000 * Math.sqrt(maxConformers)));
 
 		if (minimization == MINIMIZE_MMFFSPLUS)
-			mmff.ForceField.initialize(mmff.ForceField.MMFF94SPLUS);
+			ForceFieldMMFF94.initialize(ForceFieldMMFF94.MMFF94SPLUS);
 		if (minimization == MINIMIZE_MMFFS)
-			mmff.ForceField.initialize(mmff.ForceField.MMFF94S);
+			ForceFieldMMFF94.initialize(ForceFieldMMFF94.MMFF94S);
 
 		StereoMolecule mol = new StereoMolecule(mMol);
+		TorsionDescriptorHelper torsionHelper = new TorsionDescriptorHelper(mol);
+		ArrayList<TorsionDescriptor> torsionDescriptorList = new ArrayList<TorsionDescriptor>();
 
 		for (int i = 0; i < maxConformers; i++) {
 			Conformer conformer = null;
-			FFMolecule ffmol = null;
 			String message = null;
 
 			switch (algo) {
@@ -339,65 +333,34 @@ public class FXConformerDialog extends JDialog implements ActionListener,ChangeL
 					}
 					conformer = cs.getNextConformer();
 					break;
-				case ACTELION3D:
-					try {
-						if (isomerList == null) {
-							ConformerGenerator.addHydrogenAtoms(mol);
-							isomerList = TorsionCalculator.createAllConformations(new FFMolecule(mol));
-						}
-						if (isomerList.size() > i)
-							ffmol = isomerList.get(i);
-					} catch (Exception e) {
-						e.printStackTrace();
-					}
-					break;
 			}
 
-			if (conformer == null && ffmol == null)
+			if (conformer == null)
 				break;
 
 			// if we minimize, we check again, whether the minimized conformer is a very similar sibling in the list
-			boolean isRedundantConformer = false;
 			MinimizationResult result = null;
 
 			if (minimization == MINIMIZE_NONE) {
-				if (ffmol != null) {
-					ffmol.copyCoordinatesTo(mol);
-					conformer = new Conformer(mol);
-					}
 				if (cg != null) {
 					message = DoubleFormat.toString(cg.getPreviousConformerContribution() * 100, 3) + "%";
 					conformer.setEnergy(cg.getPreviousConformerContribution());
+					conformer.copyTo(mol);
 				} else if (cs != null) {
 					message = " strain:" + DoubleFormat.toString(((SelfOrganizedConformer) conformer).getTotalStrain(), 3);
 					conformer.setEnergy(((SelfOrganizedConformer) conformer).getTotalStrain());
+					conformer.copyTo(mol);
 				}
 			} else {
 				result = new MinimizationResult();
 
 				if (minimization == MINIMIZE_MMFFSPLUS) {
-					if (ffmol != null)
-						ffmol.copyCoordinatesTo(mol);
-					else
-						conformer.copyTo(mol);
-
-					minimizeMMFF(mol, result, mmff.ForceField.MMFF94SPLUS);
+					conformer.copyTo(mol);
+					minimizeMMFF(mol, result, ForceFieldMMFF94.MMFF94SPLUS);
 				}
 				else if (minimization == MINIMIZE_MMFFS) {
-					if (ffmol != null)
-						ffmol.copyCoordinatesTo(mol);
-					else
-						conformer.copyTo(mol);
-
-					minimizeMMFF(mol, result, mmff.ForceField.MMFF94S);
-				} else {  // Idorsia FF
-					if (ffmol == null) {
-						conformer.copyTo(mol);
-						ffmol = new FFMolecule(mol);
-					}
-
-					minimizeIDFF(ffmol, result);
-					ffmol.copyCoordinatesTo(mol);
+					conformer.copyTo(mol);
+					minimizeMMFF(mol, result, ForceFieldMMFF94.MMFF94S);
 				}
 
 				if (conformer == null)
@@ -407,33 +370,22 @@ public class FXConformerDialog extends JDialog implements ActionListener,ChangeL
 
 				conformer.setEnergy(result.energy);
 				message = (result.errorMessage != null) ? result.errorMessage : "E:" + DoubleFormat.toString(result.energy, 3) + " kcal/mol";
-
-				if (rotatableBond == null)
-					rotatableBond = TorsionDescriptor.getRotatableBonds(mol);
-				if (torsionDescriptorList == null)
-					torsionDescriptorList = new ArrayList<TorsionDescriptor>();
-
-				TorsionDescriptor ntd = new TorsionDescriptor(mol, rotatableBond);
-				for (TorsionDescriptor td : torsionDescriptorList) {
-					if (td.equals(ntd)) {
-						isRedundantConformer = true;
-						break;
-					}
-				}
-				if (!isRedundantConformer)
-					torsionDescriptorList.add(ntd);
 			}
 
-			if (!isRedundantConformer) {
-				conformer.setName("Conf" + (i + 1) + (message == null ? "" : NAME_ENERGY_SEPARATOR + message));
-				conformerList.add(conformer);
+			if (!isRedundantConformer(torsionHelper, torsionDescriptorList)) {
+				StereoMolecule uniqueConformer = conformer.toMolecule(null);
+				uniqueConformer.setName("Conf" + (i + 1) + (message == null ? "" : NAME_ENERGY_SEPARATOR + message));
+				uniqueConformer.setUserData(new Double(conformer.getEnergy()));
+				conformerList.add(uniqueConformer);
 			}
 		}
 
 		conformerList.sort((c1, c2) -> {
-			if (Double.isNaN(c1.getEnergy()) || Double.isNaN(c2.getEnergy()))
-				return !Double.isNaN(c1.getEnergy()) ? -1 : !Double.isNaN(c2.getEnergy()) ? 1 : 0;
-			int comparison = c1.getEnergy() < c2.getEnergy() ? -1 : c1.getEnergy() == c2.getEnergy() ? 0 : 1;
+			double energy1 = (c1.getUserData() != null && c1.getUserData() instanceof Double) ? ((Double)c1.getUserData()).doubleValue() : Double.NaN;
+			double energy2 = (c2.getUserData() != null && c2.getUserData() instanceof Double) ? ((Double)c2.getUserData()).doubleValue() : Double.NaN;
+			if (Double.isNaN(energy1) || Double.isNaN(energy2))
+				return !Double.isNaN(energy1) ? -1 : !Double.isNaN(energy2) ? 1 : 0;
+			int comparison = energy1 < energy2 ? -1 : energy1 == energy2 ? 0 : 1;
 			return c1.getName().endsWith("%") ? -comparison : comparison;
 		});
 
@@ -446,7 +398,58 @@ public class FXConformerDialog extends JDialog implements ActionListener,ChangeL
 	 * Then all conformers are added to the panel.
 	 * @param conformerList
 	 */
-	private void addConformersToPanel(ArrayList<Conformer> conformerList) {
+	private void addConformersToPanel(ArrayList<StereoMolecule> conformerList) {
+		Color[] color = new Color[conformerList.size()];
+		for (int i=0; i<conformerList.size(); i++)
+			color[i] = Color.hsb(360f*i/conformerList.size(), 0.75, 0.6);
+
+		Coordinates[] refCoords = null;
+		Coordinates[] coords = null;
+		Coordinates refCOG = null;
+		double[][] matrix;
+
+		int conformerIndex = 0;
+		for (StereoMolecule conformer:conformerList) {
+			if (conformerIndex == 0) {
+				centerMolecule(conformer);
+				if (conformerList.size() > 1) {
+					if (mSuperposeAtoms == null)
+						mSuperposeAtoms = DETaskAdd3DCoordinates.suggestSuperposeAtoms(conformer);
+
+					coords = new Coordinates[mSuperposeAtoms.length];
+					refCoords = new Coordinates[mSuperposeAtoms.length];
+					for (int i=0; i<mSuperposeAtoms.length; i++)
+						refCoords[i] = conformer.getCoordinates(mSuperposeAtoms[i]);
+
+					refCOG = kabschCOG(refCoords);
+					}
+				}
+			else {
+				for (int i=0; i<mSuperposeAtoms.length; i++)
+					coords[i] = conformer.getCoordinates(mSuperposeAtoms[i]);
+
+				Coordinates cog = kabschCOG(coords);
+				matrix = kabschAlign(refCoords, coords, refCOG, cog);
+				for (int atom=0; atom<conformer.getAllAtoms(); atom++) {
+					Coordinates c = conformer.getCoordinates(atom);
+					c.sub(cog);
+					c.rotate(matrix);
+					c.add(refCOG);
+					}
+				}
+
+			Point3D p = (refCOG == null) ? new Point3D(0,0,0) : new Point3D(refCOG.x, refCOG.y, refCOG.z);
+			mConformationPanel.addMolecule(conformer, color[conformerIndex++], p);
+			}
+		}
+
+	/**
+	 * Superposes all conformers of the list using either the the previously defined list
+	 * mSuperposeAtoms or, if this is null, all atoms of the most centric rigid fragment.
+	 * Then all conformers are added to the panel.
+	 * @param conformerList
+	 *
+	private void addConformersToPanel(ArrayList<StereoMolecule> conformerList) {
 		Color[] color = new Color[conformerList.size()];
 		for (int i=0; i<conformerList.size(); i++)
 			color[i] = Color.hsb(360f*i/conformerList.size(), 0.75, 0.6);
@@ -454,19 +457,23 @@ public class FXConformerDialog extends JDialog implements ActionListener,ChangeL
 		Matrix4d matrix = null;
 		Coordinates[] refCoords = null;
 		Coordinates[] coords = null;
+		Point3D centerOfRotation = null;
 
 		int conformerIndex = 0;
-		for (Conformer conformer:conformerList) {
+		for (StereoMolecule conformer:conformerList) {
 			if (conformerIndex == 0) {
 				centerMolecule(conformer);
 				if (conformerList.size() > 1) {
-					matrix = new Matrix4d();
 					if (mSuperposeAtoms == null)
-						mSuperposeAtoms = findSuperposeAtoms(conformer.getMolecule());
+						mSuperposeAtoms = DETaskAdd3DCoordinates.suggestSuperposeAtoms(conformer);
+
+					matrix = new Matrix4d();
 					coords = new Coordinates[mSuperposeAtoms.length];
 					refCoords = new Coordinates[mSuperposeAtoms.length];
 					for (int i=0; i<mSuperposeAtoms.length; i++)
 						refCoords[i] = conformer.getCoordinates(mSuperposeAtoms[i]);
+
+					centerOfRotation = getSuperposeAtomCenter(conformer);
 					}
 				}
 			else {
@@ -474,7 +481,7 @@ public class FXConformerDialog extends JDialog implements ActionListener,ChangeL
 					coords[i] = conformer.getCoordinates(mSuperposeAtoms[i]);
 				SuperposeCalculator.superpose(refCoords, coords, matrix);
 				int index = 0;
-				for (int atom=0; atom<conformer.getSize(); atom++) {
+				for (int atom=0; atom<conformer.getAllAtoms(); atom++) {
 					if (index < mSuperposeAtoms.length && atom == mSuperposeAtoms[index]) {
 						index++;
 						continue;
@@ -488,9 +495,9 @@ public class FXConformerDialog extends JDialog implements ActionListener,ChangeL
 					}
 				}
 
-			mConformationPanel.addMolecule(conformer, color[conformerIndex++]);
+			mConformationPanel.addMolecule(conformer, color[conformerIndex++], centerOfRotation);
 			}
-		}
+		}*/
 
 	/**
 	 * @param mol receives minimized coodinates; taken as start conformer if ffmol == null
@@ -501,7 +508,7 @@ public class FXConformerDialog extends JDialog implements ActionListener,ChangeL
 			int[] fragmentNo = new int[mol.getAllAtoms()];
 			int fragmentCount = mol.getFragmentNumbers(fragmentNo, false, true);
 			if (fragmentCount == 1) {
-				mmff.ForceField ff = new mmff.ForceField(mol, tableSet, new HashMap<String, Object>());
+				ForceFieldMMFF94 ff = new ForceFieldMMFF94(mol, tableSet, new HashMap<String, Object>());
 				int error = ff.minimise(10000, 0.0001, 1.0e-6);
 				if (error != 0)
 					throw new Exception("MMFF94 error code "+error);
@@ -513,7 +520,7 @@ public class FXConformerDialog extends JDialog implements ActionListener,ChangeL
 				StereoMolecule[] fragment = mol.getFragments(fragmentNo, fragmentCount);
 				for (StereoMolecule f:fragment) {
 					if (f.getAllAtoms() > 2) {
-						mmff.ForceField ff = new mmff.ForceField(f, tableSet, new HashMap<String, Object>());
+						ForceFieldMMFF94 ff = new ForceFieldMMFF94(f, tableSet, new HashMap<String, Object>());
 						int error = ff.minimise(10000, 0.0001, 1.0e-6);
 						if (error != 0)
 							throw new Exception("MMFF94 error code "+error);
@@ -544,7 +551,7 @@ public class FXConformerDialog extends JDialog implements ActionListener,ChangeL
 	/**
 	 * @param ffmol if not null this is taken as start conformer
 	 * @param result receives energy and possibly error message
-	 */
+	 *
 	private void minimizeIDFF(FFMolecule ffmol, MinimizationResult result) {
 		try {
 			ForceField f = new ForceField(ffmol);
@@ -564,22 +571,13 @@ public class FXConformerDialog extends JDialog implements ActionListener,ChangeL
 			result.energy = Double.NaN;
 			result.errorMessage = "IDFF-err:"+e.toString();
 			}
-		}
+		}*/
 
-	private void copyFFMolCoordsToMol(StereoMolecule mol, FFMolecule ffmol) {
-		for (int atom=0; atom<mol.getAllAtoms(); atom++) {
-			mol.setAtomX(atom, ffmol.getAtomX(atom));
-			mol.setAtomY(atom, ffmol.getAtomY(atom));
-			mol.setAtomZ(atom, ffmol.getAtomZ(atom));
-			}
-		}
-
-	private void centerMolecule(Conformer conformer) {
+	private void centerMolecule(StereoMolecule mol) {
 		Coordinates cog = new Coordinates();
 		double atomicNoSum = 0.0;
-		StereoMolecule mol = conformer.getMolecule();
 		for (int atom=0; atom<mol.getAllAtoms(); atom++) {
-			Coordinates c = conformer.getCoordinates(atom);
+			Coordinates c = mol.getCoordinates(atom);
 			cog.add(c.x * mol.getAtomicNo(atom),
 					c.y * mol.getAtomicNo(atom),
 					c.z * mol.getAtomicNo(atom));
@@ -589,61 +587,55 @@ public class FXConformerDialog extends JDialog implements ActionListener,ChangeL
 
 		// Here we move the conformer's internal coordinates to center it around its COG!!!!!!!
 		for (int atom=0; atom<mol.getAllAtoms(); atom++)
-			conformer.getCoordinates(atom).sub(cog);
+			mol.getCoordinates(atom).sub(cog);
 		}
 
-	private int[] findSuperposeAtoms(StereoMolecule mol) {
-		boolean[] isRotatableBond = new boolean[mol.getAllBonds()];
-		int count = TorsionDB.findRotatableBonds(mol, true, isRotatableBond);
-		if (count == 0) {
-			int[] coreAtom = new int[mol.getAllAtoms()];
-			for (int atom=0; atom<mol.getAllAtoms(); atom++)
-				coreAtom[atom] = atom;
-			return coreAtom;
+	public static Coordinates kabschCOG(Coordinates[] coords) {
+		int counter = 0;
+		Coordinates cog = new Coordinates();
+		for(Coordinates c:coords) {
+			cog.add(c);
+			counter++;
 			}
-
-		int[] fragmentNo = new int[mol.getAllAtoms()];
-		int fragmentCount = mol.getFragmentNumbers(fragmentNo, isRotatableBond, true);
-		int[] fragmentSize = new int[fragmentCount];
-		float[] atad = mol.getAverageTopologicalAtomDistance();
-		float[] fragmentATAD = new float[fragmentCount];
-		for (int atom=0; atom<mol.getAtoms(); atom++) {
-			fragmentATAD[fragmentNo[atom]] += atad[atom];
-			fragmentSize[fragmentNo[atom]]++;
-			}
-		int bestFragment = -1;
-		float bestATAD = Float.MAX_VALUE;
-		for (int i=0; i<fragmentCount; i++) {
-			fragmentATAD[i] /= fragmentSize[i];
-			if (bestATAD > fragmentATAD[i]) {
-				bestATAD = fragmentATAD[i];
-				bestFragment = i;
-				}
-			}
-		int fragmentSizeWithNeighbours = fragmentSize[bestFragment];
-		for (int atom=0; atom<mol.getAtoms(); atom++) {
-			if (fragmentNo[atom] == bestFragment) {
-				for (int i = 0; i < mol.getConnAtoms(atom); i++) {
-					int connAtom = mol.getConnAtom(atom, i);
-					if (fragmentNo[connAtom] != bestFragment
-					 && fragmentNo[connAtom] != fragmentCount) {
-						fragmentNo[connAtom] = fragmentCount;
-						fragmentSizeWithNeighbours++;
-						}
-					}
-				}
-			}
-		int[] coreAtom = new int[fragmentSizeWithNeighbours];
-		int index = 0;
-		for (int atom=0; atom<mol.getAtoms(); atom++)
-			if (fragmentNo[atom] == bestFragment
-			 || fragmentNo[atom] == fragmentCount)
-				coreAtom[index++] = atom;
-		return coreAtom;
+		cog.scale(1.0/counter);
+		return cog;
 		}
 
-	private boolean isRedundantConformer(StereoMolecule mol, int[] rotatableBond, ArrayList<TorsionDescriptor> torsionDescriptorList) {
-		TorsionDescriptor ntd = new TorsionDescriptor(mol, rotatableBond);
+	public static double[][] kabschAlign(Coordinates[] coords1, Coordinates[] coords2, Coordinates cog1, Coordinates cog2) {
+		double[][] m = new double[3][3];
+		double[][] c1 = Arrays.stream(coords1).map(e -> new double[] {e.x-cog1.x,e.y-cog1.y,e.z-cog1.z}).toArray(double[][]::new);
+		double[][] c2 = Arrays.stream(coords2).map(e -> new double[] {e.x-cog2.x,e.y-cog2.y,e.z-cog2.z}).toArray(double[][]::new);
+		for(int i=0;i<3;i++) {
+			for(int j=0;j<3;j++) {
+				double rij = 0.0;
+				for(int a=0; a<c1.length; a++)
+					rij+= c2[a][i]* c1[a][j];
+				m[i][j] = rij;
+				}
+			}
+
+		SingularValueDecomposition svd = new SingularValueDecomposition(m,null,null);
+
+		Matrix u = new Matrix(svd.getU());
+		Matrix v = new Matrix(svd.getV());
+		Matrix ut = u.getTranspose();
+		Matrix vut = v.multiply(ut);
+		double det = vut.det();
+
+		Matrix ma = new Matrix(3,3);
+		ma.set(0,0,1.0);
+		ma.set(1,1,1.0);
+		ma.set(2,2,det);
+
+		Matrix rot = ma.multiply(ut);
+		rot = v.multiply(rot);
+		assert(rot.det()>0.0);
+		rot = rot.getTranspose();
+		return rot.getArray();
+		}
+
+	private boolean isRedundantConformer(TorsionDescriptorHelper torsionHelper, ArrayList<TorsionDescriptor> torsionDescriptorList) {
+		TorsionDescriptor ntd = torsionHelper.getTorsionDescriptor();
 		for (TorsionDescriptor td:torsionDescriptorList)
 			if (td.equals(ntd))
 				return true;
@@ -665,7 +657,7 @@ public class FXConformerDialog extends JDialog implements ActionListener,ChangeL
 				: (mPreviousAlgo == SELF_ORGANIZED) ? "Strain"
 				: (mPreviousAlgo == ACTELION3D) ? "" : "Percent Contribution";
 
-		ArrayList<Conformer> conformerList = mConformationPanel.getConformers();
+		ArrayList<StereoMolecule> conformerList = mConformationPanel.getConformers();
 
 		try {
 			BufferedWriter bw = new BufferedWriter(new FileWriter(file));
@@ -689,9 +681,8 @@ public class FXConformerDialog extends JDialog implements ActionListener,ChangeL
 				if (energyTitle.length() != 0)
 					bw.write("\t"+energyTitle);
 				bw.newLine();
-				for (Conformer conformer:conformerList) {
-					conformer.copyTo(conformer.getMolecule());
-					Canonizer canonizer = new Canonizer(conformer.getMolecule());
+				for (StereoMolecule conformer:conformerList) {
+					Canonizer canonizer = new Canonizer(conformer);
 					bw.write(canonizer.getIDCode());
 					bw.write('\t');
 					bw.write(canonizer.getEncodedCoordinates());
@@ -699,19 +690,17 @@ public class FXConformerDialog extends JDialog implements ActionListener,ChangeL
 					bw.write(conformer.getName());
 					bw.write('\t');
 					if (energyTitle.length() != 0) {
-						bw.write(DoubleFormat.toString(conformer.getEnergy()));
+						bw.write(DoubleFormat.toString(((Double)conformer.getUserData()).doubleValue()));
 						bw.newLine();
 						}
 					}
 				}
 			else {
-				for (Conformer conformer:conformerList) {
-					conformer.copyTo(conformer.getMolecule());
-
+				for (StereoMolecule conformer:conformerList) {
 					if (fileType == FileHelper.cFileTypeSDV2)
-						new MolfileCreator(conformer.getMolecule()).writeMolfile(bw);
+						new MolfileCreator(conformer).writeMolfile(bw);
 					else
-						new MolfileV3Creator(conformer.getMolecule()).writeMolfile(bw);
+						new MolfileV3Creator(conformer).writeMolfile(bw);
 
 					bw.write(">  <Conformer Name>");
 					bw.newLine();
@@ -722,7 +711,7 @@ public class FXConformerDialog extends JDialog implements ActionListener,ChangeL
 					if (energyTitle.length() != 0) {
 						bw.write(">  <"+energyTitle+">");
 						bw.newLine();
-						bw.write(DoubleFormat.toString(conformer.getEnergy()));
+						bw.write(DoubleFormat.toString(((Double)conformer.getUserData()).doubleValue()));
 						bw.newLine();
 						bw.newLine();
 						}
@@ -741,9 +730,9 @@ public class FXConformerDialog extends JDialog implements ActionListener,ChangeL
 
 	private void writeDataWarriorDebugFile() {
 		ConformerGenerator.WRITE_DW_FRAGMENT_FILE = true;
-		ConformerGenerator cg = new ConformerGenerator(12345L);
+		ConformerGenerator cg = new ConformerGenerator(12345L, true);
 		cg.initializeConformers(mMol.getCompactCopy(), ConformerGenerator.STRATEGY_LIKELY_SYSTEMATIC, 10000, false);
-		StereoMolecule conformer = cg.getNextConformer(null);
+		StereoMolecule conformer = cg.getNextConformerAsMolecule(null);
 		try {
 			BufferedWriter bw = new BufferedWriter(new FileWriter(DATAWARRIOR_DEBUG_FILE));
 	        bw.write("<column properties>");
@@ -772,7 +761,7 @@ public class FXConformerDialog extends JDialog implements ActionListener,ChangeL
 				String coords = canonizer.getEncodedCoordinates();
 				bw.write(idcode+"\t"+coords+"\t"+cg.mDiagnosticTorsionString+"\t"+cg.mDiagnosticCollisionString);
 				bw.newLine();
-				conformer = cg.getNextConformer(null);
+				conformer = cg.getNextConformerAsMolecule(null);
 				}
 			bw.close();
 			}
@@ -782,7 +771,7 @@ public class FXConformerDialog extends JDialog implements ActionListener,ChangeL
 		ConformerGenerator.WRITE_DW_FRAGMENT_FILE = false;
 		}
 
-	class ConformationPanel extends JPanel {
+/*	class ConformationPanel extends JPanel {
 		private static final long serialVersionUID = 0x20080217;
 
 		private JLabel				mLabel;
@@ -822,7 +811,7 @@ public class FXConformerDialog extends JDialog implements ActionListener,ChangeL
 		public void setText(String text) {
 			mLabel.setText(text);
 			}
-		}
+		}*/
 
 	private class MinimizationResult {
 		double energy;

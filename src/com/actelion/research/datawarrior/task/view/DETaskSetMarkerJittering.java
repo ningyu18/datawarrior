@@ -18,18 +18,16 @@
 
 package com.actelion.research.datawarrior.task.view;
 
-import java.awt.Dimension;
-import java.awt.Frame;
-import java.util.Properties;
-
-import javax.swing.*;
-
 import com.actelion.research.datawarrior.DEMainPane;
 import com.actelion.research.gui.hidpi.HiDPIHelper;
 import com.actelion.research.table.view.CompoundTableView;
 import com.actelion.research.table.view.JVisualization;
 import com.actelion.research.table.view.VisualizationPanel;
 import info.clearthought.layout.TableLayout;
+
+import javax.swing.*;
+import java.awt.*;
+import java.util.Properties;
 
 
 public class DETaskSetMarkerJittering extends DETaskAbstractSetViewOptions {
@@ -61,9 +59,10 @@ public class DETaskSetMarkerJittering extends DETaskAbstractSetViewOptions {
 		}
 
 	@Override
-	public JComponent createInnerDialogContent() {
-		double[][] size = { {8, TableLayout.FILL, TableLayout.PREFERRED, TableLayout.FILL, 8},
-				{8, TableLayout.PREFERRED, 8, TableLayout.PREFERRED, TableLayout.PREFERRED, TableLayout.PREFERRED, 16} };
+	public JComponent createViewOptionContent() {
+    	int gap = HiDPIHelper.scale(8);
+		double[][] size = { {gap, TableLayout.FILL, TableLayout.PREFERRED, TableLayout.FILL, gap},
+				{gap, TableLayout.PREFERRED, gap, TableLayout.PREFERRED, TableLayout.PREFERRED, TableLayout.PREFERRED, gap*2} };
 		JPanel p = new JPanel();
 		p.setLayout(new TableLayout(size));
 
@@ -131,9 +130,10 @@ public class DETaskSetMarkerJittering extends DETaskAbstractSetViewOptions {
 		}
 
 	@Override
-	public void addViewConfiguration(Properties configuration) {
-		configuration.setProperty(PROPERTY_JITTER, ""+ getInteractiveVisualization().getJittering());
-		configuration.setProperty(PROPERTY_AXES, ""+ getInteractiveVisualization().getJitterAxes());
+	public void addViewConfiguration(CompoundTableView view, Properties configuration) {
+		JVisualization visualization = ((VisualizationPanel)view).getVisualization();
+		configuration.setProperty(PROPERTY_JITTER, ""+ visualization.getJittering());
+		configuration.setProperty(PROPERTY_AXES, ""+ visualization.getJitterAxes());
 		}
 
 	@Override
@@ -147,12 +147,14 @@ public class DETaskSetMarkerJittering extends DETaskAbstractSetViewOptions {
 
 	@Override
 	public void applyConfiguration(CompoundTableView view, Properties configuration, boolean isAdjusting) {
-		JVisualization visualization = ((VisualizationPanel)view).getVisualization();
-		try {
-			float jitter = Float.parseFloat(configuration.getProperty(PROPERTY_JITTER, "0"));
-			int axes = Integer.parseInt(configuration.getProperty(PROPERTY_AXES, "7"));
-			visualization.setJittering(jitter, axes, isAdjusting);
+		if (view instanceof VisualizationPanel) {
+			JVisualization visualization = ((VisualizationPanel)view).getVisualization();
+			try {
+				float jitter = Float.parseFloat(configuration.getProperty(PROPERTY_JITTER, "0"));
+				int axes = Integer.parseInt(configuration.getProperty(PROPERTY_AXES, "7"));
+				visualization.setJittering(jitter, axes, isAdjusting);
+				}
+			catch (NumberFormatException nfe) {}
 			}
-		catch (NumberFormatException nfe) {}
 		}
 	}

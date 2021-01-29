@@ -18,26 +18,15 @@
 
 package com.actelion.research.datawarrior.task.view;
 
+import com.actelion.research.datawarrior.DEMainPane;
 import com.actelion.research.gui.hidpi.HiDPIHelper;
+import com.actelion.research.table.model.CompoundTableListHandler;
+import com.actelion.research.table.view.*;
 import info.clearthought.layout.TableLayout;
 
-import java.awt.Dimension;
-import java.awt.Frame;
+import javax.swing.*;
+import java.awt.*;
 import java.util.Properties;
-
-import javax.swing.JComboBox;
-import javax.swing.JComponent;
-import javax.swing.JLabel;
-import javax.swing.JPanel;
-import javax.swing.JSlider;
-
-import com.actelion.research.datawarrior.DEMainPane;
-import com.actelion.research.table.model.CompoundTableListHandler;
-import com.actelion.research.table.view.CompoundTableView;
-import com.actelion.research.table.view.JVisualization2D;
-import com.actelion.research.table.view.VisualizationColor;
-import com.actelion.research.table.view.VisualizationPanel;
-import com.actelion.research.table.view.VisualizationPanel2D;
 
 public class DETaskSetMarkerBackgroundColor extends DETaskAbstractSetColor {
 	public static final String TASK_NAME = "Set Marker Background Color";
@@ -61,6 +50,11 @@ public class DETaskSetMarkerBackgroundColor extends DETaskAbstractSetColor {
 		}
 
 	@Override
+	public OTHER_VIEWS getOtherViewMode() {
+		return OTHER_VIEWS.GRAPHICAL2D;
+		}
+
+	@Override
 	public VisualizationColor getVisualizationColor(CompoundTableView view) {
 		return ((JVisualization2D)((VisualizationPanel)view).getVisualization()).getBackgroundColor();
 		}
@@ -81,8 +75,8 @@ public class DETaskSetMarkerBackgroundColor extends DETaskAbstractSetColor {
 		}
 
 	@Override
-	public JComponent createInnerDialogContent() {
-		JPanel p = (JPanel)super.createInnerDialogContent();
+	public JComponent createViewOptionContent() {
+		JPanel p = (JPanel)super.createViewOptionContent();
 
 		mComboBoxConsider = new JComboBox();
         mComboBoxConsider.addItem(ITEM_VISIBLE_ROWS);
@@ -179,17 +173,18 @@ public class DETaskSetMarkerBackgroundColor extends DETaskAbstractSetColor {
 		}
 
 	@Override
-	public void addViewConfiguration(Properties configuration) {
-		super.addViewConfiguration(configuration);
-		int hitlist = ((JVisualization2D) getInteractiveVisualization()).getBackgroundColorConsidered();
+	public void addViewConfiguration(CompoundTableView view, Properties configuration) {
+		super.addViewConfiguration(view, configuration);
+		JVisualization2D visualization = (JVisualization2D)((VisualizationPanel)view).getVisualization();
+		int hitlist = visualization.getBackgroundColorConsidered();
 		if (hitlist == JVisualization2D.BACKGROUND_VISIBLE_RECORDS)
 			configuration.setProperty(PROPERTY_CONSIDER, PROPERTY_CONSIDER_VISIBLE);
 		else if (hitlist == JVisualization2D.BACKGROUND_ALL_RECORDS)
 			configuration.setProperty(PROPERTY_CONSIDER, PROPERTY_CONSIDER_ALL);
 		else
 			configuration.setProperty(PROPERTY_CONSIDER, getTableModel().getColumnTitleNoAlias(CompoundTableListHandler.getColumnFromList(hitlist)));
-		configuration.setProperty(PROPERTY_RADIUS, ""+((JVisualization2D) getInteractiveVisualization()).getBackgroundColorRadius());
-		configuration.setProperty(PROPERTY_FADING, ""+((JVisualization2D) getInteractiveVisualization()).getBackgroundColorFading());
+		configuration.setProperty(PROPERTY_RADIUS, ""+visualization.getBackgroundColorRadius());
+		configuration.setProperty(PROPERTY_FADING, ""+visualization.getBackgroundColorFading());
 		}
 
 	@Override
@@ -210,6 +205,9 @@ public class DETaskSetMarkerBackgroundColor extends DETaskAbstractSetColor {
 
 	@Override
 	public void applyConfiguration(CompoundTableView view, Properties configuration, boolean isAdjusting) {
+		if (!(view instanceof VisualizationPanel2D))
+			return;
+
 		super.applyConfiguration(view, configuration, isAdjusting);
 
 		JVisualization2D v2D = (JVisualization2D)((VisualizationPanel)view).getVisualization();
@@ -220,7 +218,7 @@ public class DETaskSetMarkerBackgroundColor extends DETaskAbstractSetColor {
 		else if (consider.equals(PROPERTY_CONSIDER_ALL))
 			v2D.setBackgroundColorConsidered(JVisualization2D.BACKGROUND_ALL_RECORDS);
 		else
-			v2D.setBackgroundColorConsidered(CompoundTableListHandler.getListFromColumn(getTableModel().findColumn(consider)));
+			v2D.setBackgroundColorConsidered(CompoundTableListHandler.convertToListIndex(getTableModel().findColumn(consider)));
 
 		try {
 			v2D.setBackgroundColorRadius(Math.max(1, Integer.parseInt(configuration.getProperty(PROPERTY_RADIUS, "10"))));

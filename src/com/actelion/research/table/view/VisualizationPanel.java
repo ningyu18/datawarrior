@@ -20,16 +20,13 @@ package com.actelion.research.table.view;
 
 import com.actelion.research.calc.CorrelationCalculator;
 import com.actelion.research.gui.*;
-import com.actelion.research.gui.hidpi.HiDPIHelper;
-import com.actelion.research.table.model.CompoundTableEvent;
-import com.actelion.research.table.model.CompoundTableListEvent;
-import com.actelion.research.table.model.CompoundTableModel;
-import com.actelion.research.table.model.NumericalCompoundTableColumn;
+import com.actelion.research.table.model.*;
 import info.clearthought.layout.TableLayout;
 
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.*;
+import java.awt.image.BufferedImage;
 import java.awt.print.PageFormat;
 import java.awt.print.Printable;
 import java.util.ArrayList;
@@ -47,20 +44,26 @@ public abstract class VisualizationPanel extends JPanel
 	private JPruningBar[]		mPruningBar;
 	private JComboBox[]			mComboBoxColumn;
 	private JWindow				mControls,mMessagePopup,mVisiblePopup;
-	private int					mFirstChoiceColumns,mSecondChoiceColumns;
+	private int					mFirstChoiceColumns,mSecondChoiceColumns,mAutoZoomColumn;
 	private int[]				mQualifyingColumn;
-	private float[]				mMinValue,mMaxValue;
+	private float               mAutoZoomFactor;
 	private boolean				mDisableEvents,mIsProgrammaticChange;
-	private boolean[]			mIsLogarithmic;
 	private VisualizationPanel	mMasterPanel;
 	private Point				mPopupLocation;
 	private ArrayList<VisualizationPanel> mSynchronizationChildList;
 	private ArrayList<VisualizationListener> mListenerList;
 
+	private static final float MAX_AUTO_ZOOM_VALUE = 0.005f;
+	private static final int ZOOM_ANIMATION_LIMIT = 50000;
+	private static final int ZOOM_ANIMATION_TOTAL_MILLIS = 1000;
+	private static final int ZOOM_ANIMATION_FRAME_MILLIS = 10;
+
 	public VisualizationPanel(Frame parent, CompoundTableModel tableModel) {
 		mParentFrame = parent;
 		mTableModel = tableModel;
 		mMasterPanel = this;
+		mAutoZoomFactor = 0f;
+		mAutoZoomColumn = -1;
 		addMouseWheelListener(this);
 		}
 
@@ -100,10 +103,20 @@ public abstract class VisualizationPanel extends JPanel
 		mListenerList.remove(l);
 		}
 
-	/**
-	 * Shows or hides a popup at the top left corner containing
-	 * comboboxes for column selection and pruning bars.
-	 */
+	@Override
+	public void setViewSelectionHelper(ViewSelectionHelper l) {
+		mVisualization.setViewSelectionHelper(l);
+		}
+
+	@Override
+	public boolean copyViewContent() {
+		return mVisualization.copyViewContent();
+		}
+
+		/**
+		 * Shows or hides a popup at the top left corner containing
+		 * comboboxes for column selection and pruning bars.
+		 */
 	public void showControls() {
 		if (mVisiblePopup != null) {
 			hideControls();
@@ -160,12 +173,8 @@ public abstract class VisualizationPanel extends JPanel
 
 		mPruningBar = new JPruningBar[mDimensions];
 		mComboBoxColumn = new JComboBox[mDimensions];
-		mMinValue = new float[mDimensions];
-		mMaxValue = new float[mDimensions];
-		mIsLogarithmic = new boolean[mDimensions];
 		for (int axis=0; axis<mDimensions; axis++) {
-			mPruningBar[axis] = new JPruningBar(true, axis);
-			mPruningBar[axis].setMinAndMax(0.0f, 1.0f);	//@ new concept requires data initialization here 24-Oct-2012
+			mPruningBar[axis] = new JPruningBar(0.0f, 1.0f, true, axis, true);
 			mPruningBar[axis].addPruningBarListener(this);
 			}
 
@@ -195,7 +204,7 @@ public abstract class VisualizationPanel extends JPanel
 		mVisiblePopup = null;
 
 		mVisualization.initializeDataPoints(false, false);
-		if (mTableModel.getTotalRowCount() > 50000)
+		if (mTableModel.getTotalRowCount() > 100000)
 			mVisualization.setFastRendering(true);
 
 		mSynchronizationChildList = new ArrayList<VisualizationPanel>();
@@ -312,7 +321,8 @@ public abstract class VisualizationPanel extends JPanel
 		}
 
 	/**
-	 * Sets a visible range for the given axis
+	 * Sets a visible range for the given axis in non-logarithmic value space.
+	 * For categories (0...n) typical values are: NaN, 0.5, 1.5, ... n-1.5
 	 * @param axis
 	 * @param low NaN if there is no low limit
 	 * @param high NaN if there is no high limit
@@ -322,15 +332,25 @@ public abstract class VisualizationPanel extends JPanel
 		if (column != -1) {
 			float limit1 = 0f;
 			float limit2 = 1f;
-			float min = mTableModel.getMinimumValue(column);
-			float max = mTableModel.getMaximumValue(column);
-			if (min < max) {
-				if (!Float.isNaN(low) && low > min)
-					limit1 = (low >= max) ? 1f : (low - min) / (max - min);
-				if (!Float.isNaN(high) && high < max)
-					limit2 = (high <= min) ? 0f : (high - min) / (max - min);
+			if (mVisualization.isCategoryAxis(axis)) {
+				int categoryCount = mTableModel.getCategoryCount(column);
+				if (!Float.isNaN(low) && low > 0f)
+					limit1 = (low >= categoryCount-1) ? 1f : (0.5f + low) / (float)categoryCount;
+				if (!Float.isNaN(high) && high < categoryCount-1)
+					limit2 = (high < 0f) ? 0f : (0.5f + high) / (float)categoryCount;
 				if (limit1 > limit2)
 					limit1 = limit2;
+				}
+			else {
+				float[] minAndMax = mVisualization.getDataMinAndMax(axis);
+				if (minAndMax[0] < minAndMax[1]) {
+					if (!Float.isNaN(low) && low > minAndMax[0])
+						limit1 = (low >= minAndMax[1]) ? 1f : (low - minAndMax[0]) / (minAndMax[1] - minAndMax[0]);
+					if (!Float.isNaN(high) && high < minAndMax[1])
+						limit2 = (high <= minAndMax[0]) ? 0f : (high - minAndMax[0]) / (minAndMax[1] - minAndMax[0]);
+					if (limit1 > limit2)
+						limit1 = limit2;
+					}
 				}
 			getPruningBar(axis).setLowAndHigh(limit1, limit2, false);
 			}
@@ -373,8 +393,134 @@ public abstract class VisualizationPanel extends JPanel
 			fireVisualizationChanged(VisualizationEvent.TYPE.AXIS);
 		}
 
+	public int getAutoZoomColumn() {
+		return mAutoZoomColumn;
+	}
+
+	public float getAutoZoomFactor() {
+		return mAutoZoomFactor;
+	}
+
+	public void setAutoZoom(float factor, int column, boolean zoomImmediately) {
+		if (mAutoZoomFactor != factor
+		 || (mAutoZoomColumn != column && factor != 0f)) {
+			mAutoZoomFactor = factor;
+			mAutoZoomColumn = column;
+			if (zoomImmediately)
+				doAutoZoom();
+			}
+		}
+
+	private void doAutoZoom() {
+		float[] low = new float[mDimensions];
+		float[] high = new float[mDimensions];
+		CompoundRecord ref = mTableModel.getActiveRow();
+		if (ref == null || mAutoZoomFactor == 0f) {
+			for (int i=0; i<mDimensions; i++) {
+				low[i] = 0f;
+				high[i] = 1f;
+				}
+			}
+		else {
+			float zoom = 1f/mAutoZoomFactor;
+
+			float whFactor = 1f;
+			if (mDimensions == 2) { // if we have a background picture, we keep width/height ratio
+				BufferedImage bgi = ((JVisualization2D)mVisualization).getBackgroundImage();
+				if (bgi != null && bgi.getWidth() != 0 && mVisualization.getHeight() != 0)
+					whFactor = (float)Math.sqrt((double)(bgi.getHeight()*mVisualization.getWidth())
+											  / (double)(bgi.getWidth()*mVisualization.getHeight()));
+				}
+
+			if (mAutoZoomColumn != -1) {
+				float value = ref.getDouble(mAutoZoomColumn);
+				if (!Float.isNaN(value)) {
+					float average = 0.5f * (mTableModel.getMinimumValue(mAutoZoomColumn) + mTableModel.getMaximumValue(mAutoZoomColumn));
+					zoom *= Math.abs(value / average);
+					}
+				}
+			if (zoom > 1f)
+				zoom = 1f;
+			else if (zoom < MAX_AUTO_ZOOM_VALUE)
+				zoom = MAX_AUTO_ZOOM_VALUE;
+
+			for (int i=0; i<mDimensions; i++) {
+				float value = mVisualization.getPruningBarMappedValue(ref, i);
+				if (Float.isNaN(value)) {
+					low[i] = 0f;
+					high[i] = 1f;
+					}
+				else {
+					float factor = 0.5f;
+					if (whFactor != 1f) {
+						if (i == 0)
+							factor *= whFactor;
+						else
+							factor /= whFactor;
+						}
+					low[i] = Math.max(0f, value-zoom*factor);
+					high[i] = Math.min(1f, value+zoom*factor);
+					}
+				}
+			}
+		animateAutoZoom(low, high);
+		}
+
+	private void animateAutoZoom(float[] endLow, float[] endHigh) {
+		float maxInc = 0f;
+		float[] lowInc = new float[mDimensions];
+		float[] highInc = new float[mDimensions];
+		for (int i=0; i<mDimensions; i++) {
+			lowInc[i] = endLow[i] - mPruningBar[i].getLowValue();
+			highInc[i] = endHigh[i] - mPruningBar[i].getHighValue();
+			maxInc = Math.max(maxInc, Math.abs(lowInc[i]));
+			maxInc = Math.max(maxInc, Math.abs(highInc[i]));
+			}
+		if (mTableModel.getRowCount() > ZOOM_ANIMATION_LIMIT) {
+			setZoom(endLow, endHigh, false);
+			}
+		else {
+			new Thread(() -> {
+				float[] frameLow = new float[mDimensions];
+				float[] frameHigh = new float[mDimensions];
+				long currentMillis = System.currentTimeMillis();
+				long startMillis = currentMillis - ZOOM_ANIMATION_FRAME_MILLIS;    // virtual start one frame ago
+				while (currentMillis - startMillis < ZOOM_ANIMATION_TOTAL_MILLIS) {
+					float factor = (float)(ZOOM_ANIMATION_TOTAL_MILLIS - currentMillis + startMillis) / ZOOM_ANIMATION_TOTAL_MILLIS;
+					for (int i=0; i<mDimensions; i++) {
+						frameLow[i] = endLow[i] - factor * lowInc[i];
+						frameHigh[i] = endHigh[i] - factor * highInc[i];
+						}
+					SwingUtilities.invokeLater(() -> setZoom(frameLow, frameHigh, true) );
+					try { Thread.sleep(ZOOM_ANIMATION_FRAME_MILLIS); } catch (Exception e) {}
+					currentMillis = System.currentTimeMillis();
+					}
+				SwingUtilities.invokeLater(() -> setZoom(endLow, endHigh, false));
+				} ).start();
+			}
+		}
+
 	@Override
 	public void pruningBarChanged(PruningBarEvent e) {
+		if (e.getType() == PruningBarEvent.TYPE_TYPED) {
+			// we take coordinate translation info from first child and update pruning bar, which causes then a new event
+			for (VisualizationPanel child:getSynchronizationChildList()) {
+				float low = e.getLowValue();
+				float high = e.getHighValue();
+				float[] range = new float[2];
+				boolean isLog = child.getVisualization().getFullDataRange(e.getID(), range);
+				float val = Float.isNaN(low) ? high : low;
+				if (isLog)
+					val = (float)Math.log10(val);
+				float pos = (val - range[0]) / (range[1] - range[0]);
+				if (Float.isNaN(low))
+					mPruningBar[e.getID()].setHighValue(pos);
+				else
+					mPruningBar[e.getID()].setLowValue(pos);
+				return;
+				}
+			}
+
 		for (VisualizationPanel child:getSynchronizationChildList())
 			child.getVisualization().updateVisibleRange(e.getID(), e.getLowValue(), e.getHighValue(), e.isAdjusting());
 
@@ -390,7 +536,8 @@ public abstract class VisualizationPanel extends JPanel
 					int index = mComboBoxColumn[axis].getSelectedIndex();
 					if (index != -1) {
 						for (VisualizationPanel child:getSynchronizationChildList())
-							child.setColumnIndex(axis, mQualifyingColumn[index]);
+							if (axis < child.getDimensionCount())
+								child.setColumnIndex(axis, mQualifyingColumn[index]);
 
 						fireVisualizationChanged(VisualizationEvent.TYPE.AXIS);
 						}
@@ -433,15 +580,14 @@ public abstract class VisualizationPanel extends JPanel
 		return mVisualization.getFocusList();
 		}
 
-	public void setFocusHitlist(int no) {
-		mVisualization.setFocusHitlist(no);
+	public void setFocusList(int no) {
+		mVisualization.setFocusList(no);
 		}
 
 	@Override
 	public void compoundTableChanged(CompoundTableEvent e) {
 		// don't make mVisualization a direct listener because in case of
 		// a table structure change the pruning panel needs to be updated first
-		float[][] oldPruningBarRange = new float[mDimensions][];
 		if (e.getType() == CompoundTableEvent.cAddRows
 		 || e.getType() == CompoundTableEvent.cDeleteRows
 		 || e.getType() == CompoundTableEvent.cChangeColumnData) {
@@ -461,11 +607,17 @@ public abstract class VisualizationPanel extends JPanel
 							mDisableEvents = true;
 							setComboBox(axis, j);
 							mDisableEvents = false;
-							oldPruningBarRange[axis] = new float[2];
-							oldPruningBarRange[axis][0] = (mPruningBar[axis].getLowValue() == 0.0) ?
-									0f : mVisualization.getPruningBarLow(axis);
-							oldPruningBarRange[axis][1] = (mPruningBar[axis].getHighValue() == 1.0) ?
-									1f : mVisualization.getPruningBarHigh(axis);
+							float newMin = (mPruningBar[axis].getLowValue() == 0.0) ? 0f : mVisualization.getPruningBarLow(axis);
+							float newMax = (mPruningBar[axis].getHighValue() == 1.0) ? 1f : mVisualization.getPruningBarHigh(axis);
+
+							// silently update sliders in case of logMode change
+							mPruningBar[axis].setLowAndHigh(newMin, newMax, true);
+							mPruningBar[axis].setUseRedColor(column != JVisualization.cColumnUnassigned
+									&& !mTableModel.isColumnDataComplete(column)
+									&& mTableModel.isColumnTypeDouble(column));
+
+							mVisualization.updateVisibleRange(axis, newMin, newMax, false);
+
 							found = true;
 							break;
 							}
@@ -505,6 +657,9 @@ public abstract class VisualizationPanel extends JPanel
 					initializePruningBar(axis, JVisualization.cColumnUnassigned);
 					}
 				}
+			if (mAutoZoomColumn != JVisualization.cColumnUnassigned) {
+				mAutoZoomColumn = columnMapping[mAutoZoomColumn];
+				}
 			}
 		else if (e.getType() == CompoundTableEvent.cChangeColumnName) {
 			int column = e.getColumn();
@@ -519,20 +674,13 @@ public abstract class VisualizationPanel extends JPanel
 					}
 				}
 			}
+		else if (e.getType() == CompoundTableEvent.cChangeActiveRow) {
+			if (mAutoZoomFactor != 0)
+				doAutoZoom();
+			}
 
 		for (VisualizationPanel vp:mSynchronizationChildList)
 			vp.getVisualization().compoundTableChanged(e);
-
-		for (int axis=0; axis<mDimensions; axis++) {
-			if (oldPruningBarRange[axis] != null) {
-				mPruningBar[axis].setLowAndHigh(oldPruningBarRange[axis][0],
-												oldPruningBarRange[axis][1], false);
-				int column = mVisualization.getColumnIndex(axis);
-				mPruningBar[axis].setUseRedColor(column != JVisualization.cColumnUnassigned
-											  && !mTableModel.isColumnDataComplete(column)
-											  && mTableModel.isColumnTypeDouble(column));
-				}
-			}
 		}
 
 	@Override
@@ -670,7 +818,7 @@ public abstract class VisualizationPanel extends JPanel
 			index[axis] = -1;
 
 		if (numericalColumn.length >= 2) {
-			double[][] correlation = CorrelationCalculator.calculateMatrix(numericalColumn, CorrelationCalculator.TYPE_BRAVAIS_PEARSON);
+			double[][] correlation = new CorrelationCalculator().calculateMatrix(numericalColumn, CorrelationCalculator.TYPE_BRAVAIS_PEARSON);
 	
 			double maxCorrelation = 0;
 			for (int i=1; i<correlation.length; i++) {
@@ -787,17 +935,12 @@ public abstract class VisualizationPanel extends JPanel
 	private void initializePruningBar(int axis, int column) {
 		mPruningBar[axis].setMinAndMax(0.0f, 1.0f);
 		if (column == JVisualization.cColumnUnassigned) {
-			mIsLogarithmic[axis] = false;
 			mPruningBar[axis].setUseRedColor(false);
 			}
 		else if (mTableModel.isDescriptorColumn(column)) {
-			mIsLogarithmic[axis] = false;
 			mPruningBar[axis].setUseRedColor(mTableModel.isColumnDataComplete(column));
 			}
 		else {
-			mMinValue[axis] = mTableModel.getMinimumValue(column);
-			mMaxValue[axis] = mTableModel.getMaximumValue(column);
-			mIsLogarithmic[axis] = mTableModel.isLogarithmicViewMode(column);
 			mPruningBar[axis].setUseRedColor(!mTableModel.isColumnDataComplete(column)
 										  && mTableModel.isColumnTypeDouble(column));
 			}

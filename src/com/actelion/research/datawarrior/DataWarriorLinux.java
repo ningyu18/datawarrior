@@ -24,72 +24,15 @@ import javax.swing.*;
 import javax.swing.plaf.FontUIResource;
 import java.util.ArrayList;
 
-public class DataWarriorLinux extends DataWarrior {
-	private static final String DEFAULT_LAF = "org.pushingpixels.substance.api.skin.SubstanceGraphiteAquaLookAndFeel";
+import static com.actelion.research.datawarrior.DataWarrior.LookAndFeel.*;
 
-	private static final String[] LOOK_AND_FEEL_ITEM_NAME = {
-			"Classic",
-			"Graphite",
-			"Gray",
-			"Nebula",
-	};
-	private static final String[] LOOK_AND_FEEL_CLASS_NAME = {
-			"org.jvnet.substance.SubstanceLookAndFeel",
-			"org.pushingpixels.substance.api.skin.SubstanceGraphiteAquaLookAndFeel",
-			"org.pushingpixels.substance.api.skin.SubstanceOfficeBlack2007LookAndFeel",
-			"org.pushingpixels.substance.api.skin.SubstanceNebulaLookAndFeel",
-	};
+public class DataWarriorLinux extends DataWarrior {
+	private static final LookAndFeel[] LOOK_AND_FEELS = { GRAPHITE, GRAY, MODERATE, CREME, SAHARA, NEBULA };
+
+	private static final LookAndFeel DEFAULT_LAF = GRAPHITE;
 
 	protected static DataWarriorLinux sDataExplorer;
 	protected static ArrayList<String> sPendingDocumentList;
-
-	private static class OldSubstanceFontSet implements org.jvnet.substance.fonts.FontSet {
-		private float factor;
-		private org.jvnet.substance.fonts.FontSet delegate;
-
-		/**
-		 * @param delegate The base Substance font set.
-		 * @param factor Extra size in pixels. Can be positive or negative.
-		 */
-		public OldSubstanceFontSet(org.jvnet.substance.fonts.FontSet delegate, float factor) {
-			super();
-			this.delegate = delegate;
-			this.factor = factor;
-			}
-
-		/**
-		 * @param systemFont Original font.
-		 * @return Wrapped font.
-		 */
-		private FontUIResource getWrappedFont(FontUIResource systemFont) {
-			return new FontUIResource(systemFont.getFontName(), systemFont.getStyle(),
-									  Math.round(this.factor * systemFont.getSize()));
-			}
-
-		public FontUIResource getControlFont() {
-			return this.getWrappedFont(this.delegate.getControlFont());
-			}
-
-		public FontUIResource getMenuFont() {
-			return this.getWrappedFont(this.delegate.getMenuFont());
-			}
-
-		public FontUIResource getMessageFont() {
-			return this.getWrappedFont(this.delegate.getMessageFont());
-			}
-
-		public FontUIResource getSmallFont() {
-			return this.getWrappedFont(this.delegate.getSmallFont());
-			}
-
-		public FontUIResource getTitleFont() {
-			return this.getWrappedFont(this.delegate.getTitleFont());
-			}
-
-		public FontUIResource getWindowTitleFont() {
-			return this.getWrappedFont(this.delegate.getWindowTitleFont());
-			}
-		}
 
 	private static class NewSubstanceFontSet implements org.pushingpixels.substance.api.fonts.FontSet {
 		private float factor;
@@ -149,7 +92,7 @@ public class DataWarriorLinux extends DataWarrior {
 			String[] filename = sDataExplorer.deduceFileNamesFromArgs(args);
 			if (sDataExplorer == null) {
 				if (sPendingDocumentList == null)
-					sPendingDocumentList = new ArrayList<String>();
+					sPendingDocumentList = new ArrayList<>();
 
 				for (String f:filename)
 					sPendingDocumentList.add(f);
@@ -157,11 +100,7 @@ public class DataWarriorLinux extends DataWarrior {
 			else {
 				for (final String f:filename) {
 					try {
-						SwingUtilities.invokeAndWait(new Runnable() {
-							public void run() {
-								sDataExplorer.readFile(f);
-								}
-							});
+						SwingUtilities.invokeAndWait(() -> sDataExplorer.readFile(f) );
 						}
 					catch(Exception e) {}
 					}
@@ -174,33 +113,13 @@ public class DataWarriorLinux extends DataWarrior {
 		}
 
 	@Override
-	public String[] getAvailableLAFNames() {
-		return LOOK_AND_FEEL_ITEM_NAME;
+	public LookAndFeel[] getAvailableLAFs() {
+		return LOOK_AND_FEELS;
 		};
 
 	@Override
-	public String[] getAvailableLAFClassNames() {
-		return LOOK_AND_FEEL_CLASS_NAME;
-		}
-
-	@Override
-	public String getDefaultLaFName() {
+	public LookAndFeel getDefaultLAF() {
 		return DEFAULT_LAF;
-		}
-
-	private void setFontSetOldSubstance(final float factor) {
-		// reset the base font policy to null - this
-		// restores the original font policy (default size).
-		org.jvnet.substance.SubstanceLookAndFeel.setFontPolicy(null);
-
-		// reduce the default font size a little
-		final org.jvnet.substance.fonts.FontSet substanceCoreFontSet = org.jvnet.substance.SubstanceLookAndFeel.getFontPolicy().getFontSet("Substance", null);
-		org.jvnet.substance.fonts.FontPolicy newFontPolicy = new org.jvnet.substance.fonts.FontPolicy() {
-			public org.jvnet.substance.fonts.FontSet getFontSet(String lafName, UIDefaults table) {
-				return new OldSubstanceFontSet(substanceCoreFontSet, factor);
-				}
-			};
-		org.jvnet.substance.SubstanceLookAndFeel.setFontPolicy(newFontPolicy);
 		}
 
 	private void setFontSetNewSubstance(final float factor) {
@@ -219,41 +138,17 @@ public class DataWarriorLinux extends DataWarrior {
 		}
 
 	@Override
-	public boolean setLookAndFeel(String lafName) {
+	public boolean setLookAndFeel(LookAndFeel laf) {
 		float fontFactor = 1f;
 		String dpiFactor = System.getProperty("dpifactor");
 		if (dpiFactor != null)
 			try { fontFactor = Float.parseFloat(dpiFactor); } catch (NumberFormatException nfe) {}
 
-		if (fontFactor != 1f) {
-			if (lafName.contains("jvnet")) {
-				// for OLD substance we have to set the alternative font set before setting the LaF
-				setFontSetOldSubstance(fontFactor);
-				}
-			}
-
-		// if we don't remove the old substance font set, setting to NEW substance LaF crashes
-		if (LookAndFeelHelper.isOldSubstance())
-			org.jvnet.substance.SubstanceLookAndFeel.setFontPolicy(null);
-
-		if (super.setLookAndFeel(lafName)) {
+		if (super.setLookAndFeel(laf)) {
 			if (fontFactor != 1f) {
 				if (LookAndFeelHelper.isNewSubstance()) {
 					setFontSetNewSubstance(fontFactor);
 					}
-				}
-			if (LookAndFeelHelper.isOldSubstance()) {
-				if (System.getProperty("development") != null) {
-					// nice yellow-brown based mixed look and feel
-					org.jvnet.substance.theme.SubstanceTheme t2 = new org.jvnet.substance.theme.SubstanceSunGlareTheme();
-					org.jvnet.substance.theme.SubstanceTheme t3 = new org.jvnet.substance.theme.SubstanceBrownTheme();
-					org.jvnet.substance.SubstanceLookAndFeel.setCurrentTheme(new org.jvnet.substance.theme.SubstanceMixTheme(t3, t2));
-					}
-				else {
-					org.jvnet.substance.theme.SubstanceTheme t1 = new org.jvnet.substance.theme.SubstanceLightAquaTheme().hueShift(0.04);
-					org.jvnet.substance.SubstanceLookAndFeel.setCurrentTheme(t1);
-					}
-				UIManager.put(org.jvnet.substance.SubstanceLookAndFeel.TABBED_PANE_CONTENT_BORDER_KIND, org.jvnet.substance.utils.SubstanceConstants.TabContentPaneBorderKind.SINGLE_PLACEMENT);
 				}
 			return true;
 			}
@@ -261,35 +156,28 @@ public class DataWarriorLinux extends DataWarrior {
 		}
 
 	public static void main(final String[] args) {
-		SwingUtilities.invokeLater(new Runnable() {
-			public void run() {
-				try {
-					sDataExplorer = new DataWarriorLinux();
+		SwingUtilities.invokeLater(() -> {
+			try {
+				sDataExplorer = new DataWarriorLinux();
 
-					Thread.setDefaultUncaughtExceptionHandler(new Thread.UncaughtExceptionHandler() {
-						@Override
-						public void uncaughtException(final Thread t, final Throwable e) {
-							SwingUtilities.invokeLater(new Runnable() {
-								public void run() {
-									e.printStackTrace();
-									JOptionPane.showMessageDialog(sDataExplorer.getActiveFrame(), "Uncaught Exception:"+e.getMessage());
-									}
-								});
-							}
-						});
+				Thread.setDefaultUncaughtExceptionHandler((final Thread t, final Throwable e) ->
+					SwingUtilities.invokeLater(() -> {
+						e.printStackTrace();
+						JOptionPane.showMessageDialog(sDataExplorer.getActiveFrame(), "Uncaught Exception:"+e.getMessage());
+						} )
+					);
 
-					if (args != null && args.length != 0) {
-						String[] filename = sDataExplorer.deduceFileNamesFromArgs(args);
-						for (String f:filename)
-							sDataExplorer.readFile(f);
-						}
-					if (sPendingDocumentList != null)
-						for (String doc:sPendingDocumentList)
-							sDataExplorer.readFile(doc);
+				if (args != null && args.length != 0) {
+					String[] filename = sDataExplorer.deduceFileNamesFromArgs(args);
+					for (String f:filename)
+						sDataExplorer.readFile(f);
 					}
-				catch(Exception e) {
-					e.printStackTrace();
-					}
+				if (sPendingDocumentList != null)
+					for (String doc:sPendingDocumentList)
+						sDataExplorer.readFile(doc);
+				}
+			catch(Exception e) {
+				e.printStackTrace();
 				}
 			} );
 		}

@@ -18,13 +18,14 @@
 
 package com.actelion.research.datawarrior.task.chem.elib;
 
-import java.util.ArrayList;
-
 import com.actelion.research.chem.Canonizer;
-import com.actelion.research.chem.coords.CoordinateInventor;
 import com.actelion.research.chem.IDCodeParser;
 import com.actelion.research.chem.Mutation;
 import com.actelion.research.chem.StereoMolecule;
+import com.actelion.research.chem.coords.CoordinateInventor;
+import com.actelion.research.util.DoubleFormat;
+
+import java.util.ArrayList;
 
 public class EvolutionResult implements Comparable<EvolutionResult> {
 	private StereoMolecule mMol;
@@ -32,40 +33,43 @@ public class EvolutionResult implements Comparable<EvolutionResult> {
 	private ArrayList<Mutation> mMutationList;
 	private int mGeneration,mParentGeneration,mID,mParentID,mChildIndex;
 	private float[] mProperty,mFitness;
+	private String[][] mCustomColumnValue;
 	private float mOverallFitness;
 	private boolean mCoordinatesValid;
 	private FitnessOption[] mFitnessOptionList;
+	private String[][] mResult;
 
 	/**
 	 * Creates a new EvolutionStep and calculates its fitness.
 	 * One of mol and idcode may be null.
 	 * @param mol
 	 * @param idcode
-	 * @param generation
 	 */
-	public EvolutionResult(StereoMolecule mol, String idcode, EvolutionResult parent, int generation,
+	public EvolutionResult(StereoMolecule mol, String idcode, EvolutionResult parent,
 						   FitnessOption[] fitnessOptionList, int id) {
 		mMol = mol;
 		mIDCode = idcode;
 		mID = id;
-		mGeneration = generation;
 		mFitnessOptionList = fitnessOptionList;
 		if (parent != null) {
 			mParentID = parent.mID;
 			mParentGeneration = parent.mGeneration;
+			mGeneration = parent.mGeneration+1;
 			}
 		else {
 			mParentID = -1;
-			mParentGeneration = generation - 1;
+			mParentGeneration = -2;
+			mGeneration = -1;
 			}
 
 		if (mMol == null)
 			mMol = new IDCodeParser(true).getCompactMolecule(idcode);
 		else if (mIDCode == null)
 			mIDCode = new Canonizer(mMol).getIDCode();
-		
-		calculateIndividualFitness(mMol);
+
+		calculateIndividualFitness();
 		summarizeFitness();
+		compileResultValues();
 		}
 
 	public int getChildIndex() {
@@ -74,6 +78,14 @@ public class EvolutionResult implements Comparable<EvolutionResult> {
 
 	public float getFitness(int i) {
 		return mFitness[i];
+		}
+
+	public void calculateDeferredColumnValue(int fitnessOptionIndex) {
+		mFitnessOptionList[fitnessOptionIndex].calculateDeferredColumnValues(mMol, mResult[fitnessOptionIndex]);
+		}
+
+	public String getResultValue(int fitnessOptionIndex, int i) {
+		return mResult[fitnessOptionIndex][i];
 		}
 
 	public int getGeneration() {
@@ -127,13 +139,18 @@ public class EvolutionResult implements Comparable<EvolutionResult> {
 		mMutationList = ml;
 		}
 
-	private void calculateIndividualFitness(StereoMolecule mol) {
+	private void calculateIndividualFitness() {
 		mProperty = new float[mFitnessOptionList.length];
 		mFitness = new float[mFitnessOptionList.length];
+		mCustomColumnValue = new String[mFitnessOptionList.length][];
 
 		int index = 0;
+		String[][] columnValueHolder = new String[1][0];
 		for (FitnessOption fo:mFitnessOptionList) {
-			mProperty[index] = fo.calculateProperty(mol);
+			mProperty[index] = fo.calculateProperty(mMol, columnValueHolder);
+			mCustomColumnValue[index] = columnValueHolder[0];
+			if (columnValueHolder[0] != null)
+				columnValueHolder[0] = new String[0];
 			mFitness[index] = fo.evaluateFitness(mProperty[index]);
 			index++;
 			}
@@ -149,6 +166,19 @@ public class EvolutionResult implements Comparable<EvolutionResult> {
 			weightSum += fo.getWeight();
 			}
 		mOverallFitness = (float)Math.pow(mOverallFitness, 1.0f / weightSum);
+		}
+
+	private void compileResultValues() {
+		mResult = new String[mFitnessOptionList.length][];
+		for (int foi=0; foi<mFitnessOptionList.length; foi++) {
+			mResult[foi] = new String[mFitnessOptionList[foi].getResultColumnCount()];
+			int index = 0;
+			mResult[foi][index++] = DoubleFormat.toString(mProperty[foi]);
+			if (mFitnessOptionList[foi].hasFitnessColumn())
+				mResult[foi][index++] = DoubleFormat.toString(mFitness[foi]);
+			for (String columnValue:mCustomColumnValue[foi])
+				mResult[foi][index++] = columnValue;
+			}
 		}
 
 	/**

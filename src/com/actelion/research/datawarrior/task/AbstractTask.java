@@ -18,40 +18,23 @@
 
 package com.actelion.research.datawarrior.task;
 
-import java.awt.*;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
-import java.io.File;
-import java.io.IOException;
-import java.io.StringReader;
-import java.io.StringWriter;
-import java.io.Writer;
-import java.net.URL;
-import java.util.Properties;
-import java.util.TreeMap;
-
-import javax.swing.BorderFactory;
-import javax.swing.JButton;
-import javax.swing.JComponent;
-import javax.swing.JDialog;
-import javax.swing.JEditorPane;
-import javax.swing.JList;
-import javax.swing.JOptionPane;
-import javax.swing.JPanel;
-import javax.swing.JScrollPane;
-import javax.swing.SwingUtilities;
-import javax.swing.event.HyperlinkEvent;
-import javax.swing.event.HyperlinkListener;
-import javax.swing.text.html.HTMLEditorKit;
-
 import com.actelion.research.calc.ProgressController;
 import com.actelion.research.datawarrior.DEFrame;
 import com.actelion.research.datawarrior.DataWarrior;
+import com.actelion.research.datawarrior.help.FXHelpFrame;
 import com.actelion.research.datawarrior.task.macro.GenericTaskRunMacro;
 import com.actelion.research.gui.JProgressDialog;
 import com.actelion.research.gui.hidpi.HiDPIHelper;
-import com.actelion.research.gui.hidpi.ScaledEditorKit;
 import com.actelion.research.table.model.CompoundTableModel;
+import info.clearthought.layout.TableLayout;
+
+import javax.swing.*;
+import java.awt.*;
+import java.awt.event.ActionListener;
+import java.io.*;
+import java.util.List;
+import java.util.Properties;
+import java.util.TreeMap;
 
 public abstract class AbstractTask implements ProgressController,Runnable {
 	public static final int ERROR_MESSAGE = JOptionPane.ERROR_MESSAGE;
@@ -285,12 +268,10 @@ public abstract class AbstractTask implements ProgressController,Runnable {
 			}
 
 		mDialog = new JDialog(mParentFrame, getDialogTitle(), true);
+		mDialog.setModalityType(Dialog.ModalityType.DOCUMENT_MODAL);
 		mDialog.getContentPane().setLayout(new BorderLayout());
 		mDialog.getContentPane().add(content, BorderLayout.CENTER);
-
-		JPanel buttonPanel = createButtonPanel();
-		buttonPanel.setBorder(BorderFactory.createEmptyBorder(12, 8, 8, 8));
-		mDialog.getContentPane().add(buttonPanel, BorderLayout.SOUTH);
+		mDialog.getContentPane().add(createButtonPanel(), BorderLayout.SOUTH);
 
 		if (configuration != null)
 			getUIDelegate().setDialogConfiguration(configuration);
@@ -351,67 +332,31 @@ public abstract class AbstractTask implements ProgressController,Runnable {
 	 * @return
 	 */
 	private JPanel createButtonPanel() {
-		ActionListener al = new ActionListener() {
-			@Override
-			public void actionPerformed(ActionEvent e) {
-				if (e.getActionCommand().equals("Help")) {
-					final float zoomFactor = HiDPIHelper.getUIScaleFactor();
-					final JEditorPane helpPane = new JEditorPane();
-					helpPane.setEditorKit(HiDPIHelper.getUIScaleFactor() == 1f ? new HTMLEditorKit() : new ScaledEditorKit());
-					helpPane.setEditable(false);
-					helpPane.addHyperlinkListener(new HyperlinkListener() {
-						public void hyperlinkUpdate(HyperlinkEvent e) {
-							if (e.getEventType() == HyperlinkEvent.EventType.ACTIVATED) {
-								URL url = e.getURL();
-								try {
-									helpPane.setPage(url);
-									}
-								catch(IOException ioe) {}
-								}
-							}
-						});
-
-					URL url = createURL(getHelpURL());
-					if (url != null)
-						try {
-							helpPane.setPage(url);
-						} catch (IOException ioe) {}
-
-/*					System.out.println(((HTMLDocument)helpPane.getDocument()).getStyle("body").toString());
-
-					((HTMLDocument)helpPane.getDocument()).getStyleSheet().removeStyle("body");
-					String rule1 = "body { font-family: Verdana, Arial, Helvetica, sans-serif; font-size: 20pt; color: #000000; text-decoration: none }";
-//					h1 { font-size: 18pt; font-weight : bold; color: #C06020; margin-top: 13px; margin-bottom: 10px; }
-//					h2 { font-size: 16pt; font-weight: bold; color: #8080FF }
-//					h3 { font-size: 13pt; font-style: italic; font-weight: bold; color: #3030AA }
-//					td { font-size: 12pt }
-					((HTMLDocument)helpPane.getDocument()).getStyleSheet().addRule(rule1);
-*/
-					JDialog helpDialog = new JDialog(getDialog(), "Help "+getTaskName(), false);
-					helpDialog.setSize(HiDPIHelper.scale(720), HiDPIHelper.scale(500));
-					helpDialog.getContentPane().add(new JScrollPane(helpPane,
-									JScrollPane.VERTICAL_SCROLLBAR_ALWAYS,
-									JScrollPane.HORIZONTAL_SCROLLBAR_NEVER));
-					helpDialog.setVisible(true);
-					return;
-					}
-
-				mStatusOK = false;
-				if (e.getActionCommand().equals("Cancel"))
-					doCancelAction();
-
-				if (e.getActionCommand().equals("OK"))
-					doOKAction();
+		ActionListener al = e -> {
+			if (e.getActionCommand().equals("Help")) {
+				FXHelpFrame.showResource(getHelpURL(), getParentFrame());
+				return;
 				}
+
+			mStatusOK = false;
+			if (e.getActionCommand().equals("Cancel"))
+				doCancelAction();
+
+			if (e.getActionCommand().equals("OK"))
+				doOKAction();
 			};
 
+		int gap = HiDPIHelper.scale(8);
+		double[][] size = { {gap, TableLayout.PREFERRED, gap, TableLayout.FILL, TableLayout.PREFERRED, gap, TableLayout.PREFERRED, gap},
+							{gap, TableLayout.PREFERRED, gap} };
+
 		JPanel buttonPanel = new JPanel();
-		buttonPanel.setLayout(new BorderLayout());
+		buttonPanel.setLayout(new TableLayout(size));
 		JButton[] optionButtons = getAccessoryButtons();
 		if (optionButtons != null || getHelpURL() != null) {
 			JPanel libp = new JPanel();
 			int count = (optionButtons == null ? 0 : optionButtons.length) + (getHelpURL() == null ? 0 : 1);
-			libp.setLayout(new GridLayout(1, count, 8, 0));
+			libp.setLayout(new GridLayout(1, count, gap, 0));
 			if (getHelpURL() != null) {
 				JButton bhelp = new JButton("Help");
 				bhelp.addActionListener(al);
@@ -420,20 +365,79 @@ public abstract class AbstractTask implements ProgressController,Runnable {
 			if (optionButtons != null)
 				for (JButton b:optionButtons)
 					libp.add(b);
-			buttonPanel.add(libp, BorderLayout.WEST);
+			buttonPanel.add(libp, "1,1");
 			}
-		JPanel ibp = new JPanel();
-		ibp.setLayout(new GridLayout(1, 2, 8, 0));
 		JButton bcancel = new JButton("Cancel");
 		bcancel.addActionListener(al);
-		ibp.add(bcancel);
+		buttonPanel.add(bcancel, "4,1");
 		JButton bok = new JButton("OK");
 		bok.addActionListener(al);
-		ibp.add(bok);
-		buttonPanel.add(ibp, BorderLayout.EAST);
+		buttonPanel.add(bok, "6,1");
 		mDialog.getRootPane().setDefaultButton(bok);
 		return buttonPanel;
 		}
+
+/*	private void showSwingHelpWindow() {
+		final float zoomFactor = HiDPIHelper.getUIScaleFactor();
+		final JEditorPane helpPane = new JEditorPane();
+		helpPane.setEditorKit(HiDPIHelper.getUIScaleFactor() == 1f ? new HTMLEditorKit() : new ScaledEditorKit());
+		helpPane.setEditable(false);
+		helpPane.addHyperlinkListener(new HyperlinkListener() {
+			public void hyperlinkUpdate(HyperlinkEvent e) {
+				if (e.getEventType() == HyperlinkEvent.EventType.ACTIVATED) {
+					URL url = e.getURL();
+					try {
+						helpPane.setPage(url);
+					}
+					catch(IOException ioe) {}
+				}
+			}
+		});
+
+		URL url = createURL(getHelpURL());
+		if (url != null)
+			try {
+				helpPane.setPage(url);
+			} catch (IOException ioe) {}
+
+//					System.out.println(((HTMLDocument)helpPane.getDocument()).getStyle("body").toString());
+//
+//					((HTMLDocument)helpPane.getDocument()).getStyleSheet().removeStyle("body");
+//					String rule1 = "body { font-family: Verdana, Arial, Helvetica, sans-serif; font-size: 20pt; color: #000000; text-decoration: none }";
+//					h1 { font-size: 18pt; font-weight : bold; color: #C06020; margin-top: 13px; margin-bottom: 10px; }
+//					h2 { font-size: 16pt; font-weight: bold; color: #8080FF }
+//					h3 { font-size: 13pt; font-style: italic; font-weight: bold; color: #3030AA }
+//					td { font-size: 12pt }
+//					((HTMLDocument)helpPane.getDocument()).getStyleSheet().addRule(rule1);
+//
+		JDialog helpDialog = new JDialog(getDialog(), "Help "+getTaskName(), false);
+		helpDialog.setSize(HiDPIHelper.scale(720), HiDPIHelper.scale(500));
+		helpDialog.getContentPane().add(new JScrollPane(helpPane,
+				JScrollPane.VERTICAL_SCROLLBAR_ALWAYS,
+				JScrollPane.HORIZONTAL_SCROLLBAR_NEVER));
+		helpDialog.setVisible(true);
+		return;
+		}
+
+	private URL createURL(String urlText) {
+		String ref = null;
+		int index = urlText.indexOf('#');
+		if (index != -1) {
+			ref = urlText.substring(index);
+			urlText = urlText.substring(0, index);
+		}
+		URL theURL = getClass().getResource(urlText);
+		if (ref != null) {
+			try {
+				theURL = new URL(theURL, ref);
+			}
+			catch (IOException e) {
+				return null;
+			}
+		}
+		return theURL;
+	}	*/
+
 
 	/**
 	 * Keeps the mStatusOK flag on false and closes the dialog.
@@ -487,25 +491,6 @@ public abstract class AbstractTask implements ProgressController,Runnable {
 		return null;
 		}
 
-	private URL createURL(String urlText) {
-		String ref = null;
-		int index = urlText.indexOf('#');
-		if (index != -1) {
-			ref = urlText.substring(index);
-			urlText = urlText.substring(0, index);
-			}
-		URL theURL = getClass().getResource(urlText);
-		if (ref != null) {
-			try {
-				theURL = new URL(theURL, ref);
-				}
-			catch (IOException e) {
-				return null;
-				}
-			}
-		return theURL;
-		}
-
 	public final Frame getParentFrame() {
 		return mParentFrame;
 		}
@@ -525,7 +510,7 @@ public abstract class AbstractTask implements ProgressController,Runnable {
 
 	/**
 	 * Assuming that the task is currently executed as part of a running macro,
-	 * this method replaces as occurences of '$<variableName>' with the respective
+	 * this method replaces all occurences of '$<variableName>' with the respective
 	 * value of the variables known to the context of the running macro (the DEMacroRecorder's context).
 	 * @param text
 	 * @return original text if task is not currently running in a macro or if variable(s) do(es)n't exist
@@ -584,7 +569,7 @@ public abstract class AbstractTask implements ProgressController,Runnable {
 	 * @param messageType one of ERROR_MESSAGE, WARNING_MESSAGE, INFORMATION_MESSAGE
 	 */
 	public void showMessage(String message, int messageType) {
-		if (mProgressController == null) {
+		if (!isRunningMacro()) {
 			showInteractiveTaskMessage(message, messageType);
 			}
 		else {
@@ -689,12 +674,7 @@ public abstract class AbstractTask implements ProgressController,Runnable {
 
 			if (!mUseOwnThread) {
 				try {
-					SwingUtilities.invokeAndWait(new Runnable() {
-						@Override
-						public void run() {
-							runTask(configuration);
-							}
-						} );
+					SwingUtilities.invokeAndWait(() -> runTask(configuration));
 					}
 				catch (Exception e) {}
 				}
@@ -738,10 +718,11 @@ public abstract class AbstractTask implements ProgressController,Runnable {
 	 */
 	public String getSelectedColumnsFromList(JList list, CompoundTableModel tableModel) {
 		StringBuilder sb = null;
-		for (Object item:list.getSelectedValues()) {
-			int column = tableModel.findColumn((String)item);
+		List<String> selection = list.getSelectedValuesList();
+		for (String item:selection) {
+			int column = tableModel.findColumn(item);
 			String columnName = (tableModel.getParentColumn(column) == -1) ?
-					tableModel.getColumnTitleNoAlias(column) : (String)item;
+					tableModel.getColumnTitleNoAlias(column) : item;
 			if (sb == null) {
 				sb = new StringBuilder(columnName);
 				}
@@ -808,7 +789,8 @@ public abstract class AbstractTask implements ProgressController,Runnable {
 			showErrorMessage("No file name specified.");
 			return false;
 			}
-		File file = new File(resolvePathVariables(filename));
+		filename = resolvePathVariables(filename);
+		File file = new File(filename);
 		if (!file.exists()) {
 			if (!isSaving) {
 				showErrorMessage("File not found:\n"+filename);
@@ -855,8 +837,16 @@ public abstract class AbstractTask implements ProgressController,Runnable {
 		return true;
 		}
 
+	/**
+	 * If the given path starts with a valid variable name, then this
+	 * is replaced by the corresponding path on the current system and all file separators
+	 * are converted to the correct ones for the current platform.
+	 * Valid variable names are $HOME, $TEMP, $PARENT, resource directories, and macro variables.
+	 * @param path possibly starting with variable, e.g. "$EXAMPLE/drugs.dwar"
+	 * @return untouched path or path with resolved variable, e.g. "/opt/datawarrior/example/drugs.dwar"
+	 */
 	public String resolvePathVariables(String path) {
-		return DataWarrior.resolveVariables(path);
+		return resolveVariables(DataWarrior.getApplication().resolvePathVariables(path));
 		}
 
 	/**
@@ -889,15 +879,19 @@ public abstract class AbstractTask implements ProgressController,Runnable {
 	 * @param message
 	 */
 	public void showInteractiveTaskMessage(final String message, final int messageType) {
-		if (SwingUtilities.isEventDispatchThread()) {
-			JOptionPane.showMessageDialog(mParentFrame, message, getTaskName(), messageType);
-			}
+		if (SwingUtilities.isEventDispatchThread())
+			showInteractiveMessageInEDT(message, messageType);
 		else {
-			SwingUtilities.invokeLater(new Runnable() {
-				public void run() {
-					JOptionPane.showMessageDialog(mParentFrame, message, getTaskName(), messageType);
-					}
-				} );
+			SwingUtilities.invokeLater(() ->
+				JOptionPane.showMessageDialog(mParentFrame, message, getTaskName(), messageType)
+				);
 			}
+		}
+
+	private void showInteractiveMessageInEDT(final String message, final int messageType) {
+		if (mDialog != null)
+			JOptionPane.showMessageDialog(mDialog, message, getTaskName(), messageType);
+		else
+			JOptionPane.showMessageDialog(mParentFrame, message, getTaskName(), messageType);
 		}
 	}

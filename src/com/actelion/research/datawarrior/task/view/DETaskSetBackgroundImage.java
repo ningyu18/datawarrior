@@ -18,44 +18,26 @@
 
 package com.actelion.research.datawarrior.task.view;
 
-import info.clearthought.layout.TableLayout;
-
-import java.awt.Color;
-import java.awt.Dimension;
-import java.awt.Frame;
-import java.awt.Graphics;
-import java.awt.Image;
-import java.awt.event.ActionEvent;
-import java.awt.image.BufferedImage;
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.util.Properties;
-
-import javax.imageio.ImageIO;
-import javax.swing.JButton;
-import javax.swing.JCheckBox;
-import javax.swing.JComponent;
-import javax.swing.JFileChooser;
-import javax.swing.JLabel;
-import javax.swing.JOptionPane;
-import javax.swing.JPanel;
-import javax.swing.SwingConstants;
-import javax.swing.filechooser.FileFilter;
-
 import com.actelion.research.chem.io.CompoundFileHelper;
 import com.actelion.research.datawarrior.DEMainPane;
 import com.actelion.research.gui.FileHelper;
 import com.actelion.research.gui.clipboard.ImageClipboardHandler;
-import com.actelion.research.table.view.CompoundTableView;
-import com.actelion.research.table.view.JVisualization;
-import com.actelion.research.table.view.JVisualization2D;
-import com.actelion.research.table.view.VisualizationPanel2D;
+import com.actelion.research.gui.hidpi.HiDPIHelper;
+import com.actelion.research.table.view.*;
 import com.actelion.research.util.BinaryDecoder;
 import com.actelion.research.util.BinaryEncoder;
+import info.clearthought.layout.TableLayout;
+
+import javax.imageio.ImageIO;
+import javax.swing.*;
+import javax.swing.filechooser.FileFilter;
+import java.awt.*;
+import java.awt.event.ActionEvent;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
+import java.awt.image.BufferedImage;
+import java.io.*;
+import java.util.Properties;
 
 
 public class DETaskSetBackgroundImage extends DETaskAbstractSetViewOptions {
@@ -84,9 +66,11 @@ public class DETaskSetBackgroundImage extends DETaskAbstractSetViewOptions {
 		}
 
 	@Override
-	public JComponent createInnerDialogContent() {
-		double size2[][] = { {8, TableLayout.PREFERRED, 4, TableLayout.FILL, 4, TableLayout.PREFERRED, 8},
-							 {8, TableLayout.PREFERRED, 8, TableLayout.PREFERRED, 8, TableLayout.PREFERRED, 16, 160, 16, TableLayout.PREFERRED, 8} };
+	public JComponent createViewOptionContent() {
+		int gap = HiDPIHelper.scale(8);
+		double size2[][] = { {gap, TableLayout.PREFERRED, gap/2, TableLayout.FILL,gap/2, TableLayout.PREFERRED, gap},
+							 {gap, TableLayout.PREFERRED, gap, TableLayout.PREFERRED, gap, TableLayout.PREFERRED, gap*2,
+									 HiDPIHelper.scale(160), gap*2, TableLayout.PREFERRED, gap} };
 		JPanel p = new JPanel();
 		p.setLayout(new TableLayout(size2));
 		p.add(new JLabel("Import from file:"), "1,1,3,1");
@@ -118,6 +102,33 @@ public class DETaskSetBackgroundImage extends DETaskAbstractSetViewOptions {
 					}
 				}
 			};
+		mBackgroundImagePreview.addMouseListener(new MouseAdapter() {
+			@Override
+			public void mousePressed(MouseEvent e) {
+				if (!handlePopupTrigger(e))
+					super.mousePressed(e);
+				}
+
+			@Override
+			public void mouseReleased(MouseEvent e) {
+				if (!handlePopupTrigger(e))
+					super.mouseReleased(e);
+				}
+
+			private boolean handlePopupTrigger(MouseEvent e) {
+				if (e.isPopupTrigger()) {
+					if (mBackgroundImage != null) {
+						JPopupMenu popup = new JPopupMenu();
+						JMenuItem item1 = new JMenuItem("Copy Image");
+						item1.addActionListener(event -> ImageClipboardHandler.copyImage(mBackgroundImage) );
+						popup.add(item1);
+						popup.show(mBackgroundImagePreview, e.getX(), e.getY());
+						}
+					return true;
+					}
+				return false;
+				}
+			});
 		p.add(mBackgroundImagePreview, "3,7,5,7");
 		mCheckboxHideScale = new JCheckBox("Hide scale and grid lines");
 		mCheckboxHideScale.setHorizontalAlignment(SwingConstants.CENTER);
@@ -142,15 +153,20 @@ public class DETaskSetBackgroundImage extends DETaskAbstractSetViewOptions {
 		if (e.getActionCommand().equals("Open...")) {
 			FileFilter filter = CompoundFileHelper.createFileFilter(CompoundFileHelper.cFileTypeJPG
 																  | CompoundFileHelper.cFileTypePNG, false);
-			JFileChooser fileChooser = new JFileChooser();
-			fileChooser.setCurrentDirectory(FileHelper.getCurrentDirectory());
-			fileChooser.setFileFilter(filter);
-			int option = fileChooser.showOpenDialog(getParentFrame());
-			FileHelper.setCurrentDirectory(fileChooser.getCurrentDirectory());
+			JFileChooser fc = new JFileChooser();
+
+			// file chooser height does not automatically grow with UI scale factor
+			if (HiDPIHelper.getUIScaleFactor() > 1)
+				fc.setPreferredSize(new Dimension(fc.getPreferredSize().width, HiDPIHelper.scale(fc.getPreferredSize().height)));
+
+			fc.setCurrentDirectory(FileHelper.getCurrentDirectory());
+			fc.setFileFilter(filter);
+			int option = fc.showOpenDialog(getParentFrame());
+			FileHelper.setCurrentDirectory(fc.getCurrentDirectory());
 			if (option != JFileChooser.APPROVE_OPTION)
 				return;
 			try {
-				File file = fileChooser.getSelectedFile();
+				File file = fc.getSelectedFile();
 				InputStream is = new FileInputStream(file);
 				long length = file.length();
 
@@ -200,14 +216,14 @@ public class DETaskSetBackgroundImage extends DETaskAbstractSetViewOptions {
 		}
 
 	@Override
-	public void addViewConfiguration(Properties configuration) {
-		JVisualization2D visualization = (JVisualization2D)((VisualizationPanel2D)getInteractiveView()).getVisualization();
+	public void addViewConfiguration(CompoundTableView view, Properties configuration) {
+		JVisualization2D visualization = (JVisualization2D)((VisualizationPanel)view).getVisualization();
 
 		byte[] image = visualization.getBackgroundImageData();
 		if (image != null)
 			configuration.put(PROPERTY_IMAGE_DATA, BinaryEncoder.toString(image, 8));
 
-		configuration.setProperty(PROPERTY_HIDE_SCALE, JVisualization.SCALE_MODE_CODE[getInteractiveVisualization().getScaleMode()]);
+		configuration.setProperty(PROPERTY_HIDE_SCALE, JVisualization.SCALE_MODE_CODE[visualization.getScaleMode()]);
 		}
 
 	@Override
@@ -262,6 +278,9 @@ public class DETaskSetBackgroundImage extends DETaskAbstractSetViewOptions {
 
 	@Override
 	public void applyConfiguration(CompoundTableView view, Properties configuration, boolean isAdjusting) {
+		if (!(view instanceof VisualizationPanel2D))
+			return;
+
 		JVisualization2D visualization = (JVisualization2D)((VisualizationPanel2D)view).getVisualization();
 
 		String imageString = configuration.getProperty(PROPERTY_IMAGE_DATA);

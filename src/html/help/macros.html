@@ -102,18 +102,26 @@ column name in addition to selecting one from a list of compatible columns.
 
 <h3><a name="ImportExport"></a>Exporting and Importing Macros</h3>
 <p>
-When a new macro is born by either creating it in the macro editor or by recording user interactions, the macro belongs
-to the <span class="keyword">DataWarrior</span> document that was in front, when the macro was created. Whenever this
-document's window is active, its <span class="menu">Run Macro</span> menu contains an item for every contained macro, which
-triggers its execution. This way the initial scope of any new macro is more or less limited to the data file it belongs to.
-In order to share a macro with a colleague or to make it available to all data files, it needs to be detached, i.e. exported
-from its original data file. When selecting the macro's name from the <span class="menu">Export Macro</span> menu, the macro
-is written into a dedicated file that can be sent to a colleague, or converted into a global macro by putting into a directory,
-which is scanned by <span class="keyword">DataWarrior</span> during launch.<br>
+When a new macro is born by either creating it in the macro editor or by recording user interactions, then the macro belongs
+to the <span class="keyword">DataWarrior</span> document that was in front, when the macro creation was started. Whenever
+a document window is in front that contains macros, then its <span class="menu">Run Macro</span> menu allows to execute
+any of the document's internal macros. This way the initial scope of any new macro is more or less limited to the data file
+it belongs to. In order to share a macro with a colleague or to make it available to all data files, it needs to be detached,
+i.e. exported from its original data file. When selecting the macro's name from the <span class="menu">Export Macro</span> menu,
+then the macro is written into a dedicated file that can be sent to a colleague, or converted into a global macro by putting
+it into a directory, which is scanned by <span class="keyword">DataWarrior</span> during launch (see next section).<br>
 Likewise, macro files can be imported into any <span class="keyword">DataWarrior</span> document to quasi marry them with it.
 This is done by selecting <span class="menu">Import Macro...</span> from the <span class="menu">Macro</span> menu.
 Whenever a document with embedded macros is opened, the names of its macros appear in the <span class="menu">Run Macro</span>
 submenu for immediate execution.
+</p>
+<p>
+Macro files are text files with a simple format. They basically contain a macro name and a sequential list of task.
+Tasks also have a name identyfiable by <span class="keyword">DataWarrior</span> and a list of properties, which define
+what exactly the task is supposed to do. If you have a little experience, you may use a text editor to adapt a macro
+to your needs. For convenience reasons <span class="keyword">DataWarrior</span> allows to copy/paste macros in text form
+using <span class="menu">Copy Macro</span> and <span class="menu">Paste Macro</span> from the <span class="menu">Macro</span>
+menu. With these you may quickly copy macros from one document to another, or from and to a text editor for quick modifications.
 </p>
 <br>
 
@@ -127,7 +135,7 @@ then the corresponding macro is executed on the active window's dataset. When as
 <span class="keyword">DataWarrior</span> searches these paths:<br>
 <li>The <i>macro</i> folder directly in the <span class="keyword">DataWarrior</span> installation directory. This is <i>/opt/datawarrior/macro</i>,
 <i>/Applications/DataWarrior.app/macro</i>, or <i>C:\Program Files\DataWarrior\macro</i> for Linux, Macintosh or Windows (64-bit),
-respectively. Any macro files in these directories are visible to all users.</li>
+respectively. Macro files in these directories are visible to all users on that computer.</li>
 <li>A <i>macro</i> folder in a <i>datawarrior</i> folder in the user's home folder. This is <i>/home/&lt;username&gt;/datawarrior/macro</i> and
 <i>/Users/&lt;username&gt;/datawarrior/macro</i> for Linux and Macintosh, respectively. On Windows the home folder location depends on
 the version of Windows, the version of Java and other settings. Often it is the user's <i>Desktop</i> folder.

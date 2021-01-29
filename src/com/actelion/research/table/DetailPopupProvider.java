@@ -18,11 +18,11 @@
 
 package com.actelion.research.table;
 
-import javax.swing.JPopupMenu;
-
 import com.actelion.research.table.model.CompoundRecord;
 import com.actelion.research.table.view.CompoundTableView;
 
+import javax.swing.*;
+
 public interface DetailPopupProvider {
-	public JPopupMenu createPopupMenu(CompoundRecord record, CompoundTableView source, int selectedColumn);
+	public JPopupMenu createPopupMenu(CompoundRecord record, CompoundTableView source, int selectedColumn, boolean isCtrlDown);
 	}

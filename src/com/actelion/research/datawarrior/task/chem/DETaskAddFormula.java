@@ -20,14 +20,13 @@ package com.actelion.research.datawarrior.task.chem;
 
 import java.util.Arrays;
 import java.util.Comparator;
-import java.util.Properties;
 
 import com.actelion.research.chem.MolecularFormula;
 import com.actelion.research.chem.StereoMolecule;
 import com.actelion.research.datawarrior.DEFrame;
 
 
-public class DETaskAddFormula extends DETaskAbstractAddChemProperty implements Runnable {
+public class DETaskAddFormula extends DETaskAbstractFromStructure implements Runnable {
 	public static final String TASK_NAME = "Add Molecular Formula";
 
 	public DETaskAddFormula(DEFrame parent) {
@@ -37,6 +36,11 @@ public class DETaskAddFormula extends DETaskAbstractAddChemProperty implements R
 	@Override
 	public String getTaskName() {
 		return TASK_NAME;
+		}
+
+	@Override
+	public String getHelpURL() {
+		return "/html/help/chemistry.html#AddFormula";
 		}
 
 	@Override

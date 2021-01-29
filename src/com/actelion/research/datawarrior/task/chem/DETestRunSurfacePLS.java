@@ -18,16 +18,16 @@
 
 package com.actelion.research.datawarrior.task.chem;
 
-import java.util.Properties;
-
 import com.actelion.research.calc.Matrix;
-import com.actelion.research.calc.linearregression.pls.ModelError;
-import com.actelion.research.calc.linearregression.pls.RegressionModelCalculatorOptimumFactors;
+import com.actelion.research.calc.regression.ModelError;
+import com.actelion.research.calc.regression.linear.pls.RegressionModelCalculatorOptimumFactors;
 import com.actelion.research.chem.prediction.TotalSurfaceAreaPredictor;
 import com.actelion.research.datawarrior.DEFrame;
 import com.actelion.research.datawarrior.task.AbstractTaskWithoutConfiguration;
 import com.actelion.research.table.model.CompoundTableModel;
-import com.actelion.research.util.datamodel.ModelXY;
+import com.actelion.research.util.datamodel.ModelXYIndex;
+
+import java.util.Properties;
 
 
 public class DETestRunSurfacePLS extends AbstractTaskWithoutConfiguration {
@@ -105,7 +105,7 @@ public class DETestRunSurfacePLS extends AbstractTaskWithoutConfiguration {
 				y[r][0] = mTableModel.getTotalDoubleAt(r, surfaceAreaColumn);
 	
 			System.out.println("############# "+SURFACE_COLUMN_TITLE[mode]+" ############");
-			ModelXY modelData = new ModelXY();
+			ModelXYIndex modelData = new ModelXYIndex();
 			modelData.X = new Matrix(x);
 			modelData.Y = new Matrix(y);
 			RegressionModelCalculatorOptimumFactors rmc = new RegressionModelCalculatorOptimumFactors();

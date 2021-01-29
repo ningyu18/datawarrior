@@ -20,7 +20,8 @@ package com.actelion.research.datawarrior;
 
 import java.awt.*;
 import java.awt.event.*;
-import java.io.File;
+import java.io.*;
+import java.net.URL;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import javax.swing.JDialog;
@@ -66,20 +67,36 @@ public class DEAboutDialog extends JDialog implements MouseListener,Runnable {
     	return new JImagePanelFixedSize("/images/about.jpg") {
 			@Override public void paintComponent(Graphics g) {
 				super.paintComponent(g);
-				File installDir = DataWarrior.resolveResourcePath("");
-				File jarFile = installDir == null ? null : new File(installDir.getPath()
-						+File.separator+(Platform.isWindows() ? "x64\\DataWarrior64.exe" : "datawarrior.jar"));
+//				File installDir = DataWarrior.resolveResourcePath("");
+//				File jarFile = installDir == null ? null : new File(installDir.getPath()
+//						+File.separator+(Platform.isWindows() ? "x64\\DataWarrior64.exe" : "datawarrior.jar"));
+//				String dateString = jarFile == null ? "development" : dateString(jarFile.lastModified());
 				((Graphics2D)g).setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
 				g.setFont(g.getFont().deriveFont(Font.BOLD, 10f));
 				g.setColor(Color.BLUE);
-				String dateString = jarFile == null ? "development" : dateString(jarFile.lastModified());
-				g.drawString(dateString, 430, 10);
+				g.drawString(builtDate(), 430, 10);
 				}
 			};
 		}
 
 	public String dateString(long millis) {
 		return new SimpleDateFormat("dd-MMM-yyyy").format(new Date(millis));
+		}
+
+	private String builtDate() {
+		String date = "development";
+		URL url = getClass().getResource("/resources/builtDate.txt");
+		if(url != null) {
+			try {
+				BufferedReader reader = new BufferedReader(new InputStreamReader(url.openStream()));
+				date = reader.readLine();
+				reader.close();
+				}
+			catch (IOException e) {
+				date = "exception";
+				}
+			}
+		return date;
 		}
 
 	public void run() {

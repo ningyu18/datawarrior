@@ -29,7 +29,7 @@ public class BoxPlotViewInfo extends CategoryViewInfo {
 	int[][] outlierCount;// count of rows outside of LAV and UAV
 
     public BoxPlotViewInfo(int hvCount, int catCount, int colorCount) {
-    	super(hvCount, catCount, colorCount);
+    	super(hvCount, catCount, colorCount, JVisualization.cChartModeCount, false);
     	}
 
     public boolean isOutsideValue(int hv, int cat, float value) {

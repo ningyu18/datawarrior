@@ -19,6 +19,14 @@
 package com.actelion.research.datawarrior.task;
 
 import com.actelion.research.chem.io.CompoundTableConstants;
+import com.actelion.research.datawarrior.task.chem.DETaskClusterCompounds;
+import com.actelion.research.datawarrior.task.chem.elib.DETaskBuildEvolutionaryLibrary;
+import com.actelion.research.datawarrior.task.data.*;
+import com.actelion.research.datawarrior.task.data.fuzzy.DETaskCalculateFuzzyScore;
+import com.actelion.research.datawarrior.task.table.DETaskCopyTableCells;
+import com.actelion.research.datawarrior.task.table.DETaskJumpToReferenceRow;
+import com.actelion.research.datawarrior.task.view.*;
+import com.actelion.research.gui.FileHelper;
 import com.actelion.research.io.BOMSkipper;
 
 import java.io.BufferedReader;
@@ -29,14 +37,17 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.Properties;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class DEMacro implements CompoundTableConstants {
-	private static final String MACRO_START = "<macro name=\"";
+	public static final String MACRO_START = "<macro name=\"";
 	private static final String MACRO_END = "</macro";
+	private static final String DESCRIPTION_START = "<description";
+	private static final String DESCRIPTION_END = "</description";
 	private static final String TASK_START = "<task name=\"";
 	private static final String TASK_END = "</task";
 	private static final String AUTOSTART = " auto-start=\"true\"";
-	private String			mName;
+	private String			mName,mDescription;
 	private ArrayList<Task> mTaskList;
 	private ArrayList<DEMacroListener> mListenerList;
 	private ArrayList<Loop> mLoopList;
@@ -96,9 +107,17 @@ public class DEMacro implements CompoundTableConstants {
 	 * @throws IOException
 	 */
 	public DEMacro(File file, ArrayList<DEMacro> macroList) throws IOException {
-		mTaskList = new ArrayList<Task>();
-		mListenerList = new ArrayList<DEMacroListener>();
-		BufferedReader reader = new BufferedReader(new InputStreamReader(new FileInputStream(file), "UTF-8"));
+		this(new BufferedReader(new InputStreamReader(new FileInputStream(file), "UTF-8")), macroList);
+		}
+
+	/**
+	 * Creates a new DEMacro from a text representation of a macro.
+	 * @param reader
+	 * @throws IOException
+	 */
+	public DEMacro(BufferedReader reader, ArrayList<DEMacro> macroList) throws IOException {
+		mTaskList = new ArrayList<>();
+		mListenerList = new ArrayList<>();
 		BOMSkipper.skip(reader);
 		String headerLine = reader.readLine();
 		mName = extractMacroName(headerLine);
@@ -165,6 +184,10 @@ public class DEMacro implements CompoundTableConstants {
 			l.macroNameChanged(this);
 		}
 
+	public String getDescription() {
+		return mDescription;
+		}
+
 	public String getName() {
 		return mName;
 		}
@@ -187,6 +210,16 @@ public class DEMacro implements CompoundTableConstants {
 
 	public void addTask(String taskCode, Properties configuration) {
 		mTaskList.add(new Task(taskCode, configuration));
+		fireContentChanged();
+		}
+
+	public void duplicateTask(int index) {
+		Task task = mTaskList.get(index);
+		Properties oldConfiguration = task.getConfiguration();
+		Properties newConfiguration = new Properties();
+		for (String key:oldConfiguration.stringPropertyNames())
+			newConfiguration.put(key, oldConfiguration.getProperty(key));
+		mTaskList.add(index+1, new Task(task.getCode(), newConfiguration));
 		fireContentChanged();
 		}
 
@@ -274,6 +307,18 @@ public class DEMacro implements CompoundTableConstants {
 	public void readMacro(BufferedReader reader) throws IOException {
 		mTaskList.clear();
 		String theLine = reader.readLine();
+		if (theLine != null && theLine.startsWith(DESCRIPTION_START)) {
+			StringBuilder descBuilder = new StringBuilder();
+			theLine = reader.readLine();
+			while (theLine != null && !theLine.startsWith(DESCRIPTION_END)) {
+				descBuilder.append(theLine);
+				descBuilder.append("\n");
+				theLine = reader.readLine();
+				}
+			mDescription = descBuilder.toString();
+			if (theLine != null)
+				theLine = reader.readLine();
+			}
 		while (theLine != null && theLine.startsWith(TASK_START)) {
 			String taskCode = theLine.substring(12, theLine.indexOf('\"', 12));
 
@@ -286,12 +331,76 @@ public class DEMacro implements CompoundTableConstants {
 				theLine = reader.readLine();
 				}
 
+			taskCode = updateLegacyTasks(taskCode, configuration);
+
 			mTaskList.add(new Task(taskCode, configuration));
 			theLine = reader.readLine();
 			if (theLine == null || theLine.startsWith(MACRO_END))
 				break;
 			}
 		fireContentChanged();
+		}
+
+	/**
+	 * Tasks may change their names or codes for some reason over time, e.g. if a task is split into multiple tasks,
+	 * or if a task is renamed to improve consistency. In these cases the task codes change accordingly.
+	 * To keep old macros compatible, this method translates old task codes into the current ones.
+	 * @param taskCode
+	 * @param configuration
+	 * @return
+	 */
+	private String updateLegacyTasks(String taskCode, Properties configuration) {
+		if (taskCode.equals("newView")) {
+			String type = configuration.getProperty("type");
+			if ("structure".equals(type)) {
+				configuration.remove("type");
+				return StandardTaskFactory.constructTaskCodeFromName(DETaskNewStructureView.TASK_NAME);
+				}
+			if ("form".equals(type)) {
+				configuration.remove("type");
+				return StandardTaskFactory.constructTaskCodeFromName(DETaskNewFormView.TASK_NAME);
+				}
+			if ("2D".equals(type)) {
+				configuration.remove("type");
+				return StandardTaskFactory.constructTaskCodeFromName(DETaskNew2DView.TASK_NAME);
+				}
+			if ("3D".equals(type)) {
+				configuration.remove("type");
+				return StandardTaskFactory.constructTaskCodeFromName(DETaskNew3DView.TASK_NAME);
+				}
+			if ("text".equals(type)) {
+				configuration.remove("type");
+				return StandardTaskFactory.constructTaskCodeFromName(DETaskNewTextView.TASK_NAME);
+				}
+			if ("macro".equals(type)) {
+				configuration.remove("type");
+				return StandardTaskFactory.constructTaskCodeFromName(DETaskNewMacroEditor.TASK_NAME);
+				}
+			}
+		else if (taskCode.equals("addFuzzyScore"))
+			return StandardTaskFactory.constructTaskCodeFromName(DETaskCalculateFuzzyScore.TASK_NAME);
+		else if (taskCode.equals("copy"))
+			return StandardTaskFactory.constructTaskCodeFromName(DETaskCopyTableCells.TASK_NAME);
+		else if (taskCode.equals("createBinsFromNumbers"))
+			return StandardTaskFactory.constructTaskCodeFromName(DETaskAddBinsFromNumbers.TASK_NAME);
+		else if (taskCode.equals("createEvolutionaryLibrary"))
+			return StandardTaskFactory.constructTaskCodeFromName(DETaskBuildEvolutionaryLibrary.TASK_NAME);
+		else if (taskCode.equals("clusterSimilarCompounds"))
+			return StandardTaskFactory.constructTaskCodeFromName(DETaskClusterCompounds.TASK_NAME);
+		else if (taskCode.equals("calculateNewColumn"))
+			return StandardTaskFactory.constructTaskCodeFromName(DETaskAddCalculatedValues.TASK_NAME);
+		else if (taskCode.equals("deleteRedundantRows"))
+			return StandardTaskFactory.constructTaskCodeFromName(DETaskDeleteDuplicateRows.TASK_NAME[DETaskDeleteDuplicateRows.MODE_REMOVE_DUPLICATE]);
+		else if (taskCode.equals("jumpToCurrentRow"))
+			return StandardTaskFactory.constructTaskCodeFromName(DETaskJumpToReferenceRow.TASK_NAME);
+		else if (taskCode.equals("searchAndReplace"))
+			return StandardTaskFactory.constructTaskCodeFromName(DETaskFindAndReplace.TASK_NAME);
+		else if (taskCode.equals("setCurrentRow"))
+			return StandardTaskFactory.constructTaskCodeFromName(DETaskSetReferenceRow.TASK_NAME);
+		else if (taskCode.equals("showLabels"))
+			return StandardTaskFactory.constructTaskCodeFromName(DETaskSetMarkerLabels.TASK_NAME);
+
+		return taskCode;
 		}
 
 	public DEMacro getParentMacro() {
@@ -313,10 +422,10 @@ public class DEMacro implements CompoundTableConstants {
 	 * @param lastTask
 	 * @param count how many times the task sequence should be run
 	 */
-	public void defineLoop(int firstTask, int lastTask, int count) {
+	public void defineLoop(int firstTask, int lastTask, int count, String dir, int filetypes, ConcurrentHashMap variableMap) {
 		if (mLoopList == null)
-			mLoopList = new ArrayList<Loop>();
-		mLoopList.add(new Loop(firstTask, lastTask, count-1));
+			mLoopList = new ArrayList<>();
+		mLoopList.add(new Loop(firstTask, lastTask, count-1, dir, filetypes, variableMap));
 		}
 
 	/**
@@ -330,10 +439,12 @@ public class DEMacro implements CompoundTableConstants {
 			int loop = mLoopList.size()-1;
 			Loop currentLoop = mLoopList.get(loop);
 			if (currentTask == currentLoop.lastTask) {
+				currentLoop.setNextFileVariable();
 				int firstTask = currentLoop.firstTask;
-				if (--currentLoop.count == 0)
+				currentLoop.count--;
+				if (currentLoop.count <= 1)
 					mLoopList.remove(loop);
-				return firstTask;
+				return currentLoop.count == 0 ? -1 : firstTask;
 				}
 			}
 		return -1;
@@ -371,11 +482,31 @@ public class DEMacro implements CompoundTableConstants {
 
 	private class Loop {
 		private int firstTask,lastTask,count;
+		private ArrayList<File> filelist;
+		private ConcurrentHashMap variableMap;
 
-		public Loop(int firstTask, int lastTask, int count) {
+		public Loop(int firstTask, int lastTask, int count, String dirname, int filetypes, ConcurrentHashMap variableMap) {
 			this.firstTask = firstTask;
 			this.lastTask = lastTask;
-			this.count = count;
+			this.variableMap = variableMap;
+			if (dirname != null) {
+				this.filelist = FileHelper.getCompatibleFileList(new File(dirname), filetypes);
+				this.count = filelist.size();
+				setNextFileVariable();
+				}
+			else {
+				this.count = count;
+				}
+			}
+
+		public void setNextFileVariable() {
+			if (filelist.size() > 0) {
+				File file = filelist.remove(0);
+				variableMap.put("FILENAME", file.getAbsolutePath());
+				}
+			else {
+				variableMap.remove("FILENAME");
+				}
 			}
 		}
 	}

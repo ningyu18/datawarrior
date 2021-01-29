@@ -46,7 +46,6 @@ import javax.swing.JPanel;
 import javax.swing.SwingUtilities;
 
 import com.actelion.research.chem.Canonizer;
-import com.actelion.research.chem.ExtendedMolecule;
 import com.actelion.research.chem.IDCodeParser;
 import com.actelion.research.chem.MarkushStructure;
 import com.actelion.research.chem.StereoMolecule;
@@ -245,7 +244,7 @@ e.printStackTrace();
             mProgressDialog.updateProgress(row++);
             }
 
-        tableModel.finalizeTable(CompoundTableEvent.cSpecifierDefaultRuntimeProperties, mProgressDialog);
+        tableModel.finalizeTable(CompoundTableEvent.cSpecifierDefaultFiltersAndViews, mProgressDialog);
         }
 
 	public void keyPressed(KeyEvent e) {

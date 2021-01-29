@@ -18,24 +18,19 @@
 
 package com.actelion.research.datawarrior.task.filter;
 
-import info.clearthought.layout.TableLayout;
-
-import java.awt.Frame;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
-import java.util.Properties;
-
-import javax.swing.JComboBox;
-import javax.swing.JComponent;
-import javax.swing.JLabel;
-import javax.swing.JPanel;
-import javax.swing.JTextField;
-
 import com.actelion.research.datawarrior.DEFrame;
 import com.actelion.research.datawarrior.DEPruningPanel;
 import com.actelion.research.datawarrior.task.ConfigurableTask;
-import com.actelion.research.table.model.CompoundTableModel;
+import com.actelion.research.gui.hidpi.HiDPIHelper;
 import com.actelion.research.table.filter.JFilterPanel;
+import com.actelion.research.table.model.CompoundTableModel;
+import info.clearthought.layout.TableLayout;
+
+import javax.swing.*;
+import java.awt.*;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.util.Properties;
 
 /**
  * Title:
@@ -104,8 +99,9 @@ public class DETaskCloseFilter extends ConfigurableTask implements ActionListene
 		mTextFieldIndex = new JTextField();
 
 		JPanel content = new JPanel();
-		double[][] size = { {8, TableLayout.PREFERRED, 8, TableLayout.PREFERRED, 8, TableLayout.PREFERRED, 8},
-							{8, TableLayout.PREFERRED, 8, TableLayout.PREFERRED, 8, TableLayout.PREFERRED, 8} };
+		int gap = HiDPIHelper.scale(8);
+		double[][] size = { {gap, TableLayout.PREFERRED, gap, TableLayout.PREFERRED, gap, TableLayout.PREFERRED, gap},
+							{gap, TableLayout.PREFERRED, gap, TableLayout.PREFERRED, gap, TableLayout.PREFERRED, gap} };
 		content.setLayout(new TableLayout(size));
 
 		content.add(new JLabel("Filter type:"), "1,1");
@@ -149,7 +145,8 @@ public class DETaskCloseFilter extends ConfigurableTask implements ActionListene
 
 	@Override
 	public void setDialogConfiguration(Properties configuration) {
-		mComboBoxType.setSelectedItem(configuration.getProperty(PROPERTY_TYPE, ""));
+		int type = findListIndex(configuration.getProperty(PROPERTY_TYPE), DETaskAddNewFilter.FILTER_CODE,0);
+		mComboBoxType.setSelectedIndex(type);
 		mTextFieldColumn.setText(configuration.getProperty(PROPERTY_COLUMN, ""));
 		mTextFieldIndex.setText(configuration.getProperty(PROPERTY_DUPLICATE, "1"));
 		enableTextField();

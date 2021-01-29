@@ -24,7 +24,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicIntegerArray;
 
 import com.actelion.research.chem.descriptor.DescriptorHandler;
-import com.actelion.research.chem.descriptor.DescriptorHandlerFFP512;
+import com.actelion.research.chem.descriptor.DescriptorHandlerLongFFP512;
 import com.actelion.research.chem.descriptor.DescriptorHandlerFlexophore;
 import com.actelion.research.chem.descriptor.DescriptorHandlerFunctionalGroups;
 import com.actelion.research.chem.descriptor.DescriptorHandlerHashedCFp;
@@ -176,7 +176,7 @@ public class DETestCompareDescriptorSimilarityDistribution extends AbstractTaskW
 					}
 				}
 
-	        targetTableModel.finalizeTable(CompoundTableEvent.cSpecifierDefaultRuntimeProperties, this);
+	        targetTableModel.finalizeTable(CompoundTableEvent.cSpecifierDefaultFiltersAndViews, this);
 			}
 		}
 
@@ -184,7 +184,7 @@ public class DETestCompareDescriptorSimilarityDistribution extends AbstractTaskW
 		if (!mSourceTableModel.isDescriptorColumn(column))
 			return false;
 		DescriptorHandler<?,?> dh = mSourceTableModel.getDescriptorHandler(column);
-		return dh instanceof DescriptorHandlerFFP512
+		return dh instanceof DescriptorHandlerLongFFP512
 			|| dh instanceof DescriptorHandlerPFP512
 			|| dh instanceof DescriptorHandlerHashedCFp
 			|| dh instanceof DescriptorHandlerSkeletonSpheres

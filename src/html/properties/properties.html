@@ -9,8 +9,8 @@
 <p><h1>Chemical Property Assessment</h1></p>
 
 <p><h2>Overview</h2></p>
-<p>Actelion's drug discovery software predicts various physico-chemical properties
-and other criteria that help to evaluate whether a chemical compound may serve
+<p><span class="keyword">DataWarrior</span> predicts various physico-chemical and other
+properties that help to evaluate whether a chemical compound may serve
 as a promising drug candidate not taking specific target information into account:</p>
 <ul>
   <li> <a href="#molweight">Molecular Weight</a></li>
@@ -20,6 +20,7 @@ as a promising drug candidate not taking specific target information into accoun
   <li> <a href="#tox">Toxicity Risk Assessment</a></li>
   <li> <a href="#druglikeness">Fragment-based Drug-Likeness Prediction</a></li>
   <li> <a href="#drugscore">Overall Drug-Likeness Score</a></li>
+  <li> <a href="#flexibility">Molecular Flexibility</a></li>
 </ul>
 <p>For comparing the inhibitory potential towards a specific target prioritizing
 compounds based on their activities alone inevitably creates a strong bias towards
@@ -59,7 +60,7 @@ normalized considering the compounds molecular weights and/or lipophilicity.
 coefficient between n-octanol and water log(c<sub>octanol</sub>/c<sub>water</sub>),
 is a well established measure of the compound's hydrophilicity. Low hydrophilicities
 and therefore high logP values cause poor absorption or permeation. It
-has been shown for compounds to have a reasonable propability of being
+has been shown for compounds to have a reasonable probability of being
 well absorbt their logP similarity must not be greater than 5.0. The distribution
 of calculated logP values of more than 3000 drugs on the market underlines
 this fact (see diagram).</td>
@@ -235,11 +236,67 @@ directly from cLogP, logS, molweight and druglikeness (p<sub>i</sub>) by
 the second equation. This equation describes a spline curve with contributions
 ranging from 0 to 1 depending on the respective property similarity. Inversion
 point and slope of the curve are determined by parameters <i>a</i> and <i>
-b, </i>which are (1, -5), (1, 5), (0.012, -6) and (1, 0) for cLogP, logS, 
+b, </i>which are (1, -5), (-1, -5), (0.012, -6) and (-1, 0) for cLogP, logS,
 molweight and druglikeness, respectively. t<sub>i</sub> are the four contributions 
 reflecting the four types of toxicity risks. The t<sub>i</sub> values used
 are 1.0, 0.8 and 0.6 for <i>no risk</i>, <i>medium risk</i> and <i>high risk</i>
 , respectively.</p>
+
+<br>
+
+<p><h3><a name="flexibility"></a>Molecular Flexibility</h3></p>
+<p>The molecular flexibility of a ligand has a substancial influence on the affinity
+and specificity when binding to a protein. (e.g. <i>The fundamental role of flexibility on
+the strength of molecular binding.</i>C Forrey, J F Douglasb, M K Gilson; Soft Matter, 2012,
+<b>8</b>, 6385-6392, DOI: 10.1039/C2SM25160D). DataWarrior can help studing these effects or
+aid in planning compound generations with a changed flexibility profile. For this DataWarrior
+may calculate the flexibility of a molecule using dihedral angle data from the Crystallography
+Open Database (COD). Molecular flexibility values range from 0.0 (rigid) to 1.0 (completely flexible).</p>
+
+<p>Often the number of rotatable bonds is used as a surrogate for molecular flexibility. Unfortunately,
+this is a rather sub-optimal approach for two reasons: First, bond rotatability is not a binary property.
+While double bonds, amide bonds, and aromatic ring bonds are pretty rigid, 'rotatable' single bonds
+range from highly rotatable to rather rigid depending on their rotation energy barriers. Second,
+the topological position of a rotatable bonds has a strong influence on the flexibility of a molecule.
+DataWarrior's molecular flexibility value tries to circumvent these shortcomings.</p>
+
+<p>These four steps are performed in the calculation:</p>
+
+<p>The conformational flexibility of a molecule and with it the diversity of shapes the molecules can assume
+is mainly caused by dihedral angle changes of the molecule's bonds. Therefore, DataWarrior determines in a first
+step all rotatable bonds. These are single bonds, which are neither part of an aromatic nor of a 3-, 4- or 5-membered ring.
+Moreover, their both atoms must be sp2 or sp3 hybridized and they must carry at least one more non-hydrogen neighbor.
+For chains of conjugated triple bonds the following applies: If at least one terminal sp2/sp3 atom has no external neighbor,
+then no single bond is considered rotatable. Otherwise that terminal single bond connecting the smaller substituent is
+considered the only rotatable bond
+of the linear atom strand.</p>
+
+<p>Dihedral angle changes of a bond in the center of a molecule have a much larger effect on the
+overall molecule shape than the torsion change of an outer substituent bond. Therefore, an influence
+factor is calculated for every rotatable bond that reflects the topological location. It also considers
+the limited degree of freedom in case of a ring bond:
+<il>
+<li>For ring bonds: factor=0.33, since ring bonds cannot be changed without typically affecting two other rings bonds</li>
+<li>Other bonds: factor=sqrt(2.0 * smallerSideNonHydrogenAtomCount / moleculeNonHydrogenAtomCount)</li>
+</il>
+</p>
+
+<p>The flexibility of every individual rotatable bond is then determined from statistical torsion data of similar
+bonds taken from the COD. For instance the C-O bond in a C-O-C-C strain is considered
+much more flexible than the central bond in a C-C-C-C chain, which has a strong preference towards the anti-conformation.
+For every rotatable bond a characterizing substructure is generated from its local environment.
+This substructure consists of the two bond atoms, their direct neighbour atoms and the next shell of neighbour atoms.
+It includes all connecting bond orders and various properties, e.g. whether atoms are in a ring, are aromatic,
+the stereo configuration, etc. Then a canonical representation of the bond's characterizing substructure is built.
+The same mechanism was used earlier to characterize all rotatable bonds of all organic structures of the COD.
+Now using a bond's canonical key, DataWarrior can look up a torsion angle distribution curve of all equal substructures
+within the COD. The number of peaks, their heights and their widths are now used to
+generate the bond specific flexibility value. Angle frequency distributions with multiple wide maxima
+of similar heights cause flexibility values close to 1.0 while histograms with one narrow single
+peak are close to 0.0.</p>
+
+<p>Finally, from the number of all molecule bonds, the number of rotatabale bonds, their specific flexibility values,
+and their geometry weighting factor an overall molecular flexibility value is calculated.</p>
 
 <br>
 

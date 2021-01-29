@@ -23,14 +23,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLongArray;
 
-import com.actelion.research.chem.descriptor.DescriptorHandler;
-import com.actelion.research.chem.descriptor.DescriptorHandlerFFP512;
-import com.actelion.research.chem.descriptor.DescriptorHandlerFlexophore;
-import com.actelion.research.chem.descriptor.DescriptorHandlerFunctionalGroups;
-import com.actelion.research.chem.descriptor.DescriptorHandlerHashedCFp;
-import com.actelion.research.chem.descriptor.DescriptorHandlerIntVector;
-import com.actelion.research.chem.descriptor.DescriptorHandlerPFP512;
-import com.actelion.research.chem.descriptor.DescriptorHandlerSkeletonSpheres;
+import com.actelion.research.chem.descriptor.*;
 import com.actelion.research.chem.io.CompoundTableConstants;
 import com.actelion.research.datawarrior.DEFrame;
 import com.actelion.research.datawarrior.DataWarrior;
@@ -271,7 +264,7 @@ public class DETestExtractPairwiseStuff extends AbstractTaskWithoutConfiguration
 					}
 				}
 
-	        targetTableModel.finalizeTable(CompoundTableEvent.cSpecifierDefaultRuntimeProperties, this);
+	        targetTableModel.finalizeTable(CompoundTableEvent.cSpecifierDefaultFiltersAndViews, this);
 			}
 		}
 
@@ -284,6 +277,7 @@ public class DETestExtractPairwiseStuff extends AbstractTaskWithoutConfiguration
 			|| dh instanceof DescriptorHandlerHashedCFp
 			|| dh instanceof DescriptorHandlerSkeletonSpheres
 			|| dh instanceof DescriptorHandlerFunctionalGroups
+			|| dh instanceof DescriptorHandlerReactionFP
 			|| dh instanceof DescriptorHandlerIntVector
 			|| dh instanceof DescriptorHandlerFlexophore;
 		}

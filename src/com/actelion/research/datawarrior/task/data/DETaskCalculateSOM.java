@@ -238,7 +238,7 @@ public class DETaskCalculateSOM extends ConfigurableTask implements ActionListen
 
 	@Override
 	public String getHelpURL() {
-		return "/html/help/analysis.html#SOM";
+		return "/html/help/ml.html#SOM";
 		}
 
 	@Override

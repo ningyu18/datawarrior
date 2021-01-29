@@ -23,10 +23,12 @@ import com.actelion.research.chem.MolfileCreator;
 import com.actelion.research.chem.MolfileV3Creator;
 import com.actelion.research.chem.StereoMolecule;
 import com.actelion.research.chem.io.CompoundTableConstants;
+import com.actelion.research.chem.reaction.ReactionEncoder;
 import com.actelion.research.gui.FileHelper;
 import com.actelion.research.gui.JProgressDialog;
 import com.actelion.research.gui.form.ReferenceResolver;
 import com.actelion.research.table.model.*;
+import com.actelion.research.util.ArrayUtils;
 import com.actelion.research.util.BinaryEncoder;
 
 import javax.swing.*;
@@ -36,10 +38,12 @@ import java.io.*;
 import java.util.*;
 
 public class CompoundTableSaver implements CompoundTableConstants,Runnable {
-	public static final String cCurrentFileVersion = "3.2";
+	public static final String cCurrentFileVersion = "3.3";
 
 	public static final int ID_USE_PROPERTY = -1;
 	public static final int ID_BUILD_ONE = -2;
+
+	private static final int MULTI_CONFORMER_ROWS_TO_CHECK = 256;
 
 	private JTable				mTable;
 	private CompoundTableModel	mTableModel;
@@ -49,7 +53,7 @@ public class CompoundTableSaver implements CompoundTableConstants,Runnable {
 	private Writer				mDataWriter;
 	private int					mDataType,mSDColumnStructure,mSDColumnIdentifier,
 								mSDColumn2DCoordinates,mSDColumn3DCoordinates;
-	private boolean				mVisibleOnly,mToClipboard,mEmbedDetails,mPrefer3D;
+	private boolean				mVisibleOnly,mToClipboard,mEmbedDetails,mPrefer3D,mSkipHeader;
 	private RuntimeProperties	mRuntimeProperties;
 	private ArrayList<DataDependentPropertyWriter> mDataDependentPropertyWriterList;
 
@@ -57,12 +61,13 @@ public class CompoundTableSaver implements CompoundTableConstants,Runnable {
 		mTableModel = tableModel;
 		mTable = table;
 		mParentFrame = parent;
+		mSkipHeader = false;
 		}
 
 	/**
 	 * Writes the associated tableModel's data into a native file without asking any questions.
 	 * Before returning this method calls finalStatus(File file) with file== null if it couldn't be successfully written.
-	 * Error checking should be done before calling this function. 
+	 * Error checking should be done before calling this function.
 	 * @param properties must be given if fileType==FileHelper.cFileTypeDataWarrior or ...Template
 	 * @param file a valid file with proper write privileges
 	 * @param visibleOnly if true, then only visible records are written
@@ -135,7 +140,7 @@ public class CompoundTableSaver implements CompoundTableConstants,Runnable {
 
 		if (mSDColumnStructure != -1) {
 			if (mSDColumnIdentifier == ID_USE_PROPERTY)
-				mSDColumnIdentifier = mTableModel.findColumn(mTableModel.getColumnProperty(mSDColumnStructure, CompoundTableModel.cColumnPropertyIdentifierColumn));
+				mSDColumnIdentifier = mTableModel.findColumn(mTableModel.getColumnProperty(mSDColumnStructure, CompoundTableModel.cColumnPropertyRelatedIdentifierColumn));
 			for (int column=0; column<mTableModel.getTotalColumnCount(); column++) {
 				String specialType = mTableModel.getColumnSpecialType(column);
 				if (specialType != null
@@ -153,14 +158,14 @@ public class CompoundTableSaver implements CompoundTableConstants,Runnable {
 		saveFile();
 		}
 
-	public void writeFile(String filename, RuntimeProperties properties) {
+/*	public void writeFile(String filename, RuntimeProperties properties) {
 		mFile = new File(filename);
 		mDataType = FileHelper.cFileTypeDataWarrior;
 		mVisibleOnly = false;
 		mEmbedDetails = false;
 		saveFile();
 		}
-
+*/
 	private void saveFile() {
 		try {
 			mDataWriter = new OutputStreamWriter(new FileOutputStream(mFile),"UTF-8");
@@ -173,12 +178,13 @@ public class CompoundTableSaver implements CompoundTableConstants,Runnable {
 			}
 		}
 
-	public void copy() {
+	public void copy(boolean skipHeader) {
 		mDataWriter = new StringWriter(1024);
 		mDataType = FileHelper.cFileTypeTextTabDelimited;
 		mEmbedDetails = false;
 		mVisibleOnly = false;
 		mToClipboard = true;
+		mSkipHeader = skipHeader;
 		try {
 			writeTextData();
 			StringSelection theData = new StringSelection(mDataWriter.toString());
@@ -190,13 +196,15 @@ public class CompoundTableSaver implements CompoundTableConstants,Runnable {
 		}
 
 	private void processData() {
-		mProgressDialog = new JProgressDialog(mParentFrame, false);
+		if (mParentFrame != null)
+			mProgressDialog = new JProgressDialog(mParentFrame, false);
 
 		Thread t = new Thread(this, "CompoundTableSaver");
 		t.setPriority(Thread.MIN_PRIORITY);
 		t.start();
 
-		mProgressDialog.setVisible(true);
+		if (mProgressDialog != null)
+			mProgressDialog.setVisible(true);
 		}
 
 	private void writeTextData() throws IOException {
@@ -231,7 +239,7 @@ public class CompoundTableSaver implements CompoundTableConstants,Runnable {
 			 && (mDataType == FileHelper.cFileTypeDataWarrior
 			  || mDataType == FileHelper.cFileTypeDataWarriorTemplate)
 			 && mRuntimeProperties != null)
-				mRuntimeProperties.write(theWriter);
+				mRuntimeProperties.learnAndWrite(theWriter);
 
 			if ((mProgressDialog == null
 			  || !mProgressDialog.threadMustDie())
@@ -261,11 +269,8 @@ public class CompoundTableSaver implements CompoundTableConstants,Runnable {
 			}
 
 		if (mToClipboard) {	// selected columns only
-			int[] selectedColumn = mTable.getSelectedColumns();
-
-			// don't write a header into the clipboard, if only one cell is selected
-			if (selectedColumn.length > 1
-			 || ((CompoundListSelectionModel)mTable.getSelectionModel()).getSelectionCount() > 1) {
+			if (!mSkipHeader) {
+				int[] selectedColumn = mTable.getSelectedColumns();
 				for (int i=0; i<selectedColumn.length; i++) {
 					int column = mTableModel.convertFromDisplayableColumnIndex(
 									  mTable.convertColumnIndexToModel(selectedColumn[i]));
@@ -354,13 +359,54 @@ public class CompoundTableSaver implements CompoundTableConstants,Runnable {
 
 	private String getValue(CompoundRecord record, int column) {
 		return (mDataType == FileHelper.cFileTypeDataWarrior) ?
-				   (String)mTableModel.encodeDataWithDetail(record, column)
+				   mTableModel.encodeDataWithDetail(record, column)
+			 : (cColumnTypeIDCode.equals(mTableModel.getColumnSpecialType(column))) ? getIDCodeAndCoords(record, column)
+			 : (cColumnTypeRXNCode.equals(mTableModel.getColumnSpecialType(column))) ? getRXNCodeWithCoordsAndMapping(record, column)
 			 : (mToClipboard) ? // use the display value (mean, max, sum, etc.)
-				   (String)mTableModel.getValue(record, column)
-				 : (String)mTableModel.encodeData(record, column);
+				   mTableModel.getValue(record, column)
+				 : mTableModel.encodeData(record, column);
 		}
 
-	private String convertNewlines(String value) {
+	private String getIDCodeAndCoords(CompoundRecord record, int column) {
+		String idcode = mTableModel.getValue(record, column);
+		if (idcode.length() == 0)
+			return idcode;
+		int coordsColumn = mTableModel.getChildColumn(column, CompoundTableConstants.cColumnType2DCoordinates);
+		if (coordsColumn == -1)
+			coordsColumn = mTableModel.getChildColumn(column, CompoundTableConstants.cColumnType3DCoordinates);
+		if (coordsColumn == -1)
+			return idcode;
+		String coords = mTableModel.getValue(record, coordsColumn);
+		return (coords.length() == 0) ? idcode : idcode.concat(" ").concat(coords);
+		}
+
+	private String getRXNCodeWithCoordsAndMapping(CompoundRecord record, int column) {
+		String rxncode = mTableModel.getValue(record, column);
+		if (rxncode.length() == 0)
+			return rxncode;
+
+		int coordsColumn = mTableModel.getChildColumn(column, CompoundTableConstants.cColumnType2DCoordinates);
+		String coords = (coordsColumn == -1) ? "" : mTableModel.getValue(record, coordsColumn);
+
+		int mappingColumn = mTableModel.getChildColumn(column, CompoundTableConstants.cColumnTypeReactionMapping);
+		String mapping = (mappingColumn == -1) ? "" : mTableModel.getValue(record, mappingColumn);
+
+		if (mapping.length() != 0 || coords.length() != 0)
+			rxncode = rxncode + ReactionEncoder.OBJECT_DELIMITER;
+
+		if (mapping.length() != 0) {
+			rxncode = rxncode + mapping;
+			if (coords.length() != 0)
+				rxncode = rxncode + ReactionEncoder.OBJECT_DELIMITER;
+			}
+
+		if (coords.length() != 0)
+			rxncode = rxncode + coords;
+
+		return rxncode;
+		}
+
+	public static String convertNewlines(String value) {
 		value = value.replaceAll(NEWLINE_REGEX, NEWLINE_STRING);
 		value = value.replace("\t", CompoundTableLoader.TAB_STRING);
 		return value;
@@ -422,7 +468,7 @@ public class CompoundTableSaver implements CompoundTableConstants,Runnable {
 			theWriter.write(cHitlistDataStart);
 			theWriter.newLine();
 			if (mTableModel.hasSelectedRows())
-				writeOneHitlist(theWriter, CompoundRecord.cFlagSelected, CompoundTableListHandler.LISTNAME_SELECTION);
+				writeOneHitlist(theWriter, CompoundRecord.cFlagSelected, CompoundTableListHandler.LIST_CODE_SELECTION);
 			if (hitlistHandler != null)
 				for (int list = 0; list<hitlistHandler.getListCount(); list++)
 					writeOneHitlist(theWriter, hitlistHandler.getListFlagNo(list), hitlistHandler.getListName(list));
@@ -462,7 +508,7 @@ public class CompoundTableSaver implements CompoundTableConstants,Runnable {
 
 		TreeSet<String> usedIDSet = null;
 		if (mVisibleOnly) {		// save only details that are referenced from visible records
-			usedIDSet = new TreeSet<String>();
+			usedIDSet = new TreeSet<>();
 			for (int row=0; row<mTableModel.getRowCount(); row++) {
 				for (int column=0; column<mTableModel.getTotalColumnCount(); column++) {
 					String[][] key = mTableModel.getRecord(row).getDetailReferences(column);
@@ -480,18 +526,20 @@ public class CompoundTableSaver implements CompoundTableConstants,Runnable {
 			theWriter.newLine();
 			for (String id:detailMap.keySet()) {
 				if (usedIDSet == null || usedIDSet.contains(id)) {
-					theWriter.write("<"+cDetailID+"=\""+id+"\">");
-					theWriter.newLine();
-	
-					byte[] detail = (byte[])detailMap.get(id);
-					BinaryEncoder encoder = new BinaryEncoder(theWriter);
-					encoder.initialize(8, detail.length);
-					for (int i=0; i<detail.length; i++)
-						encoder.write(detail[i]);
-					encoder.finalize();
-	
-					theWriter.write("</"+cDetailID+">");
-					theWriter.newLine();
+					byte[] detail = detailMap.get(id);
+					if (detail != null) {
+						theWriter.write("<"+cDetailID+"=\""+id+"\">");
+						theWriter.newLine();
+
+						BinaryEncoder encoder = new BinaryEncoder(theWriter);
+						encoder.initialize(8, detail.length);
+						for (int i=0; i<detail.length; i++)
+							encoder.write(detail[i]);
+						encoder.finalize();
+
+						theWriter.write("</"+cDetailID+">");
+						theWriter.newLine();
+						}
 					}
 				}
 			theWriter.write(cDetailDataEnd);
@@ -539,7 +587,7 @@ public class CompoundTableSaver implements CompoundTableConstants,Runnable {
 				}
 			}
 
-		if (errorCount != 0)
+		if (errorCount != 0 && mProgressDialog != null)
 			mProgressDialog.showErrorMessage("Some detail data could not be embedded and won't be saved.");
 		}
 
@@ -561,6 +609,8 @@ public class CompoundTableSaver implements CompoundTableConstants,Runnable {
 
 	private void writeSDData() throws IOException {
 		synchronized(mDataWriter) {
+			boolean writeMultipleConformers = mPrefer3D && hasMultiConformerRows();
+
 			BufferedWriter theWriter = new BufferedWriter(mDataWriter);
 
 			if (mProgressDialog != null)
@@ -572,57 +622,113 @@ public class CompoundTableSaver implements CompoundTableConstants,Runnable {
 			IDCodeParser parser3D = new IDCodeParser(false);
 
 			for (int row=0; row<mTableModel.getTotalRowCount(); row++) {			
-				if (mProgressDialog != null) {
-					if (mProgressDialog.threadMustDie())
-						break;
+				if (mProgressDialog != null)
 					mProgressDialog.updateProgress(row);
-					}
 
-				CompoundRecord record = mTableModel.getTotalRecord(row);
-				if (mSDColumnStructure != -1) {
-					byte[] idcode = (byte[])record.getData(mSDColumnStructure);
-					byte[] coords2D = (byte[])record.getData(mSDColumn2DCoordinates);
-					byte[] coords3D = (byte[])record.getData(mSDColumn3DCoordinates);
+				boolean nextRecordAvailable = true;
+				int coordsIndex = -1;
+				int conformerNo = 0;
 
-					if (idcode != null) {
-						if (coords3D != null && mPrefer3D)
-							parser3D.parse(mol, idcode, coords3D);
-						else
-							parser2D.parse(mol, idcode, coords2D);
+				while (nextRecordAvailable) {
+					nextRecordAvailable = false;
+					if (mProgressDialog != null && mProgressDialog.threadMustDie())
+						break;
 
-						if (mSDColumnIdentifier != -1) {
-							byte[] name = (mSDColumnIdentifier == ID_BUILD_ONE) ?
-									  ("Compound ".concat(Integer.toString(row+1))).getBytes()
-									: (byte[])record.getData(mSDColumnIdentifier);
-							if (name != null)
-								mol.setName(new String(name));
+					CompoundRecord record = mTableModel.getTotalRecord(row);
+					if (mSDColumnStructure != -1) {
+						byte[] idcode = (byte[])record.getData(mSDColumnStructure);
+						byte[] coords2D = (byte[])record.getData(mSDColumn2DCoordinates);
+						byte[] coords3D = (byte[])record.getData(mSDColumn3DCoordinates);
+
+						if (idcode != null) {
+							if (coords3D != null && mPrefer3D) {
+								parser3D.parse(mol, idcode, coords3D, 0, coordsIndex+1);
+								if (writeMultipleConformers) {
+									conformerNo++;
+									coordsIndex = ArrayUtils.indexOf(coords3D, (byte)' ', coordsIndex+1);
+									nextRecordAvailable = (coordsIndex != -1);
+									}
+								}
+							else {
+								parser2D.parse(mol, idcode, coords2D);
+								}
+
+							if (mSDColumnIdentifier != -1) {
+								byte[] name = (mSDColumnIdentifier == ID_BUILD_ONE) ?
+										  ("Compound ".concat(Integer.toString(row+1))).getBytes()
+										: (byte[])record.getData(mSDColumnIdentifier);
+								if (name != null)
+									mol.setName(new String(name).replace("\n", "; "));
+								}
+							}
+						else {
+							mol.deleteMolecule();
 							}
 						}
-					else {
-						mol.deleteMolecule();
-						}
-					}
 
-				if (mDataType == FileHelper.cFileTypeSDV3)
-					new MolfileV3Creator(mol).writeMolfile(theWriter);
-				else
-					new MolfileCreator(mol).writeMolfile(theWriter);
+					if (mDataType == FileHelper.cFileTypeSDV3)
+						new MolfileV3Creator(mol).writeMolfile(theWriter);
+					else
+						new MolfileCreator(mol).writeMolfile(theWriter);
 
-				for (int column=0; column<mTableModel.getTotalColumnCount(); column++) {
-					if (mTableModel.getColumnSpecialType(column) == null) {
-						theWriter.write(">  <"+mTableModel.getColumnTitle(column)+">");
+					if (writeMultipleConformers) {
+						theWriter.write(">  <Conformer No>");
 						theWriter.newLine();
-						theWriter.write(convertNewlines((String)mTableModel.encodeDataWithDetail(record, column)));
+						theWriter.write(Integer.toString(conformerNo));
 						theWriter.newLine();
 						theWriter.newLine();
 						}
-					}
 
-				theWriter.write("$$$$");
-				theWriter.newLine();
+					for (int column=0; column<mTableModel.getTotalColumnCount(); column++) {
+						if (mTableModel.getColumnSpecialType(column) == null) {
+							theWriter.write(">  <"+mTableModel.getColumnTitle(column)+">");
+							theWriter.newLine();
+
+							// if we split conformers then check for an 'Energy' column and split energy values also
+							if (writeMultipleConformers
+									&& ("Energy".equals(mTableModel.getColumnTitle(column))
+									 || "Minimization Error".equals(mTableModel.getColumnTitle(column)))) {
+								String[] entries = mTableModel.separateEntries(mTableModel.encodeData(record, column));
+								if (entries.length >= conformerNo) {
+									theWriter.write(entries[conformerNo-1]);
+									theWriter.newLine();
+									}
+								}
+							else {
+								String[] entries = mTableModel.encodeData(record, column).split(NEWLINE_REGEX);
+								int count = 0;
+								for (String entry : entries) {
+									if (entry.length() != 0) {
+										theWriter.write(entry);
+										theWriter.newLine();
+										count++;
+										}
+									}
+								if (count == 0)
+									theWriter.newLine();
+								}
+
+							theWriter.newLine();
+							}
+						}
+
+					theWriter.write("$$$$");
+					theWriter.newLine();
+					}
 				}
 			theWriter.close();
 			}
+		}
+
+	private boolean hasMultiConformerRows() {
+		if (mSDColumn3DCoordinates != -1) {
+			for (int row=0; row<mTableModel.getTotalRowCount() && row<MULTI_CONFORMER_ROWS_TO_CHECK; row++) {
+				byte[] coords = (byte[])mTableModel.getTotalRecord(row).getData(mSDColumn3DCoordinates);
+				if (coords != null && ArrayUtils.indexOf(coords, (byte)' ') != -1)
+					return true;
+				}
+			}
+		return false;
 		}
 
 	public void run() {
@@ -646,19 +752,22 @@ public class CompoundTableSaver implements CompoundTableConstants,Runnable {
 
 			if (mDataType == FileHelper.cFileTypeDataWarrior && !mVisibleOnly) {
 				mTableModel.setFile(mFile);
-				mParentFrame.setTitle(mFile.getName());
+				if (mParentFrame != null)
+					mParentFrame.setTitle(mFile.getName());
 				}
 			}
 		catch (IOException e) {
-			mProgressDialog.showErrorMessage(e.toString());
+			if (mProgressDialog != null)
+				mProgressDialog.showErrorMessage(e.toString());
 			successful = false;
 			}
 
-		if (mProgressDialog.threadMustDie())	// action was cancelled
+		if (mProgressDialog != null && mProgressDialog.threadMustDie())	// action was cancelled
 			successful = false;
 
 		finalStatus(successful ? mFile : null);
-		mProgressDialog.close(null);
+		if (mProgressDialog != null)
+			mProgressDialog.close(null);
 		}
 
 	/**

@@ -186,6 +186,11 @@ public class DETaskExportHitlist extends ConfigurableTask implements ActionListe
 		}
 
 	@Override
+	public String getHelpURL() {
+		return "/html/help/lists.html#ImportExport";
+		}
+
+	@Override
 	public void runTask(Properties configuration) {
 		String fileName = configuration.getProperty(PROPERTY_FILENAME);
 		String listName = configuration.getProperty(PROPERTY_LISTNAME);

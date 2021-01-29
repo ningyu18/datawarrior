@@ -18,18 +18,14 @@
 
 package com.actelion.research.datawarrior.task;
 
-import info.clearthought.layout.TableLayout;
-
-import java.awt.Frame;
-import java.util.Properties;
-
-import javax.swing.JComboBox;
-import javax.swing.JComponent;
-import javax.swing.JLabel;
-import javax.swing.JPanel;
-
 import com.actelion.research.datawarrior.DEFrame;
 import com.actelion.research.datawarrior.DataWarrior;
+import com.actelion.research.gui.hidpi.HiDPIHelper;
+import info.clearthought.layout.TableLayout;
+
+import javax.swing.*;
+import java.awt.*;
+import java.util.Properties;
 
 /**
  * This class handles the redundancies that all classes operating on a window have:<br>
@@ -57,8 +53,9 @@ public abstract class AbstractWindowTask extends ConfigurableTask {
 	@Override
 	public final JComponent createDialogContent() {
 		JPanel p = new JPanel();
-		double[][] size = { {8, TableLayout.PREFERRED, 4, TableLayout.PREFERRED, 8},
-		        			{8, TableLayout.PREFERRED, 8, TableLayout.PREFERRED} };
+		int gap = HiDPIHelper.scale(8);
+		double[][] size = { {gap, TableLayout.PREFERRED, gap/2, TableLayout.PREFERRED, gap},
+		        			{gap, TableLayout.PREFERRED, gap/2, TableLayout.PREFERRED, gap} };
         p.setLayout(new TableLayout(size));
 
         p.add(new JLabel("Window name:"), "1,1");
@@ -68,7 +65,9 @@ public abstract class AbstractWindowTask extends ConfigurableTask {
         mComboBox.setEditable(true);
         p.add(mComboBox, "3,1");
 
-        return p;
+		p.add(new JLabel("(keep empty for active window)"), "1,3,3,3");
+
+		return p;
 		}
 
 	@Override
@@ -77,14 +76,17 @@ public abstract class AbstractWindowTask extends ConfigurableTask {
 			return null;
 
 		Properties configuration = new Properties();
-		configuration.setProperty(PROPERTY_WINDOW_NAME, mWindow.getTitle());
+		if (mWindow != mApplication.getActiveFrame())
+			configuration.setProperty(PROPERTY_WINDOW_NAME, mWindow.getTitle());
 		return configuration;
 		}
 
 	@Override
 	public Properties getDialogConfiguration() {
 		Properties configuration = new Properties();
-		configuration.setProperty(PROPERTY_WINDOW_NAME, (String)mComboBox.getSelectedItem());
+		String item = (String)mComboBox.getSelectedItem();
+		if (item != null && item.length() != 0)
+			configuration.setProperty(PROPERTY_WINDOW_NAME, (String)mComboBox.getSelectedItem());
 		return configuration;
 		}
 
@@ -99,27 +101,25 @@ public abstract class AbstractWindowTask extends ConfigurableTask {
 
 	@Override
 	public boolean isConfigurable() {
-		return true;
+		return mApplication.getActiveFrame() != null;
 		}
 
 	@Override
 	public boolean isConfigurationValid(Properties configuration, boolean isLive) {
-		String windowName = configuration.getProperty(PROPERTY_WINDOW_NAME);
-		if (windowName == null) {
-			showErrorMessage("Window name not defined.");
-			return false;
-			}
-		if (isLive) {
-			boolean found = false;
-			for (DEFrame w:mApplication.getFrameList()) {
-	        	if (w.getTitle().equals(windowName)) {
-	        		found = true;
-	        		break;
-	        		}
-	        	}
-			if (!found) {
-				showErrorMessage("Window '"+windowName+"' not found.");
-				return false;
+		String windowName = resolveVariables(configuration.getProperty(PROPERTY_WINDOW_NAME));
+		if (windowName != null) {
+			if (isLive) {
+				boolean found = false;
+				for (DEFrame w:mApplication.getFrameList()) {
+		            if (w.getTitle().equals(windowName)) {
+		                found = true;
+		                break;
+		                }
+		            }
+				if (!found) {
+					showErrorMessage("Window '"+windowName+"' not found.");
+					return false;
+					}
 				}
 			}
 
@@ -127,7 +127,9 @@ public abstract class AbstractWindowTask extends ConfigurableTask {
 		}
 
 	/**
-	 * Assuming that the configuration contains a valid view name, this returns named view.
+	 * If the configuration contains a window name, then this returns the respective window.
+	 * If there is no window wqith the name, it returns null. If the configuration doesn't contain
+	 * a window name, then the active window is returned.
 	 * @param configuration
 	 * @return
 	 */
@@ -136,8 +138,10 @@ public abstract class AbstractWindowTask extends ConfigurableTask {
 			return mWindow;
 
 		String name = configuration.getProperty(PROPERTY_WINDOW_NAME);
-		if (mApplication.getActiveFrame().getTitle().equals(name))
-			return mApplication.getActiveFrame();	// if there are multiple windows with matching title, prefer the active one
+		if (name == null
+		 || mApplication.getActiveFrame().getTitle().equals(name))
+			// if there are multiple windows with matching title, prefer the active one
+			return mApplication.getActiveFrame();
 
 		for (DEFrame w:mApplication.getFrameList())
         	if (w.getTitle().equals(name))

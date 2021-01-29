@@ -21,10 +21,12 @@ package com.actelion.research.table.category;
 import com.actelion.research.util.DoubleFormat;
 
 public class DoubleCategoryNormalizer implements CategoryNormalizer<Float> {
-	private boolean mIsLogarithmic;
 
-	public DoubleCategoryNormalizer(boolean isLogarithmic) {
-		mIsLogarithmic = isLogarithmic;
+	public DoubleCategoryNormalizer() {
+		}
+
+	public String normalize(String s) {
+		return normalizeOut(normalizeIn(s));
 		}
 
 	@Override
@@ -39,6 +41,6 @@ public class DoubleCategoryNormalizer implements CategoryNormalizer<Float> {
 
 	@Override
 	public String normalizeOut(Float v) {
-		return v.isNaN() ? "NaN" : DoubleFormat.toString(mIsLogarithmic ? Math.pow(10.0, v.floatValue()) : v);
+		return v.isNaN() ? "NaN" : DoubleFormat.toString(v);
 		}
 	}

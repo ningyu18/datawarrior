@@ -29,6 +29,7 @@ import info.clearthought.layout.TableLayout;
 
 import javax.swing.*;
 import java.awt.*;
+import java.io.BufferedReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.URL;
@@ -41,6 +42,8 @@ public class DETaskRetrieveDataFromURL extends ConfigurableTask {
 
 	private static final String PROPERTY_URL = "url";
 	private static final String PROPERTY_FORMAT = "format";
+	private static final String PROPERTY_TEMPLATE = "template";
+	private static final String PROPERTY_WINDOW_NAME = "windowName";
 
 	private static final String[] FORMAT_TEXT = { "TAB delimited", "comma separated" };
 	private static final String[] FORMAT_CODE = { "td", "cs" };
@@ -73,8 +76,9 @@ public class DETaskRetrieveDataFromURL extends ConfigurableTask {
 
 	@Override
 	public JComponent createDialogContent() {
-		double[][] size = { {8, TableLayout.FILL, TableLayout.PREFERRED, 8, TableLayout.PREFERRED, TableLayout.FILL, 8},
-				{8, TableLayout.PREFERRED, 8, TableLayout.PREFERRED, 16, TableLayout.PREFERRED, 8} };
+		int gap = HiDPIHelper.scale(8);
+		double[][] size = { {gap, TableLayout.FILL, TableLayout.PREFERRED, gap, TableLayout.PREFERRED, TableLayout.FILL, gap},
+							{gap, TableLayout.PREFERRED, gap, TableLayout.PREFERRED, 2*gap, TableLayout.PREFERRED, gap} };
 
 		JPanel content = new JPanel();
 		content.setLayout(new TableLayout(size));
@@ -147,19 +151,22 @@ public class DETaskRetrieveDataFromURL extends ConfigurableTask {
 
 			InputStream is = con.getInputStream();
 			if (is != null) {
-				String title = "Data From URL";
+				String title = configuration.getProperty(PROPERTY_WINDOW_NAME, "Data From URL");
 				mTargetFrame = mApplication.getEmptyFrame(title);
 				CompoundTableLoader loader = new CompoundTableLoader(mTargetFrame, mTargetFrame.getTableModel(), this);
-				DERuntimeProperties rtp = new DERuntimeProperties(mTargetFrame.getMainFrame());
+				DERuntimeProperties rtp = "none".equals(configuration.getProperty(PROPERTY_TEMPLATE)) ?
+						DERuntimeProperties.getTableOnlyProperties(mTargetFrame.getMainFrame())
+						: new DERuntimeProperties(mTargetFrame.getMainFrame());
 				int format = FORMAT[findListIndex(configuration.getProperty(PROPERTY_FORMAT, ""), FORMAT_CODE, -1)];
 				int action = CompoundTableLoader.READ_DATA | CompoundTableLoader.REPLACE_DATA;
-				loader.readStream(new InputStreamReader(is), rtp, format, action, title);
+				loader.readStream(new BufferedReader(new InputStreamReader(is)), rtp, format, action, title);
 			}
 		}
 		catch (Exception e) {
 			if (isInteractive()) {
+				SwingUtilities.invokeLater(() ->
 				JOptionPane.showMessageDialog(getParentFrame(), "Communication error:"+e.getMessage()
-						+"\nA firewall or local security software or settings may prevent contacting the server.");
+						+"\nA firewall or local security software or settings may prevent contacting the server."));
 			}
 		}
 	}

@@ -92,7 +92,7 @@ public class DETaskCalculateFuzzyScore extends ConfigurableTask implements Actio
 
 	@Override
 	public String getHelpURL() {
-		return "/html/help/analysis.html#Fuzzy";
+		return "/html/help/data.html#Fuzzy";
 	}
 
 	@Override
@@ -118,7 +118,7 @@ public class DETaskCalculateFuzzyScore extends ConfigurableTask implements Actio
 
 		mComboBoxStructureColumn = new JComboBox();
 		for (int i=0; i<mTableModel.getTotalColumnCount(); i++)
-			if (CompoundTableConstants.cColumnTypeIDCode.equals(mTableModel.getColumnSpecialType(i)))
+			if (mTableModel.isColumnTypeStructure(i))
 				mComboBoxStructureColumn.addItem(mTableModel.getColumnTitle(i));
 		content.add(new JLabel("Structure used for computed properties:"), "1,1");
 		content.add(mComboBoxStructureColumn, "2,1");

@@ -25,18 +25,46 @@ import org.openmolecules.comm.ClientCommunicator;
 import java.util.TreeMap;
 
 public class ChemblCommunicator extends ClientCommunicator implements ChemblServerConstants {
-	private ProgressController mProgressController;
-	private static String sServerURL = SERVER_URL;
+//	public static final String sURL_1 = "http://localhost:8083";			// this only used by the client
+	private static final String sURL_1 = "http://chembl.openmolecules.org";
+	private static final String sURL_2 = "http://46.4.119.202:8083";
+	private static String sPrimaryURL = sURL_1;
+	private static String sSecondaryURL = sURL_2;
+	private static boolean sUseSecondaryServer = false;
 
-	public ChemblCommunicator(ProgressController task) {
-		super(false);
+	private ProgressController mProgressController;
+
+	public static void setServerURL(String url) {
+		sPrimaryURL = url;
+		sSecondaryURL = sURL_1;
+		}
+
+	@Override
+	public String getPrimaryServerURL() {
+		return sPrimaryURL;
+	}
+
+	@Override
+	public String getSecondaryServerURL() {
+		return sSecondaryURL;
+	}
+
+	@Override
+	public boolean isUseSecondaryServer() {
+		return sUseSecondaryServer;
+		}
+
+	@Override
+	public void setUseSecondaryServer() {
+		sUseSecondaryServer = true;
+		}
+
+	public ChemblCommunicator(ProgressController task, String applicationName) {
+		super(false, applicationName);
 		mProgressController = task;
 		}
 
-	// TODO get rid of this with chembl21 on server
-	public byte[][][] getTargetTable() { return (byte[][][])getResponse(REQUEST_GET_TARGET_LIST); }
-
-	public Object[] getVersionAndTargetTable() {
+	public Object[] getVersionAndTargets() {
 		return (Object[])getResponse(REQUEST_GET_VERSION_AND_TARGETS);
 		}
 
@@ -68,15 +96,6 @@ public class ChemblCommunicator extends ClientCommunicator implements ChemblServ
 	 */
 	public byte[][][] findActiveCompoundsFlexophore(byte[] idcode) {
 		return (byte[][][])getResponse(REQUEST_FIND_ACTIVES_FLEXOPHORE, KEY_IDCODE, encode(idcode));
-		}
-
-	@Override
-	public String getServerURL() {
-		return sServerURL;
-		}
-
-	public static void setServerURL(String serverURL) {
-		sServerURL = serverURL;
 		}
 
 	@Override

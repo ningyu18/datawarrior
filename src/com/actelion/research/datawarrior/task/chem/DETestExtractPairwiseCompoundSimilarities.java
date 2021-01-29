@@ -23,14 +23,8 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLongArray;
 
-import com.actelion.research.chem.descriptor.DescriptorHandler;
-import com.actelion.research.chem.descriptor.DescriptorHandlerFFP512;
-import com.actelion.research.chem.descriptor.DescriptorHandlerFlexophore;
-import com.actelion.research.chem.descriptor.DescriptorHandlerFunctionalGroups;
-import com.actelion.research.chem.descriptor.DescriptorHandlerHashedCFp;
+import com.actelion.research.chem.descriptor.*;
 import com.actelion.research.chem.descriptor.DescriptorHandlerIntVector;
-import com.actelion.research.chem.descriptor.DescriptorHandlerPFP512;
-import com.actelion.research.chem.descriptor.DescriptorHandlerSkeletonSpheres;
 import com.actelion.research.datawarrior.DEFrame;
 import com.actelion.research.datawarrior.DataWarrior;
 import com.actelion.research.datawarrior.task.AbstractTaskWithoutConfiguration;
@@ -208,7 +202,7 @@ public class DETestExtractPairwiseCompoundSimilarities extends AbstractTaskWitho
 					}
 				}
 
-	        targetTableModel.finalizeTable(CompoundTableEvent.cSpecifierDefaultRuntimeProperties, this);
+	        targetTableModel.finalizeTable(CompoundTableEvent.cSpecifierDefaultFiltersAndViews, this);
 			}
 		}
 
@@ -216,11 +210,12 @@ public class DETestExtractPairwiseCompoundSimilarities extends AbstractTaskWitho
 		if (!mSourceTableModel.isDescriptorColumn(column))
 			return false;
 		DescriptorHandler<?,?> dh = mSourceTableModel.getDescriptorHandler(column);
-		return dh instanceof DescriptorHandlerFFP512
-			|| dh instanceof DescriptorHandlerPFP512
-			|| dh instanceof DescriptorHandlerHashedCFp
+		return dh instanceof DescriptorHandlerLongFFP512
+			|| dh instanceof DescriptorHandlerLongPFP512
+			|| dh instanceof DescriptorHandlerLongCFP
 			|| dh instanceof DescriptorHandlerSkeletonSpheres
 			|| dh instanceof DescriptorHandlerFunctionalGroups
+			|| dh instanceof DescriptorHandlerReactionFP
 			|| dh instanceof DescriptorHandlerIntVector
 			|| dh instanceof DescriptorHandlerFlexophore;
 		}

@@ -21,16 +21,16 @@ package com.actelion.research.table;
 import com.actelion.research.chem.io.CompoundTableConstants;
 import com.actelion.research.table.model.CompoundRecord;
 import com.actelion.research.table.model.CompoundTableModel;
-import com.actelion.research.util.BinaryDecoder;
-import com.actelion.research.util.BinaryEncoder;
+import com.actelion.research.table.view.config.AbstractConfiguration;
+import com.actelion.research.table.view.config.CardsViewConfiguration;
+import com.actelion.research.table.view.config.ViewConfiguration;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.IOException;
-import java.util.Set;
 import java.util.TreeMap;
 
-public class RuntimeProperties extends TreeMap<String,Object> implements CompoundTableConstants {
+public class RuntimeProperties extends AbstractConfiguration implements CompoundTableConstants {
     private static final long serialVersionUID = 0x20061101;
 
     public static final String cColumnAlias = "columnAlias";
@@ -45,81 +45,25 @@ public class RuntimeProperties extends TreeMap<String,Object> implements Compoun
     private static final String cCurrentRecord = "currentRecord";
     private static final String cColumnDescription = "columnDescription";
     private static final String cColumnDescriptionCount = "columnDescriptionCount";
-    private static final String cBinaryObject = "isBinaryEncoded";
     private static final String cCustomOrderCount = "customOrderCount";
     private static final String cCustomOrder = "customOrder";
     private static final String cSummaryCountHidden = "summaryCountHidden";
     private static final String cStdDeviationShown = "stdDeviationShown";
 
 	protected CompoundTableModel mTableModel;
-	protected BufferedWriter		mWriter;
+	private TreeMap<String,ViewConfiguration> mViewConfigurationMap;
 
 	public RuntimeProperties(CompoundTableModel tableModel) {
-        super();
+        super(cTemplateTagName);
 		mTableModel = tableModel;
+		mViewConfigurationMap = new TreeMap();
 		}
 
-	public void read(BufferedReader theReader) throws IOException {
-		clear();
-		while (true) {
-			String theLine = theReader.readLine();
-			if (theLine == null || theLine.equals(cPropertiesEnd))
-				break;
-
-			int index1 = theLine.indexOf('<');
-			if (index1 == -1)
-				continue;
-			int index2 = theLine.indexOf('=', index1+1);
-            while (index2 != -1 && theLine.charAt(index2+1) == '=')
-                index2 = theLine.indexOf('=', index2+2);
-			if (index2 == -1)
-				continue;
-			int index3 = theLine.indexOf('"', index2+1);
-			if (index3 == -1)
-				continue;
-			int index4 = theLine.indexOf('"', index3+1);
-            while (index4 != -1 && theLine.charAt(index4+1) == '"')
-                index4 = theLine.indexOf('"', index4+2);
-			if (index4 == -1)
-				continue;
-
-			String key = theLine.substring(index1+1, index2).replace("==", "=");
-			String value = theLine.substring(index3+1, index4).replace("\"\"", "\"");
-
-			if (value.equals(cBinaryObject)) {
-                BinaryDecoder decoder = new BinaryDecoder(theReader);
-                int size = decoder.initialize(8);
-                byte[] detailData = new byte[size];
-                for (int i=0; i<size; i++)
-                    detailData[i] = (byte)decoder.read();
-                theLine = theReader.readLine();
-                while (theLine != null
-                    && !theLine.equals("</"+key.replace("=", "==")+">"))
-                    theLine = theReader.readLine();
-                if (theLine != null)
-                    put(key, detailData);
-                }
-			else {
-			    put(key, value);
-			    }
-			}
+	@Override
+	public void clear() {
+		super.clear();
+		mViewConfigurationMap.clear();
 		}
-
-	protected String getProperty(String key) {
-	    return (String)get(key);
-	    }
-
-    protected void setProperty(String key, String value) {
-        put(key, value);
-        }
-
-    protected byte[] getBinary(String key) {
-        return (byte[])get(key);
-        }
-
-    protected void setBinary(String key, byte[] value) {
-        put(key, value);
-        }
 
 	public void apply() {
 	    RuntimePropertyColumnList list = new RuntimePropertyColumnList(cLogarithmicViewMode);
@@ -144,10 +88,10 @@ public class RuntimeProperties extends TreeMap<String,Object> implements Compoun
 	    for (int column=list.next(); column != -1; column=list.next())
             mTableModel.setColumnStdDeviationShown(column, true);
 
-	    for (int hiliteMode = 1; hiliteMode< cHiliteModeCode.length; hiliteMode++) {
-    	    list = new RuntimePropertyColumnList(cHiliteModeCode[hiliteMode]);
+	    for (int hiliteMode = 1; hiliteMode< cStructureHiliteModeCode.length; hiliteMode++) {
+    	    list = new RuntimePropertyColumnList(cStructureHiliteModeCode[hiliteMode]);
     	    for (int column=list.next(); column != -1; column=list.next())
-                mTableModel.setStructureHiliteMode(column, hiliteMode);
+                mTableModel.setHiliteMode(column, hiliteMode);
 	        }
 
 		String currentRecord = getProperty(cCurrentRecord);
@@ -254,40 +198,39 @@ public class RuntimeProperties extends TreeMap<String,Object> implements Compoun
             }
 		}
 
-	public void write(BufferedWriter theWriter) throws IOException {
-		learn();
-		mWriter = theWriter;
-		mWriter.write(cPropertiesStart);
-		mWriter.newLine();
-		Set<String> keys = keySet();
-		for (String key:keys) {
-			Object value = get(key);
-			if (value instanceof String) {
-    			mWriter.write("<"+key.replace("=", "==")+"=\""+((String)getProperty(key)).replace("\"", "\"\"")+"\">");
-    			mWriter.newLine();
-			    }
-			else if (value instanceof byte[]) {
-                mWriter.write("<"+key.replace("=", "==")+"=\""+cBinaryObject+"\">");
-                mWriter.newLine();
-
-                byte[] data = (byte[])value;
-                BinaryEncoder encoder = new BinaryEncoder(theWriter);
-                encoder.initialize(8, data.length);
-                for (int i=0; i<data.length; i++)
-                    encoder.write(data[i]);
-                encoder.finalize();
-
-                mWriter.write("</"+key.replace("=", "==")+">");
-                mWriter.newLine();
-			    }
+	public void readViewConfiguration(BufferedReader reader, String line) throws IOException {
+		String name = extractName(line);
+		String type = extractType(line);
+		if (name != null) {
+			if (CardsViewConfiguration.VIEW_TYPE.equals(type)) {
+				CardsViewConfiguration config = new CardsViewConfiguration(mTableModel);
+				config.read(reader);
+				mViewConfigurationMap.put(name, config);
 			}
-		mWriter.write(cPropertiesEnd);
-		mWriter.newLine();
+		}
+	}
+
+	public void learnAndWrite(BufferedWriter writer) throws IOException {
+		learn();
+		super.write(writer, null, null);
+		for (String viewName:mViewConfigurationMap.keySet()) {    // write configurations of views, which were learned earlier
+			ViewConfiguration config = mViewConfigurationMap.get(viewName);
+			config.write(writer, viewName, config.getViewType());
+			}
+		}
+
+	public void addViewConfiguration(String name, ViewConfiguration config) {
+		mViewConfigurationMap.put(name, config);
+		}
+
+	public ViewConfiguration getViewConfiguration(String name) {
+		return mViewConfigurationMap.get(name);
 		}
 
 	protected void learn() {
 		clear();
 		String columnList = "";
+
 		for (int column=0; column<mTableModel.getTotalColumnCount(); column++) {
 			if (mTableModel.isLogarithmicViewMode(column)) {
 				if (columnList.length() != 0)
@@ -344,17 +287,17 @@ public class RuntimeProperties extends TreeMap<String,Object> implements Compoun
                 setProperty(cStdDeviationShown, columnList);
     		}
 
-        for (int hiliteMode = 1; hiliteMode< cHiliteModeCode.length; hiliteMode++) {
+        for (int hiliteMode = 1; hiliteMode< cStructureHiliteModeCode.length; hiliteMode++) {
             columnList = "";
             for (int column=0; column<mTableModel.getTotalColumnCount(); column++) {
-                if (mTableModel.getStructureHiliteMode(column) == hiliteMode) {
+                if (mTableModel.getHiliteMode(column) == hiliteMode) {
                     if (columnList.length() != 0)
                         columnList = columnList.concat("\t");
                     columnList = columnList.concat(mTableModel.getColumnTitleNoAlias(column));
                     }
                 }
             if (columnList.length() != 0)
-                setProperty(cHiliteModeCode[hiliteMode], columnList);
+                setProperty(cStructureHiliteModeCode[hiliteMode], columnList);
             }
 
 		CompoundRecord currentRecord = mTableModel.getActiveRow();

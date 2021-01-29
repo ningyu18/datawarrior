@@ -18,6 +18,7 @@
 
 package com.actelion.research.table.filter;
 
+import com.actelion.research.chem.AbstractDepictor;
 import com.actelion.research.chem.io.CompoundTableConstants;
 import com.actelion.research.gui.JStructureView;
 import com.actelion.research.gui.clipboard.ClipboardHandler;
@@ -56,7 +57,7 @@ public class JCategoryFilterPanel extends JFilterPanel
 		}
 
 	public JCategoryFilterPanel(CompoundTableModel tableModel, int columnIndex, int exclusionFlag) {
-		super(tableModel, columnIndex, exclusionFlag, false);
+		super(tableModel, columnIndex, exclusionFlag, false, false);
 
 		mCategoryOptionPanel = new JPanel();
 		mCategoryOptionPanel.setOpaque(false);
@@ -85,7 +86,7 @@ public class JCategoryFilterPanel extends JFilterPanel
 		}
 
 	private void addCheckBoxes() {
-		boolean isIDCode = CompoundTableModel.cColumnTypeIDCode.equals(mTableModel.getColumnSpecialType(mColumnIndex));
+		boolean isIDCode = mTableModel.isColumnTypeStructure(mColumnIndex);
 		mCategoryList = mTableModel.getCategoryList(mColumnIndex);
 		mCheckBox = new JCheckBox[mCategoryList.length];
 
@@ -106,6 +107,8 @@ public class JCategoryFilterPanel extends JFilterPanel
 			if (categoryName.length() > 32)
 				categoryName = categoryName.substring(0, 30) + " ...";
 			mCheckBox[i] = new JCheckBox(categoryName, true);
+			// Change font to allow displaying rare unicode characters
+			mCheckBox[i].setFont(new Font(Font.SANS_SERIF, Font.PLAIN, mCheckBox[i].getFont().getSize()));
 			mCheckBox[i].addMouseListener(this);
 			mCheckBox[i].setActionCommand("cat"+i);
 			mCheckBox[i].addActionListener(this);
@@ -119,6 +122,7 @@ public class JCategoryFilterPanel extends JFilterPanel
 					else {
 						int index = idcode.indexOf(' ');
 						JStructureView view = new JStructureView(DnDConstants.ACTION_COPY_OR_MOVE, 0);
+						view.setDisplayMode(AbstractDepictor.cDModeHiliteAllQueryFeatures | AbstractDepictor.cDModeSuppressChiralText);
 						view.setClipboardHandler(new ClipboardHandler());
 						if (index == -1)
 							view.setIDCode(idcode);
@@ -289,6 +293,9 @@ public class JCategoryFilterPanel extends JFilterPanel
 	@Override
 	public void applyInnerSettings(String settings) {
 		if (isActive()) {
+			for (int i=0; i<mCheckBox.length; i++)
+				mCheckBox[i].setSelected(true);
+
 			int index = 0;
 			while (index != -1) {
 				int index2 = settings.indexOf('\t', index);
@@ -301,6 +308,7 @@ public class JCategoryFilterPanel extends JFilterPanel
 					index = index2+1;
 					}
 				}
+
 			updateExclusion(false);
 			}
 		else {

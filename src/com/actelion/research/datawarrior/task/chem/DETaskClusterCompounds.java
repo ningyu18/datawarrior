@@ -22,6 +22,7 @@ import com.actelion.research.chem.Clusterer;
 import com.actelion.research.chem.descriptor.DescriptorConstants;
 import com.actelion.research.datawarrior.DEFrame;
 import com.actelion.research.datawarrior.task.ConfigurableTask;
+import com.actelion.research.gui.hidpi.HiDPIHelper;
 import com.actelion.research.table.model.CompoundTableModel;
 import info.clearthought.layout.TableLayout;
 
@@ -39,7 +40,7 @@ public class DETaskClusterCompounds extends ConfigurableTask implements ActionLi
 
     private static final String[] cClusterColumnName = {"Cluster No", "Is Representative"};
 
-    public static final String TASK_NAME = "Cluster Similar Compounds";
+    public static final String TASK_NAME = "Cluster Compounds Or Reactions";
 
 	private CompoundTableModel  mTableModel;
 	private JComboBox			mComboBoxDescriptorColumn;
@@ -64,11 +65,11 @@ public class DETaskClusterCompounds extends ConfigurableTask implements ActionLi
 				if (!descriptorFound) {
 					int count = getStructureCount(column);
 					if (count > 100000) {
-						showErrorMessage("Clustering is limited to 100,000 compounds.");
+						showErrorMessage("Clustering is limited to 100,000 compounds/reactions.");
 						return false;
 						}
 					if (count > 20000) {
-						showMessage("Clustering of more than 20,000 compounds may take hours\n" +
+						showMessage("Clustering of more than 20,000 compounds/reactions may take hours\n" +
 								"and multiple GB of memory.", WARNING_MESSAGE);
 						}
 
@@ -87,8 +88,9 @@ public class DETaskClusterCompounds extends ConfigurableTask implements ActionLi
 
 	@Override
     public JPanel createDialogContent() {
-		double[][] size = { {8, TableLayout.PREFERRED, 8, TableLayout.PREFERRED, 8, TableLayout.PREFERRED, 8},
-							{8, TableLayout.PREFERRED, 8, TableLayout.PREFERRED, 4, TableLayout.PREFERRED, 16, TableLayout.PREFERRED, 8} };
+		int gap = HiDPIHelper.scale(8);
+		double[][] size = { {gap, TableLayout.PREFERRED, gap, TableLayout.PREFERRED, gap, TableLayout.PREFERRED, gap},
+							{gap, TableLayout.PREFERRED, gap, TableLayout.PREFERRED, gap/2, TableLayout.PREFERRED, 2*gap, TableLayout.PREFERRED, gap} };
 
 		JPanel content = new JPanel();
 		content.setLayout(new TableLayout(size));
@@ -172,7 +174,7 @@ public class DETaskClusterCompounds extends ConfigurableTask implements ActionLi
 				if (isLive) {
 					int structureCount = getStructureCount(descriptorColumn);
 					if (countLimit < 1 || countLimit >= structureCount) {
-						showErrorMessage("The final cluster count must be at least 1\n and less than the number of available structures ("+structureCount+").");
+						showErrorMessage("The final cluster count must be at least 1\n and less than the number of available compounds/reactions ("+structureCount+").");
 						return false;
 						}
 					}

@@ -20,15 +20,15 @@ package com.actelion.research.datawarrior.task.db;
 
 import com.actelion.research.chem.StructureSearchSpecification;
 import com.actelion.research.chem.descriptor.DescriptorConstants;
-import com.actelion.research.chem.descriptor.DescriptorHandlerFFP512;
+import com.actelion.research.chem.descriptor.DescriptorHandlerLongFFP512;
 import com.actelion.research.chem.io.CompoundTableConstants;
 import com.actelion.research.datawarrior.DEFrame;
 import com.actelion.research.datawarrior.DELogWriter;
 import com.actelion.research.datawarrior.DERuntimeProperties;
 import com.actelion.research.datawarrior.DataWarrior;
-import com.actelion.research.gui.LookAndFeelHelper;
+import com.actelion.research.gui.hidpi.HiDPIHelper;
+import com.actelion.research.table.model.CompoundTableEvent;
 import com.actelion.research.table.model.CompoundTableModel;
-import com.actelion.research.util.ColorHelper;
 import info.clearthought.layout.TableLayout;
 import org.openmolecules.cod.CODServerConstants;
 
@@ -57,18 +57,19 @@ public class DETaskCODQuery extends DETaskStructureQuery implements CODServerCon
 	private byte[]      mTemplate;
 
 	public DETaskCODQuery(DEFrame owner, DataWarrior application) {
-		super(owner, application, false);
+		super(owner, application);
 		}
 
 	@Override
 	public JPanel createDialogContent() {
 		JPanel panel = new JPanel();
-		double[][] size = { {8, TableLayout.PREFERRED, 8, TableLayout.PREFERRED, 8},
-							{8, TableLayout.PREFERRED, 8, TableLayout.PREFERRED, 16, TableLayout.PREFERRED, 16,
-								TableLayout.PREFERRED, 4,TableLayout.PREFERRED, 8} };
+		int gap = HiDPIHelper.scale(8);
+		double[][] size = { {gap, TableLayout.PREFERRED, gap, TableLayout.PREFERRED, gap},
+							{gap, TableLayout.PREFERRED, gap, TableLayout.PREFERRED, gap*2, TableLayout.PREFERRED, gap*2,
+								TableLayout.PREFERRED, gap/2,TableLayout.PREFERRED, gap} };
 		panel.setLayout(new TableLayout(size));
 
-		panel.add(createComboBoxSearchType(true), "1,1");
+		panel.add(createComboBoxSearchType(SEARCH_TYPES_SSS_SIM_EXACT_NOSTEREO_TAUTO), "1,1");
 		panel.add(createComboBoxQuerySource(), "3,1");
 		panel.add(createSimilaritySlider(), "1,3");
 		panel.add(createStructureView(), "3,3");
@@ -247,7 +248,7 @@ public class DETaskCODQuery extends DETaskStructureQuery implements CODServerCon
 			query.put(QUERY_AUTHOR, author);
 
 		mResultList = new ArrayList<Object[]>();
-   		byte[][][] resultTable = new CODCommunicator(this).search(query);
+   		byte[][][] resultTable = new CODCommunicator(this, "datawarrior").search(query);
 		if (resultTable != null) {
 			mColumnTitle = new String[resultTable[0].length-RESULT_STRUCTURE_COLUMNS];	// title without structure related columns
 			for (int col=RESULT_STRUCTURE_COLUMNS; col<resultTable[0].length; col++)
@@ -257,10 +258,10 @@ public class DETaskCODQuery extends DETaskStructureQuery implements CODServerCon
 				Object[] row = new Object[resultLine.length];
 				for (int i=0; i<resultLine.length; i++)
 					row[i] = resultLine[i];
-				row[RESULT_COLUMN_FFP512] = DescriptorHandlerFFP512.getDefaultInstance().decode((byte[])row[RESULT_COLUMN_FFP512]);
+				row[RESULT_COLUMN_FFP512] = DescriptorHandlerLongFFP512.getDefaultInstance().decode((byte[])row[RESULT_COLUMN_FFP512]);
 				mResultList.add(row);
 				}
-			mTemplate = new CODCommunicator(this).getTemplate();
+			mTemplate = new CODCommunicator(this, "datawarrior").getTemplate();
 			}
 
 		DELogWriter.writeEntry("retrieveCOD", "records:"+mResultList.size());
@@ -279,7 +280,7 @@ public class DETaskCODQuery extends DETaskStructureQuery implements CODServerCon
 	@Override
 	protected void prepareStructureColumns(CompoundTableModel tableModel) {
 		tableModel.prepareStructureColumns(RESULT_COLUMN_IDCODE, "Structure", true, true);
-		tableModel.setColumnProperty(RESULT_COLUMN_IDCODE, CompoundTableConstants.cColumnPropertyIdentifierColumn, RESULT_COLUMN_NAME_COD_NO);
+		tableModel.setColumnProperty(RESULT_COLUMN_IDCODE, CompoundTableConstants.cColumnPropertyRelatedIdentifierColumn, RESULT_COLUMN_NAME_COD_NO);
 		tableModel.setColumnName(CompoundTableConstants.cColumnType3DCoordinates, RESULT_COLUMN_COORDS3D);
 		tableModel.setColumnProperty(RESULT_COLUMN_COORDS3D, CompoundTableConstants.cColumnPropertySpecialType, CompoundTableConstants.cColumnType3DCoordinates);
 		tableModel.setColumnProperty(RESULT_COLUMN_COORDS3D, CompoundTableConstants.cColumnPropertyParentColumn, "Structure");
@@ -296,8 +297,8 @@ public class DETaskCODQuery extends DETaskStructureQuery implements CODServerCon
 		}
 
 	@Override
-    protected boolean useDefaultRuntimeProperties() {
-    	return false;
+    protected int getRuntimePropertiesMode() {
+    	return CompoundTableEvent.cSpecifierNoRuntimeProperties;
     	}
 
 	@Override

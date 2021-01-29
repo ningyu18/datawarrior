@@ -23,22 +23,13 @@
  */
 package org.jmol.g3d;
 
-import java.awt.Component;
-import java.awt.Image;
+import org.jmol.api.JmolRendererInterface;
+import org.jmol.util.TextFormat;
+
+import javax.vecmath.*;
+import java.awt.*;
 import java.util.BitSet;
 import java.util.Hashtable;
-
-import javax.vecmath.Matrix4f;
-import javax.vecmath.Point3i;
-import javax.vecmath.Point3f;
-import javax.vecmath.Tuple3f;
-import javax.vecmath.Vector3f;
-import javax.vecmath.Matrix3f;
-
-import org.jmol.api.JmolRendererInterface;
-import org.jmol.util.Logger;
-import org.jmol.util.TextFormat;
-import org.jmol.viewer.Viewer;
 
 /**
  * Provides high-level graphics primitives for 3D visualization.
@@ -2043,9 +2034,6 @@ final public class Graphics3D implements JmolRendererInterface {
       return Colix3D.getColix(((Integer) obj).intValue());
     if (obj instanceof String)
       return getColix((String) obj);
-    if (Logger.debugging) {
-      Logger.debug("?? getColix(" + obj + ")");
-    }
     return HOTPINK;
   }
 
@@ -2790,8 +2778,7 @@ final public class Graphics3D implements JmolRendererInterface {
     return false;
   }
 
-  public boolean initializeExporter(String type, Viewer viewer, Graphics3D g3d,
-                                    Object output) {
+  public boolean initializeExporter(String type, Graphics3D g3d, Object output) {
     return false;
   }
 

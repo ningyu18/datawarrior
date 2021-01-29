@@ -18,27 +18,19 @@
 
 package com.actelion.research.datawarrior.task.view;
 
-import com.actelion.research.gui.hidpi.HiDPIHelper;
-import info.clearthought.layout.TableLayout;
-
-import java.awt.Dimension;
-import java.awt.Frame;
-import java.util.Properties;
-
-import javax.swing.JCheckBox;
-import javax.swing.JComboBox;
-import javax.swing.JComponent;
-import javax.swing.JLabel;
-import javax.swing.JPanel;
-import javax.swing.JSlider;
-import javax.swing.event.ChangeEvent;
-
 import com.actelion.research.chem.io.CompoundTableConstants;
 import com.actelion.research.datawarrior.DEMainPane;
+import com.actelion.research.gui.hidpi.HiDPIHelper;
 import com.actelion.research.table.model.CompoundTableModel;
 import com.actelion.research.table.view.CompoundTableView;
 import com.actelion.research.table.view.JVisualization;
 import com.actelion.research.table.view.VisualizationPanel;
+import info.clearthought.layout.TableLayout;
+
+import javax.swing.*;
+import javax.swing.event.ChangeEvent;
+import java.awt.*;
+import java.util.Properties;
 
 
 public class DETaskSetConnectionLines extends DETaskAbstractSetViewOptions {
@@ -92,11 +84,17 @@ public class DETaskSetConnectionLines extends DETaskAbstractSetViewOptions {
 		}
 
 	@Override
-	public JComponent createInnerDialogContent() {
-		double[][] size = { {8, TableLayout.PREFERRED, 8, TableLayout.PREFERRED, 8, TableLayout.PREFERRED, 8 },
-    						{8, TableLayout.PREFERRED, 8, TableLayout.PREFERRED, 8, TableLayout.PREFERRED, 4,
-								TableLayout.PREFERRED, 24, TableLayout.PREFERRED, 8, TableLayout.PREFERRED, 2,
-								TableLayout.PREFERRED, 2, TableLayout.PREFERRED, 8, TableLayout.PREFERRED, 8 } };
+	public OTHER_VIEWS getOtherViewMode() {
+		return OTHER_VIEWS.GRAPHICAL;
+		}
+
+	@Override
+	public JComponent createViewOptionContent() {
+		int gap = HiDPIHelper.scale(8);
+		double[][] size = { {gap, TableLayout.PREFERRED, gap, TableLayout.PREFERRED, gap, TableLayout.PREFERRED, gap },
+    						{gap, TableLayout.PREFERRED, gap, TableLayout.PREFERRED, gap, TableLayout.PREFERRED, gap/2,
+								TableLayout.PREFERRED, gap*3, TableLayout.PREFERRED, gap, TableLayout.PREFERRED, gap/4,
+								TableLayout.PREFERRED, gap/4, TableLayout.PREFERRED, gap/2, TableLayout.PREFERRED, gap } };
 		JPanel cp = new JPanel();
 		cp.setLayout(new TableLayout(size));
 
@@ -149,10 +147,10 @@ public class DETaskSetConnectionLines extends DETaskAbstractSetViewOptions {
 
 		mComboBox3 = new JComboBox(JVisualization.TREE_VIEW_MODE_NAME);
     	mComboBox3.addItemListener(this);
-		cp.add(new JLabel("Detail graph mode: "), "1,7");
+		cp.add(new JLabel("Detail tree mode: "), "1,9");
 		cp.add(mComboBox3, "3,9,5,9");
 
-		mCheckBoxShowAll = new JCheckBox("Show all markers if no tree root (current row) is chosen");
+		mCheckBoxShowAll = new JCheckBox("Show all markers if no tree root (reference row) is chosen");
 		mCheckBoxShowAll.addActionListener(this);
 		cp.add(mCheckBoxShowAll, "1,11,5,11");
 
@@ -169,7 +167,7 @@ public class DETaskSetConnectionLines extends DETaskAbstractSetViewOptions {
 //		mSliderRadius.setMajorTickSpacing(5);
 		mSliderRadius.setPreferredSize(new Dimension(HiDPIHelper.scale(100), mSliderRadius.getPreferredSize().height));
 		mSliderRadius.addChangeListener(this);
-		mLabelLevels = new JLabel("Detail graph levels:");
+		mLabelLevels = new JLabel("Detail tree layers:");
 		cp.add(mLabelLevels, "1,17");
 		cp.add(mSliderRadius, "3,17");
 		mLabelRadius = new JLabel(""+DEFAULT_RADIUS);
@@ -272,8 +270,9 @@ public class DETaskSetConnectionLines extends DETaskAbstractSetViewOptions {
 		}
 
 	@Override
-	public void addViewConfiguration(Properties configuration) {
-		int selectedConnectionColumn = getInteractiveVisualization().getConnectionColumn();
+	public void addViewConfiguration(CompoundTableView view, Properties configuration) {
+		JVisualization visualization = ((VisualizationPanel)view).getVisualization();
+		int selectedConnectionColumn = visualization.getConnectionColumn();
 		if (selectedConnectionColumn == JVisualization.cColumnUnassigned)
 			configuration.setProperty(PROPERTY_CONNECTION, PROPERTY_CONNECTION_CODE_NONE);
 		else if (selectedConnectionColumn == JVisualization.cConnectionColumnConnectAll)
@@ -283,20 +282,20 @@ public class DETaskSetConnectionLines extends DETaskAbstractSetViewOptions {
 		else
 			configuration.setProperty(PROPERTY_CONNECTION, getTableModel().getColumnTitleNoAlias(selectedConnectionColumn));
 
-		int selectedOrderColumn = getInteractiveVisualization().getConnectionOrderColumn();
+		int selectedOrderColumn = visualization.getConnectionOrderColumn();
 		if (selectedOrderColumn == JVisualization.cColumnUnassigned)
 			configuration.setProperty(PROPERTY_ORDER, PROPERTY_ORDER_CODE_X_AXIS);
 		else
 			configuration.setProperty(PROPERTY_ORDER, getTableModel().getColumnTitleNoAlias(selectedOrderColumn));
 
-		configuration.setProperty(PROPERTY_TREE_VIEW, JVisualization.TREE_VIEW_MODE_CODE[getInteractiveVisualization().getTreeViewMode()]);
+		configuration.setProperty(PROPERTY_TREE_VIEW, JVisualization.TREE_VIEW_MODE_CODE[visualization.getTreeViewMode()]);
 
-		configuration.setProperty(PROPERTY_SHOW_ALL, getInteractiveVisualization().isTreeViewShowAll() ? "true" : "false");
-		configuration.setProperty(PROPERTY_DYNAMIC, getInteractiveVisualization().isTreeViewDynamic() ? "true" : "false");
-		configuration.setProperty(PROPERTY_INVERT_TREE, getInteractiveVisualization().isTreeViewInverted() ? "true" : "false");
+		configuration.setProperty(PROPERTY_SHOW_ALL, visualization.isTreeViewShowAll() ? "true" : "false");
+		configuration.setProperty(PROPERTY_DYNAMIC, visualization.isTreeViewDynamic() ? "true" : "false");
+		configuration.setProperty(PROPERTY_INVERT_TREE, visualization.isTreeViewInverted() ? "true" : "false");
 
-		configuration.setProperty(PROPERTY_RADIUS, ""+ getInteractiveVisualization().getTreeViewRadius());
-		configuration.setProperty(PROPERTY_LINE_WIDTH, ""+ getInteractiveVisualization().getConnectionLineWidth());
+		configuration.setProperty(PROPERTY_RADIUS, ""+ visualization.getTreeViewRadius());
+		configuration.setProperty(PROPERTY_LINE_WIDTH, ""+ visualization.getConnectionLineWidth());
 		}
 
 	@Override
@@ -324,12 +323,18 @@ public class DETaskSetConnectionLines extends DETaskAbstractSetViewOptions {
 
 	@Override
 	public void applyConfiguration(CompoundTableView view, Properties configuration, boolean isAdjusting) {
+		if (!(view instanceof VisualizationPanel))
+			return;
+
 		JVisualization visualization = ((VisualizationPanel)view).getVisualization();
 		String connection = configuration.getProperty(PROPERTY_CONNECTION, PROPERTY_CONNECTION_CODE_NONE);
 		int column = connection.equals(PROPERTY_CONNECTION_CODE_NONE) ? JVisualization.cColumnUnassigned
 				   : connection.equals(PROPERTY_CONNECTION_CODE_ALL) ? JVisualization.cConnectionColumnConnectAll
 				   : connection.equals(PROPERTY_CONNECTION_CODE_CASES) ? JVisualization.cConnectionColumnConnectCases
 				   : getTableModel().findColumn(connection);
+		if (column >= 0 && getTableModel().isEqualValueColumn(column))
+			column = JVisualization.cColumnUnassigned;
+
 		String orderString = configuration.getProperty(PROPERTY_ORDER, PROPERTY_ORDER_CODE_X_AXIS);
 		int orderColumn = orderString.equals(PROPERTY_ORDER_CODE_X_AXIS) ? JVisualization.cColumnUnassigned
 				   : getTableModel().findColumn(orderString);

@@ -1,7 +1,7 @@
 package chemaxon.marvin.calculations;
 
-import chemaxon.struc.Molecule;
 import chemaxon.marvin.plugin.PluginException;
+import chemaxon.struc.Molecule;
 
 public class pKaPlugin {
 	public static final int ACIDIC = 0;

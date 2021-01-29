@@ -22,87 +22,68 @@ import com.actelion.research.chem.AbstractDepictor;
 import com.actelion.research.chem.ExtendedDepictor;
 import com.actelion.research.chem.reaction.Reaction;
 import com.actelion.research.chem.reaction.ReactionEncoder;
-import com.actelion.research.gui.JDrawDialog;
-import com.actelion.research.gui.table.ChemistryRenderPanel;
+import com.actelion.research.gui.JEditableChemistryView;
 
-import javax.swing.*;
 import javax.swing.border.Border;
 import java.awt.*;
-import java.awt.event.MouseAdapter;
-import java.awt.event.MouseEvent;
 import java.awt.geom.Rectangle2D;
 
 public class JReactionFormObject extends AbstractFormObject {
     private Object mChemistry;
-    private boolean mIsEditable;
 
-    public JReactionFormObject(String key, String type) {
+	public JReactionFormObject(String key, String type) {
 		super(key, type);
-		mComponent = new ChemistryRenderPanel() {
-		    private static final long serialVersionUID = 0x20070509;
-            public void setBorder(Border border) {
-                if (border instanceof FormObjectBorder)
-                    super.setBorder(border);
-                }
-            };
-		mComponent.setBackground(UIManager.getColor("TextArea.background"));
-		mComponent.addMouseListener(new MouseAdapter() {
-			@Override
-		    public void mouseClicked(MouseEvent e) {
-		        if (e.getClickCount() == 2 && mIsEditable) {
-		            Component c = mComponent;
-		            while (!(c instanceof Frame))
-		                c = c.getParent();
-					JDrawDialog dialog = new JDrawDialog((Frame)c, (Reaction)mChemistry);
-					dialog.setVisible(true);
-					if (!dialog.isCancelled()) {
-						mChemistry = dialog.getReactionAndDrawings();
-						fireDataChanged();
-						}
-		        	}
+
+		mComponent = new JEditableChemistryView(ExtendedDepictor.TYPE_REACTION) {
+			private static final long serialVersionUID = 0x20070509;
+			public void setBorder(Border border) {
+				if (border instanceof FormObjectBorder)
+					super.setBorder(border);
 				}
-			});
-//		((JChemistryView)mComponent).setClipboardHandler(new ClipboardHandler());
+			};
+		((JEditableChemistryView)mComponent).setOpaqueBackground(true);
+
+//		((JEditableChemistryView)mComponent).setClipboardHandler(new ClipboardHandler());
 		}
 
 	public void setEditable(boolean b) {
-	    super.setEditable(b);
-	    mIsEditable = b;
-	    }
+		super.setEditable(b);
+		((JEditableChemistryView)mComponent).setEditable(b);
+		}
 
 	public Object getData() {
 		return mChemistry;
 		}
 
 	public void setData(Object data) {
-        mChemistry = null;
+		mChemistry = null;
 		if (data != null) {
-		    if (data instanceof Reaction)
-		        mChemistry = (Reaction)data;
-		    else if (data instanceof String)
-		        mChemistry = ReactionEncoder.decode((String)data, true);
-            }
+			if (data instanceof Reaction)
+				mChemistry = data;
+			else if (data instanceof String)
+				mChemistry = ReactionEncoder.decode((String)data, true);
+			}
 
-        ((ChemistryRenderPanel)mComponent).setChemistry(mChemistry);
-	    }
+		((JEditableChemistryView)mComponent).setContent((Reaction)mChemistry);
+		}
 
-	public int getRelativeHeight() {
+	public int getDefaultRelativeHeight() {
 		return 4;
 		}
 
 	public void printContent(Graphics2D g2D, Rectangle2D.Double r, float scale, Object data, boolean isMultipleRows) {
-        if (data != null) {
-	        Reaction rxn = null;
+		if (data != null) {
+			Reaction rxn = null;
 			if (data instanceof Reaction)
 				rxn = (Reaction)data;
 			else if (data instanceof String)
 				rxn = ReactionEncoder.decode((String)data, true);
-	
-		    if (rxn != null) {
+
+			if (rxn != null) {
 				ExtendedDepictor d = new ExtendedDepictor(rxn, null, rxn.isReactionLayoutRequired(), true);
 				d.validateView(g2D, r, AbstractDepictor.cModeInflateToMaxAVBL);
 				d.paint(g2D);
 				}
-        	}
+			}
 		}
     }

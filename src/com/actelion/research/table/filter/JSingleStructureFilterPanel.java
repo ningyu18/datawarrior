@@ -38,6 +38,7 @@ public class JSingleStructureFilterPanel extends JStructureFilterPanel
 
 	private JEditableStructureView  mStructureView;
 	private boolean 				mDisableEvents;
+	private StereoMolecule			mMoleculeWithQueryFeatures;
 
 	/**
 	 * Creates the filter panel as UI to configure a task as part of a macro
@@ -46,11 +47,11 @@ public class JSingleStructureFilterPanel extends JStructureFilterPanel
 	 * @param mol
 	 */
 	public JSingleStructureFilterPanel(Frame parent, CompoundTableModel tableModel, StereoMolecule mol) {
-		this(parent, tableModel, -1, -1, mol);
+		this(parent, tableModel, -1, null, -1, mol);
 		}
 
-	public JSingleStructureFilterPanel(Frame parent, CompoundTableModel tableModel, int column, int exclusionFlag, StereoMolecule mol) {
-		super(parent, tableModel, column, exclusionFlag);
+	public JSingleStructureFilterPanel(Frame parent, CompoundTableModel tableModel, int column, String reactionPart, int exclusionFlag, StereoMolecule mol) {
+		super(parent, tableModel, column, reactionPart, exclusionFlag);
 
 		JPanel contentPanel = new JPanel();
 		double[][] size = { {4, TableLayout.FILL, 4, TableLayout.PREFERRED},
@@ -84,7 +85,7 @@ public class JSingleStructureFilterPanel extends JStructureFilterPanel
 		mStructureView.setPreferredSize(new Dimension(s, s));
 		mStructureView.setBackground(getBackground());
 		mStructureView.addStructureListener(this);
-		mStructureView.setAllowFragmentStatusChangeOnDrop(true);
+		mStructureView.setAllowFragmentStatusChangeOnPasteOrDrop(true);
 		contentPanel.add(mStructureView, "1,1");
 
 		updateComboBox(mol==null ? cItemContains : cItemIsSimilarTo);
@@ -110,25 +111,36 @@ public class JSingleStructureFilterPanel extends JStructureFilterPanel
 		super.itemStateChanged(e);
 
 		if (e.getSource() == mComboBox
-		 && e.getStateChange() == ItemEvent.SELECTED
 		 && !mDisableEvents) {
+			String item = (String)e.getItem();
+			boolean isSSS = cItemContains.equals(item);
 
-			mDisableEvents = true;
-
-			String item = (String)mComboBox.getSelectedItem();
-			if (item.equals(cItemContains)) {
-				getSimilaritySlider().setEnabled(false);
-				mStructureView.getMolecule().setFragment(true);
+			if (e.getStateChange() == ItemEvent.DESELECTED) {
+				if (isSSS)
+					mMoleculeWithQueryFeatures = new StereoMolecule(mStructureView.getMolecule());	// store molecule with query features
 				}
-			else {  // similarity
-				getSimilaritySlider().setEnabled(true);
-				mStructureView.getMolecule().setFragment(false);
+			else {
+				mDisableEvents = true;
+
+				if (isSSS) {
+					getSimilaritySlider().setEnabled(false);
+					if (mMoleculeWithQueryFeatures != null)
+						mStructureView.structureChanged(mMoleculeWithQueryFeatures);
+					else {
+						mStructureView.getMolecule().setFragment(true);
+						mStructureView.structureChanged();
+						}
+					}
+				else {  // similarity
+					getSimilaritySlider().setEnabled(true);
+					mStructureView.getMolecule().setFragment(false);
+					mStructureView.structureChanged();
+					}
+
+				mDisableEvents = false;
+
+				updateExclusion(mIsUserChange);
 				}
-			mStructureView.structureChanged();
-
-			mDisableEvents = false;
-
-			updateExclusion(mIsUserChange);
 			}
 		}
 
@@ -140,6 +152,7 @@ public class JSingleStructureFilterPanel extends JStructureFilterPanel
 		mDisableEvents = true;
 
 		mSimilarity = null;
+		mMoleculeWithQueryFeatures = null;
 		mol.removeAtomSelection();
 		String selectedItem = (String)mComboBox.getSelectedItem();
 		if (mol.isFragment()) {
@@ -213,7 +226,7 @@ public class JSingleStructureFilterPanel extends JStructureFilterPanel
 					: itemToDescriptor(item)+"\t"+getSimilaritySlider().getValue();
 
 			StereoMolecule mol = mStructureView.getMolecule();
-			settings = attachSetting(settings, new Canonizer(mol).getIDCode());
+			settings = attachTABDelimited(settings, new Canonizer(mol).getIDCode());
 			return settings;
 			}
 		return null;

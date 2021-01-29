@@ -18,13 +18,15 @@
 
 package com.actelion.research.table.model;
 
-import java.io.BufferedInputStream;
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.IOException;
-import java.io.InputStream;
+import com.actelion.research.chem.io.CompoundTableConstants;
+import com.actelion.research.gui.JProgressDialog;
+import com.actelion.research.gui.form.ReferenceResolver;
+import com.actelion.research.gui.form.ReferencedDataConsumer;
+import com.actelion.research.gui.form.RemoteDetailSource;
+import com.actelion.research.gui.form.ResultDetailPopupItemProvider;
+
+import javax.swing.*;
+import java.io.*;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -33,16 +35,6 @@ import java.util.TreeSet;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
-
-import javax.swing.JMenuItem;
-import javax.swing.SwingUtilities;
-
-import com.actelion.research.chem.io.CompoundTableConstants;
-import com.actelion.research.gui.JProgressDialog;
-import com.actelion.research.gui.form.ReferenceResolver;
-import com.actelion.research.gui.form.ReferencedDataConsumer;
-import com.actelion.research.gui.form.RemoteDetailSource;
-import com.actelion.research.gui.form.ResultDetailPopupItemProvider;
 
 public class CompoundTableDetailHandler implements ResultDetailPopupItemProvider,ReferenceResolver,Runnable {
 	public static final String URL_RESPONSE = "url/response:";
@@ -105,7 +97,7 @@ public class CompoundTableDetailHandler implements ResultDetailPopupItemProvider
 			return getEmbeddedDetail(reference);
 		if (source.startsWith(ABSOLUTE_PATH)
          || source.startsWith(RELATIVE_PATH))
-			return getDataFromFile(getPathFromFileSource(source)+reference);
+			return getDataFromFile(getPathFromFileSource(source), reference);
 		if (source.startsWith(URL_RESPONSE))
 			return getURLResponse(source.substring(URL_RESPONSE.length()), reference);
 
@@ -123,7 +115,14 @@ public class CompoundTableDetailHandler implements ResultDetailPopupItemProvider
 		return (reference.startsWith("-")) ? unzip(detailData) : detailData;
 		}
 
-	private byte[] getDataFromFile(String filename) {
+	/**
+	 *
+	 * @param path may contain a %s as place holder for the key, otherwise key is file name without path
+	 * @param key is either file name without path or is part of file name, if path contains %s
+	 * @return
+	 */
+	private byte[] getDataFromFile(String path, String key) {
+		String filename = path.contains("%s") ? path.replace("%s", key) : path.concat(key);
 		File file = new File(filename);
 		byte[] data = new byte[(int)file.length()];
 		try {
@@ -139,7 +138,7 @@ public class CompoundTableDetailHandler implements ResultDetailPopupItemProvider
 
 	private void requestDataFromFile(String source, String reference, ReferencedDataConsumer consumer) {
 		if (mFileRequests == null)
-			mFileRequests = new ArrayList<FileRequest>();
+			mFileRequests = new ArrayList<>();
 		synchronized(mFileRequests) {
 			mFileRequests.add(new FileRequest(source, reference, consumer));
 			}
@@ -149,16 +148,12 @@ public class CompoundTableDetailHandler implements ResultDetailPopupItemProvider
 	public void run() {
 		FileRequest request = null;
 		synchronized(mFileRequests) {
-			request = (FileRequest)mFileRequests.get(0);
+			request = mFileRequests.get(0);
 			mFileRequests.remove(0);
 			}
-		final byte[] data = getDataFromFile(getPathFromFileSource(request.source)+request.reference);
+		final byte[] data = getDataFromFile(getPathFromFileSource(request.source), request.reference);
 		final FileRequest _request = request;
-		SwingUtilities.invokeLater(new Runnable() {
-			public void run() {
-				_request.consumer.setReferencedData(_request.reference, data);
-				}
-			});
+		SwingUtilities.invokeLater(() -> _request.consumer.setReferencedData(_request.reference, data) );
 		}
 
     private String getPathFromFileSource(String source) {
@@ -184,7 +179,7 @@ public class CompoundTableDetailHandler implements ResultDetailPopupItemProvider
 
 	public void setEmbeddedDetail(String reference, byte[] detail) {
 		if (mEmbeddedDetailMap == null)
-			mEmbeddedDetailMap = new HashMap<String,byte[]>();
+			mEmbeddedDetailMap = new HashMap<>();
 
 		mEmbeddedDetailMap.put(reference, detail);
 		}
@@ -206,7 +201,7 @@ public class CompoundTableDetailHandler implements ResultDetailPopupItemProvider
 
 	    int detailID = getAvailableEmbeddedDetailID();
 		HashMap<String,String> oldToNewKeyMap = new HashMap<String,String>();
-		HashMap<String,byte[]> detail = new HashMap<String,byte[]>();
+		HashMap<String,byte[]> detail = new HashMap<>();
 		for (int i=0; i<oldKey.length; i++) {
 		    if (progressDialog != null) {
 		        if (progressDialog.threadMustDie())
@@ -216,9 +211,9 @@ public class CompoundTableDetailHandler implements ResultDetailPopupItemProvider
 
 		    String newKey = oldToNewKeyMap.get(oldKey[i]);
 			if (newKey == null) {
-				byte[] detailData = (byte[])resolveReference(sourceSpec, (String)oldKey[i], mode);
+				byte[] detailData = resolveReference(sourceSpec, (String)oldKey[i], mode);
 				if (detailData == null)
-					return null;
+					continue;
 
 				if (isZipType(type)) {
 					detailData = zip(detailData);
@@ -265,6 +260,9 @@ public class CompoundTableDetailHandler implements ResultDetailPopupItemProvider
 		}
 
 	private byte[] unzip(byte[] data) {
+		if (data == null)
+			return null;
+
 		ZipInputStream zipStream = new ZipInputStream(new ByteArrayInputStream(data));
 		ByteArrayOutputStream byteStream = new ByteArrayOutputStream();
 		try {
@@ -338,17 +336,10 @@ public class CompoundTableDetailHandler implements ResultDetailPopupItemProvider
 		}
 
 	protected void requestURLResponse(final String source, final String url, final String reference, final ReferencedDataConsumer consumer) {
-		new Thread() {
-			@Override
-			public void run() {
-				final byte[] response = getURLResponse(url, reference);
-				SwingUtilities.invokeLater(new Runnable() {
-					public void run() {
-						consumer.setReferencedData(reference, response);
-						}
-					} );
-				}
-			}.start();
+		new Thread(() -> {
+			final byte[] response = getURLResponse(url, reference);
+			SwingUtilities.invokeLater(() -> consumer.setReferencedData(reference, response) );
+			} ).start();
 		}
 	}
 

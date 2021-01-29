@@ -171,7 +171,7 @@ public class DETaskSaveSDFileAs extends DETaskAbstractSaveFile {
 		int compoundOption = COMPOUND_NAME_OPTION_ROW_NUMBER;
 		if (isInteractive()) {
 			int structureColumn = getTableModel().findColumn((String)mComboBoxStructureColumn.getItemAt(0));
-			if (getTableModel().findColumn(getTableModel().getColumnProperty(structureColumn, CompoundTableModel.cColumnPropertyIdentifierColumn)) != -1)
+			if (getTableModel().findColumn(getTableModel().getColumnProperty(structureColumn, CompoundTableModel.cColumnPropertyRelatedIdentifierColumn)) != -1)
 				compoundOption = COMPOUND_NAME_OPTION_COLUMN_PROPERTY;
 			}
 		mComboBoxCompoundName.setSelectedIndex(compoundOption);
@@ -224,7 +224,7 @@ public class DETaskSaveSDFileAs extends DETaskAbstractSaveFile {
 				showErrorMessage("Column '"+columnTitle+"' not found.");
 				return false;
 				}
-			if (!getTableModel().getColumnSpecialType(column).equals(CompoundTableConstants.cColumnTypeIDCode)) {
+			if (!getTableModel().isColumnTypeStructure(column)) {
 				showErrorMessage("Column '"+columnTitle+"' doesn't contain chemical structures.");
 				return false;
 				}

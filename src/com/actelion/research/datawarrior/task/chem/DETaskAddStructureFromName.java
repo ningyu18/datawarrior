@@ -18,38 +18,42 @@
 
 package com.actelion.research.datawarrior.task.chem;
 
-import java.util.Properties;
-
-import com.actelion.research.datawarrior.task.AbstractTaskWithoutConfiguration;
+import com.actelion.research.chem.Canonizer;
+import com.actelion.research.chem.SmilesParser;
+import com.actelion.research.chem.SortedStringList;
+import com.actelion.research.chem.StereoMolecule;
+import com.actelion.research.chem.coords.CoordinateInventor;
+import com.actelion.research.chem.name.StructureNameResolver;
+import com.actelion.research.datawarrior.DEFrame;
+import com.actelion.research.datawarrior.DataWarrior;
+import com.actelion.research.datawarrior.task.AbstractSingleColumnTask;
+import info.clearthought.layout.TableLayout;
 import uk.ac.cam.ch.wwmm.opsin.NameToStructure;
 
-import com.actelion.research.chem.Canonizer;
-import com.actelion.research.chem.coords.CoordinateInventor;
-import com.actelion.research.chem.SmilesParser;
-import com.actelion.research.chem.StereoMolecule;
-import com.actelion.research.datawarrior.DEFrame;
-import com.actelion.research.table.model.CompoundTableModel;
+import javax.swing.*;
+import java.util.Properties;
 
-public class DETaskAddStructureFromName extends AbstractTaskWithoutConfiguration {
+public class DETaskAddStructureFromName extends AbstractSingleColumnTask {
 	public static final String TASK_NAME = "Add Structures From Name";
+
+//  Cactus is not used anymore.
+//	private static final String CACTUS_URL = "https://cactus.nci.nih.gov/chemical/structure/";
+//	private static final String CACTUS_FORMAT_SDF = "/sdf";	// alternatives e.g.: smiles,stdinchikey
+//	private static final String CACTUS_FORMAT_SMILES = "/smiles";
+
+	private static final String PROPERTY_USE_SERVER = "useServer";
 
 	private static final String[] cSourceColumnName = { "substance name", "compound name", "iupac name" };
 
-	private CompoundTableModel	mTableModel;
+	private JCheckBox mCheckBoxUseServer;
 
 	public DETaskAddStructureFromName(DEFrame parentFrame) {
-    	super(parentFrame, true);
-    	mTableModel = parentFrame.getTableModel();
+    	super(parentFrame, parentFrame.getTableModel(), true);
     	}
 
     @Override
-	public boolean isConfigurable() {
-    	for (String name:cSourceColumnName)
-    		if (mTableModel.findColumn(name) != -1)
-    			return true;
-
-    	showErrorMessage("'Substance Name' column not found.");
-    	return false;
+	public boolean isCompatibleColumn(int column) {
+		return getTableModel().isColumnTypeString(column) && getTableModel().getColumnSpecialType(column) == null;
 		}
 
 	@Override
@@ -58,104 +62,147 @@ public class DETaskAddStructureFromName extends AbstractTaskWithoutConfiguration
 		}
 
 	@Override
-	public void runTask(Properties configuration) {
-    	int sourceColumn = -1;
+	public JPanel createInnerDialogContent() {
+		if (DataWarrior.getApplication().isIdorsia())
+			return null;    // No need to ask, because we use an Idorsia internal service anyway
+
+		double[][] size = { {TableLayout.PREFERRED},
+							{16, TableLayout.PREFERRED, 4, TableLayout.PREFERRED, 8, TableLayout.PREFERRED, 8} };
+		JPanel content = new JPanel();
+		content.setLayout(new TableLayout(size));
+
+		content.add(new JLabel("If DataWarrior cannot interpret a name as IUPAC-name nor as SMILES,"), "0,1");
+		content.add(new JLabel("then DataWarrior may connect to openmolecules.org to resolve names."), "0,3");
+
+		mCheckBoxUseServer = new JCheckBox("Allow openmolecules.org name-to-structure service");
+		content.add(mCheckBoxUseServer, "0,5");
+
+		return content;
+		}
+
+	@Override
+	public String getColumnLabelText() {
+		return "Structure name or SMILES column:";
+		}
+
+	@Override
+	public void selectDefaultColumn(JComboBox comboBox) {
 		for (String name:cSourceColumnName) {
-    		sourceColumn = mTableModel.findColumn(name);
-    		if (sourceColumn != -1)
-    			break;
+			for (int i=0; i<comboBox.getItemCount(); i++) {
+				if (name.equals(((String)comboBox.getItemAt(i)).toLowerCase())) {
+					comboBox.setSelectedIndex(i);
+					return;
+					}
+				}
 			}
 
-        int firstNewColumn = mTableModel.addNewColumns(3);
+		// default handling, if no obvious name column was found
+		super.selectDefaultColumn(comboBox);
+		}
+
+	@Override
+	public Properties getDialogConfiguration() {
+		Properties configuration = super.getDialogConfiguration();
+		String useServer = (mCheckBoxUseServer == null) ? "true" : mCheckBoxUseServer.isSelected()? "true" : "false";
+		configuration.setProperty(PROPERTY_USE_SERVER, useServer);
+		return configuration;
+		}
+
+	@Override
+	public void setDialogConfiguration(Properties configuration) {
+		super.setDialogConfiguration(configuration);
+		if (mCheckBoxUseServer != null)
+			mCheckBoxUseServer.setSelected("true".equals(configuration.getProperty(PROPERTY_USE_SERVER, "true")));
+		}
+
+	@Override
+	public void setDialogConfigurationToDefault() {
+		super.setDialogConfigurationToDefault();
+		if (mCheckBoxUseServer != null)
+			mCheckBoxUseServer.setSelected(true);
+		}
+
+	@Override
+	public void runTask(Properties configuration) {
+		int sourceColumn = getColumn(configuration);
+
+        int firstNewColumn = getTableModel().addNewColumns(3);
         int idcodeColumn = firstNewColumn;
         int coordsColumn = firstNewColumn+1;
-        mTableModel.prepareStructureColumns(idcodeColumn, "Structure", true, true);
+		getTableModel().prepareStructureColumns(idcodeColumn, "Structure", true, true);
 
-//		NameToStructureConfig opsinConfig = new NameToStructureConfig();
 		NameToStructure opsinN2S = NameToStructure.getInstance();
 		StereoMolecule mol = new StereoMolecule();
 
-		startProgress("Generating Structures...", 0, mTableModel.getTotalRowCount());
-		for (int row=0; row<mTableModel.getTotalRowCount() && !threadMustDie(); row++) {
+		boolean useServer = "true".equals(configuration.getProperty(PROPERTY_USE_SERVER, "true"))
+							&& StructureNameResolver.getInstance() != null;
+		SortedStringList unresolvedList = useServer ? new SortedStringList() : null;
+
+		startProgress("Generating Structures...", 0, getTableModel().getTotalRowCount());
+		for (int row=0; row<getTableModel().getTotalRowCount() && !threadMustDie(); row++) {
 			updateProgress(row);
 
-			String name = mTableModel.getTotalValueAt(row, sourceColumn);
+			String name = getTableModel().getTotalValueAt(row, sourceColumn).trim();
 			if (name.length() != 0) {
 				String smiles = opsinN2S.parseToSmiles(name);
-				if (smiles != null) {
+				if (smiles == null)
+					smiles = name;
+
+				mol.clear();
+				try {
+					new SmilesParser().parse(mol, smiles);
+					}
+				catch (Exception e) {
+					mol.clear();
+					}
+
+				if (mol.getAllAtoms() != 0) {
 					try {
-						mol.deleteMolecule();
-						new SmilesParser().parse(mol, smiles);
-						if (mol.getAllAtoms() != 0) {
-							mol.setFragment(false);
-							new CoordinateInventor().invent(mol);
-							Canonizer canonizer = new Canonizer(mol);
-							mTableModel.setTotalValueAt(canonizer.getIDCode(), row, idcodeColumn);
-							mTableModel.setTotalValueAt(canonizer.getEncodedCoordinates(), row, coordsColumn);
-							}
+						new CoordinateInventor().invent(mol);
+						mol.setFragment(false);
+						mol.normalizeAmbiguousBonds();
+						mol.canonizeCharge(true);
+						Canonizer canonizer = new Canonizer(mol);
+						canonizer.setSingleUnknownAsRacemicParity();
+						getTableModel().setTotalValueAt(canonizer.getIDCode(), row, idcodeColumn);
+						getTableModel().setTotalValueAt(canonizer.getEncodedCoordinates(), row, coordsColumn);
 						}
 					catch (Exception e) {
 						e.printStackTrace();
 						}
 					}
-
-/*				try {
-					OpsinResult result = opsinN2S.parseChemicalName(name, opsinConfig);
-
-					String cml = result..getCml();
-					if (cml == null)
-						continue;
-					
-					String sdf = convertCML2SDF(cml);
-					if (sdf == null)
-						continue;
-
-					mol.deleteMolecule();
-					new MolfileParser().parse(mol, sdf);
-					if (mol.getAllAtoms() != 0) {
-						mol.setFragment(false);
-						new CoordinateInventor().invent(mol);
-						Canonizer canonizer = new Canonizer(mol);
-						mTableModel.setTotalValueAt(canonizer.getIDCode(), row, idcodeColumn);
-						mTableModel.setTotalValueAt(canonizer.getEncodedCoordinates(), row, coordsColumn);
-						}
+				else if (useServer) {
+					unresolvedList.addString(name);
 					}
-				catch (Exception e) {
-					e.printStackTrace();
-					}	*/
 				}
 			}
 
-		mTableModel.finalizeNewColumns(firstNewColumn, this);
+		if (useServer && unresolvedList.getSize() != 0) {
+			startProgress("Sending "+unresolvedList.getSize()+" Names...", 0, 0);
+			String[] idcodes = StructureNameResolver.getInstance().resolveRemote(unresolvedList.toArray());
+			for (int row=0; row<getTableModel().getTotalRowCount() && !threadMustDie(); row++) {
+				String name = getTableModel().getTotalValueAt(row, sourceColumn).trim();
+				if (name.length() != 0 && getTableModel().getTotalRecord(row).getData(idcodeColumn) == null) {
+					String idcode = idcodes[unresolvedList.getListIndex(name)];
+					if (idcode != null && idcode.length() != 0) {
+						int index = idcode.indexOf(' ');
+						if (index == -1) {
+							getTableModel().setTotalValueAt(idcode, row, idcodeColumn);
+							}
+						else {
+							getTableModel().setTotalValueAt(idcode.substring(0, index), row, idcodeColumn);
+							getTableModel().setTotalValueAt(idcode.substring(index+1), row, coordsColumn);
+							}
+						}
+					}
+				}
+			}
+
+		getTableModel().finalizeNewColumns(firstNewColumn, this);
 		}
 
 	@Override
 	public DEFrame getNewFrontFrame() {
 		return null;
 		}
-
-/*	private String convertCML2SDF(String cml) throws CMLException, IOException{
-		InputStream is = new ByteArrayInputStream(cml.getBytes());
-  		Document document = null;
-  		try {
-  			document = new CMLBuilder().build(is);
-  			}
-  		catch (Exception e) {
-  			return null;
-  			}
-
-  		CMLMolecule molecule = (CMLMolecule) CMLUtil.getQueryNodes(document,
-  				"//" + CMLMolecule.NS, CMLConstants.CML_XPATH).get(0);
-  		List<Node> scalars = CMLUtil.getQueryNodes(molecule, "//"
-  				+ CMLScalar.NS, CMLConstants.CML_XPATH);
-
-  		for (Node node:scalars)
-  			node.detach();
-  		
-  		MDLConverter mdlConverter = new MDLConverter();
-  		StringWriter writer = new StringWriter();
-  		mdlConverter.writeMOL(writer, molecule);
-  		writer.flush();
-  		return writer.toString();
-		}	*/
 	}

@@ -18,13 +18,13 @@
 
 package com.actelion.research.datawarrior.task.view;
 
-import java.awt.Frame;
-import java.util.Properties;
-
 import com.actelion.research.datawarrior.DEMainPane;
 import com.actelion.research.table.view.CompoundTableView;
 import com.actelion.research.table.view.VisualizationColor;
 import com.actelion.research.table.view.VisualizationPanel;
+
+import java.awt.*;
+import java.util.Properties;
 
 public class DETaskSetMarkerColor extends DETaskAbstractSetColor {
 	public static final String TASK_NAME = "Set Marker Color";
@@ -33,6 +33,11 @@ public class DETaskSetMarkerColor extends DETaskAbstractSetColor {
 								DEMainPane mainPane,
 								VisualizationPanel view) {
 		super(owner, mainPane, view, "Set Marker Color");
+		}
+
+	@Override
+	public OTHER_VIEWS getOtherViewMode() {
+		return OTHER_VIEWS.GRAPHICAL;
 		}
 
 	@Override
@@ -48,6 +53,12 @@ public class DETaskSetMarkerColor extends DETaskAbstractSetColor {
 	@Override
 	public String getViewQualificationError(CompoundTableView view) {
 		return (view instanceof VisualizationPanel) ? null : "Marker colors can only be assigned in 2D- or 3D-Views.";
+		}
+
+	@Override
+	public void applyConfiguration(CompoundTableView view, Properties configuration, boolean isAdjusting) {
+		if (view instanceof VisualizationPanel)
+			super.applyConfiguration(view, configuration, isAdjusting);
 		}
 
 	@Override

@@ -18,10 +18,6 @@
 
 package com.actelion.research.datawarrior.task.chem;
 
-import chemaxon.formats.MolFormatException;
-import chemaxon.formats.MolImporter;
-import chemaxon.marvin.calculations.pKaPlugin;
-import chemaxon.marvin.plugin.PluginException;
 import com.actelion.research.chem.*;
 import com.actelion.research.chem.conf.MolecularFlexibilityCalculator;
 import com.actelion.research.chem.descriptor.DescriptorConstants;
@@ -29,6 +25,7 @@ import com.actelion.research.chem.prediction.*;
 import com.actelion.research.datawarrior.DEFrame;
 import com.actelion.research.datawarrior.DETableView;
 import com.actelion.research.datawarrior.task.ConfigurableTask;
+import com.actelion.research.gui.hidpi.HiDPIHelper;
 import com.actelion.research.table.CompoundTableColorHandler;
 import com.actelion.research.table.model.CompoundTableModel;
 import com.actelion.research.table.view.VisualizationColor;
@@ -72,7 +69,7 @@ public class DETaskCalculateChemicalProperties extends ConfigurableTask {
 	private static final int PREDICTOR_FLAG_NASTY_FUNCTIONS	= (1 << PREDICTOR_NASTY_FUNCTIONS);
 	private static final int PREDICTOR_FLAG_FLEXIBILITY		= (1 << PREDICTOR_FLEXIBILITY);
 
-	private static final int PROPERTY_COUNT = 53;
+	private static final int PROPERTY_COUNT = 63;
 
 	private static final int TOTAL_WEIGHT = 0;
 	private static final int FRAGMENT_WEIGHT = 1;
@@ -109,29 +106,40 @@ public class DETaskCalculateChemicalProperties extends ConfigurableTask {
 	private static final int STEREOCENTERS = 29;
 	private static final int ROTATABLE_BONDS = 30;
 	private static final int RING_CLOSURES = 31;
-	private static final int SMALL_RINGS = 32;
-	private static final int AROMATIC_RINGS = 33;
-	private static final int AROMATIC_ATOMS = 34;
-	private static final int SP3_ATOMS = 35;
-	private static final int SYMMETRIC_ATOMS = 36;
+	private static final int AROMATIC_ATOMS = 32;
+	private static final int SP3_ATOMS = 33;
+	private static final int SYMMETRIC_ATOMS = 34;
 
-	private static final int ALL_AMIDES = 37;
-	private static final int ALL_AMINES = 38;
-	private static final int ALKYL_AMINES = 39;
-	private static final int ARYL_AMINES = 40;
-	private static final int AROMATIC_NITROGEN = 41;
-	private static final int BASIC_NITROGEN = 42;
-	private static final int ACIDIC_OXYGEN = 43;
-	private static final int STEREO_CONFIGURATION = 44;
+	private static final int SMALL_RINGS = 35;
+	private static final int SMALL_CARBO_RINGS = 36;
+	private static final int SMALL_HETERO_RINGS = 37;
+	private static final int SATURATED_RINGS = 38;
+	private static final int NON_AROMATIC_RINGS = 39;
+	private static final int AROMATIC_RINGS = 40;
+	private static final int CARBO_SATURATED_RINGS = 41;
+	private static final int CARBO_NON_AROMATIC_RINGS = 42;
+	private static final int CARBO_AROMATIC_RINGS = 43;
+	private static final int HETERO_SATURATED_RINGS = 44;
+	private static final int HETERO_NON_AROMATIC_RINGS = 45;
+	private static final int HETERO_AROMATIC_RINGS = 46;
 
-	private static final int ACIDIC_PKA = 45;
-	private static final int BASIC_PKA = 46;
-	private static final int FRACTION_IA = 47;
-	private static final int FRACTION_IB = 48;
-	private static final int FRACTION_ZI = 49;
-	private static final int FRACTION_CHARGED = 50;
-	private static final int FRACTION_UNCHARGED = 51;
-	private static final int CHARGE74 = 52;
+	private static final int ALL_AMIDES = 47;
+	private static final int ALL_AMINES = 48;
+	private static final int ALKYL_AMINES = 49;
+	private static final int ARYL_AMINES = 50;
+	private static final int AROMATIC_NITROGEN = 51;
+	private static final int BASIC_NITROGEN = 52;
+	private static final int ACIDIC_OXYGEN = 53;
+	private static final int STEREO_CONFIGURATION = 54;
+
+	private static final int ACIDIC_PKA = 55;
+	private static final int BASIC_PKA = 56;
+	private static final int FRACTION_IA = 57;
+	private static final int FRACTION_IB = 58;
+	private static final int FRACTION_ZI = 59;
+	private static final int FRACTION_CHARGED = 60;
+	private static final int FRACTION_UNCHARGED = 61;
+	private static final int CHARGE74 = 62;
 
 	private static final Color[] TOX_COLOR_LIST = { Color.RED, Color.YELLOW, Color.GREEN };
 
@@ -139,12 +147,14 @@ public class DETaskCalculateChemicalProperties extends ConfigurableTask {
 													"acceptors", "donors", "sasa", "rpsa", "tpsa", "druglikeness", "permeability",
 													"le", /*"se",*/ "lle", "lelp", "mutagenic", "tumorigenic", "reproEffective", "irritant", "nasty",
 													"shape", "flexibility", "complexity", "fragments", "heavyAtoms", "nonCHAtoms", "metalAtoms", "negAtoms",
-													"stereoCenters", "rotBonds", "closures", "rings", "aromRings", "aromAtoms", "sp3Atoms", "symmetricAtoms",
+													"stereoCenters", "rotBonds", "closures", "aromAtoms", "sp3Atoms", "symmetricAtoms",
+													"rings", "carbo", "heteroRings", "satRings", "nonAromRings", "aromRings", "carboSatRings", "carboNonAromRings", "carboAromRings",
+													"heteroSatRings", "heteroNonAromRings", "heteroAromRings",
 													"amides", "amines", "alkylAmines", "arylAmines", "aromN", "basicN", "acidicO", "stereoConfiguration",
 													"acidicPKA", "basicPKA", "acidicFI", "basicFI", "zwitterFI", "chargedF", "unchargedF", "charge74"};
 
-	private static final String[] TAB_GROUP = { "Druglikeness", "LE, Tox, Shape", "Counts", "Functional Groups", "Ionization" };
-	private static final String[][] TAB_HEADER = {null, {null, "Ki or IC50 in nmol/l"}, null, null, null};
+	private static final String[] TAB_GROUP = { "Druglikeness", "LE, Tox, Shape", "Atom Counts", "Ring Counts", "Functional Groups", "Ionization" };
+	private static final String[][] TAB_HEADER = {null, {null, "Ki or IC50 in nmol/l"}, null, null, null, null};
 
 	private DEFrame						mParentFrame;
 	private CompoundTableModel			mTableModel;
@@ -169,8 +179,9 @@ public class DETaskCalculateChemicalProperties extends ConfigurableTask {
 		if (mPropertyMap == null)
 			createPropertyMap();
 
-		double[][] size1 = { {TableLayout.FILL, TableLayout.PREFERRED, 4, TableLayout.PREFERRED, TableLayout.FILL},
-							 {8, TableLayout.PREFERRED, 8, TableLayout.PREFERRED } };
+		int gap = HiDPIHelper.scale(8);
+		double[][] size1 = { {TableLayout.FILL, TableLayout.PREFERRED, gap/2, TableLayout.PREFERRED, TableLayout.FILL},
+							 {gap, TableLayout.PREFERRED, gap, TableLayout.PREFERRED } };
 
 		JPanel content = new JPanel();
 		content.setLayout(new TableLayout(size1));
@@ -188,10 +199,11 @@ public class DETaskCalculateChemicalProperties extends ConfigurableTask {
 		content.add(mComboBoxStructureColumn, "3,1");
 
 		mTabbedPane = new JTabbedPane();
+		mTabbedPane.setTabLayoutPolicy(JTabbedPane.SCROLL_TAB_LAYOUT);
 		mPropertyGUI = new DEPropertyGUI[PROPERTY_COUNT];
 		for (int tab=0; tab<TAB_GROUP.length; tab++) {
 			JPanel cbp = new JPanel();
-			double[][] size2 = { {8, TableLayout.PREFERRED, 8, TableLayout.PREFERRED, 8}, null };
+			double[][] size2 = { {gap, TableLayout.PREFERRED, 8, TableLayout.PREFERRED, gap}, null };
 
 			int count = (TAB_HEADER[tab] == null) ? 0 : 1;
 			for (DEProperty property:mPropertyTable)
@@ -440,7 +452,7 @@ public class DETaskCalculateChemicalProperties extends ConfigurableTask {
 		}
 
 	private void createPropertyMap() {
-		mPropertyMap = new TreeMap<String,DEProperty>();
+		mPropertyMap = new TreeMap<>();
 		mPropertyTable = new DEProperty[PROPERTY_COUNT];
 
 	   	addProperty(TOTAL_WEIGHT, 0, "Total Molweight", "Total average molweight in g/mol; natural abundance");
@@ -478,30 +490,41 @@ public class DETaskCalculateChemicalProperties extends ConfigurableTask {
 		addProperty(STEREOCENTERS, 2, "Stereo Centers", "Stereo Center Count");
 		addProperty(ROTATABLE_BONDS, 2, "Rotatable Bonds", "Rotatable Bond Count");
 		addProperty(RING_CLOSURES, 2, "Rings Closures", "Ring Closure Count");
-		addProperty(SMALL_RINGS, 2, "Small Rings", "Small Ring Count (all rings up to 7 members)");
-		addProperty(AROMATIC_RINGS, 2, "Aromatic Rings", "Aromatic Ring Count");
 		addProperty(AROMATIC_ATOMS, 2, "Aromatic Atoms", "Aromatic Atom Count");
 		addProperty(SP3_ATOMS, 2, "sp3-Atoms", "sp3-Atom Count");
 		addProperty(SYMMETRIC_ATOMS, 2, "Symmetric atoms", "Symmetric Atom Count");
 
-		addProperty(ALL_AMIDES, 3, "Amides", "Amide Nitrogen Count (includes imides and sulfonamides)");
-		addProperty(ALL_AMINES, 3, "Amines", "Amine Count (excludes enamines, aminales, etc.)");
-		addProperty(ALKYL_AMINES, 3, "Alkyl-Amines", "Alkyl-Amine Count (excludes Aryl-,Alkyl-Amines)");
-		addProperty(ARYL_AMINES, 3, "Aromatic Amines", "Aryl-Amine Count (includes Aryl-,Alkyl-Amines)");
-		addProperty(AROMATIC_NITROGEN, 3, "Aromatic Nitrogens", "Aromatic Nitrogen Atom Count");
-		addProperty(BASIC_NITROGEN, 3, "Basic Nitrogens", "Basic Nitrogen Atom Count (rough estimate: pKa above 7)");
-		addProperty(ACIDIC_OXYGEN, 3, "Acidic Oxygens", "Acidic Oxygen Atom Count (rough estimate: pKa below 7)");
-		addProperty(STEREO_CONFIGURATION, 3, "Stereo Configuration", "Stereo isomer count and relation (e.g. 'racemate', '4 diastereomers', '2 epimers'");
+		addProperty(SMALL_RINGS, 3, "Small Rings", "Small Ring Count (all rings up to 7 members)");
+		addProperty(SMALL_CARBO_RINGS, 3, "Carbo-Rings", "Small Ring Count without Hereo Atoms");
+		addProperty(SMALL_HETERO_RINGS, 3, "Hetero-Rings", "Small Ring Count with Hetero Atoms");
+		addProperty(SATURATED_RINGS, 3, "Saturated Rings", "Small Fully Saturated Ring Count");
+		addProperty(NON_AROMATIC_RINGS, 3, "Non-Aromatic Rings", "Small Non-Aromatic Ring Count");
+		addProperty(AROMATIC_RINGS, 3, "Aromatic Rings", "Aromatic Ring Count");
+		addProperty(CARBO_SATURATED_RINGS, 3, "Saturated Carbo-Rings", "Small Saturated Carbo-Ring Count");
+		addProperty(CARBO_NON_AROMATIC_RINGS, 3, "Non-Aromatic Carbo-Rings", "Small Carbo-Non-Aromatic Ring Count");
+		addProperty(CARBO_AROMATIC_RINGS, 3, "Carbo-Aromatic Rings", "Carbo-Aromatic Ring Count");
+		addProperty(HETERO_SATURATED_RINGS, 3, "Saturated Hetero-Rings", "Small Saturated Hetero-Ring Count");
+		addProperty(HETERO_NON_AROMATIC_RINGS, 3, "Non-Aromatic Hetero-Rings", "Small Hetero-Non-Aromatic Ring Count");
+		addProperty(HETERO_AROMATIC_RINGS, 3, "Hetero-Aromatic Rings", "Hetero-Aromatic Ring Count");
 
-		addProperty(ACIDIC_PKA, 4, "acidic pKa", "lowest acidic pKa; ChemAxon method", null, null, PREDICTOR_FLAG_PKA);
-		addProperty(BASIC_PKA, 4, "basic pKa", "highest basic pKa; ChemAxon method", null, null, PREDICTOR_FLAG_PKA);
+		addProperty(ALL_AMIDES, 4, "Amides", "Amide Nitrogen Count (includes imides and sulfonamides)");
+		addProperty(ALL_AMINES, 4, "Amines", "Amine Count (excludes enamines, aminales, etc.)");
+		addProperty(ALKYL_AMINES, 4, "Alkyl-Amines", "Alkyl-Amine Count (excludes Aryl-,Alkyl-Amines)");
+		addProperty(ARYL_AMINES, 4, "Aromatic Amines", "Aryl-Amine Count (includes Aryl-,Alkyl-Amines)");
+		addProperty(AROMATIC_NITROGEN, 4, "Aromatic Nitrogens", "Aromatic Nitrogen Atom Count");
+		addProperty(BASIC_NITROGEN, 4, "Basic Nitrogens", "Basic Nitrogen Atom Count (rough estimate: pKa above 7)");
+		addProperty(ACIDIC_OXYGEN, 4, "Acidic Oxygens", "Acidic Oxygen Atom Count (rough estimate: pKa below 7)");
+		addProperty(STEREO_CONFIGURATION, 4, "Stereo Configuration", "Stereo isomer count and relation (e.g. 'racemate', '4 diastereomers', '2 epimers'");
 
-		addProperty(FRACTION_IA, 4, "Fraction Ionized Acid", "Fraction Ionized Acid (based on ChemAxon pKa)", null, null, PREDICTOR_FLAG_PKA);
-		addProperty(FRACTION_IB, 4, "Fraction Ionized Base", "Fraction Ionized Base (based on ChemAxon pKa)", null, null, PREDICTOR_FLAG_PKA);
-		addProperty(FRACTION_ZI, 4, "Fraction Zwitter Ions", "Fraction Zwitter Ions (based on ChemAxon pKa)", null, null, PREDICTOR_FLAG_PKA);
-		addProperty(FRACTION_CHARGED, 4, "Fraction Charged", "Fraction Charged (based on ChemAxon pKa)", null, null, PREDICTOR_FLAG_PKA);
-		addProperty(FRACTION_UNCHARGED, 4, "Fraction Uncharged", "Fraction Uncharged (based on ChemAxon pKa)", null, null, PREDICTOR_FLAG_PKA);
-		addProperty(CHARGE74, 4, "Charge (pH 7.4)", "Charge at pH=7.4 (based on ChemAxon pKa)", null, null, PREDICTOR_FLAG_PKA);
+		addProperty(ACIDIC_PKA, 5, "acidic pKa", "lowest acidic pKa; ChemAxon method", null, null, PREDICTOR_FLAG_PKA);
+		addProperty(BASIC_PKA, 5, "basic pKa", "highest basic pKa; ChemAxon method", null, null, PREDICTOR_FLAG_PKA);
+
+		addProperty(FRACTION_IA, 5, "Fraction Ionized Acid", "Fraction Ionized Acid (based on ChemAxon pKa)", null, null, PREDICTOR_FLAG_PKA);
+		addProperty(FRACTION_IB, 5, "Fraction Ionized Base", "Fraction Ionized Base (based on ChemAxon pKa)", null, null, PREDICTOR_FLAG_PKA);
+		addProperty(FRACTION_ZI, 5, "Fraction Zwitter Ions", "Fraction Zwitter Ions (based on ChemAxon pKa)", null, null, PREDICTOR_FLAG_PKA);
+		addProperty(FRACTION_CHARGED, 5, "Fraction Charged", "Fraction Charged (based on ChemAxon pKa)", null, null, PREDICTOR_FLAG_PKA);
+		addProperty(FRACTION_UNCHARGED, 5, "Fraction Uncharged", "Fraction Uncharged (based on ChemAxon pKa)", null, null, PREDICTOR_FLAG_PKA);
+		addProperty(CHARGE74, 5, "Charge (pH 7.4)", "Charge at pH=7.4 (based on ChemAxon pKa)", null, null, PREDICTOR_FLAG_PKA);
 
 		addBackgroundColor(MUTAGENIC, VisualizationColor.cColorListModeCategories, TOX_COLOR_LIST);
 		addBackgroundColor(TUMORIGENIC, VisualizationColor.cColorListModeCategories, TOX_COLOR_LIST);
@@ -536,7 +559,7 @@ public class DETaskCalculateChemicalProperties extends ConfigurableTask {
 			}
 
 		String[] codeList = value.split(CHEMPROPERTY_LIST_SEPARATOR_REGEX);
-		mPropertyOrderList = new ArrayList<DEPropertyOrder>();
+		mPropertyOrderList = new ArrayList<>();
 		for (String code:codeList)
 			addPropertyOrderIfValid(code);
 
@@ -566,7 +589,7 @@ public class DETaskCalculateChemicalProperties extends ConfigurableTask {
 		if (fragFpNeeded) {
 			mFragFpColumn = mTableModel.getChildColumn(mIDCodeColumn, DescriptorConstants.DESCRIPTOR_FFP512.shortName);
 			if (mFragFpColumn == -1)
-				mFragFpColumn = mTableModel.addDescriptorColumn(mIDCodeColumn, DescriptorConstants.DESCRIPTOR_FFP512.shortName);
+				mFragFpColumn = mTableModel.addDescriptorColumn(mIDCodeColumn, DescriptorConstants.DESCRIPTOR_FFP512.shortName, null);
 
 			waitForDescriptor(mTableModel, mFragFpColumn);
 			if (threadMustDie())
@@ -576,7 +599,7 @@ public class DETaskCalculateChemicalProperties extends ConfigurableTask {
 		if (pp3DNeeded) {
 			mFlexophoreColumn = mTableModel.getChildColumn(mIDCodeColumn, DescriptorConstants.DESCRIPTOR_Flexophore.shortName);
 			if (mFlexophoreColumn == -1)
-				mFlexophoreColumn = mTableModel.addDescriptorColumn(mIDCodeColumn, DescriptorConstants.DESCRIPTOR_Flexophore.shortName);
+				mFlexophoreColumn = mTableModel.addDescriptorColumn(mIDCodeColumn, DescriptorConstants.DESCRIPTOR_Flexophore.shortName, null);
 
 			waitForDescriptor(mTableModel, mFlexophoreColumn);
 			if (threadMustDie())
@@ -686,7 +709,15 @@ public class DETaskCalculateChemicalProperties extends ConfigurableTask {
 
 		chemaxon.struc.Molecule camol = null;
 		if (mol.getAllAtoms() != 0) {
-			cache.put(TOTAL_WEIGHT, new MolecularFormula(mol).getRelativeWeight());
+			for (DEPropertyOrder order:mPropertyOrderList) {
+				if (order.property.type == TOTAL_WEIGHT)
+					cache.put(TOTAL_WEIGHT, new MolecularFormula(mol).getRelativeWeight());
+				else if (order.property.type == FRAGMENTS) {
+					int[] fNo = new int[mol.getAllAtoms()];
+					cache.put(FRAGMENTS, (double)mol.getFragmentNumbers(fNo, false, true));
+					}
+				}
+
 			mol.stripSmallFragments(true);
 			if (mPredictor[PREDICTOR_PKA] != null)
 				camol = ((PKaPredictor)mPredictor[PREDICTOR_PKA]).convert(mol);
@@ -723,7 +754,7 @@ public class DETaskCalculateChemicalProperties extends ConfigurableTask {
 		// nasty functions have no numerical value
 		if (propertyType == NASTY_FUNCTIONS)
 			return ((NastyFunctionDetector)mPredictor[PREDICTOR_NASTY_FUNCTIONS]).getNastyFunctionString(mol,
-				(int[])mTableModel.getTotalRecord(row).getData(mFragFpColumn));
+				(long[])mTableModel.getTotalRecord(row).getData(mFragFpColumn));
 
 		Double numValue = cache.get(propertyType);
 		double value = Double.NaN;
@@ -803,6 +834,7 @@ public class DETaskCalculateChemicalProperties extends ConfigurableTask {
 
 		double value = Double.NaN;
 		double logP,fia,fib;
+		RingCollection rc;
 		switch (propertyType) {
 			case TOTAL_WEIGHT:
 				value = 0;	// if totalWeight is not already cached, we have no atoms
@@ -857,7 +889,7 @@ public class DETaskCalculateChemicalProperties extends ConfigurableTask {
 				break;
 			case DRUGLIKENESS:
 				value = ((DruglikenessPredictorWithIndex)mPredictor[PREDICTOR_DRUGLIKENESS]).assessDruglikeness(mol,
-						(int[])mTableModel.getTotalRecord(row).getData(mFragFpColumn), this);
+						(long[])mTableModel.getTotalRecord(row).getData(mFragFpColumn), this);
 				break;
 			case LE:	// dG / HA
 				// dG = -RT*ln(Kd) with R=1.986cal/(K*mol); T=300K; dG in kcal/mol
@@ -957,23 +989,10 @@ public class DETaskCalculateChemicalProperties extends ConfigurableTask {
 			case ROTATABLE_BONDS:
 				value = mol.getRotatableBondCount();
 				break;
-			case FRAGMENTS:
 			case RING_CLOSURES:
 				int[] fNo = new int[mol.getAllAtoms()];
 				int fragments = mol.getFragmentNumbers(fNo, false, false);
-				value = fragments + (propertyType == FRAGMENTS ? 0 : mol.getAllBonds() - mol.getAllAtoms());
-				break;
-			case SMALL_RINGS:
-				mol.ensureHelperArrays(Molecule.cHelperRings);
-				value = mol.getRingSet().getSize();
-				break;
-			case AROMATIC_RINGS:
-				value = 0;
-				mol.ensureHelperArrays(Molecule.cHelperRings);
-				RingCollection rc = mol.getRingSet();
-				for (int i=0; i<rc.getSize(); i++)
-					if (rc.isAromatic(i))
-						value++;
+				value = fragments + mol.getAllBonds() - mol.getAllAtoms();
 				break;
 			case AROMATIC_ATOMS:
 				value = 0;
@@ -1000,6 +1019,209 @@ public class DETaskCalculateChemicalProperties extends ConfigurableTask {
 					if (maxRank < mol.getSymmetryRank(atom))
 						maxRank = mol.getSymmetryRank(atom);
 				value = (mol.getAtoms()-maxRank);
+				break;
+			case SMALL_RINGS:
+				mol.ensureHelperArrays(Molecule.cHelperRings);
+				value = mol.getRingSet().getSize();
+				break;
+			case SMALL_CARBO_RINGS:
+				value = 0;
+				mol.ensureHelperArrays(Molecule.cHelperRings);
+				rc = mol.getRingSet();
+				for (int i=0; i<rc.getSize(); i++) {
+					boolean found = false;
+					int[] ra = rc.getRingAtoms(i);
+					for (int a:ra) {
+						if (mol.getAtomicNo(a) != 6) {
+							found = true;
+							break;
+						}
+					}
+					if (!found)
+						value++;
+				}
+				break;
+			case SMALL_HETERO_RINGS:
+				value = 0;
+				mol.ensureHelperArrays(Molecule.cHelperRings);
+				rc = mol.getRingSet();
+				for (int i=0; i<rc.getSize(); i++) {
+					boolean found = false;
+					int[] ra = rc.getRingAtoms(i);
+					for (int a:ra) {
+						if (mol.getAtomicNo(a) != 6) {
+							found = true;
+							break;
+						}
+					}
+					if (found)
+						value++;
+				}
+				break;
+			case SATURATED_RINGS:
+				value = 0;
+				mol.ensureHelperArrays(Molecule.cHelperRings);
+				rc = mol.getRingSet();
+				for (int i=0; i<rc.getSize(); i++) {
+					if (!rc.isAromatic(i)) {
+						boolean found = false;
+						int[] rb = rc.getRingBonds(i);
+						for (int b:rb) {
+							if (mol.getBondOrder(b) > 1) {
+								found = true;
+								break;
+							}
+						}
+						if (!found)
+							value++;
+					}
+				}
+				break;
+			case NON_AROMATIC_RINGS:
+				value = 0;
+				mol.ensureHelperArrays(Molecule.cHelperRings);
+				rc = mol.getRingSet();
+				for (int i=0; i<rc.getSize(); i++)
+					if (!rc.isAromatic(i))
+						value++;
+				break;
+			case AROMATIC_RINGS:
+				value = 0;
+				mol.ensureHelperArrays(Molecule.cHelperRings);
+				rc = mol.getRingSet();
+				for (int i=0; i<rc.getSize(); i++)
+					if (rc.isAromatic(i))
+						value++;
+				break;
+			case CARBO_SATURATED_RINGS:
+				value = 0;
+				mol.ensureHelperArrays(Molecule.cHelperRings);
+				rc = mol.getRingSet();
+				for (int i=0; i<rc.getSize(); i++) {
+					if (!rc.isAromatic(i)) {
+						boolean afound = false;
+						int[] ra = rc.getRingAtoms(i);
+						for (int a:ra) {
+							if (mol.getAtomicNo(a) != 6) {
+								afound = true;
+								break;
+							}
+						}
+						boolean bfound = false;
+						int[] rb = rc.getRingBonds(i);
+						for (int b:rb) {
+							if (mol.getBondOrder(b) > 1) {
+								bfound = true;
+								break;
+							}
+						}
+						if (!afound && !bfound)
+							value++;
+					}
+				}
+				break;
+			case CARBO_NON_AROMATIC_RINGS:
+				value = 0;
+				mol.ensureHelperArrays(Molecule.cHelperRings);
+				rc = mol.getRingSet();
+				for (int i=0; i<rc.getSize(); i++) {
+					if (!rc.isAromatic(i)) {
+						boolean afound = false;
+						int[] ra = rc.getRingAtoms(i);
+						for (int a:ra) {
+							if (mol.getAtomicNo(a) != 6) {
+								afound = true;
+								break;
+							}
+						}
+						if (!afound)
+							value++;
+					}
+				}
+				break;
+			case CARBO_AROMATIC_RINGS:
+				value = 0;
+				mol.ensureHelperArrays(Molecule.cHelperRings);
+				rc = mol.getRingSet();
+				for (int i=0; i<rc.getSize(); i++) {
+					if (rc.isAromatic(i)) {
+						boolean afound = false;
+						int[] ra = rc.getRingAtoms(i);
+						for (int a:ra) {
+							if (mol.getAtomicNo(a) != 6) {
+								afound = true;
+								break;
+							}
+						}
+						if (!afound)
+							value++;
+					}
+				}
+				break;
+			case HETERO_SATURATED_RINGS:
+				value = 0;
+				mol.ensureHelperArrays(Molecule.cHelperRings);
+				rc = mol.getRingSet();
+				for (int i=0; i<rc.getSize(); i++) {
+					if (!rc.isAromatic(i)) {
+						boolean afound = false;
+						int[] ra = rc.getRingAtoms(i);
+						for (int a:ra) {
+							if (mol.getAtomicNo(a) != 6) {
+								afound = true;
+								break;
+							}
+						}
+						boolean bfound = false;
+						int[] rb = rc.getRingBonds(i);
+						for (int b:rb) {
+							if (mol.getBondOrder(b) > 1) {
+								bfound = true;
+								break;
+							}
+						}
+						if (afound && !bfound)
+							value++;
+					}
+				}
+				break;
+			case HETERO_NON_AROMATIC_RINGS:
+				value = 0;
+				mol.ensureHelperArrays(Molecule.cHelperRings);
+				rc = mol.getRingSet();
+				for (int i=0; i<rc.getSize(); i++) {
+					if (!rc.isAromatic(i)) {
+						boolean afound = false;
+						int[] ra = rc.getRingAtoms(i);
+						for (int a:ra) {
+							if (mol.getAtomicNo(a) != 6) {
+								afound = true;
+								break;
+							}
+						}
+						if (afound)
+							value++;
+					}
+				}
+				break;
+			case HETERO_AROMATIC_RINGS:
+				value = 0;
+				mol.ensureHelperArrays(Molecule.cHelperRings);
+				rc = mol.getRingSet();
+				for (int i=0; i<rc.getSize(); i++) {
+					if (rc.isAromatic(i)) {
+						boolean afound = false;
+						int[] ra = rc.getRingAtoms(i);
+						for (int a:ra) {
+							if (mol.getAtomicNo(a) != 6) {
+								afound = true;
+								break;
+							}
+						}
+						if (afound)
+							value++;
+					}
+				}
 				break;
 			case ALL_AMIDES:
 				value = 0;

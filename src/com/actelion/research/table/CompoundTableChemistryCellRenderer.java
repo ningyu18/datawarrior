@@ -20,7 +20,6 @@ package com.actelion.research.table;
 
 import com.actelion.research.chem.IDCodeParser;
 import com.actelion.research.chem.StereoMolecule;
-import com.actelion.research.chem.reaction.ReactionEncoder;
 import com.actelion.research.gui.LookAndFeelHelper;
 import com.actelion.research.gui.table.ChemistryCellRenderer;
 import com.actelion.research.table.model.CompoundRecord;
@@ -49,7 +48,9 @@ public class CompoundTableChemistryCellRenderer extends ChemistryCellRenderer im
 			String s = (String)value;
 			if (s.length() != 0) {
 				if (mIsReaction) {
-					value = ReactionEncoder.decode(s, true);
+					CompoundTableModel tableModel = (CompoundTableModel)table.getModel();
+					int column = tableModel.convertFromDisplayableColumnIndex(table.convertColumnIndexToModel(col));
+					value = tableModel.getChemicalReaction(tableModel.getRecord(row), column, CompoundTableModel.ATOM_COLOR_MODE_ALL);
 					}
 				else if (s.indexOf('\n') == -1) {
 					CompoundTableModel tableModel = (CompoundTableModel)table.getModel();
@@ -64,7 +65,7 @@ public class CompoundTableChemistryCellRenderer extends ChemistryCellRenderer im
 					else {
 						StereoMolecule mol = new StereoMolecule();
 						new IDCodeParser(true).parse(mol, idcode, coords);
-						tableModel.colorizeAtoms(record, idcodeColumn, CompoundTableModel.ATOM_COLOR_MODE_ALL, mol);
+						tableModel.colorizeStructureAtoms(record, idcodeColumn, CompoundTableModel.ATOM_COLOR_MODE_ALL, mol);
 						value = mol;
 						}
 					}

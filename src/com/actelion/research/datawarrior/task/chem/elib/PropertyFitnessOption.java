@@ -19,7 +19,7 @@
 package com.actelion.research.datawarrior.task.chem.elib;
 
 import com.actelion.research.chem.StereoMolecule;
-import com.actelion.research.chem.prediction.*;
+import com.actelion.research.chem.prediction.MolecularPropertyHelper;
 
 public class PropertyFitnessOption extends FitnessOption {
 	private int mType;
@@ -36,13 +36,28 @@ public class PropertyFitnessOption extends FitnessOption {
 			}
 		}
 
-	@Override public float calculateProperty(StereoMolecule mol) {
+	@Override public float calculateProperty(StereoMolecule mol, String[][] customColumnValueHolder) {
 		return MolecularPropertyHelper.calculateProperty(mol, mType);
 		}
 
 	@Override
 	public String getName() {
 		return MolecularPropertyHelper.getPropertyName(mType);
+		}
+
+	@Override
+	public int getResultColumnCount() {
+		return 2;
+		}
+
+	@Override
+	public String getResultColumnName(int i) {
+		return i == 0 ? getName() : getName()+" Fitness";
+		}
+
+	@Override
+	public boolean hasFitnessColumn() {
+		return true;
 		}
 
 	public static String getParamError(int type, String params) {

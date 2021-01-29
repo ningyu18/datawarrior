@@ -18,28 +18,30 @@
 
 package com.actelion.research.table.category;
 
+import com.actelion.research.util.DateAnalysis;
+
 import java.text.DateFormat;
-import java.text.ParseException;
 import java.util.Date;
 import java.util.Locale;
 
 public class DateCategoryNormalizer implements CategoryNormalizer<Float> {
 
     private DateFormat mDateFormat;
+    private DateAnalysis mDateAnalysis;
 
-	public DateCategoryNormalizer() {
+	public DateCategoryNormalizer(DateAnalysis dateAnalysis) {
+		mDateAnalysis = dateAnalysis;
 		mDateFormat = DateFormat.getDateInstance(DateFormat.MEDIUM, Locale.US);
+		}
+
+	public String normalize(String s) {
+		return normalizeOut(normalizeIn(s));
 		}
 
 	@Override
 	public Float normalizeIn(String s) {
-        try {
-            Date date = mDateFormat.parse(s);
-            return (float)((date.getTime()+43200000)/86400000);
-            }
-        catch (ParseException e) {
-            return Float.NaN;
-            }
+       	long millis = mDateAnalysis.getDateMillis(s);
+        return (millis == -1) ? Float.NaN : (float)((millis+43200000)/86400000);
         }
 
 	@Override

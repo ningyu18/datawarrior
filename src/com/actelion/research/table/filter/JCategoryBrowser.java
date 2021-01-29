@@ -39,8 +39,6 @@ public class JCategoryBrowser extends JFilterPanel
 				implements ActionListener,ChangeListener,CompoundTableListener,Runnable {
 	private static final long serialVersionUID = 0x20060821;
 
-	private static ImageIcon	sIconLeft;
-	private static ImageIcon	sIconRight;
 	private static final String DISABLED_TEXT = "Category Browser";
 
 	private Frame			mParentFrame;
@@ -50,6 +48,7 @@ public class JCategoryBrowser extends JFilterPanel
 	private JButton			mButtonLeft,mButtonRight,mPressedButton;
 	private Thread			mThread;
 	private String			mSelectedItem;
+	private JTextField      mTextFieldFrameDelay;
 
 	/**
 	 * Creates the filter panel as UI to configure a task as part of a macro
@@ -60,13 +59,14 @@ public class JCategoryBrowser extends JFilterPanel
 		}
 
 	public JCategoryBrowser(Frame parent, CompoundTableModel tableModel, int exclusionFlag) {
-		super(tableModel, -1, exclusionFlag, true);
+		super(tableModel, -1, exclusionFlag, true, false);
 
 		mParentFrame = parent;
 
 		JPanel contentPanel = new JPanel();
-		double[][] size = { {4, TableLayout.PREFERRED, 4, TableLayout.FILL, TableLayout.PREFERRED, 4},
-							{TableLayout.PREFERRED, 8, TableLayout.PREFERRED, 4} };
+		int gap = HiDPIHelper.scale(8);
+		double[][] size = { {gap/2, TableLayout.PREFERRED, gap/2, TableLayout.FILL, TableLayout.PREFERRED, gap/2},
+							{TableLayout.PREFERRED, gap, TableLayout.PREFERRED, gap/2} };
 		contentPanel.setLayout(new TableLayout(size));
 		contentPanel.setOpaque(false);
 
@@ -163,7 +163,37 @@ public class JCategoryBrowser extends JFilterPanel
 		}
 
 	@Override
-	protected void animate(int frame) {
+	protected JPanel createAnimationOptionPanel() {
+		int gap = HiDPIHelper.scale(8);
+		double[][] size = { {gap, TableLayout.PREFERRED, gap, TableLayout.PREFERRED, gap},
+							{gap, TableLayout.PREFERRED, gap} };
+		JPanel p = new JPanel();
+		p.setLayout(new TableLayout(size));
+		p.add(new JLabel("Time rate (ms):"), "1,1");
+
+		mTextFieldFrameDelay = new JTextField(""+ getFrameMillis(), 6);
+		p.add(mTextFieldFrameDelay, "3,1");
+
+		return p;
+		}
+
+	@Override
+	public void applyAnimationOptions() {
+		setFrameMillis(Integer.parseInt(mTextFieldFrameDelay.getText()));
+		}
+
+	@Override
+	public int getDefaultFrameMillis() {
+		return 500;
+		}
+
+	@Override
+	public int getFullFrameAnimationCount() {
+		return mSlider.getMaximum() + 1;
+		}
+
+	@Override
+	public void setAnimationFrame(int frame) {
 		int category = frame % (mSlider.getMaximum() + 1);
 		mSlider.setValue(category);
 		}
@@ -247,12 +277,7 @@ public class JCategoryBrowser extends JFilterPanel
 	public void compoundTableChanged(CompoundTableEvent e) {
 		mIsUserChange = false;
 
-		if (e.getType() == CompoundTableEvent.cAddRows
-		 || e.getType() == CompoundTableEvent.cDeleteRows) {
-			updateComboBox();
-			updateExclusionLater();
-			}
-		else if (e.getType() == CompoundTableEvent.cAddColumns) {
+		if (e.getType() == CompoundTableEvent.cAddColumns) {
 			updateComboBox();
 			}
 		else if (e.getType() == CompoundTableEvent.cRemoveColumns) {
@@ -265,10 +290,13 @@ public class JCategoryBrowser extends JFilterPanel
 		else if (e.getType() == CompoundTableEvent.cChangeColumnName) {
 			updateComboBox();
 			}
-		else if (e.getType() == CompoundTableEvent.cChangeColumnData) {
+		else if (e.getType() == CompoundTableEvent.cDeleteRows
+			  || e.getType() == CompoundTableEvent.cAddRows
+			  || e.getType() == CompoundTableEvent.cChangeColumnData) {
 			int columnIndex = mColumnIndex;
 			updateComboBox();	// may set mColumnIndex to -1 if column type changes
-			if (e.getColumn() == columnIndex) {
+			if ((e.getType() == CompoundTableEvent.cChangeColumnData && e.getColumn() == columnIndex)
+			 || e.getType() != CompoundTableEvent.cChangeColumnData) {
 				if (mColumnIndex != -1) {
 					mSlider.setMaximum(mTableModel.getCategoryCount(mColumnIndex)-1);
 					String[] categoryList = mTableModel.getCategoryList(mColumnIndex);
@@ -303,7 +331,7 @@ public class JCategoryBrowser extends JFilterPanel
 
 		String value = isActive() ? mTableModel.getCategoryList(mColumnIndex)[mSlider.getValue()]
 								  : mTextFieldCategory.getText();
-		return (String)mComboBox.getSelectedItem()+"\t"+value;
+		return mComboBox.getSelectedItem()+"\t"+value;
 		}
 
 	@Override
@@ -366,6 +394,8 @@ public class JCategoryBrowser extends JFilterPanel
 			if (mComboBox.getItemCount() != 0) {
 				mComboBox.setSelectedIndex(0);
 				mColumnIndex = mTableModel.findColumn(columnList[0]);
+				mSlider.setMaximum(mTableModel.getCategoryCount(mColumnIndex)-1);
+				mSlider.setValue(0);
 				}
 			else {
 				mColumnIndex = -1;

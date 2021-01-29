@@ -18,27 +18,21 @@
 
 package com.actelion.research.datawarrior.task.view;
 
-import info.clearthought.layout.TableLayout;
-
-import java.awt.Dimension;
-import java.awt.Frame;
-import java.awt.Graphics;
-import java.awt.image.BufferedImage;
-import java.io.BufferedInputStream;
-import java.io.IOException;
-import java.util.Properties;
-
-import javax.imageio.ImageIO;
-import javax.swing.JComponent;
-import javax.swing.JLabel;
-import javax.swing.JPanel;
-import javax.swing.JTextField;
-
 import com.actelion.research.datawarrior.DEMainPane;
+import com.actelion.research.gui.hidpi.HiDPIHelper;
 import com.actelion.research.table.view.CompoundTableView;
 import com.actelion.research.table.view.JVisualization3D;
 import com.actelion.research.table.view.VisualizationPanel3D;
 import com.actelion.research.util.DoubleFormat;
+import info.clearthought.layout.TableLayout;
+
+import javax.imageio.ImageIO;
+import javax.swing.*;
+import java.awt.*;
+import java.awt.image.BufferedImage;
+import java.io.BufferedInputStream;
+import java.io.IOException;
+import java.util.Properties;
 
 
 public class DETaskSetRotation extends DETaskAbstractSetViewOptions {
@@ -63,9 +57,10 @@ public class DETaskSetRotation extends DETaskAbstractSetViewOptions {
 		}
 
 	@Override
-	public JComponent createInnerDialogContent() {
-		double[][] size = { {8, TableLayout.PREFERRED, 4, TableLayout.PREFERRED, 8, TableLayout.PREFERRED, 8},
-							{8, TableLayout.FILL, TableLayout.PREFERRED, 8, TableLayout.PREFERRED, 4, TableLayout.PREFERRED, 4, TableLayout.PREFERRED, 8} };
+	public JComponent createViewOptionContent() {
+		int gap = HiDPIHelper.scale(8);
+		double[][] size = { {gap, TableLayout.PREFERRED, gap/2, TableLayout.PREFERRED, gap, TableLayout.PREFERRED, gap},
+							{gap, TableLayout.FILL, TableLayout.PREFERRED, gap, TableLayout.PREFERRED, gap/2, TableLayout.PREFERRED, gap/2, TableLayout.PREFERRED, gap} };
 		JPanel cp = new JPanel();
 		cp.setLayout(new TableLayout(size));
 
@@ -129,8 +124,8 @@ public class DETaskSetRotation extends DETaskAbstractSetViewOptions {
 		}
 
 	@Override
-	public void addViewConfiguration(Properties configuration) {
-		JVisualization3D visualization = (JVisualization3D)((VisualizationPanel3D)getInteractiveView()).getVisualization();
+	public void addViewConfiguration(CompoundTableView view, Properties configuration) {
+		JVisualization3D visualization = (JVisualization3D)((VisualizationPanel3D)view).getVisualization();
 		float[][] rotation = visualization.getRotationMatrix();
 		double[] angle = toEulerAngles(rotation);
 		
@@ -248,10 +243,12 @@ public class DETaskSetRotation extends DETaskAbstractSetViewOptions {
 
 	@Override
 	public void applyConfiguration(CompoundTableView view, Properties configuration, boolean isAdjusting) {
-		String[] text = configuration.getProperty(PROPERTY_ANGLES, "0;0;0").split(";");
-		double[] angle = new double[3];
-		for (int i=0; i<3; i++)
-			angle[i] = Double.parseDouble(text[i]);
-		((JVisualization3D)(((VisualizationPanel3D)view).getVisualization())).setRotationMatrix(toRotationMatrix(angle));
+		if (view instanceof VisualizationPanel3D) {
+			String[] text = configuration.getProperty(PROPERTY_ANGLES, "0;0;0").split(";");
+			double[] angle = new double[3];
+			for (int i = 0; i<3; i++)
+				angle[i] = Double.parseDouble(text[i]);
+			((JVisualization3D)(((VisualizationPanel3D)view).getVisualization())).setRotationMatrix(toRotationMatrix(angle));
+			}
 		}
 	}

@@ -21,8 +21,9 @@ package com.actelion.research.table.filter;
 public class FilterEvent {
 	public static final int FILTER_UPDATED = 1;
 	public static final int FILTER_CLOSED = 2;
-	public static final int FILTER_ANIMATION_STARTED = 3;
-	public static final int FILTER_ANIMATION_STOPPED = 4;
+	public static final int FILTER_ANIMATION_CHANGED = 3;
+	public static final int FILTER_ANIMATION_STARTED = 4;
+	public static final int FILTER_ANIMATION_STOPPED = 5;
 
 	private JFilterPanel	mSource;
 	private int				mType;

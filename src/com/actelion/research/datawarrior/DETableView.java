@@ -19,21 +19,23 @@
 package com.actelion.research.datawarrior;
 
 import com.actelion.research.datawarrior.task.data.DETaskSortRows;
+import com.actelion.research.datawarrior.task.table.DETaskShowTableColumns;
+import com.actelion.research.gui.ScrollPaneAutoScrollerWhenDragging;
+import com.actelion.research.gui.hidpi.HiDPIHelper;
 import com.actelion.research.table.*;
 import com.actelion.research.table.model.CompoundListSelectionModel;
 import com.actelion.research.table.model.CompoundTableEvent;
 import com.actelion.research.table.model.CompoundTableListEvent;
 import com.actelion.research.table.model.CompoundTableListListener;
 import com.actelion.research.table.view.CompoundTableView;
+import com.actelion.research.table.view.ViewSelectionHelper;
 import com.actelion.research.table.view.VisualizationColor;
 
 import javax.swing.*;
 import javax.swing.table.TableCellRenderer;
+import javax.swing.table.TableColumnModel;
 import java.awt.*;
-import java.awt.event.ActionEvent;
-import java.awt.event.MouseEvent;
-import java.awt.event.MouseListener;
-import java.awt.event.MouseMotionListener;
+import java.awt.event.*;
 import java.awt.print.PageFormat;
 import java.awt.print.Printable;
 import java.awt.print.PrinterException;
@@ -42,13 +44,16 @@ public class DETableView extends JScrollPane
 		implements CompoundTableView,CompoundTableListListener,MouseListener,MouseMotionListener,Printable,CompoundTableColorHandler.ColorListener {
 	private static final long serialVersionUID = 0x20060904;
 
-	private Frame				mParentFrame;
-	private DEParentPane		mParentPane;
-	private DETable				mTable;
+	private static final int DEFAULT_HEADER_LINES = 2;
+
+	private Frame				    mParentFrame;
+	private DEParentPane		    mParentPane;
+	private DETable				    mTable;
 	private DECompoundTableModel	mTableModel;
-	private DetailPopupProvider	mDetailPopupProvider;
-	private int					mMouseX;
+	private DetailPopupProvider	    mDetailPopupProvider;
+	private int					    mMouseX,mHeaderLineCount;
 	private CompoundTableColorHandler	mColorHandler;
+	private ViewSelectionHelper 	mViewSelectionHelper;
 
 	public DETableView(Frame parentFrame, DEParentPane parentPane, DECompoundTableModel tableModel,
 					   CompoundTableColorHandler colorHandler, CompoundListSelectionModel selectionModel) {
@@ -57,21 +62,137 @@ public class DETableView extends JScrollPane
 		mTableModel = tableModel;
 		mColorHandler = colorHandler;
 
-		mTable = new DETable(parentFrame, mParentPane.getMainPane(), null, selectionModel);
+		mHeaderLineCount = DEFAULT_HEADER_LINES;
+
+		mTable = new DETable(parentFrame, mParentPane.getMainPane(), selectionModel);
 		mTable.getTableHeader().addMouseListener(this);
 		mTable.addMouseListener(this);
 		mTable.addMouseMotionListener(this);
 		mTable.setColumnSelectionAllowed(true);
+		mTable.getTableHeader().setDefaultRenderer(
+				new WrappingHeaderCellRenderer(this, mTable.getTableHeader().getDefaultRenderer()));
 
 		mColorHandler.addColorListener(this);
 
 		setBorder(BorderFactory.createEmptyBorder());
 		getViewport().add(mTable, null);
+
+		setVerticalScrollBarPolicy(VERTICAL_SCROLLBAR_ALWAYS);
+
+		ScrollPaneAutoScrollerWhenDragging scroller = new ScrollPaneAutoScrollerWhenDragging(this, false);
+		mTable.getTableHeader().addMouseMotionListener(new MouseAdapter() {
+			@Override
+			public void mouseDragged(MouseEvent e) {
+				scroller.autoScroll();
+				}
+			});
+		mTable.getTableHeader().addMouseListener(new MouseAdapter() {
+			@Override
+			public void mouseReleased(MouseEvent e) {
+				scroller.stopScrolling();
+				}
+			@Override
+			public void mouseExited(MouseEvent e) {
+				scroller.stopScrolling();
+				}
+			});
+
+		addMouseListener(new MouseAdapter() {
+			@Override
+			public void mousePressed(MouseEvent e) {
+				if (e.isPopupTrigger())
+					showBackgroundPopup(e);
+				}
+			@Override
+			public void mouseReleased(MouseEvent e) {
+				if (e.isPopupTrigger())
+					showBackgroundPopup(e);
+				}
+			});
+
+		getInputMap(JTable.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT).put(KeyStroke.getKeyStroke(KeyEvent.VK_UP, Event.CTRL_MASK),"activeUp");
+		getActionMap().put("activeUp", new AbstractAction() {
+			@Override
+			public void actionPerformed(ActionEvent e) {
+				int index = mTableModel.getActiveRowIndex();
+				if (index != -1 && index > 0) {
+					mTableModel.setActiveRow(index-1);
+					mTable.scrollToRow(index-1);
+					}
+				}
+			});
+
+		getInputMap(JTable.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT).put(KeyStroke.getKeyStroke(KeyEvent.VK_DOWN, Event.CTRL_MASK),"activeDown");
+		getActionMap().put("activeDown", new AbstractAction() {
+			@Override
+			public void actionPerformed(ActionEvent e) {
+				int index = mTableModel.getActiveRowIndex();
+				if (index != -1 && index < mTableModel.getRowCount()-1) {
+					mTableModel.setActiveRow(index+1);
+					mTable.scrollToRow(index+1);
+					}
+				}
+			});
+
+		setColumnHeader(new JViewport() {
+			@Override public Dimension getPreferredSize() {
+				Dimension d = super.getPreferredSize();
+				d.height = Math.round((0.5f + 1.2f * mHeaderLineCount) * getFont().getSize());
+				return d;
+				}
+			});
+		}
+
+	public int getHeaderLineCount() {
+		return mHeaderLineCount;
+		}
+
+	/**
+	 * Sets the logical number of rows that can be shown in the header, if html and br tags are used.
+	 * This does update the header height considering headert row count and font size.
+	 * @param headerLineCount
+	 */
+	public void setHeaderLineCount(int headerLineCount) {
+		mHeaderLineCount = headerLineCount;
+		mTable.getTableHeader().resizeAndRepaint();
 		}
 
 	public void cleanup() {
 		mTable.cleanup();
 		mColorHandler.removeColorListener(this);
+		}
+
+	private void showBackgroundPopup(MouseEvent e) {
+		final int[] hiddenColumns = createHiddenColumnList();
+		if (hiddenColumns.length != 0) {
+			JPopupMenu popup = new JPopupMenu();
+			JMenuItem menuItem = new JMenuItem("Show All Columns");
+			menuItem.addActionListener(event ->
+				new DETaskShowTableColumns(mParentFrame, this, hiddenColumns).defineAndRun()
+				);
+			popup.add(menuItem);
+			popup.show(this, e.getX(), e.getY());
+			}
+		}
+
+	public int[] createHiddenColumnList() {
+		int count = 0;
+		for (int i=0; i<mTableModel.getTotalColumnCount(); i++)
+			if (mTableModel.isColumnDisplayable(i) && !isColumnVisible(i))
+				count++;
+
+		int[] hiddenColumn = new int[count];
+		count = 0;
+		for (int i=0; i<mTableModel.getTotalColumnCount(); i++)
+			if (mTableModel.isColumnDisplayable(i) && !isColumnVisible(i))
+				hiddenColumn[count++] = i;
+
+		return hiddenColumn;
+		}
+
+	@Override
+	public void setViewSelectionHelper(ViewSelectionHelper l) {
+		mViewSelectionHelper = l;
 		}
 
 	public void compoundTableChanged(CompoundTableEvent e) {
@@ -85,6 +206,30 @@ public class DETableView extends JScrollPane
 
 	public DECompoundTableModel getTableModel() {
 		return mTableModel;
+		}
+
+	public int[] getSelectedColumns() {
+		int[] selectedColumn = null;
+		if (mTableModel.hasSelectedRows()) {
+			int selectedCount = 0;
+			for (int i = 0; i<mTable.getColumnCount(); i++)
+				if (mTable.isColumnSelected(i))
+					selectedCount++;
+			selectedColumn = new int[selectedCount];
+			selectedCount = 0;
+			for (int i = 0; i<mTable.getColumnCount(); i++)
+				if (mTable.isColumnSelected(i))
+					selectedColumn[selectedCount++] = mTable.convertTotalColumnIndexFromView(i);
+		}
+		return selectedColumn;
+	}
+
+	@Override
+	public boolean copyViewContent() {
+		boolean skipHeader = mTable.getSelectedColumns().length <= 1;
+//			|| ((CompoundListSelectionModel)mTable.getSelectionModel()).getSelectionCount() <= 1;
+		new CompoundTableSaver(mParentFrame, mTableModel, mTable).copy(skipHeader);
+		return true;
 		}
 
 	public boolean getTextWrapping(int column) {
@@ -142,13 +287,14 @@ public class DETableView extends JScrollPane
 			int column = mTable.convertTotalColumnIndexFromView(mTable.columnAtPoint(e.getPoint()));
 			if (column != -1) {
 				int row = mTable.rowAtPoint(e.getPoint());
-				new DEDetailPopupMenu(mParentPane.getMainPane(), mTableModel.getRecord(row), null, this, null, column).actionPerformed(
+				new DEDetailPopupMenu(mParentPane.getMainPane(), mTableModel.getRecord(row), null, this, null, column, e.isControlDown()).actionPerformed(
 						new ActionEvent(this, ActionEvent.ACTION_PERFORMED, DEDetailPopupMenu.EDIT_VALUE+mTableModel.getColumnTitleNoAlias(column)));
 				}
 			}
 		}
 
 	public void mousePressed(MouseEvent e) {
+		mViewSelectionHelper.setSelectedView(this);
 		if (handlePopupTrigger(e))
 			return;
 
@@ -168,6 +314,10 @@ public class DETableView extends JScrollPane
 
 	private boolean handlePopupTrigger(MouseEvent e) {
 		if (e.isPopupTrigger()) {
+			// This is certainly not dragging. Setting dragged column to null, because SubstanceLaF 7.3 crashes otherwise
+			// when deleting last column
+			getTable().getTableHeader().setDraggedColumn(null);
+
 			if (e.getSource() == mTable.getTableHeader()) {
 				int column = mTable.convertTotalColumnIndexFromView(mTable.getTableHeader().columnAtPoint(e.getPoint()));
 				if (column != -1) {
@@ -180,7 +330,7 @@ public class DETableView extends JScrollPane
 				int theRow = mTable.rowAtPoint(e.getPoint());
 				if (theRow != -1) {
 					int theColumn = mTable.convertTotalColumnIndexFromView(mTable.columnAtPoint(e.getPoint()));
-					JPopupMenu popup = mDetailPopupProvider.createPopupMenu(mTableModel.getRecord(theRow), this, theColumn);
+					JPopupMenu popup = mDetailPopupProvider.createPopupMenu(mTableModel.getRecord(theRow), this, theColumn, e.isControlDown());
 					if (popup != null)
 						popup.show(mTable, e.getX(), e.getY());
 					}
@@ -190,8 +340,7 @@ public class DETableView extends JScrollPane
 		return false;
 		}
 
-	public void mouseDragged(MouseEvent e) {
-		}
+	public void mouseDragged(MouseEvent e) {}
 
 	public void mouseMoved(MouseEvent e) {
 		if (e.getSource() == mTable)
@@ -272,5 +421,89 @@ public class DETableView extends JScrollPane
 		mTable.getTableHeader().paint(g2);
 
 	 	return Printable.PAGE_EXISTS;
+		}
+	}
+
+class WrappingHeaderCellRenderer implements TableCellRenderer {
+	private DETableView mTableView;
+	private TableCellRenderer mOriginalCellRenderer;
+
+	public WrappingHeaderCellRenderer(DETableView tableView, TableCellRenderer cellRenderer) {
+		super();
+		mTableView = tableView;
+		mOriginalCellRenderer = cellRenderer;
+		}
+
+	@Override
+	public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int modelColumn) {
+		String title = (String)value;
+		TableColumnModel columnModel = table.getTableHeader().getColumnModel();
+		int columnWidth = columnModel.getColumn(modelColumn).getWidth() - HiDPIHelper.scale(5);
+		int lines = mTableView.getHeaderLineCount();
+		if (lines > 1) {
+			FontMetrics metrics = table.getFontMetrics(table.getFont());
+			int textWidth = metrics.stringWidth(title);
+			if (textWidth > columnWidth) {
+				// We need to wrap, which is done by converting into HTML and introducing <br> tags
+				// As long as the remaining text to distribute is less wide than columnWidth*remainingLines we try to wrap
+				// at the last SPACE in the current line. Once no surplus width is left, we do hard wrapping with cutting words.
+				int surplus = lines * columnWidth - textWidth;
+				int[] brk = new int[lines-1];
+				int start = 0;
+				for (int line=0; line<lines-1; line++) {
+					if (start < title.length()) {
+						brk[line] = start+1;
+						while (brk[line] < title.length() && (title.charAt(brk[line])==' ' || metrics.stringWidth(title.substring(start, brk[line]+1))<=columnWidth))
+							brk[line]++;
+						if (surplus > 0 && title.charAt(brk[line]-1)!=' ' && brk[line]>start+2) {
+							int spc = brk[line]-2;
+							while (spc>start+1 && title.charAt(spc)!=' ')
+								spc--;
+							if (title.charAt(spc)==' ') {
+								int width = metrics.stringWidth(title.substring(start, spc+1));
+								if (surplus >= columnWidth - width)
+									brk[line] = spc+1;
+								}
+							}
+						surplus -= columnWidth - metrics.stringWidth(title.substring(start, brk[line]));
+						start = brk[line];
+						}
+					else {
+						brk[line] = start;
+						}
+					}
+				title = makeMultiLineTitle(title, brk, columnWidth, metrics);
+				}
+			}
+
+		return mOriginalCellRenderer.getTableCellRendererComponent(table, title, isSelected, hasFocus, row, modelColumn);
+		}
+
+	private String makeMultiLineTitle(String title, int[] brk, int columnWidth, FontMetrics metrics) {
+		int start = brk[brk.length-1];
+		int dots = -1;
+		if (start<title.length() && metrics.stringWidth(title.substring(start)) > columnWidth) {
+			int width = columnWidth - metrics.stringWidth("...");
+			dots = start+1;
+			while (dots < title.length() && metrics.stringWidth(title.substring(start, dots+1))<=width)
+				dots++;
+			}
+		StringBuilder sb = new StringBuilder("<html>");
+		start = 0;
+		for (int b:brk) {
+			if (start < title.length()) {
+				sb.append(title, start, b);
+				sb.append("<br>");
+				start = b;
+				}
+			}
+		if (dots != -1) {
+			sb.append(title, start, dots);
+			sb.append("...");
+			}
+		else if (start < title.length()) {
+			sb.append(title, start, title.length());
+			}
+		return sb.toString();
 		}
 	}

@@ -31,6 +31,6 @@ public interface TaskConstantsMergeFile {
 	public static final String DEST_COLUMN_TRASH = "<trash>";
 
 	// matching integer merge modes are defined in CompoundTableLoader
-    public static final String[] OPTION_TEXT = { "as merge key", "append values", "keep existing", "replace with new", "replace if empty" };
-    public static final String[] OPTION_CODE = { "key", "append", "keep", "replace", "useIfEmpty" };
+    public static final String[] OPTION_TEXT = { "as merge key", "as merge key (ignore case)", "as merge key (word search)", "append values", "keep existing", "replace with new", "replace if empty" };
+    public static final String[] OPTION_CODE = { "key", "keyNoCase", "keySearch", "append", "keep", "replace", "useIfEmpty" };
 	}

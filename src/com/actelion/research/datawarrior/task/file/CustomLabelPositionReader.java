@@ -18,6 +18,7 @@
 
 package com.actelion.research.datawarrior.task.file;
 
+import com.actelion.research.chem.io.CompoundTableConstants;
 import com.actelion.research.datawarrior.DEFrame;
 import com.actelion.research.table.DataDependentPropertyReader;
 import com.actelion.research.table.view.*;
@@ -40,11 +41,11 @@ public class CustomLabelPositionReader implements DataDependentPropertyReader {
 	public void read(BufferedReader reader) throws IOException {
 		mViewList = new ArrayList<>();
 		String line = reader.readLine();
-		while (line.startsWith(JVisualization.CUSTOM_LABEL_POSITION_START_VIEW_TAG)) {
-			String title = line.substring(JVisualization.CUSTOM_LABEL_POSITION_START_VIEW_TAG.length(), line.length()-2);
+		while (line.startsWith(CompoundTableConstants.cViewNameStart)) {
+			String title = line.substring(CompoundTableConstants.cViewNameStart.length(), line.length()-2);
 			LabelPositionList list = new LabelPositionList(title);
 			line = reader.readLine();
-			while (line != null && !line.equals(JVisualization.CUSTOM_LABEL_POSITION_END_VIEW_TAG)) {
+			while (line != null && !line.equals(CompoundTableConstants.cViewNameEnd)) {
 				list.add(line);
 				line = reader.readLine();
 			}
@@ -57,14 +58,11 @@ public class CustomLabelPositionReader implements DataDependentPropertyReader {
 	public void apply() {
 		// we need to add to end of event list to make sure all views are ready
 		if (mViewList != null && mViewList.size() != 0)
-			SwingUtilities.invokeLater(new Runnable() {
-				@Override
-				public void run() {
-					for (LabelPositionList list:mViewList) {
-						CompoundTableView view = mDEFrame.getMainFrame().getMainPane().getView(list.viewName);
-						if (view != null && view instanceof VisualizationPanel)
-							((VisualizationPanel)view).getVisualization().readCustomLabelPositions(list.list);
-					}
+			SwingUtilities.invokeLater(() -> {
+				for (LabelPositionList list:mViewList) {
+					CompoundTableView view = mDEFrame.getMainFrame().getMainPane().getView(list.viewName);
+					if (view != null && view instanceof VisualizationPanel)
+						((VisualizationPanel)view).getVisualization().readCustomLabelPositions(list.list);
 			}
 		});
 	}

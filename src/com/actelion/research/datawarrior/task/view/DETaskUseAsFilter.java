@@ -22,6 +22,7 @@ import com.actelion.research.datawarrior.DEFrame;
 import com.actelion.research.datawarrior.DEMainPane;
 import com.actelion.research.datawarrior.task.AbstractViewTask;
 import com.actelion.research.gui.dock.Dockable;
+import com.actelion.research.gui.hidpi.HiDPIHelper;
 import com.actelion.research.table.view.CompoundTableView;
 import com.actelion.research.table.view.VisualizationPanel;
 import info.clearthought.layout.TableLayout;
@@ -51,8 +52,9 @@ public class DETaskUseAsFilter extends AbstractViewTask {
 	@Override
 	public JComponent createInnerDialogContent() {
 		JPanel p = new JPanel();
-		double[][] size = { {8, TableLayout.PREFERRED, 8},
-		        			{8, TableLayout.PREFERRED, 8} };
+		int gap = HiDPIHelper.scale(8);
+		double[][] size = { {gap, TableLayout.PREFERRED, gap},
+		        			{gap, TableLayout.PREFERRED, gap} };
         p.setLayout(new TableLayout(size));
 
 		mCheckBoxIsFilter = new JCheckBox("Use View As Filter");

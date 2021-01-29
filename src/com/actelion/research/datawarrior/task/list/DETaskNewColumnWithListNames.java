@@ -75,6 +75,11 @@ public class DETaskNewColumnWithListNames extends ConfigurableTask {
 		}
 
 	@Override
+	public String getHelpURL() {
+		return "/html/help/lists.html#Columns";
+		}
+
+	@Override
 	public Properties getDialogConfiguration() {
 		Properties configuration = new Properties();
 		String columnName = mTextFieldColumnName.getText();

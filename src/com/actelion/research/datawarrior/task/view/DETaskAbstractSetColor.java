@@ -18,24 +18,22 @@
 
 package com.actelion.research.datawarrior.task.view;
 
+import com.actelion.research.datawarrior.DEMainPane;
+import com.actelion.research.gui.hidpi.HiDPIHelper;
 import com.actelion.research.table.model.CompoundTableListHandler;
+import com.actelion.research.table.model.CompoundTableModel;
+import com.actelion.research.table.view.CompoundTableView;
+import com.actelion.research.table.view.JVisualization;
+import com.actelion.research.table.view.VisualizationColor;
 import info.clearthought.layout.TableLayout;
 
-import java.awt.Color;
-import java.awt.Frame;
+import javax.swing.*;
+import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ItemEvent;
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
 import java.util.Properties;
-
-import javax.swing.*;
-
-import com.actelion.research.datawarrior.DEMainPane;
-import com.actelion.research.table.model.CompoundTableModel;
-import com.actelion.research.table.view.CompoundTableView;
-import com.actelion.research.table.view.JVisualization;
-import com.actelion.research.table.view.VisualizationColor;
 
 
 public abstract class DETaskAbstractSetColor extends DETaskAbstractSetViewOptions implements KeyListener {
@@ -50,7 +48,7 @@ public abstract class DETaskAbstractSetColor extends DETaskAbstractSetViewOption
 	private static final int DEFAULT_CATEGORY_COUNT = 12;
 
 	private MarkerColorPanel	mColorPanel;
-	private JComboBox			mComboBox;
+	private JComboBox mComboBoxColorByColumn;
 	private JCheckBox			mCheckBoxByCategories;
 	private JTextField			mTextFieldMin,mTextFieldMax;
 	private String				mDialogTitle;
@@ -86,18 +84,19 @@ public abstract class DETaskAbstractSetColor extends DETaskAbstractSetViewOption
 		}
 
 	@Override
-	public JComponent createInnerDialogContent() {
-		double size[][] = { {8, TableLayout.PREFERRED, 4, TableLayout.PREFERRED, 8},
-				 			{8, TableLayout.PREFERRED, 4, TableLayout.PREFERRED, 8,
-								TableLayout.PREFERRED, 8, TableLayout.PREFERRED, 8,
-								TableLayout.PREFERRED, 8, TableLayout.PREFERRED, 8} };
+	public JComponent createViewOptionContent() {
+		int gap = HiDPIHelper.scale(8);
+		double size[][] = { {gap, TableLayout.PREFERRED, gap/2, TableLayout.PREFERRED, gap},
+				 			{gap, TableLayout.PREFERRED, gap/2, TableLayout.PREFERRED, gap,
+								TableLayout.PREFERRED, gap, TableLayout.PREFERRED, gap,
+								TableLayout.PREFERRED, gap, TableLayout.PREFERRED, gap} };
 
 		JPanel p = new JPanel();
 		p.setLayout(new TableLayout(size));
 
-		mComboBox = new JComboBox();
+		mComboBoxColorByColumn = new JComboBox();
 		p.add(new JLabel("Color by:"), "1,1");
-		p.add(mComboBox, "3,1");
+		p.add(mComboBoxColorByColumn, "3,1");
 
 		mColorPanel = new MarkerColorPanel(getParentFrame(), getTableModel(), this, false);
 		p.add(mColorPanel, "1,5,3,5");
@@ -118,25 +117,25 @@ public abstract class DETaskAbstractSetColor extends DETaskAbstractSetViewOption
 		rangepanel.add(mTextFieldMax);
 		p.add(rangepanel, "1,9,3,9");
 
-		mComboBox.addItem(getTableModel().getColumnTitleExtended(-1));
+		mComboBoxColorByColumn.addItem(getTableModel().getColumnTitleExtended(-1));
 		for (int i=0; i<getTableModel().getTotalColumnCount(); i++) {
 			if ((getTableModel().isColumnTypeCategory(i)
 			  && getTableModel().getCategoryCount(i) <= VisualizationColor.cMaxColorCategories)
 			 || getTableModel().isColumnTypeDouble(i)) {
-				mComboBox.addItem(getTableModel().getColumnTitleExtended(i));
+				mComboBoxColorByColumn.addItem(getTableModel().getColumnTitleExtended(i));
 				}
 			}
 		for (int i=0; i<getTableModel().getTotalColumnCount(); i++) {
 			if (getTableModel().isDescriptorColumn(i)) {
-				mComboBox.addItem(getTableModel().getColumnTitleExtended(i));
+				mComboBoxColorByColumn.addItem(getTableModel().getColumnTitleExtended(i));
 				}
 			}
 		for (int i = 0; i<getTableModel().getListHandler().getListCount(); i++) {
 			int pseudoColumn = CompoundTableListHandler.getColumnFromList(i);
-			mComboBox.addItem(getTableModel().getColumnTitleExtended(pseudoColumn));
+			mComboBoxColorByColumn.addItem(getTableModel().getColumnTitleExtended(pseudoColumn));
 			}
-		mComboBox.setEditable(!hasInteractiveView());
-		mComboBox.addItemListener(this);
+		mComboBoxColorByColumn.setEditable(!hasInteractiveView());
+		mComboBoxColorByColumn.addItemListener(this);
 
 		return p;
 		}
@@ -155,15 +154,15 @@ public abstract class DETaskAbstractSetColor extends DETaskAbstractSetViewOption
 	 * it updates the colorpanel to show the correct number of categories or the numerical color button.
 	 */
 	protected void updateColorPanel() {
-		int column = getTableModel().findColumn((String)mComboBox.getSelectedItem());
+		int column = getTableModel().findColumn((String) mComboBoxColorByColumn.getSelectedItem());
 		int categoryCount = !mCheckBoxByCategories.isSelected() ? -1 : (column == -1) ? DEFAULT_CATEGORY_COUNT : getTableModel().getCategoryCount(column);
 		mColorPanel.updateColorListMode(categoryCount);
 		}
 
 	@Override
 	public void itemStateChanged(ItemEvent e) {
-		if (e.getSource() == mComboBox && e.getStateChange() == ItemEvent.SELECTED) {
-			int column = getTableModel().findColumn((String)mComboBox.getSelectedItem());
+		if (e.getSource() == mComboBoxColorByColumn && e.getStateChange() == ItemEvent.SELECTED) {
+			int column = getTableModel().findColumn((String) mComboBoxColorByColumn.getSelectedItem());
 			updateCheckbox(column);
 
 			// if the user changed to flexophore coloring, he may cancel the similarity calculation
@@ -209,17 +208,16 @@ public abstract class DETaskAbstractSetColor extends DETaskAbstractSetViewOption
 			updateColorPanel();
 		}
 
-	public void keyPressed(KeyEvent arg0) {}
-	public void keyTyped(KeyEvent arg0) {}
-
-	public void keyReleased(KeyEvent arg0) {
+	@Override public void keyPressed(KeyEvent arg0) {}
+	@Override public void keyTyped(KeyEvent arg0) {}
+	@Override public void keyReleased(KeyEvent arg0) {
 		updateColorRange();
 		}
 
 	private void updateColorRange() {
 		float min = Float.NaN;
 		float max = Float.NaN;
-		int column = getTableModel().findColumn((String)mComboBox.getSelectedItem());
+		int column = getTableModel().findColumn((String) mComboBoxColorByColumn.getSelectedItem());
 		boolean isLogarithmic = (column == -1) ? false : getTableModel().isLogarithmicViewMode(column);
 		try {
 			if (mTextFieldMin.getText().length() != 0)
@@ -254,7 +252,7 @@ public abstract class DETaskAbstractSetColor extends DETaskAbstractSetViewOption
 
 	@Override
 	public void enableItems() {
-		int column = getTableModel().findColumn((String)mComboBox.getSelectedItem());
+		int column = getTableModel().findColumn((String) mComboBoxColorByColumn.getSelectedItem());
 		boolean enabled = !hasInteractiveView()
 				|| (column != JVisualization.cColumnUnassigned
 				 && !mCheckBoxByCategories.isSelected()
@@ -266,14 +264,19 @@ public abstract class DETaskAbstractSetColor extends DETaskAbstractSetViewOption
 
 	@Override
 	public void setDialogToDefault() {
-		mComboBox.setSelectedIndex(0);
+		mComboBoxColorByColumn.setSelectedIndex(0);
+		}
+
+	public void setColorByColumn(int column) {
+		mComboBoxColorByColumn.setSelectedItem(getTableModel().getColumnTitleExtended(column));
+		updateCheckbox(column);
 		}
 
 	@Override
 	public void setDialogToConfiguration(Properties configuration) {
 		String columnName = configuration.getProperty(PROPERTY_COLOR_BY, CompoundTableModel.cColumnUnassignedCode);
 		int column = getTableModel().findColumn(columnName);
-		mComboBox.setSelectedItem(!hasInteractiveView() && column == -1 ? columnName : getTableModel().getColumnTitleExtended(column));
+		mComboBoxColorByColumn.setSelectedItem(!hasInteractiveView() && column == -1 ? columnName : getTableModel().getColumnTitleExtended(column));
 		updateCheckbox(column);
 
 		int mode = findListIndex(configuration.getProperty(PROPERTY_MODE), VisualizationColor.COLOR_LIST_MODE_CODE, VisualizationColor.cColorListModeHSBLong);
@@ -290,7 +293,7 @@ public abstract class DETaskAbstractSetColor extends DETaskAbstractSetViewOption
 
 	@Override
 	public void addDialogConfiguration(Properties configuration) {
-		configuration.setProperty(PROPERTY_COLOR_BY, getTableModel().getColumnTitleNoAlias((String)mComboBox.getSelectedItem()));
+		configuration.setProperty(PROPERTY_COLOR_BY, getTableModel().getColumnTitleNoAlias((String) mComboBoxColorByColumn.getSelectedItem()));
 		configuration.setProperty(PROPERTY_MODE, VisualizationColor.COLOR_LIST_MODE_CODE[mColorPanel.getColorListMode()]);
 		configuration.setProperty(PROPERTY_COLOR_LIST, encodeColorList(mColorPanel.getColorList(), mColorPanel.getColorListMode()));
 		if (mTextFieldMin.isEnabled() && mTextFieldMin.getText().length() != 0)
@@ -300,8 +303,8 @@ public abstract class DETaskAbstractSetColor extends DETaskAbstractSetViewOption
 		}
 
 	@Override
-	public void addViewConfiguration(Properties configuration) {
-		VisualizationColor vc = getVisualizationColor(getInteractiveView());
+	public void addViewConfiguration(CompoundTableView view, Properties configuration) {
+		VisualizationColor vc = getVisualizationColor(view);
 		int mode = vc.getColorListMode();
 		configuration.setProperty(PROPERTY_COLOR_BY, getTableModel().getColumnTitleNoAlias(vc.getColorColumn()));
 		configuration.setProperty(PROPERTY_MODE, VisualizationColor.COLOR_LIST_MODE_CODE[mode]);
@@ -340,9 +343,6 @@ public abstract class DETaskAbstractSetColor extends DETaskAbstractSetViewOption
 
 	@Override
 	public boolean isViewConfigurationValid(CompoundTableView view, Properties configuration) {
-		if (view != null && getVisualizationColor(view, configuration) == null)
-			return false;
-
 		String columnName = configuration.getProperty(PROPERTY_COLOR_BY);
 		if (!CompoundTableModel.cColumnUnassignedCode.equals(columnName)) {
 			int column = view.getTableModel().findColumn(columnName);
@@ -367,26 +367,35 @@ public abstract class DETaskAbstractSetColor extends DETaskAbstractSetViewOption
 					}
 				}
 			}
+
+		// getVisualizationColor() may create a VisualizationColor with preassigned default column, which must not happen,
+		// if the configuration is invalid. Therefore, this must be the last check in isViewConfigurationValid()
+		if (view != null && getVisualizationColor(view, configuration) == null)
+			return false;
+
 		return true;
 		}
 
 	@Override
 	public void applyConfiguration(CompoundTableView view, Properties configuration, boolean isAdjusting) {
-		int column = view.getTableModel().findColumn(configuration.getProperty(PROPERTY_COLOR_BY));
-		int mode = findListIndex(configuration.getProperty(PROPERTY_MODE), VisualizationColor.COLOR_LIST_MODE_CODE, VisualizationColor.cColorListModeHSBLong);
-		Color[] colorList = decodeColorList(configuration, mode);
+		VisualizationColor vc = getVisualizationColor(view, configuration);
+		if (vc != null) {
+			int column = view.getTableModel().findColumn(configuration.getProperty(PROPERTY_COLOR_BY));
+			int mode = findListIndex(configuration.getProperty(PROPERTY_MODE), VisualizationColor.COLOR_LIST_MODE_CODE, VisualizationColor.cColorListModeHSBLong);
+			Color[] colorList = decodeColorList(configuration, mode);
 
-		getVisualizationColor(view, configuration).setColor(column, colorList, mode);
+			vc.setColor(column, colorList, mode);
 
-		float min = Float.NaN;
-		String value = configuration.getProperty(PROPERTY_MINIMUM);
-		if (value != null)
-			try { min = Float.parseFloat(value); } catch (NumberFormatException nfe) {}
-		float max = Float.NaN;
-		value = configuration.getProperty(PROPERTY_MAXIMUM);
-		if (value != null)
-			try { max = Float.parseFloat(value); } catch (NumberFormatException nfe) {}
+			float min = Float.NaN;
+			String value = configuration.getProperty(PROPERTY_MINIMUM);
+			if (value != null)
+				try { min = Float.parseFloat(value); } catch (NumberFormatException nfe) {}
+			float max = Float.NaN;
+			value = configuration.getProperty(PROPERTY_MAXIMUM);
+			if (value != null)
+				try { max = Float.parseFloat(value); } catch (NumberFormatException nfe) {}
 
-		getVisualizationColor(view, configuration).setColorRange(min, max);
+			vc.setColorRange(min, max);
+			}
 		}
 	}

@@ -85,7 +85,7 @@ public class DetailTableModel extends DefaultTableModel
 		else if (e.getType() == CompoundTableEvent.cChangeColumnData) {
             int column = e.getColumn();
             int row = mParentModel.convertToDisplayableColumnIndex(column);
-			if (row != -1)
+			if (row != -1 && row < getRowCount())
 	    		setValueAt(getSecondColumnValue(mParentRecord, row), row, 1);
 			}
 		else if (e.getType() == CompoundTableEvent.cChangeColumnName) {

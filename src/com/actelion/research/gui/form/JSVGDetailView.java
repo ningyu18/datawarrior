@@ -18,9 +18,8 @@
 
 package com.actelion.research.gui.form;
 
-import com.actelion.research.gui.JComponentCopyDialog;
 import com.actelion.research.util.Platform;
-import org.apache.batik.dom.svg.SAXSVGDocumentFactory;
+import org.apache.batik.anim.dom.SAXSVGDocumentFactory;
 import org.apache.batik.swing.JSVGCanvas;
 import org.apache.batik.transcoder.TranscoderException;
 import org.apache.batik.transcoder.TranscoderInput;

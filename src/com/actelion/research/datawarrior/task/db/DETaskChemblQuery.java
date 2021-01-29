@@ -20,12 +20,14 @@ package com.actelion.research.datawarrior.task.db;
 
 import com.actelion.research.chem.StructureSearchSpecification;
 import com.actelion.research.chem.descriptor.DescriptorConstants;
-import com.actelion.research.chem.descriptor.DescriptorHandlerFFP512;
+import com.actelion.research.chem.descriptor.DescriptorHandlerLongFFP512;
 import com.actelion.research.datawarrior.DEFrame;
 import com.actelion.research.datawarrior.DELogWriter;
+import com.actelion.research.datawarrior.DETable;
 import com.actelion.research.datawarrior.DataWarrior;
 import com.actelion.research.gui.hidpi.HiDPIHelper;
 import com.actelion.research.table.model.CompoundTableDetailHandler;
+import com.actelion.research.table.model.CompoundTableEvent;
 import com.actelion.research.table.model.CompoundTableModel;
 import com.actelion.research.util.ByteArrayComparator;
 import info.clearthought.layout.TableLayout;
@@ -55,7 +57,7 @@ public class DETaskChemblQuery extends DETaskStructureQuery implements ChemblSer
 
 	private static final String PUBMED_URL = "http://www.ncbi.nlm.nih.gov/pubmed/%s?dopt=Abstract";
 
-	private static final int[] GROUP_COLUMNS = { RESULT_COLUMN_ACTIVITY_TYPE, RESULT_COLUMN_TARGET_ID };
+	private static final String[] GROUP_COLUMNS = { COLUMN_TITLE_TYPE, COLUMN_TITLE_TARGET_ID };
 
 	private static Target[]			sTarget;
 	private static ProteinClass[]	sProteinClass;
@@ -68,10 +70,11 @@ public class DETaskChemblQuery extends DETaskStructureQuery implements ChemblSer
 	private JComboBox[]				mComboBoxFamily;
 	private JCheckBox				mCheckBoxGroupByStructure;
 	private byte[][]				mTargetID;
+	private String[]                mColumnTitle;
 	private HashMap<String,byte[]>	mAssayDetails;
 
 	public DETaskChemblQuery(DEFrame owner, DataWarrior application) {
-		super(owner, application, false);
+		super(owner, application);
 		}
 
 	@Override
@@ -91,7 +94,7 @@ public class DETaskChemblQuery extends DETaskStructureQuery implements ChemblSer
 							 8, TableLayout.PREFERRED, 24, TableLayout.PREFERRED, 24, TableLayout.PREFERRED, 8} };
 		panel.setLayout(new TableLayout(size));
 
-		panel.add(createComboBoxSearchType(true), "1,5");
+		panel.add(createComboBoxSearchType(SEARCH_TYPES_SSS_SIM_EXACT_NOSTEREO_TAUTO), "1,5");
 		panel.add(createComboBoxQuerySource(), "3,5");
 		panel.add(createSimilaritySlider(), "1,7");
 		panel.add(createStructureView(), "3,7");
@@ -158,7 +161,7 @@ public class DETaskChemblQuery extends DETaskStructureQuery implements ChemblSer
 
 	private void retrieveProteinClasses() {
 		if (sProteinClass == null) {
-			byte[][][] proteinClassTable = new ChemblCommunicator(this).getProteinClassDictionary();
+			byte[][][] proteinClassTable = new ChemblCommunicator(this, "datawarrior").getProteinClassDictionary();
 			if (proteinClassTable != null) {
 				ArrayList<ProteinClass> proteinClassList = new ArrayList<ProteinClass>();
 				for (byte[][] proteinClassRow:proteinClassTable)
@@ -173,20 +176,16 @@ public class DETaskChemblQuery extends DETaskStructureQuery implements ChemblSer
 		if (sTarget == null) {
 			ArrayList<Target> targetList = new ArrayList<Target>();
 
-			Object[] versionAndTargets = new ChemblCommunicator(this).getVersionAndTargetTable();
+			Object[] versionAndTargets = new ChemblCommunicator(this, "datawarrior").getVersionAndTargets();
 			if (versionAndTargets != null)
 				sDBVersion = (String)versionAndTargets[0];
+
 			byte[][][] targetTable = (versionAndTargets != null) ? (byte[][][])versionAndTargets[1] : null;
-
-//			if (targetTable == null)	// was used before chembl21 on server
-//				targetTable = new ChemblCommunicator(this).getTargetTable();
-
 			if (targetTable != null) {
 				for (byte[][] targetRow:targetTable)
 					if (targetRow[TARGET_COLUMN_NAME] != null)
 						targetList.add(new Target(targetRow));
 				}
-
 			sTarget = targetList.toArray(new Target[0]);
 			}
 		mTargetID = new byte[sTarget.length+1][];
@@ -200,9 +199,9 @@ public class DETaskChemblQuery extends DETaskStructureQuery implements ChemblSer
 	@Override
 	protected String[] getColumnNames() {
 		// return names without structure related columns
-		String[] name = new String[COLUMN_NAME.length-3];
-		for (int i=3; i<COLUMN_NAME.length; i++)
-			name[i-3] = COLUMN_NAME[i];
+		String[] name = new String[mColumnTitle.length-3];
+		for (int i=3; i<mColumnTitle.length; i++)
+			name[i-3] = mColumnTitle[i];
 		return name;
 		}
 
@@ -577,35 +576,68 @@ public class DETaskChemblQuery extends DETaskStructureQuery implements ChemblSer
    		if (ssSpec != null)
    			query.put(QUERY_STRUCTURE_SEARCH_SPEC, ssSpec);
 
-   		mResultList = new ArrayList<Object[]>();
-   		byte[][][] resultTable = new ChemblCommunicator(this).search(query);
+		query.put(QUERY_SUPPORTS_DYNAMIC_COLUMNS, "true");
+
+		mColumnTitle = null;
+		mResultList = new ArrayList<>();
+   		byte[][][] resultTable = new ChemblCommunicator(this, "datawarrior").search(query);
 		if (resultTable != null) {
 			for (byte[][] resultLine:resultTable) {
-				Object[] row = new Object[resultLine.length];
-				for (int i=0; i<resultLine.length; i++)
-					row[i] = resultLine[i];
-				row[RESULT_COLUMN_FFP512] = DescriptorHandlerFFP512.getDefaultInstance().decode((byte[])row[RESULT_COLUMN_FFP512]);
-				mResultList.add(row);
+				if (mColumnTitle == null) {  // first line is header
+					mColumnTitle = new String[resultTable[0].length];
+					for (int i = 0; i<resultTable[0].length; i++)
+						mColumnTitle[i] = new String(resultTable[0][i]);
+					}
+				else {
+					Object[] row = new Object[resultLine.length];
+					for (int i=0; i<resultLine.length; i++)
+						row[i] = resultLine[i];
+					row[RESULT_COLUMN_FFP512] = DescriptorHandlerLongFFP512.getDefaultInstance().decode((byte[])row[RESULT_COLUMN_FFP512]);
+					mResultList.add(row);
+					}
 				}
 			}
 
 		String group = getTaskConfiguration().getProperty(PROPERTY_GROUP_STRUCTURES);
-		if (group != null && group.equals("true"))
-			groupByStructure(null, GROUP_COLUMNS);
+		if (group != null && group.equals("true")) {
+			boolean failed = false;
+			int[] groupColumns = new int[GROUP_COLUMNS.length];
+			for (int i=0; i<GROUP_COLUMNS.length; i++) {
+				groupColumns[i] = findColumn(GROUP_COLUMNS[i]);
+				if (groupColumns[i] == -1) {
+					failed = true;
+					break;
+					}
+				}
+			if (!failed)
+				groupByStructure(null, groupColumns);
+			}
 
-		if (mResultList.size() != 0)
-			retrieveAssayDescriptions();
+		if (mResultList.size() != 0) {
+			int assayIndexColumn = findColumn(COLUMN_TITLE_ASSAY_INDEX);
+			int assayCategoryColumn = findColumn(COLUMN_TITLE_ASSAY_CATEGORY);
+			if (assayIndexColumn != -1 && assayCategoryColumn != -1)
+				retrieveAssayDescriptions(assayIndexColumn, assayCategoryColumn);
+			}
 
 		DELogWriter.writeEntry("retrieveChEMBL", "records:"+mResultList.size());
 		}
 
-	private void retrieveAssayDescriptions() {
+	private int findColumn(String columnTitle) {
+		if (mColumnTitle != null)
+			for (int i=0; i<mColumnTitle.length; i++)
+				if (mColumnTitle[i].equals(columnTitle))
+					return i;
+		return -1;
+		}
+
+	private void retrieveAssayDescriptions(int assayIndexColumn, int assayCategoryColumn) {
 		String detailSeparator = CompoundTableModel.cDefaultDetailSeparator + "0"
 							   + CompoundTableModel.cDetailIndexSeparator;
-		TreeSet<byte[]> assaySet = new TreeSet<byte[]>(new ByteArrayComparator());
+		TreeSet<byte[]> assaySet = new TreeSet<>(new ByteArrayComparator());
 		for (int row=0; row<mResultList.size(); row++) {
 			Object[] result = mResultList.get(row);
-			String assayIndices = new String((byte[])result[RESULT_COLUMN_ASSAY_INDEX]);
+			String assayIndices = new String((byte[])result[assayIndexColumn]);
 			while (assayIndices != null) {
 				String assayIndex = null;
 				int index = assayIndices.indexOf('\n');
@@ -617,15 +649,15 @@ public class DETaskChemblQuery extends DETaskStructureQuery implements ChemblSer
 					assayIndex = assayIndices;
 					assayIndices = null;
 					}
-				String detailCarrier = (result[RESULT_COLUMN_ASSAY_CATEGORY] == null) ? "" : new String((byte[])result[RESULT_COLUMN_ASSAY_CATEGORY]);
-				result[RESULT_COLUMN_ASSAY_CATEGORY] = (detailCarrier + detailSeparator + assayIndex).getBytes();
+				String detailCarrier = (result[assayCategoryColumn] == null) ? "" : new String((byte[])result[assayCategoryColumn]);
+				result[assayCategoryColumn] = (detailCarrier + detailSeparator + assayIndex).getBytes();
 				assaySet.add(assayIndex.getBytes());
 				}
 			}
 
-		byte[][][] detailTable = new ChemblCommunicator(this).getAssayDetailTable(assaySet.toArray(new byte[0][]));
+		byte[][][] detailTable = new ChemblCommunicator(this, "datawarrior").getAssayDetailTable(assaySet.toArray(new byte[0][]));
 
-		mAssayDetails = new HashMap<String,byte[]>();
+		mAssayDetails = new HashMap<>();
 		if (detailTable != null) {
 			for (byte[][] detailRow:detailTable) {
 				String assayID = new String(detailRow[0]);
@@ -638,45 +670,62 @@ public class DETaskChemblQuery extends DETaskStructureQuery implements ChemblSer
 		}
 
 	@Override
-	protected void setColumnProperties() {
-		CompoundTableModel tableModel = mTargetFrame.getTableModel();
+	protected void setColumnProperties(CompoundTableModel tableModel) {
+		int assayIndexColumn = findColumn(COLUMN_TITLE_ASSAY_INDEX);
+		if (assayIndexColumn != -1)
+			tableModel.setColumnProperty(assayIndexColumn, CompoundTableModel.cColumnPropertyIsDisplayable, "false");
 
-		tableModel.setColumnProperty(RESULT_COLUMN_ASSAY_INDEX, CompoundTableModel.cColumnPropertyIsDisplayable, "false");
+		int pubmedIDColumn = findColumn(COLUMN_TITLE_PUBMED_ID);
+		if (pubmedIDColumn != -1) {
+			tableModel.setColumnProperty(pubmedIDColumn, CompoundTableModel.cColumnPropertyLookupCount, "1");
+			tableModel.setColumnProperty(pubmedIDColumn, CompoundTableModel.cColumnPropertyLookupName + "0", "Pubmed Abstract");
+			tableModel.setColumnProperty(pubmedIDColumn, CompoundTableModel.cColumnPropertyLookupURL + "0", PUBMED_URL);
+			}
 
-		tableModel.setColumnProperty(RESULT_COLUMN_PUBMED_ID, CompoundTableModel.cColumnPropertyLookupCount, "1");
-		tableModel.setColumnProperty(RESULT_COLUMN_PUBMED_ID, CompoundTableModel.cColumnPropertyLookupName+"0", "Pubmed Abstract");
-		tableModel.setColumnProperty(RESULT_COLUMN_PUBMED_ID, CompoundTableModel.cColumnPropertyLookupURL+"0", PUBMED_URL);
-
-		tableModel.allocateColumnDetail(RESULT_COLUMN_ASSAY_CATEGORY, "Assay Description", "text/plain", CompoundTableDetailHandler.EMBEDDED);
-		CompoundTableDetailHandler detailHandler = mTargetFrame.getTableModel().getDetailHandler();
-		detailHandler.setEmbeddedDetailMap(mAssayDetails);
+		int assayCategoryColumn = findColumn(COLUMN_TITLE_ASSAY_CATEGORY);
+		if (assayCategoryColumn != -1 && !mAssayDetails.isEmpty()) {
+			tableModel.allocateColumnDetail(assayCategoryColumn, "Assay Description", "text/plain", CompoundTableDetailHandler.EMBEDDED);
+			CompoundTableDetailHandler detailHandler = mTargetFrame.getTableModel().getDetailHandler();
+			detailHandler.setEmbeddedDetailMap(mAssayDetails);
+			}
 		mAssayDetails = null;
 		}
 
 	@Override
-    protected boolean useDefaultRuntimeProperties() {
-    	return false;
+    protected int getRuntimePropertiesMode() {
+    	return CompoundTableEvent.cSpecifierNoRuntimeProperties;
     	}
 
 	@Override
     protected void setRuntimeProperties() {
     	CompoundTableModel targetTableModel = mTargetFrame.getTableModel();
 
-        JTable table = mTargetFrame.getMainFrame().getMainPane().getTable();
-        int structureColumn = targetTableModel.convertToDisplayableColumnIndex(RESULT_COLUMN_IDCODE);
-        table.getColumnModel().getColumn(table.convertColumnIndexToView(structureColumn)).setPreferredWidth(120);
-        int modifierColumn = targetTableModel.convertToDisplayableColumnIndex(RESULT_COLUMN_ACTIVITY_MODIFIER);
-        table.getColumnModel().getColumn(table.convertColumnIndexToView(modifierColumn)).setPreferredWidth(24);
-        int unitColumn = targetTableModel.convertToDisplayableColumnIndex(RESULT_COLUMN_ACTIVITY_UNIT);
-        table.getColumnModel().getColumn(table.convertColumnIndexToView(unitColumn)).setPreferredWidth(40);
-        int targetNameColumn = targetTableModel.convertToDisplayableColumnIndex(RESULT_COLUMN_TARGET_NAME);
-        table.getColumnModel().getColumn(table.convertColumnIndexToView(targetNameColumn)).setPreferredWidth(150);
-        int targetOrganismColumn = targetTableModel.convertToDisplayableColumnIndex(RESULT_COLUMN_TARGET_ORGANISM);
-        table.getColumnModel().getColumn(table.convertColumnIndexToView(targetOrganismColumn)).setPreferredWidth(150);
-        int targetDescColumn = targetTableModel.convertToDisplayableColumnIndex(RESULT_COLUMN_TARGET_DESCRIPTION);
-        table.getColumnModel().getColumn(table.convertColumnIndexToView(targetDescColumn)).setPreferredWidth(150);
-        int referenceColumn = targetTableModel.convertToDisplayableColumnIndex(RESULT_COLUMN_REFERENCE);
-        table.getColumnModel().getColumn(table.convertColumnIndexToView(referenceColumn)).setPreferredWidth(180);
+        DETable table = mTargetFrame.getMainFrame().getMainPane().getTable();
+
+        int structureColumn = table.convertTotalColumnIndexToView(RESULT_COLUMN_IDCODE);
+        if (structureColumn != -1)
+	        table.getColumnModel().getColumn(structureColumn).setPreferredWidth(HiDPIHelper.scale(120));
+		int modifierColumn = table.convertTotalColumnIndexToView(findColumn(COLUMN_TITLE_MODIFIER));
+		if (modifierColumn != -1)
+			table.getColumnModel().getColumn(modifierColumn).setPreferredWidth(HiDPIHelper.scale(24));
+		int unitColumn = table.convertTotalColumnIndexToView(findColumn(COLUMN_TITLE_UNIT));
+		if (unitColumn != -1)
+			table.getColumnModel().getColumn(unitColumn).setPreferredWidth(HiDPIHelper.scale(40));
+		int pValueColumn = table.convertTotalColumnIndexToView(findColumn(COLUMN_TITLE_PVALUE));
+		if (pValueColumn != -1)
+			table.getColumnModel().getColumn(pValueColumn).setPreferredWidth(HiDPIHelper.scale(50));
+		int targetNameColumn = table.convertTotalColumnIndexToView(findColumn(COLUMN_TITLE_TARGET_NAME));
+		if (targetNameColumn != -1)
+			table.getColumnModel().getColumn(targetNameColumn).setPreferredWidth(HiDPIHelper.scale(150));
+		int targetOrganismColumn = table.convertTotalColumnIndexToView(findColumn(COLUMN_TITLE_TARGET_ORGANISM));
+		if (targetOrganismColumn != -1)
+			table.getColumnModel().getColumn(targetOrganismColumn).setPreferredWidth(HiDPIHelper.scale(150));
+		int targetDescColumn = table.convertTotalColumnIndexToView(findColumn(COLUMN_TITLE_TARGET_DESCRIPTION));
+		if (targetDescColumn != -1)
+			table.getColumnModel().getColumn(targetDescColumn).setPreferredWidth(HiDPIHelper.scale(150));
+		int referenceColumn = table.convertTotalColumnIndexToView(findColumn(COLUMN_TITLE_TARGET_DESCRIPTION));
+		if (referenceColumn != -1)
+			table.getColumnModel().getColumn(referenceColumn).setPreferredWidth(HiDPIHelper.scale(180));
 
         mTargetFrame.getMainFrame().getPruningPanel().addDefaultFilters();
         mTargetFrame.getMainFrame().getMainPane().addStructureView("Structure", "Table\tbottom\t0.6", structureColumn);

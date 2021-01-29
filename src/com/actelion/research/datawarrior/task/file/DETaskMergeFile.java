@@ -18,10 +18,6 @@
 
 package com.actelion.research.datawarrior.task.file;
 
-import java.io.File;
-import java.util.ArrayList;
-import java.util.Properties;
-
 import com.actelion.research.chem.SortedStringList;
 import com.actelion.research.datawarrior.DEFrame;
 import com.actelion.research.datawarrior.DERuntimeProperties;
@@ -30,6 +26,10 @@ import com.actelion.research.datawarrior.task.TaskUIDelegate;
 import com.actelion.research.gui.FileHelper;
 import com.actelion.research.table.CompoundTableLoader;
 import com.actelion.research.table.model.CompoundTableModel;
+
+import java.io.File;
+import java.util.ArrayList;
+import java.util.Properties;
 
 public class DETaskMergeFile extends AbstractTask implements TaskConstantsMergeFile {
 	public static final String TASK_NAME = "Merge File";
@@ -52,6 +52,11 @@ public class DETaskMergeFile extends AbstractTask implements TaskConstantsMergeF
 	@Override
 	public String getTaskName() {
 		return TASK_NAME;
+		}
+
+	@Override
+	public String getHelpURL() {
+		return "/html/help/import.html#MergeData";
 		}
 
 	@Override
@@ -102,28 +107,30 @@ public class DETaskMergeFile extends AbstractTask implements TaskConstantsMergeF
 				showErrorMessage("Destination column not defined.");
 				return false;
 				}
+
+			String option = configuration.getProperty(PROPERTY_OPTION+i);
+
 			if (!destColumn.equals(DEST_COLUMN_ADD)
 			 && !destColumn.equals(DEST_COLUMN_TRASH)) {
-				if (isLive && mTableModel.findColumn(destColumn) == -1) {
-					showErrorMessage("Destination column '"+destColumn+"' not found.");
-					return false;
+				if (isLive) {
+					int column = mTableModel.findColumn(destColumn);
+					if (column == -1) {
+						showErrorMessage("Destination column '"+destColumn+"' not found.");
+						return false;
+						}
+					if (OPTION_CODE[CompoundTableLoader.MERGE_MODE_IS_KEY_NO_CASE].equals(option) && mTableModel.getColumnSpecialType(column) != null) {
+						showErrorMessage("You cannot use 'ignore case' when merging equal structures or reactions.");
+						return false;
+						}
 					}
 				if (usedColumnList.addString(destColumn) == -1) {
 					showErrorMessage("Column '"+destColumn+"' is used twice.");
 					return false;
 					}
-				}
-
-			if (OPTION_CODE[CompoundTableLoader.MERGE_MODE_IS_KEY].equals(configuration.getProperty(PROPERTY_OPTION+i))) {
-				if (destColumn.equals(DEST_COLUMN_ADD)) {
-					showErrorMessage("You cannot merge datasets on a column that is not assigned to a current column.");
-					return false;
-					}
-				if (destColumn.equals(DEST_COLUMN_TRASH)) {
-					showErrorMessage("You cannot merge datasets on a column that you intend to trash.");
-					return false;
-					}
-				mergeColumnFound = true;
+				if (OPTION_CODE[CompoundTableLoader.MERGE_MODE_IS_KEY].equals(option)
+				 || OPTION_CODE[CompoundTableLoader.MERGE_MODE_IS_KEY_NO_CASE].equals(option)
+				 || OPTION_CODE[CompoundTableLoader.MERGE_MODE_IS_KEY_WORD_SEARCH].equals(option))
+					mergeColumnFound = true;
 				}
 			}
 		if (!mergeColumnFound) {
@@ -141,11 +148,46 @@ public class DETaskMergeFile extends AbstractTask implements TaskConstantsMergeF
 			mLoader.readFile(new File(fileName), new DERuntimeProperties(parent.getMainFrame()), FileHelper.getFileType(fileName), CompoundTableLoader.READ_DATA);
 			}
 
-		ArrayList<String> keyColumnList = new ArrayList<String>();
-		for (int i=0; i<columnCount; i++)
-			if (OPTION_CODE[CompoundTableLoader.MERGE_MODE_IS_KEY].equals(configuration.getProperty(PROPERTY_OPTION+i)))
-				keyColumnList.add(configuration.getProperty(PROPERTY_SOURCE_COLUMN+i));
-		if (!mLoader.areMergeKeysUnique(keyColumnList.toArray(new String[0]), null)) {
+		int keyColumnCount = 0;
+		int keyWordMatchColumnCount = 0;
+		for (int i=0; i<columnCount; i++) {
+			String option = configuration.getProperty(PROPERTY_OPTION + i);
+			String destColumn = configuration.getProperty(PROPERTY_DEST_COLUMN+i, "");
+			if (!destColumn.equals(DEST_COLUMN_ADD)
+			 && !destColumn.equals(DEST_COLUMN_TRASH)
+			 && (OPTION_CODE[CompoundTableLoader.MERGE_MODE_IS_KEY].equals(option)
+			  || OPTION_CODE[CompoundTableLoader.MERGE_MODE_IS_KEY_NO_CASE].equals(option)
+			  || OPTION_CODE[CompoundTableLoader.MERGE_MODE_IS_KEY_WORD_SEARCH].equals(option))) {
+				keyColumnCount++;
+				if (OPTION_CODE[CompoundTableLoader.MERGE_MODE_IS_KEY_WORD_SEARCH].equals(option))
+					keyWordMatchColumnCount++;
+				}
+			}
+		if (keyWordMatchColumnCount > 1) {
+			showErrorMessage("The option '"+OPTION_TEXT[CompoundTableLoader.MERGE_MODE_IS_KEY_WORD_SEARCH]+"' can be used for one column only.");
+			return false;
+			}
+		if (keyWordMatchColumnCount == 1 && keyColumnCount > 1) {
+			showErrorMessage("The option '"+OPTION_TEXT[CompoundTableLoader.MERGE_MODE_IS_KEY_WORD_SEARCH]+"' can be combined with merge keys on other columns.");
+			return false;
+			}
+		String[] keyColumnName = new String[keyColumnCount];
+		boolean[] isIgnoreCase = new boolean[keyColumnCount];
+		keyColumnCount = 0;
+		for (int i=0; i<columnCount; i++) {
+			String option = configuration.getProperty(PROPERTY_OPTION+i);
+			String destColumn = configuration.getProperty(PROPERTY_DEST_COLUMN+i, "");
+			if (!destColumn.equals(DEST_COLUMN_ADD)
+			 && !destColumn.equals(DEST_COLUMN_TRASH)
+			 && (OPTION_CODE[CompoundTableLoader.MERGE_MODE_IS_KEY].equals(option)
+			  || OPTION_CODE[CompoundTableLoader.MERGE_MODE_IS_KEY_NO_CASE].equals(option)
+			  || OPTION_CODE[CompoundTableLoader.MERGE_MODE_IS_KEY_WORD_SEARCH].equals(option))) {
+				if (!OPTION_CODE[CompoundTableLoader.MERGE_MODE_IS_KEY].equals(option))
+					isIgnoreCase[keyColumnCount] = true;
+				keyColumnName[keyColumnCount++] = configuration.getProperty(PROPERTY_SOURCE_COLUMN + i);
+				}
+			}
+		if (!mLoader.areMergeKeysUnique(keyColumnName, isIgnoreCase, null)) {
 			showErrorMessage("The defined key column(s) contain duplicate data in some rows and cannot uniquely identify each row.");
 			return false;
 			}
@@ -207,6 +249,12 @@ public class DETaskMergeFile extends AbstractTask implements TaskConstantsMergeF
 
 					visibleMergeMode[i] = findListIndex(configuration.getProperty(PROPERTY_OPTION+j),
 							OPTION_CODE, CompoundTableLoader.MERGE_MODE_APPEND);
+
+					if ((visibleMergeMode[i] == CompoundTableLoader.MERGE_MODE_IS_KEY_NO_CASE
+					  || visibleMergeMode[i] == CompoundTableLoader.MERGE_MODE_IS_KEY_WORD_SEARCH)
+					 && mTableModel.getColumnSpecialType(visibleDestColumn[i]) != null)
+						visibleMergeMode[i] = CompoundTableLoader.MERGE_MODE_IS_KEY;
+
 					break;
 					}
 				}
@@ -217,7 +265,8 @@ public class DETaskMergeFile extends AbstractTask implements TaskConstantsMergeF
 		int[] mergeMode = new int[totalFieldName.length];
 		for (int i=0; i<totalFieldName.length; i++) {
 			String specialType = mLoader.getColumnSpecialType(totalFieldName[i]);
-			if (getDisplayableType(specialType) == IS_NOT_DISPLAYABLE) {
+			int displayableType = getDisplayableType(specialType);
+			if (displayableType == IS_NOT_DISPLAYABLE) {
 				String parentColumn = mLoader.getParentColumnName(totalFieldName[i]);
 				for (int j=0; j<visibleFieldName.length; j++) {
 					if (visibleFieldName[j].equals(parentColumn)) {

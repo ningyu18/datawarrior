@@ -101,6 +101,11 @@ public class DETaskCreateListsFromCategories extends ConfigurableTask {
 		}
 
 	@Override
+	public String getHelpURL() {
+		return "/html/help/lists.html#Columns";
+		}
+
+	@Override
 	public Properties getDialogConfiguration() {
 		Properties configuration = new Properties();
 
@@ -166,7 +171,8 @@ public class DETaskCreateListsFromCategories extends ConfigurableTask {
 
 		TreeMap<String,Long> map = new TreeMap<String,Long>();
 		for (int i=0; i<categoryCount; i++) {
-			String name = hh.createList(prefix+category[i]+postfix, -1, CompoundTableListHandler.EMPTY_LIST, -1, null);
+			String name = prefix+(category[i].length() == 0 ? "<empty>" : category[i])+postfix;
+			name = hh.createList(name, -1, CompoundTableListHandler.EMPTY_LIST, -1, null, false);
 			map.put(category[i], hh.getListMask(hh.getListIndex(name)));
 			}
 
@@ -183,7 +189,7 @@ public class DETaskCreateListsFromCategories extends ConfigurableTask {
 			if (record.getData(column) != null) {
 				String[] entries = mTableModel.separateEntries(mTableModel.getTotalValueAt(row, column));
 				for (String entry:entries)
-					record.setFlags(map.get(entry));
+					record.setFlags(map.get(mTableModel.normalizeCategoryEntry(entry, column)));
 				}
 			}
 		}

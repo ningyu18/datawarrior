@@ -36,18 +36,20 @@ import java.util.Properties;
 public abstract class DETaskAbstractNewColumns extends ConfigurableTask implements ActionListener {
     private static final String PROPERTY_COLUMN_NAME_LIST = "columnNames";
 
-    private static final String[] COLUMN_TYPE_NAME = { "Structure", "Text" };
+    private static final String[] COLUMN_TYPE_NAME = { "Text", "Structure", "Reaction", "Transformation", "Weblink" };
 
-    private static final int COLUMN_TYPE_STRUCTURE = 0;
-    private static final int COLUMN_TYPE_TEXT = 1;
-    private static final String DEFAULT_NAME_STRUCTURE = "Structure";
-    private static final String DEFAULT_NAME_TEXT = "Column";
+	private static final int COLUMN_TYPE_TEXT = 0;
+    private static final int COLUMN_TYPE_STRUCTURE = 1;
+    private static final int COLUMN_TYPE_REACTION = 2;
+	private static final int COLUMN_TYPE_TRANSFORMATION = 3;
+	private static final int COLUMN_TYPE_WEBLINK = 4;
+	private static final String[] DEFAULT_COLUMN_NAME = { "Column", "Structure", "Reaction", "Transformation", "Weblink" };
 
-    private DataWarrior		mApplication;
+    private DataWarrior			mApplication;
 	private JComboBox           mComboBox;
 	private JTextField			mTextField;
 	private JButton             mButtonAdd;
-    private DefaultListModel    mListModel;
+    private DefaultListModel	mListModel;
 	private DEFrame				mNewFrame;
 
 
@@ -84,7 +86,7 @@ public abstract class DETaskAbstractNewColumns extends ConfigurableTask implemen
         p.add(mComboBox, "1,3");
 
         p.add(new JLabel("Column Name:"), "1,5");
-        mTextField = new JTextField(getUniqueName("Structure"));
+        mTextField = new JTextField(getUniqueName(COLUMN_TYPE_NAME[0]));
         p.add(mTextField, "1,7");
 
         mButtonAdd = new JButton("Add Column");
@@ -98,17 +100,17 @@ public abstract class DETaskAbstractNewColumns extends ConfigurableTask implemen
         if (e.getSource() == mButtonAdd) {
             String name = getUniqueName(mTextField.getText());
             mListModel.addElement(name+" ["+mComboBox.getSelectedItem()+"]");
-            if (mComboBox.getSelectedIndex() == COLUMN_TYPE_STRUCTURE)
+            if (mComboBox.getSelectedIndex() != COLUMN_TYPE_TEXT)
                 mComboBox.setSelectedIndex(COLUMN_TYPE_TEXT);
-            mTextField.setText(getUniqueName(DEFAULT_NAME_TEXT+" "+(1+mListModel.getSize())));
+            mTextField.setText(getUniqueName(DEFAULT_COLUMN_NAME[COLUMN_TYPE_TEXT]+" "+(1+mListModel.getSize())));
 			return;
 			}
 
         if (e.getSource() == mComboBox) {
-            if (mComboBox.getSelectedIndex() == COLUMN_TYPE_STRUCTURE)
-                mTextField.setText(getUniqueName(DEFAULT_NAME_STRUCTURE));
-            else
-                mTextField.setText(getUniqueName(DEFAULT_NAME_TEXT+" "+(1+mListModel.getSize())));
+            if (mComboBox.getSelectedIndex() == COLUMN_TYPE_TEXT)
+	            mTextField.setText(getUniqueName(DEFAULT_COLUMN_NAME[COLUMN_TYPE_TEXT]+" "+(1+mListModel.getSize())));
+			else
+				mTextField.setText(getUniqueName(DEFAULT_COLUMN_NAME[mComboBox.getSelectedIndex()]));
             return;
             }
     	}
@@ -183,9 +185,14 @@ public abstract class DETaskAbstractNewColumns extends ConfigurableTask implemen
 
 		String[] title = titles.split("\\t");
 		int columnCount = title.length;
-		for (String t:title)
-            if (t.endsWith(COLUMN_TYPE_NAME[COLUMN_TYPE_STRUCTURE]+"]"))
-                columnCount += 2;
+		for (String t:title) {
+			if (t.endsWith(COLUMN_TYPE_NAME[COLUMN_TYPE_STRUCTURE] + "]"))
+				columnCount += 2;
+			else if (t.endsWith(COLUMN_TYPE_NAME[COLUMN_TYPE_REACTION] + "]"))
+				columnCount += 5;
+			else if (t.endsWith(COLUMN_TYPE_NAME[COLUMN_TYPE_TRANSFORMATION] + "]"))
+				columnCount += 5;
+			}
 
         int firstNewColumn = 0;
         CompoundTableModel tableModel = null;
@@ -206,9 +213,22 @@ public abstract class DETaskAbstractNewColumns extends ConfigurableTask implemen
             int index = t.lastIndexOf(" [");
             String columnName = t.substring(0, index);
             if (t.endsWith(COLUMN_TYPE_NAME[COLUMN_TYPE_STRUCTURE]+"]")) {
-                tableModel.prepareStructureColumns(column, columnName, true, true);
-                column += 3;
+                column += tableModel.prepareStructureColumns(column, columnName, true, true);
                 }
+			else if (t.endsWith(COLUMN_TYPE_NAME[COLUMN_TYPE_REACTION]+"]")) {
+				column += tableModel.prepareReactionColumns(column, columnName,false,true, true, false, true, true, true, false);
+				}
+			else if (t.endsWith(COLUMN_TYPE_NAME[COLUMN_TYPE_TRANSFORMATION]+"]")) {
+				column += tableModel.prepareReactionColumns(column, columnName,true,true, true, false, true, true, true, false);
+				}
+			else if (t.endsWith(COLUMN_TYPE_NAME[COLUMN_TYPE_WEBLINK]+"]")) {
+				tableModel.setColumnName(columnName, column);
+				tableModel.setColumnProperty(column, CompoundTableModel.cColumnPropertyLookupCount, "1");
+				tableModel.setColumnProperty(column, CompoundTableModel.cColumnPropertyLookupName+"0", columnName);
+				tableModel.setColumnProperty(column, CompoundTableModel.cColumnPropertyLookupURL+"0", "%s");
+				tableModel.setColumnProperty(column, CompoundTableModel.cColumnPropertyLookupEncode+"0", "false");
+				column++;
+				}
             else {
                 tableModel.setColumnName(columnName, column);
                 column++;
@@ -223,12 +243,7 @@ public abstract class DETaskAbstractNewColumns extends ConfigurableTask implemen
 		        final CompoundTableModel _tableModel = tableModel;
 		        final int _firstNewColumn = firstNewColumn;
 		        final DEFrame _oldFrame = oldFrame;
-		        SwingUtilities.invokeAndWait(new Runnable() {
-			        @Override
-			        public void run() {
-				        createNewViews(_tableModel, _firstNewColumn, _oldFrame);
-			            }
-		            });
+		        SwingUtilities.invokeAndWait(() -> createNewViews(_tableModel, _firstNewColumn, _oldFrame) );
 	            }
 	        catch (Exception e) {}
             }

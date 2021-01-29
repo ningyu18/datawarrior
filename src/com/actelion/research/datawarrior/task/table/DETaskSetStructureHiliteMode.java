@@ -30,7 +30,7 @@ public class DETaskSetStructureHiliteMode extends AbstractSingleColumnTask {
 	public Properties getPredefinedConfiguration() {
 		Properties configuration = super.getPredefinedConfiguration();
 		if (configuration != null)
-			configuration.setProperty(PROPERTY_MODE, CompoundTableConstants.cHiliteModeCode[mHiliteMode]);
+			configuration.setProperty(PROPERTY_MODE, CompoundTableConstants.cStructureHiliteModeCode[mHiliteMode]);
 		return configuration;
 		}
 
@@ -50,14 +50,14 @@ public class DETaskSetStructureHiliteMode extends AbstractSingleColumnTask {
 	@Override
 	public Properties getDialogConfiguration() {
 		Properties configuration = super.getDialogConfiguration();
-		configuration.put(PROPERTY_MODE, CompoundTableConstants.cHiliteModeCode[mComboBox.getSelectedIndex()]);
+		configuration.put(PROPERTY_MODE, CompoundTableConstants.cStructureHiliteModeCode[mComboBox.getSelectedIndex()]);
 		return configuration;
 		}
 
 	@Override
 	public void setDialogConfiguration(Properties configuration) {
 		super.setDialogConfiguration(configuration);
-		mComboBox.setSelectedIndex(findListIndex(configuration.getProperty(PROPERTY_MODE), CompoundTableConstants.cHiliteModeCode, 0));
+		mComboBox.setSelectedIndex(findListIndex(configuration.getProperty(PROPERTY_MODE), CompoundTableConstants.cStructureHiliteModeCode, 0));
 		}
 
 	@Override
@@ -68,7 +68,7 @@ public class DETaskSetStructureHiliteMode extends AbstractSingleColumnTask {
 
 	@Override
 	public boolean isCompatibleColumn(int column) {
-		return CompoundTableConstants.cColumnTypeIDCode.equals(getTableModel().getColumnSpecialType(column));
+		return getTableModel().isColumnTypeStructure(column);
 		}
 
 	@Override
@@ -78,7 +78,7 @@ public class DETaskSetStructureHiliteMode extends AbstractSingleColumnTask {
 
 	@Override
 	public void runTask(Properties configuration) {
-		int hiliteMode = findListIndex(configuration.getProperty(PROPERTY_MODE), CompoundTableConstants.cHiliteModeCode, 0);
-		getTableModel().setStructureHiliteMode(getColumn(configuration), hiliteMode);
+		int hiliteMode = findListIndex(configuration.getProperty(PROPERTY_MODE), CompoundTableConstants.cStructureHiliteModeCode, 0);
+		getTableModel().setHiliteMode(getColumn(configuration), hiliteMode);
 		}
 }

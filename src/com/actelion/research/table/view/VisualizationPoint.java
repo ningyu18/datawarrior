@@ -22,11 +22,12 @@ import com.actelion.research.table.model.CompoundRecord;
 
 
 public class VisualizationPoint {
-	public float screenX, screenY, width, height;
-	protected int chartGroupIndex, hvIndex;
-	protected byte colorIndex, shape, exclusionFlags;
+	public float screenX,screenY,widthOrAngle1,heightOrAngle2;
+	protected int chartGroupIndex,hvIndex;
+	protected short colorIndex;
+	protected byte shape,exclusionFlags;
 	protected CompoundRecord record;
-	protected VisualizationLabelPosition labelPosition;
+	protected LabelPosition2D labelPosition;
 
 	protected VisualizationPoint(CompoundRecord r) {
 		record = r;
@@ -35,8 +36,8 @@ public class VisualizationPoint {
 		hvIndex = 0;
 	}
 
-	public VisualizationLabelPosition findLabel(int x, int y) {
-		VisualizationLabelPosition lp = labelPosition;
+	public LabelPosition2D findLabel(int x, int y) {
+		LabelPosition2D lp = labelPosition;
 		while (lp != null) {
 			if (lp.containsOnScreen(x, y))
 				return lp;
@@ -45,13 +46,22 @@ public class VisualizationPoint {
 		return null;
 	}
 
-	public VisualizationLabelPosition getOrCreateLabelPosition(int column) {
-		VisualizationLabelPosition lp = labelPosition;
+	public LabelPosition2D getLabelPosition(int column) {
+		LabelPosition2D lp = labelPosition;
+		while (lp != null && lp.getColumn() != column)
+			lp = lp.getNext();
+		return lp;
+	}
+
+	public LabelPosition2D getOrCreateLabelPosition(int column, boolean is3D) {
+		LabelPosition2D lp = labelPosition;
 		while (lp != null && lp.getColumn() != column)
 			lp = lp.getNext();
 		if (lp != null)
 			return lp;
-		return labelPosition = new VisualizationLabelPosition(column, labelPosition);
+		labelPosition = is3D ? new LabelPosition3D(column, labelPosition)
+							 : new LabelPosition2D(column, labelPosition);
+		return labelPosition;
 	}
 
 	/**
@@ -67,7 +77,7 @@ public class VisualizationPoint {
 				remapLabelPositionColumns(oldToNewColumn);
 				return;
 				}
-			VisualizationLabelPosition lp=labelPosition;
+			LabelPosition2D lp=labelPosition;
 			while (lp.getNext() != null) {
 				lp.getNext().setColumn(oldToNewColumn[lp.getNext().getColumn()]);
 				if (lp.getNext().getColumn() == -1)
@@ -86,7 +96,7 @@ public class VisualizationPoint {
 			labelPosition = labelPosition.getNext();
 
 		if (labelPosition != null) {
-			VisualizationLabelPosition lp = labelPosition;
+			LabelPosition2D lp = labelPosition;
 			while (lp.getNext() != null) {
 				if (lp.getNext().isCustom())
 					lp = lp.getNext();
@@ -107,7 +117,7 @@ public class VisualizationPoint {
 					labelPosition = labelPosition.getNext();
 				return;
 				}
-			for (VisualizationLabelPosition lp = labelPosition; lp.getNext() != null; lp = lp.getNext()) {
+			for (LabelPosition2D lp = labelPosition; lp.getNext() != null; lp = lp.getNext()) {
 				if (lp.getNext().getColumn() == column) {
 					if (!lp.getNext().isCustom())
 						lp.skipNext();

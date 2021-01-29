@@ -18,24 +18,27 @@
 
 package com.actelion.research.datawarrior.task.file;
 
-import java.util.HashMap;
-import java.util.Properties;
-import java.util.TreeSet;
-
+import com.actelion.research.chem.io.CompoundTableConstants;
 import com.actelion.research.datawarrior.DEFrame;
 import com.actelion.research.datawarrior.DERuntimeProperties;
 import com.actelion.research.datawarrior.DataWarrior;
 import com.actelion.research.datawarrior.task.AbstractTaskWithoutConfiguration;
+import com.actelion.research.datawarrior.task.DEMacro;
 import com.actelion.research.table.model.CompoundTableEvent;
 import com.actelion.research.table.model.CompoundTableListHandler;
 import com.actelion.research.table.model.CompoundTableModel;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Properties;
+import java.util.TreeSet;
 
 
 public class DETaskNewFileFromSelection extends AbstractTaskWithoutConfiguration {
 	public static final String TASK_NAME = "New File From Selection";
 
-	private DEFrame				mSourceFrame,mTargetFrame;
-	private DataWarrior		mApplication;
+	private DEFrame		mSourceFrame,mTargetFrame;
+	private DataWarrior	mApplication;
 
 	public DETaskNewFileFromSelection(DEFrame sourceFrame, DataWarrior application) {
 		super(sourceFrame, false);
@@ -47,14 +50,7 @@ public class DETaskNewFileFromSelection extends AbstractTaskWithoutConfiguration
 	public boolean isConfigurable() {
 		CompoundTableModel tableModel = mSourceFrame.getTableModel();
 
-		boolean selectionFound = false;
-        for (int row=0; row<tableModel.getRowCount(); row++) {
-			if (tableModel.isSelected(row)) {
-				selectionFound = true;
-				break;
-				}
-			}
-        if (!selectionFound) {
+        if (!tableModel.hasSelectedRows()) {
         	showErrorMessage("No selected rows found.");
         	return false;
         	}
@@ -132,7 +128,7 @@ public class DETaskNewFileFromSelection extends AbstractTaskWithoutConfiguration
         for (int i=0; i<hitlistUsed.length; i++) {
         	if (hitlistUsed[i]) {
         		int flagNo = targetHitlistHandler.getListFlagNo(targetHitlistHandler.createList(
-        				sourceHitlistHandler.getListName(i), -1, CompoundTableListHandler.EMPTY_LIST, -1, null));
+        				sourceHitlistHandler.getListName(i), -1, CompoundTableListHandler.EMPTY_LIST, -1, null, false));
                	int tRow = 0;
                	for (int row=0; row<sourceTableModel.getRowCount(); row++) {
         			if (sourceTableModel.isSelected(row)) {
@@ -145,11 +141,27 @@ public class DETaskNewFileFromSelection extends AbstractTaskWithoutConfiguration
         	}
 
 		HashMap<String,byte[]> detailMap = sourceTableModel.getDetailHandler().getEmbeddedDetailMap();
-		if (detailMap != null)
-			for (String detailID:detaiIDSet)
-				targetTableModel.getDetailHandler().setEmbeddedDetail(detailID, detailMap.get(detailID));
+		if (detailMap != null) {
+			for (String detailID : detaiIDSet) {
+				byte[] detail = detailMap.get(detailID);
+				if (detaiIDSet != null)
+					targetTableModel.getDetailHandler().setEmbeddedDetail(detailID, detail);
+				}
+			}
 
-        rp.setParentPane(mTargetFrame.getMainFrame());
+		String explanation = (String)sourceTableModel.getExtensionData(CompoundTableConstants.cExtensionNameFileExplanation);
+		if (explanation != null)
+			targetTableModel.setExtensionData(CompoundTableConstants.cExtensionNameFileExplanation, explanation);
+
+		ArrayList<DEMacro> macroList = (ArrayList<DEMacro>) sourceTableModel.getExtensionData(CompoundTableConstants.cExtensionNameMacroList);
+		if (macroList != null && macroList.size() != 0) {
+			ArrayList<DEMacro> copy = new ArrayList<>();
+			for (DEMacro macro:macroList)
+				copy.add(new DEMacro(macro.getName(), copy, macro));
+			targetTableModel.setExtensionData(CompoundTableConstants.cExtensionNameMacroList, copy);
+			}
+
+		rp.setParentPane(mTargetFrame.getMainFrame());
         rp.apply();
 		}
 	}

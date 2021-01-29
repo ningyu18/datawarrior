@@ -18,82 +18,95 @@
 
 package com.actelion.research.table.filter;
 
-import info.clearthought.layout.TableLayout;
-
-import java.awt.*;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
-import java.awt.event.ItemEvent;
-import java.awt.event.ItemListener;
-import java.awt.event.KeyEvent;
-import java.awt.event.KeyListener;
-
-import javax.swing.*;
-import javax.swing.text.Keymap;
-
+import com.actelion.research.gui.hidpi.HiDPIHelper;
+import com.actelion.research.gui.hidpi.HiDPIToggleButton;
 import com.actelion.research.table.model.CompoundTableEvent;
 import com.actelion.research.table.model.CompoundTableModel;
+import info.clearthought.layout.TableLayout;
+
+import javax.swing.*;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
+import java.awt.*;
+import java.awt.event.*;
 
 public class JTextFilterPanel extends JFilterPanel implements ActionListener,ItemListener,KeyListener {
 	private static final long serialVersionUID = 0x20061013;
 
 	private static final String	cOptionContains = "#contains#";
 	private static final String	cOptionStartsWith = "#startsWith#";
+	private static final String	cOptionEndsWith = "#endsWith#";
 	private static final String	cOptionEquals = "#equals#";
 	private static final String	cOptionRegEx = "#regEx#";
 	private static final String	cOptionCaseSensitive = "#caseSensitive#";
 	private static final int cOptionIndexRegEx = 3;
 
-	private JComboBox		mComboBox;
-	private JTextField		mTextField;
-	private JCheckBox		mCheckBox;
+	private JComboBox   		mComboBox;
+	private JTextField  		mTextField;
+	private HiDPIToggleButton mCheckBoxCase;
 
 	public JTextFilterPanel(CompoundTableModel tableModel) {
 		this(tableModel, -1, -1);
 		}
 
 	public JTextFilterPanel(CompoundTableModel tableModel, int columnIndex, int exclusionFlag) {
-		super(tableModel, columnIndex, exclusionFlag, false);
+		super(tableModel, columnIndex, exclusionFlag, false, false);
 
+		int gap = HiDPIHelper.scale(4);
 		JPanel contentPanel = new JPanel();
-		double[][] size = { {4, TableLayout.PREFERRED, 4, TableLayout.FILL, 4},
-							{TableLayout.PREFERRED, TableLayout.PREFERRED} };
+		double[][] size = { {TableLayout.PREFERRED, gap, TableLayout.FILL, gap, TableLayout.PREFERRED},
+							{TableLayout.FILL, TableLayout.PREFERRED, TableLayout.FILL, gap} };
 		contentPanel.setLayout(new TableLayout(size));
 		contentPanel.setOpaque(false);
 
 		mComboBox = new JComboBox();
 		mComboBox.addItem("contains");
 		mComboBox.addItem("starts with");
+		mComboBox.addItem("ends with");
 		mComboBox.addItem("equals");
 		mComboBox.addItem("matches regex");
 		mComboBox.addItemListener(this);
-		contentPanel.add(mComboBox, "1,0");
+		contentPanel.add(mComboBox, "0,0,0,2");
 
 		mTextField = new JTextField(4);
+		// Change font to allow displaying rare unicode characters
+		mTextField.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, mTextField.getFont().getSize()));
 		mTextField.getKeymap().removeKeyStrokeBinding(KeyStroke.getKeyStroke(KeyEvent.VK_H, Event.CTRL_MASK));
-		mTextField.addKeyListener(this);
- 		contentPanel.add(mTextField, "3,0");
-
-		mCheckBox = new JCheckBox("case sensitive");
-		mCheckBox.setHorizontalAlignment(SwingConstants.CENTER);
-		mCheckBox.addActionListener(this);
-		contentPanel.add(mCheckBox, "1,1,3,1");
+//		mTextField.addKeyListener(this);
+		mTextField.getDocument().addDocumentListener(new DocumentListener() {
+			public void changedUpdate(DocumentEvent e) {
+				updateExclusion(true);
+				}
+			public void removeUpdate(DocumentEvent e) {
+				updateExclusion(true);
+				}
+			public void insertUpdate(DocumentEvent e) {
+				updateExclusion(true);
+				}
+			});
+ 		contentPanel.add(mTextField, "2,0,2,2");
 
 		add(contentPanel, BorderLayout.CENTER);
 
 		mIsUserChange = true;
 		}
 
+	public void addImageButtons(JPanel panel) {
+		mCheckBoxCase = new HiDPIToggleButton("csButton2.png", "csButton1.png","case sensitive", "case");
+		mCheckBoxCase.addActionListener(this);
+		panel.add(mCheckBoxCase);
+		}
+
 	@Override
 	public void enableItems(boolean b) {
 		mComboBox.setEnabled(b);
 		mTextField.setEnabled(b);
-		mCheckBox.setEnabled(b && mComboBox.getSelectedIndex() != cOptionIndexRegEx);
+		mCheckBoxCase.setEnabled(b && mComboBox.getSelectedIndex() != cOptionIndexRegEx);
 		}
 
 	@Override
 	public void actionPerformed(ActionEvent e) {
-		if (e.getSource() == mCheckBox) {
+		if (e.getSource() == mCheckBoxCase && mTextField.getText().length() != 0) {
 			updateExclusion(mIsUserChange);
 			return;
 			}
@@ -116,7 +129,7 @@ public class JTextFilterPanel extends JFilterPanel implements ActionListener,Ite
 	public void itemStateChanged(ItemEvent e) {
 		if (e.getSource() == mComboBox && e.getStateChange() == ItemEvent.SELECTED) {
 			updateExclusion(mIsUserChange);
-			mCheckBox.setEnabled(mComboBox.getSelectedIndex() != cOptionIndexRegEx);
+			mCheckBoxCase.setEnabled(mComboBox.getSelectedIndex() != cOptionIndexRegEx);
 			}
 		}
 
@@ -157,16 +170,19 @@ public class JTextFilterPanel extends JFilterPanel implements ActionListener,Ite
 			type = CompoundTableModel.cTextExclusionTypeStartsWith;
 			break;
 		case 2:
-			type = CompoundTableModel.cTextExclusionTypeEquals;
+			type = CompoundTableModel.cTextExclusionTypeEndsWith;
 			break;
 		case 3:
+			type = CompoundTableModel.cTextExclusionTypeEquals;
+			break;
+		case 4:
 			type = CompoundTableModel.cTextExclusionTypeRegEx;
 			break;
 			}
 
 		if (isActive()) {
 			mTableModel.setStringExclusion(mColumnIndex, mExclusionFlag, mTextField.getText(),
-										   type, mCheckBox.isSelected(), isInverse());
+										   type, mCheckBoxCase.isSelected(), isInverse());
 
 			if (isUserChange)
 				fireFilterChanged(FilterEvent.FILTER_UPDATED, false);
@@ -179,12 +195,13 @@ public class JTextFilterPanel extends JFilterPanel implements ActionListener,Ite
 		if (text.length() != 0 || mComboBox.getSelectedIndex() >= 2) {
 			String settings = (mComboBox.getSelectedIndex() == 0) ? cOptionContains
 							: (mComboBox.getSelectedIndex() == 1) ? cOptionStartsWith
-							: (mComboBox.getSelectedIndex() == 2) ? cOptionEquals : cOptionRegEx;
+							: (mComboBox.getSelectedIndex() == 2) ? cOptionEndsWith
+							: (mComboBox.getSelectedIndex() == 3) ? cOptionEquals : cOptionRegEx;
 
-			if (mCheckBox.isSelected())
-				settings = attachSetting(settings, cOptionCaseSensitive);
+			if (mCheckBoxCase.isSelected())
+				settings = attachTABDelimited(settings, cOptionCaseSensitive);
 
-			settings = attachSetting(settings, text);
+			settings = attachTABDelimited(settings, text);
 			return settings;
 			}
 
@@ -206,13 +223,18 @@ public class JTextFilterPanel extends JFilterPanel implements ActionListener,Ite
 				type = CompoundTableModel.cTextExclusionTypeStartsWith;
 				settings = settings.substring(cOptionStartsWith.length()+1);
 				}
-			else if (settings.startsWith(cOptionEquals)) {
+			else if (settings.startsWith(cOptionEndsWith)) {
 				index = 2;
+				type = CompoundTableModel.cTextExclusionTypeEndsWith;
+				settings = settings.substring(cOptionEndsWith.length()+1);
+				}
+			else if (settings.startsWith(cOptionEquals)) {
+				index = 3;
 				type = CompoundTableModel.cTextExclusionTypeEquals;
 				settings = settings.substring(cOptionEquals.length()+1);
 				}
 			else if (settings.startsWith(cOptionRegEx)) {
-				index = 3;
+				index = 4;
 				type = CompoundTableModel.cTextExclusionTypeRegEx;
 				settings = settings.substring(cOptionRegEx.length()+1);
 				}
@@ -222,24 +244,24 @@ public class JTextFilterPanel extends JFilterPanel implements ActionListener,Ite
 					settings = settings.substring(cOptionCaseSensitive.length()+1);
 
 				mTextField.setText(settings);
-				mCheckBox.setSelected(caseSensitive);
+				mCheckBoxCase.setSelected(caseSensitive);
 				if (mComboBox.getSelectedIndex() != index)
 					mComboBox.setSelectedIndex(index);
 				else if (isActive())
 					mTableModel.setStringExclusion(mColumnIndex, mExclusionFlag,
 												   settings, type, caseSensitive, isInverse());
 				}
-			mCheckBox.setEnabled(isEnabled() && mComboBox.getSelectedIndex() != cOptionIndexRegEx);
+			mCheckBoxCase.setEnabled(isEnabled() && mComboBox.getSelectedIndex() != cOptionIndexRegEx);
 			}
 		}
 
 	@Override
 	public void innerReset() {
 		if (mTextField.getText().length() != 0
-		 || mComboBox.getSelectedIndex() == 2		// equals
-		 || mComboBox.getSelectedIndex() == 3) {	// regex
+		 || mComboBox.getSelectedIndex() == 3		// equals
+		 || mComboBox.getSelectedIndex() == 4) {	// regex
 			mTextField.setText("");
-			mCheckBox.setSelected(false);
+			mCheckBoxCase.setSelected(false);
 			if (mComboBox.getSelectedIndex() == 0)
 				updateExclusion(false);
 			else

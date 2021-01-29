@@ -42,6 +42,11 @@ public class DETaskDeselectRowsFromList extends DETaskAbstractListTask {
 		}
 
 	@Override
+	public String getHelpURL() {
+		return "/html/help/lists.html#Selection";
+		}
+
+	@Override
 	public void runTask(Properties configuration) {
 		getTableModel().deselectByList(getTableModel().getListHandler().getListFlagNo(getListIndex(configuration)));
 		}

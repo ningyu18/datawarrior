@@ -24,7 +24,7 @@ public class JImageFormObject extends ReferenceFormObject {
 		mComponent = new JImageDetailView(null, null, null);
 		}
 
-	public int getRelativeHeight() {
+	public int getDefaultRelativeHeight() {
 		return 4;
 		}
 	}

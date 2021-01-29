@@ -117,7 +117,7 @@ public class DETaskAddEmptyRows extends ConfigurableTask {
 			}
 
 		int firstNewRow = mTableModel.getTotalRowCount();
-		mTableModel.addNewRows(rowCount);
+		mTableModel.addNewRows(rowCount, true);
 	    mTableModel.finalizeNewRows(firstNewRow, null);
 		}
 	}

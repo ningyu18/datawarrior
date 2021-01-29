@@ -19,6 +19,7 @@
 package com.actelion.research.datawarrior.task.chem.elib;
 
 import com.actelion.research.chem.prediction.MolecularPropertyHelper;
+import com.actelion.research.gui.hidpi.HiDPIHelper;
 import info.clearthought.layout.TableLayout;
 
 import javax.swing.JLabel;
@@ -54,9 +55,10 @@ public class PropertyFitnessPanel extends FitnessPanel {
 		mTextFieldValueMin = new JTextField(defaultMin, 4);
 		mTextFieldValueMax = new JTextField(defaultMax, 4);
 
-		double[][] cpsize = { {4, TableLayout.PREFERRED, TableLayout.PREFERRED, TableLayout.PREFERRED, TableLayout.PREFERRED,
-								16, TableLayout.FILL, TableLayout.PREFERRED, 8, TableLayout.PREFERRED, 4},
-							  {4, TableLayout.FILL, TableLayout.PREFERRED, TableLayout.FILL} };
+		int gap = HiDPIHelper.scale(8);
+		double[][] cpsize = { {gap/2, TableLayout.PREFERRED, TableLayout.PREFERRED, TableLayout.PREFERRED, TableLayout.PREFERRED,
+								2*gap, TableLayout.FILL, TableLayout.PREFERRED, gap, TableLayout.PREFERRED, gap/2},
+							  {gap/2, TableLayout.FILL, TableLayout.PREFERRED, TableLayout.FILL} };
 		setLayout(new TableLayout(cpsize));
 
 		add(new JLabel("Prefer '"+ MolecularPropertyHelper.getPropertyName(type)+"' >= "), "1,2");

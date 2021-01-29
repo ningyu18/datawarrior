@@ -18,31 +18,21 @@
 
 package com.actelion.research.datawarrior.task.view;
 
-import info.clearthought.layout.TableLayout;
-
-import java.awt.Dimension;
-import java.awt.Frame;
-import java.awt.event.ActionEvent;
-import java.util.Properties;
-import java.util.TreeSet;
-
-import javax.swing.DefaultListModel;
-import javax.swing.JComboBox;
-import javax.swing.JComponent;
-import javax.swing.JLabel;
-import javax.swing.JList;
-import javax.swing.JPanel;
-import javax.swing.JScrollPane;
-import javax.swing.JTextArea;
-import javax.swing.ListSelectionModel;
-import javax.swing.event.ListSelectionEvent;
-import javax.swing.event.ListSelectionListener;
-
 import com.actelion.research.datawarrior.DEMainPane;
 import com.actelion.research.datawarrior.task.ConfigurableTask;
 import com.actelion.research.table.view.CompoundTableView;
 import com.actelion.research.table.view.JVisualization2D;
+import com.actelion.research.table.view.VisualizationPanel;
 import com.actelion.research.table.view.VisualizationPanel2D;
+import info.clearthought.layout.TableLayout;
+
+import javax.swing.*;
+import javax.swing.event.ListSelectionEvent;
+import javax.swing.event.ListSelectionListener;
+import java.awt.*;
+import java.awt.event.ActionEvent;
+import java.util.Properties;
+import java.util.TreeSet;
 
 public class DETaskSetMultiValueMarker extends DETaskAbstractSetViewOptions implements ListSelectionListener {
 	public static final String TASK_NAME = "Set Multi-Value Marker";
@@ -75,7 +65,7 @@ public class DETaskSetMultiValueMarker extends DETaskAbstractSetViewOptions impl
 		}
 
 	@Override
-	public JComponent createInnerDialogContent() {
+	public JComponent createViewOptionContent() {
 		JPanel p = new JPanel();
         double[][] size = { {8, TableLayout.PREFERRED, 4, TableLayout.PREFERRED, 8},
                             {8, TableLayout.PREFERRED, 16, TableLayout.PREFERRED, 8, TableLayout.PREFERRED, 8} };
@@ -126,9 +116,10 @@ public class DETaskSetMultiValueMarker extends DETaskAbstractSetViewOptions impl
 		}
 
 	@Override
-	public void addViewConfiguration(Properties configuration) {
-		int mode = ((JVisualization2D) getInteractiveVisualization()).getMultiValueMarkerMode();
-		int[] column = ((JVisualization2D) getInteractiveVisualization()).getMultiValueMarkerColumns();
+	public void addViewConfiguration(CompoundTableView view, Properties configuration) {
+		JVisualization2D visualization = (JVisualization2D)((VisualizationPanel)view).getVisualization();
+		int mode = visualization.getMultiValueMarkerMode();
+		int[] column = visualization.getMultiValueMarkerColumns();
 		if (column != null) {
 			StringBuilder sb = new StringBuilder();
 	    	for (int i=0; i<column.length; i++) {
@@ -287,16 +278,18 @@ public class DETaskSetMultiValueMarker extends DETaskAbstractSetViewOptions impl
 
 	@Override
 	public void applyConfiguration(CompoundTableView view, Properties configuration, boolean isAdjusting) {
-		JVisualization2D visualization = (JVisualization2D)((VisualizationPanel2D)view).getVisualization();
-		int mode = ConfigurableTask.findListIndex(configuration.getProperty(PROPERTY_MODE),
-				JVisualization2D.MULTI_VALUE_MARKER_MODE_CODE, JVisualization2D.cMultiValueMarkerModeNone);
-		String columnString = configuration.getProperty(PROPERTY_COLUMNS, "");
-		if (columnString.length() == 0) {
-			visualization.setMultiValueMarkerColumns(null, JVisualization2D.cMultiValueMarkerModeNone);
-			}
-		else {
-			int[] column = getQualifyingAndSelectedColumns(columnString.split("\\t"));
-			visualization.setMultiValueMarkerColumns(column, mode);
+		if (view instanceof VisualizationPanel2D) {
+			JVisualization2D visualization = (JVisualization2D)((VisualizationPanel2D)view).getVisualization();
+			int mode = ConfigurableTask.findListIndex(configuration.getProperty(PROPERTY_MODE),
+					JVisualization2D.MULTI_VALUE_MARKER_MODE_CODE, JVisualization2D.cMultiValueMarkerModeNone);
+			String columnString = configuration.getProperty(PROPERTY_COLUMNS, "");
+			if (columnString.length() == 0) {
+				visualization.setMultiValueMarkerColumns(null, JVisualization2D.cMultiValueMarkerModeNone);
+				}
+			else {
+				int[] column = getQualifyingAndSelectedColumns(columnString.split("\\t"));
+				visualization.setMultiValueMarkerColumns(column, mode);
+				}
 			}
 		}
 	}

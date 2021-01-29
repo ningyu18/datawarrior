@@ -23,6 +23,7 @@ import com.actelion.research.chem.Molecule;
 import com.actelion.research.chem.SSSearcher;
 import com.actelion.research.chem.StereoMolecule;
 import com.actelion.research.chem.mcs.MCS;
+import com.actelion.research.chem.reaction.Reaction;
 import com.actelion.research.table.model.CompoundRecord;
 import com.actelion.research.table.model.CompoundTableEvent;
 import com.actelion.research.table.model.CompoundTableModel;
@@ -30,6 +31,7 @@ import com.actelion.research.table.model.CompoundTableModel;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.TreeMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Adds atom coloring to CompoundTableModel
@@ -46,21 +48,35 @@ public class DECompoundTableModel extends CompoundTableModel {
 		}
 
 	@Override
-	public void colorizeAtoms(CompoundRecord record, int idcodeColumn, int atomColorMode, StereoMolecule mol) {
+	public void colorizeReactionAtoms(CompoundRecord record, int rxncodeColumn, int atomColorMode, Reaction rxn) {
+		super.colorizeReactionAtoms(record, rxncodeColumn, atomColorMode, rxn);
+
+		if (atomColorMode == CompoundTableModel.ATOM_COLOR_MODE_ALL) {
+			int hiliteMode = getHiliteMode(rxncodeColumn);
+			switch (hiliteMode) {
+				case cReactionHiliteModeReactionCenter:
+					colorizeReactionCenterAtoms(rxn);
+					break;
+				}
+			}
+		}
+
+	@Override
+	public void colorizeStructureAtoms(CompoundRecord record, int idcodeColumn, int atomColorMode, StereoMolecule mol) {
 			// priority 1: atoms set explicitly to some color (e.g. pKa coloring)
 			// priority 2: atoms matching a substructure are dark red
 			// priority 3: atoms matching a simstructure are dark green
 
-        super.colorizeAtoms(record, idcodeColumn, atomColorMode, mol);
+        super.colorizeStructureAtoms(record, idcodeColumn, atomColorMode, mol);
 
         if (atomColorMode == CompoundTableModel.ATOM_COLOR_MODE_ALL) {
-	        int hiliteMode = getStructureHiliteMode(idcodeColumn);
+	        int hiliteMode = getHiliteMode(idcodeColumn);
 	        switch (hiliteMode) {
 	        case cStructureHiliteModeFilter:
-	        	colorizeAtomsByFilter(record, idcodeColumn, mol);
+	        	colorizeStructureAtomsByFilter(record, idcodeColumn, mol);
 	        	break;
 	        case cStructureHiliteModeCurrentRow:
-	        	colorizeAtomsByCurrentRow(idcodeColumn, mol);
+	        	colorizeStructureAtomsByCurrentRow(idcodeColumn, mol);
 	        	break;
 	        	}
         	}
@@ -79,26 +95,26 @@ public class DECompoundTableModel extends CompoundTableModel {
 		}
 
 	@Override
-	public void setSubStructureExclusion(int flag, int idcodeColumn, StereoMolecule[] fragment, boolean inverse) {
+	public void setSubStructureExclusion(AtomicInteger concurrentIndex, int flag, int idcodeColumn, StereoMolecule[] fragment, String reactionPart, boolean inverse) {
 //	    if (inverse)	we need the colorInfo when toggling inverse
 //	    	setAtomColorInfo(idcodeColumn, cStructureHiliteModeFilter, null);
 //    	else
-		if (cColumnTypeIDCode.equals(getColumnSpecialType(idcodeColumn))) {
+		if (isColumnTypeStructure(idcodeColumn)) {
 			setAtomColorInfo(idcodeColumn, cStructureHiliteModeFilter,
 					new CompoundTableAtomColorInfo(idcodeColumn, CompoundTableAtomColorInfo.TYPE_SSS_FILTER,
 							flag, inverse, fragment));
 			}
 
-		super.setSubStructureExclusion(flag, idcodeColumn, fragment, inverse);
+		super.setSubStructureExclusion(concurrentIndex, flag, idcodeColumn, fragment, reactionPart, inverse);
 		}
 
 	@Override
-	public void setSimilarityExclusion(int flag, int descriptorColumn,
-									   StereoMolecule[] molecule,
-									   float[][] similarity, float minSimilarity,
-									   boolean inverse, boolean isAdjusting) {
+	public void setStructureSimilarityExclusion(int flag, int descriptorColumn,
+												StereoMolecule[] molecule,
+												float[][] similarity, float minSimilarity,
+												boolean inverse, boolean isAdjusting) {
 		int idcodeColumn = getParentColumn(descriptorColumn);
-		if (getColumnSpecialType(idcodeColumn) == cColumnTypeIDCode) {
+		if (isColumnTypeStructure(idcodeColumn)) {
 //	    if (inverse)	we need the colorInfo when toggling inverse
 //	    	setAtomColorInfo(idcodeColumn, cStructureHiliteModeFilter, null);
 //   	else {
@@ -126,7 +142,7 @@ public class DECompoundTableModel extends CompoundTableModel {
 			}
 //			}
 
-	    super.setSimilarityExclusion(flag, descriptorColumn, molecule, similarity, minSimilarity, inverse, isAdjusting);
+	    super.setStructureSimilarityExclusion(flag, descriptorColumn, molecule, similarity, minSimilarity, inverse, isAdjusting);
 		}
 
 	@Override
@@ -186,7 +202,7 @@ public class DECompoundTableModel extends CompoundTableModel {
 
 	private void ensureCurrentRowColorInfo(int firstColumn) {
         for (int column=firstColumn; column<getTotalColumnCount(); column++)
-			if (getStructureHiliteMode(column) == cStructureHiliteModeCurrentRow
+			if (getHiliteMode(column) == cStructureHiliteModeCurrentRow
 			 && getAtomColorInfo(column, cStructureHiliteModeCurrentRow) == null)
 				prepareCurrentRowAtomColoring(column);
 		}
@@ -197,14 +213,14 @@ public class DECompoundTableModel extends CompoundTableModel {
     	}
 
     private CompoundTableAtomColorInfo getAtomColorInfo(int idcodeColumn, int type) {
-    	return mColorInfoMap.get(cHiliteModeCode[type]+":"+getColumnTitleNoAlias(idcodeColumn));
+    	return mColorInfoMap.get(cStructureHiliteModeCode[type]+":"+getColumnTitleNoAlias(idcodeColumn));
     	}
 
     private void setAtomColorInfo(int idcodeColumn, int type, CompoundTableAtomColorInfo colorInfo) {
-    	mColorInfoMap.put(cHiliteModeCode[type]+":"+getColumnTitleNoAlias(idcodeColumn), colorInfo);
+    	mColorInfoMap.put(cStructureHiliteModeCode[type]+":"+getColumnTitleNoAlias(idcodeColumn), colorInfo);
     	}
 
-    private void colorizeAtomsByFilter(CompoundRecord record, int idcodeColumn, StereoMolecule mol) {
+    private void colorizeStructureAtomsByFilter(CompoundRecord record, int idcodeColumn, StereoMolecule mol) {
     	CompoundTableAtomColorInfo colorInfo = getAtomColorInfo(idcodeColumn, cStructureHiliteModeFilter);
 
     	if (colorInfo != null
@@ -251,7 +267,7 @@ public class DECompoundTableModel extends CompoundTableModel {
 			}
     	}
 
-    private void colorizeAtomsByCurrentRow(int idcodeColumn, StereoMolecule mol) {
+    private void colorizeStructureAtomsByCurrentRow(int idcodeColumn, StereoMolecule mol) {
     	CompoundTableAtomColorInfo colorInfo = getAtomColorInfo(idcodeColumn, cStructureHiliteModeCurrentRow);
 		if (colorInfo != null
 		 && colorInfo.refMol != null
@@ -270,16 +286,16 @@ public class DECompoundTableModel extends CompoundTableModel {
 /*		boolean[][] bondMask = mcsSearcher.getMCSBondArray(null, null);
 		if (bondMask != null) {
 			if (hiliteDifferences) {	// hilite bond background of all non-MCS bonds in mol and attach hilited non-MCS fragments of refmol
-				if (bondMask[0] != null) {
-					for (int bond = 0; bond < mol.getBonds(); bond++)
-						mol.setBondBackgroundHiliting(bond, !bondMask[0][bond]);
-					}
 				if (bondMask[1] != null) {
+					for (int bond=0; bond<mol.getBonds(); bond++)
+						mol.setBondBackgroundHiliting(bond, !bondMask[1][bond]);
+					}
+				if (bondMask[0] != null) {
 					int originalMolAtomCount = mol.getAtoms();
 
 					boolean[] isMatchingAtom = new boolean[refMol.getAtoms()];
 					for (int bond=0; bond<refMol.getBonds(); bond++)
-						if (bondMask[1][bond])
+						if (bondMask[0][bond])
 							for (int i=0; i<2; i++)
 								isMatchingAtom[refMol.getBondAtom(i, bond)] = true;
 
@@ -293,10 +309,10 @@ public class DECompoundTableModel extends CompoundTableModel {
 					// add all mcs atom to match refMol atom indices to destination mol atom indices
 					for (int atom=0; atom<refMol.getAtoms(); atom++)
 						if (isMatchingAtom[atom])
-	//	do something appropriate	molAtom[refMatch[atom]] = molMatch[atom];
+	// do something appropriate, e.g. use getMappedMatchListFrag2Mol()		molAtom[refMatch[atom]] = molMatch[atom];
 
 					for (int bond=0; bond<refMol.getBonds(); bond++) {
-						if (!bondMask[1][bond]) {
+						if (!bondMask[0][bond]) {
 							int destBond = refMol.copyBond(mol, bond, 0, 0, molAtom, true);	// TODO correct ESR pre- and post-processing
 							mol.setBondForegroundHiliting(destBond, true);
 						}
@@ -310,7 +326,7 @@ public class DECompoundTableModel extends CompoundTableModel {
 			else {	// hilite all MCS atoms in mol
 				boolean[] isMatchingAtom = new boolean[mol.getAtoms()];
 				for (int bond=0; bond<mol.getBonds(); bond++)
-					if (bondMask[0][bond])
+					if (bondMask[1][bond])
 						for (int i=0; i<2; i++)
 							isMatchingAtom[mol.getBondAtom(i, bond)] = true;
 				for (int atom=0; atom<mol.getAtoms(); atom++)
@@ -389,6 +405,19 @@ public class DECompoundTableModel extends CompoundTableModel {
 				}
 			}
     	}
+
+	private void colorizeReactionCenterAtoms(Reaction rxn) {
+		boolean[] usedMapNos = rxn.getReactionCenterMapNos();
+		if (usedMapNos != null) {
+			for (int m=0; m<rxn.getMolecules(); m++) {
+				StereoMolecule mol = rxn.getMolecule(m);
+				boolean[] isRC = new boolean[mol.getAllAtoms()];
+				rxn.getReactionCenterAtoms(m, usedMapNos, isRC, null);
+				for (int atom=0; atom<mol.getAllAtoms(); atom++)
+					mol.setAtomColor(atom, isRC[atom] ? Molecule.cAtomColorRed : Molecule.cAtomColorNone);
+				}
+			}
+		}
 
 	private void removeFromList(int exclusionFlag) {
 		for (String key:mColorInfoMap.keySet()) {

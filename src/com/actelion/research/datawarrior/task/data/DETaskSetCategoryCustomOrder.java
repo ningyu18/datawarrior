@@ -21,8 +21,8 @@ package com.actelion.research.datawarrior.task.data;
 import com.actelion.research.chem.IDCodeParser;
 import com.actelion.research.chem.SortedStringList;
 import com.actelion.research.chem.StereoMolecule;
-import com.actelion.research.chem.io.CompoundTableConstants;
 import com.actelion.research.datawarrior.DEFrame;
+import com.actelion.research.gui.ScrollPaneAutoScrollerWhenDragging;
 import com.actelion.research.datawarrior.task.ConfigurableTask;
 import com.actelion.research.datawarrior.task.view.ListTransferHandler;
 import com.actelion.research.gui.CompoundCollectionModel;
@@ -38,11 +38,14 @@ import javax.swing.*;
 import javax.swing.event.ListDataEvent;
 import javax.swing.event.ListDataListener;
 import java.awt.*;
+import java.awt.dnd.DropTargetAdapter;
+import java.awt.dnd.DropTargetDragEvent;
+import java.awt.dnd.DropTargetDropEvent;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.util.Arrays;
-import java.util.Comparator;
 import java.util.Properties;
+import java.util.TooManyListenersException;
 
 public class DETaskSetCategoryCustomOrder extends ConfigurableTask implements ActionListener {
 	public static final String TASK_NAME = "Set Category Custom Order";
@@ -59,15 +62,16 @@ public class DETaskSetCategoryCustomOrder extends ConfigurableTask implements Ac
 	private static final int cSortModeMin = 2;
 	private static final int cSortModeMax = 3;
 	private static final int cSortModeSum = 4;
+	private static final int cSortModeAlpha = 5;
 
-	public static final String[] SORT_MODE_NAME = { "by row count", "by mean of", "by lowest of", "by highest of", "by sum of" };
-	public static final String[] SORT_MODE_CODE = { "size", "mean", "min", "max", "sum" };
+	public static final String[] SORT_MODE_NAME = { "by row count", "by mean of", "by lowest of", "by highest of", "by sum of", "alphabetically by" };
+	public static final String[] SORT_MODE_CODE = { "size", "mean", "min", "max", "sum", "alpha" };
 
 	public static final String[] SORT_ORDER_NAME = { "in ascending order", "in descending order" };
 
 	private JComboBox			mComboBoxColumn,mComboBoxSortMode,mComboBoxSortOrder,mComboBoxSortColumn;
 	private CompoundTableModel  mTableModel;
-	private JRadioButton		mRadioButton,mRadioButtonIsStructure,mRadioButtonSort;
+	private JCheckBox			mCheckBoxUseCustomOrder, mCheckBoxIsStructure,mCheckBoxSort;
 	private JList				mList;
 	private JPanel				mDialogPanel;
 	private JScrollPane			mScrollPane;
@@ -100,9 +104,11 @@ public class DETaskSetCategoryCustomOrder extends ConfigurableTask implements Ac
 	@Override
 	public JComponent createDialogContent() {
 		mDialogPanel = new JPanel();
-		double[][] size = { {8, TableLayout.PREFERRED, 4, TableLayout.PREFERRED, 8},
-							{8, TableLayout.PREFERRED, 16, TableLayout.PREFERRED, 16, TableLayout.PREFERRED,
-							 8, TableLayout.PREFERRED, 4, TableLayout.PREFERRED, 12, TableLayout.PREFERRED, 4, TableLayout.PREFERRED, 8} };
+		int gap = HiDPIHelper.scale(8);
+		double[][] size = { {gap, TableLayout.PREFERRED, gap/2, TableLayout.PREFERRED, gap},
+							{gap, TableLayout.PREFERRED, 2*gap, TableLayout.PREFERRED, 2*gap, TableLayout.PREFERRED,
+							 gap, TableLayout.PREFERRED, gap/2, TableLayout.PREFERRED, 3*gap/2, TableLayout.PREFERRED,
+							 gap/2, TableLayout.PREFERRED, gap} };
 		mDialogPanel.setLayout(new TableLayout(size));
 
 		if (mDefaultColumn == -1) {
@@ -116,9 +122,9 @@ public class DETaskSetCategoryCustomOrder extends ConfigurableTask implements Ac
 			mDialogPanel.add(mComboBoxColumn, "3,1");
 			}
 
-		mRadioButton = new JRadioButton("Use custom order");
-		mRadioButton.addActionListener(this);
-		mDialogPanel.add(mRadioButton, "1,3,3,3");
+		mCheckBoxUseCustomOrder = new JCheckBox("Use custom order");
+		mCheckBoxUseCustomOrder.addActionListener(this);
+		mDialogPanel.add(mCheckBoxUseCustomOrder, "1,3,3,3");
 
 		mDialogPanel.add(new JLabel("Define order of category items:"), "1,5,3,5");
 
@@ -131,6 +137,7 @@ public class DETaskSetCategoryCustomOrder extends ConfigurableTask implements Ac
 			mList.setDropMode(DropMode.INSERT);
 			mList.setTransferHandler(new ListTransferHandler());
 			mList.setDragEnabled(true);
+			mList.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, mList.getFont().getSize()));
 			mList.getModel().addListDataListener(new ListDataListener() {
 				@Override
 				public void intervalAdded(ListDataEvent e) {
@@ -155,6 +162,21 @@ public class DETaskSetCategoryCustomOrder extends ConfigurableTask implements Ac
 			int height = Math.max(3*scaled80, Math.min(8*scaled80, (1 + mTableModel.getCategoryCount(mDefaultColumn))
 						* ((mTableModel.getColumnSpecialType(mDefaultColumn) == null) ? scaled80/4 : scaled80)));
 			mScrollPane.setPreferredSize(new Dimension(3*scaled80, height));
+
+			// Hack to fix an issue with Swing's auto scrolling when dragging in a scroll pane
+			ScrollPaneAutoScrollerWhenDragging scroller = new ScrollPaneAutoScrollerWhenDragging(mScrollPane, true);
+			try {
+				mList.getDropTarget().addDropTargetListener(new DropTargetAdapter() {
+					@Override
+					public void dragOver(DropTargetDragEvent dtde) {
+						scroller.autoScroll();
+					}
+
+					@Override
+					public void drop(DropTargetDropEvent dtde) {}
+					});
+				}
+			catch (TooManyListenersException tmle) {}
 			}
 		else {
 			mTextArea = new JTextArea();
@@ -166,9 +188,9 @@ public class DETaskSetCategoryCustomOrder extends ConfigurableTask implements Ac
 		mDialogPanel.add(mScrollPane, "1,7,3,7");
 
 		if (mDefaultColumn == -1) {
-			mRadioButtonIsStructure = new JRadioButton("Column contains chemical structures");
-			mRadioButtonIsStructure.addActionListener(this);
-			mDialogPanel.add(mRadioButtonIsStructure, "1,9,3,9");
+			mCheckBoxIsStructure = new JCheckBox("Column contains chemical structures");
+			mCheckBoxIsStructure.addActionListener(this);
+			mDialogPanel.add(mCheckBoxIsStructure, "1,9,3,9");
 			}
 
 		if (mDefaultColumn != -1) {
@@ -177,9 +199,9 @@ public class DETaskSetCategoryCustomOrder extends ConfigurableTask implements Ac
 			mDialogPanel.add(mButtonSort, "1,11");
 			}
 		else {
-			mRadioButtonSort = new JRadioButton("Sort Categories");
-			mRadioButtonSort.addActionListener(this);
-			mDialogPanel.add(mRadioButtonSort, "1,11");
+			mCheckBoxSort = new JCheckBox("Sort Categories");
+			mCheckBoxSort.addActionListener(this);
+			mDialogPanel.add(mCheckBoxSort, "1,11");
 			}
 		mComboBoxSortOrder = new JComboBox(SORT_ORDER_NAME);
 		mDialogPanel.add(mComboBoxSortOrder, "3,11");
@@ -190,7 +212,7 @@ public class DETaskSetCategoryCustomOrder extends ConfigurableTask implements Ac
 
 		mComboBoxSortColumn = new JComboBox();
 		for (int column=0; column<mTableModel.getTotalColumnCount(); column++)
-			if (columnQualifiesAsSortColumn(mTableModel, column))
+			if (columnQualifiesAsSortColumn(mTableModel, column, 0))
 				mComboBoxSortColumn.addItem(mTableModel.getColumnTitle(column));
 		mComboBoxSortColumn.addActionListener(this);
 		mComboBoxSortColumn.setEditable(mDefaultColumn == -1);
@@ -205,9 +227,12 @@ public class DETaskSetCategoryCustomOrder extends ConfigurableTask implements Ac
 			&& !tableModel.isColumnTypeRangeCategory(column);
 		}
 
-	private boolean columnQualifiesAsSortColumn(CompoundTableModel tableModel, int column) {
-		return tableModel.isColumnTypeDouble(column)
-			&&  tableModel.getMaximumValue(column) != tableModel.getMinimumValue(column);
+	private boolean columnQualifiesAsSortColumn(CompoundTableModel tableModel, int column, int mode) {
+		if (mode == cSortModeAlpha)
+			return tableModel.getColumnSpecialType(column) == null;
+		else
+			return tableModel.isColumnTypeDouble(column)
+			   &&  tableModel.getMaximumValue(column) != tableModel.getMinimumValue(column);
 		}
 
 	@Override
@@ -215,14 +240,14 @@ public class DETaskSetCategoryCustomOrder extends ConfigurableTask implements Ac
 		Properties configuration = new Properties();
 
 		boolean isStructure = (mDefaultColumn != -1) ?
-				CompoundTableConstants.cColumnTypeIDCode.equals(mTableModel.getColumnSpecialType(mDefaultColumn))
-					: mRadioButtonIsStructure.isSelected();
+				mTableModel.isColumnTypeStructure(mDefaultColumn)
+					: mCheckBoxIsStructure.isSelected();
 		configuration.setProperty(PROPERTY_IS_STRUCTURE, isStructure ? "true":"false");
 
 		String columnName = (mDefaultColumn == -1) ? (String)mComboBoxColumn.getSelectedItem()
 							: mTableModel.getColumnTitleNoAlias(mDefaultColumn);
 		configuration.setProperty(PROPERTY_COLUMN, columnName);
-		if (mRadioButton.isSelected()) {
+		if (mCheckBoxUseCustomOrder.isSelected()) {
 			if (mDefaultColumn != -1) {
 				if (mActiveSortMode != -1) {
 					configuration.setProperty(PROPERTY_SORT_MODE, SORT_MODE_CODE[mActiveSortMode]);
@@ -238,14 +263,14 @@ public class DETaskSetCategoryCustomOrder extends ConfigurableTask implements Ac
 					}
 				}
 			else {
-				if (mRadioButtonSort.isSelected()) {
+				if (mCheckBoxSort.isSelected()) {
 					configuration.setProperty(PROPERTY_SORT_IS_ASCENDING, mComboBoxSortOrder.getSelectedIndex()==0?"true":"false");
 					configuration.setProperty(PROPERTY_SORT_MODE, SORT_MODE_CODE[mComboBoxSortMode.getSelectedIndex()]);
 					if (mComboBoxSortMode.getSelectedIndex() != cSortModeSize)
 						configuration.setProperty(PROPERTY_SORT_COLUMN, (String)mComboBoxSortColumn.getSelectedItem());
 					}
 				else {
-					if (mRadioButtonIsStructure.isSelected()) {
+					if (mCheckBoxIsStructure.isSelected()) {
 						CompoundCollectionModel<String> model = mStructurePane.getModel();
 						if (model.getSize() != 0) {
 							StringBuilder sb = new StringBuilder();
@@ -274,27 +299,27 @@ public class DETaskSetCategoryCustomOrder extends ConfigurableTask implements Ac
 			else
 				mComboBoxColumn.setSelectedItem(mTableModel.getColumnTitle(column));
 
-			mRadioButtonIsStructure.setSelected("true".equals(configuration.getProperty(PROPERTY_IS_STRUCTURE)));
+			mCheckBoxIsStructure.setSelected("true".equals(configuration.getProperty(PROPERTY_IS_STRUCTURE)));
 
 			int sortMode = findListIndex(configuration.getProperty(PROPERTY_SORT_MODE), SORT_MODE_CODE, -1);
 			if (sortMode == -1) {
 				String itemString = configuration.getProperty(PROPERTY_LIST, "");
-				mRadioButton.setSelected(itemString.length() != 0);
+				mCheckBoxUseCustomOrder.setSelected(itemString.length() != 0);
 				mTextArea.setText(itemString.replace('\t', '\n'));
 				if ("true".equals(configuration.getProperty(PROPERTY_IS_STRUCTURE)))
-					updateMacroListEditor(true);
+					updateCategoryList(true);
 				}
 			else {
 				mTextArea.setText("");
-				mRadioButton.setSelected(true);
-				mRadioButtonSort.setSelected(true);
+				mCheckBoxUseCustomOrder.setSelected(true);
+				mCheckBoxSort.setSelected(true);
 				mComboBoxSortMode.setSelectedIndex(sortMode);
 				mComboBoxSortColumn.setSelectedItem(configuration.getProperty(PROPERTY_SORT_COLUMN, ""));
 				}
 			}
 		else {
 			boolean isCustomOrder = (mTableModel.getCategoryCustomOrder(mDefaultColumn) != null);
-			mRadioButton.setSelected(isCustomOrder);
+			mCheckBoxUseCustomOrder.setSelected(isCustomOrder);
 			updateList(null, false);
 			}
 
@@ -308,7 +333,7 @@ public class DETaskSetCategoryCustomOrder extends ConfigurableTask implements Ac
 				mComboBoxColumn.setSelectedIndex(0);
 			}
 
-		mRadioButton.setSelected(false);
+		mCheckBoxUseCustomOrder.setSelected(false);
 		updateList(null, false);
 		enableItems();
 		}
@@ -331,7 +356,7 @@ public class DETaskSetCategoryCustomOrder extends ConfigurableTask implements Ac
 			}
 		}
 
-	private void updateMacroListEditor(boolean isStructure) {
+	private void updateCategoryList(boolean isStructure) {
 		if (mIsStructure != isStructure) {
 			mIsStructure = isStructure;
 			if (isStructure) {
@@ -342,12 +367,13 @@ public class DETaskSetCategoryCustomOrder extends ConfigurableTask implements Ac
 					mStructurePane = new CompoundCollectionPane<String>(collectionModel, true);
 					mStructurePane.setSelectable(true);
 					mStructurePane.setEditable(true);
+					mStructurePane.setInternalDragAndDropIsMove(true);
 					mStructurePane.setClipboardHandler(new ClipboardHandler());
 					mStructurePane.setShowValidationError(true);
 					mStructurePane.setStructureSize(scaled80);
 					mStructurePane.setPreferredSize(new Dimension(3*scaled80,
 							Math.max(3*scaled80, Math.min(8*scaled80, scaled80 * idcodeList.length))));
-					mStructurePane.setEnabled(mRadioButton.isSelected() && !mRadioButtonSort.isSelected());
+					mStructurePane.setEnabled(mCheckBoxUseCustomOrder.isSelected() && !mCheckBoxSort.isSelected());
 					}
 				mStructurePane.getModel().clear();
 				StereoMolecule mol = new StereoMolecule();
@@ -379,6 +405,19 @@ public class DETaskSetCategoryCustomOrder extends ConfigurableTask implements Ac
 				getDialog().pack();
 				mScrollPane.repaint();
 				}
+			}
+		}
+
+	private void updateSortColumnMenu(int sortMode) {
+		String selectedItem = (String)mComboBoxSortColumn.getSelectedItem();
+		mComboBoxSortColumn.removeAllItems();
+		for (int column=0; column<mTableModel.getTotalColumnCount(); column++)
+			if (columnQualifiesAsSortColumn(mTableModel, column, sortMode))
+				mComboBoxSortColumn.addItem(mTableModel.getColumnTitle(column));
+		if (mComboBoxSortColumn.getItemCount() != 0) {
+			mComboBoxSortColumn.setSelectedIndex(0);	// default
+			if (selectedItem != null)
+				mComboBoxSortColumn.setSelectedItem(selectedItem);
 			}
 		}
 
@@ -489,8 +528,12 @@ public class DETaskSetCategoryCustomOrder extends ConfigurableTask implements Ac
 					showErrorMessage("Column '"+sortColumnName+"' not found.");
 					return false;
 					}
-				if (!columnQualifiesAsSortColumn(mTableModel, sortColumn)) {
-					showErrorMessage("Column '"+sortColumnName+"' does not contain numerical values.");
+				int sortMode = findListIndex(configuration.getProperty(PROPERTY_SORT_MODE, ""), SORT_MODE_CODE, 0);
+				if (!columnQualifiesAsSortColumn(mTableModel, sortColumn, sortMode)) {
+					if (sortMode == cSortModeAlpha)
+						showErrorMessage("Column '"+sortColumnName+"' does not contain alpha-numerical values.");
+					else
+						showErrorMessage("Column '"+sortColumnName+"' does not contain numerical values.");
 					return false;
 					}
 				}
@@ -503,16 +546,22 @@ public class DETaskSetCategoryCustomOrder extends ConfigurableTask implements Ac
 		if (e.getSource() == mComboBoxColumn) {
 			updateList(null, false);
 			}
-		else if (e.getSource() == mRadioButton || e.getSource() == mComboBoxSortMode) {
-			if (!mRadioButton.isSelected() && mDefaultColumn != -1)
+		else if (e.getSource() == mCheckBoxUseCustomOrder) {
+			if (!mCheckBoxUseCustomOrder.isSelected() && mDefaultColumn != -1)
 				updateList(mTableModel.getCategoryList(mDefaultColumn), true);
 			enableItems();
 			}
-		else if (e.getSource() == mRadioButtonSort) {
+		else if (e.getSource() == mComboBoxSortMode) {
+			updateSortColumnMenu(mComboBoxSortMode.getSelectedIndex());
+			if (!mCheckBoxUseCustomOrder.isSelected() && mDefaultColumn != -1)
+				updateList(mTableModel.getCategoryList(mDefaultColumn), true);
 			enableItems();
 			}
-		else if (e.getSource() == mRadioButtonIsStructure) {
-			updateMacroListEditor(mRadioButtonIsStructure.isSelected());
+		else if (e.getSource() == mCheckBoxSort) {
+			enableItems();
+			}
+		else if (e.getSource() == mCheckBoxIsStructure) {
+			updateCategoryList(mCheckBoxIsStructure.isSelected());
 			}
 		else if (e.getSource() == mButtonSort) {
 			mActiveSortMode = mComboBoxSortMode.getSelectedIndex();
@@ -526,20 +575,20 @@ public class DETaskSetCategoryCustomOrder extends ConfigurableTask implements Ac
 		}
 
 	private void enableItems() {
-		boolean enabled = mRadioButton.isSelected();
+		boolean enabled = mCheckBoxUseCustomOrder.isSelected();
 		if (mDefaultColumn != -1) {
 			mList.setEnabled(enabled);
 			mButtonSort.setEnabled(enabled);
 			}
 		else {
-			boolean listIsEnabled = enabled && !mRadioButtonSort.isSelected();
-			mRadioButtonIsStructure.setEnabled(listIsEnabled);
+			boolean listIsEnabled = enabled && !mCheckBoxSort.isSelected();
+			mCheckBoxIsStructure.setEnabled(listIsEnabled);
 			if (mStructurePane != null)
 				mStructurePane.setEnabled(listIsEnabled);
 			mTextArea.setEnabled(listIsEnabled);
-			mRadioButtonSort.setEnabled(enabled);
+			mCheckBoxSort.setEnabled(enabled);
 			}
-		boolean sortIsEnabled = enabled && (mRadioButtonSort == null || mRadioButtonSort.isSelected());
+		boolean sortIsEnabled = enabled && (mCheckBoxSort == null || mCheckBoxSort.isSelected());
 		mComboBoxSortOrder.setEnabled(sortIsEnabled);
 		mComboBoxSortMode.setEnabled(sortIsEnabled);
 		mComboBoxSortColumn.setEnabled(sortIsEnabled && mComboBoxSortMode.getSelectedIndex() != cSortModeSize);
@@ -554,7 +603,7 @@ public class DETaskSetCategoryCustomOrder extends ConfigurableTask implements Ac
 
 			// TODO use attached id-coordinates in List and configuration
 			// in case of idcodes get rid of potentially attached coordinates
-			if (CompoundTableConstants.cColumnTypeIDCode.equals(mTableModel.getColumnSpecialType(column))) {
+			if (mTableModel.isColumnTypeStructure(column)) {
 				for (int i=0; i<category.length; i++) {
 					int index = category[i].indexOf(' ');
 					if (index != -1)
@@ -589,7 +638,16 @@ public class DETaskSetCategoryCustomOrder extends ConfigurableTask implements Ac
 		for (int row=0; row<mTableModel.getTotalRowCount(); row++) {
 			int cat = mTableModel.getCategoryIndex(column, mTableModel.getTotalRecord(row));
 			if (cat < categoryCount) {	// exclude rows belonging to multiple categories
-				if (sortMode == cSortModeSize) {
+				if (sortMode == cSortModeAlpha) {
+					String[] entry = mTableModel.separateEntries(mTableModel.getTotalValueAt(row, sortColumn));
+					for (String e:entry) {
+						if (category[cat].alpha.length() == 0
+						 || (isAscending && category[cat].alpha.compareTo(e) > 0)
+						 || (!isAscending && category[cat].alpha.compareTo(e) < 0))
+							category[cat].alpha = e;
+						}
+					}
+				else if (sortMode == cSortModeSize) {
 					category[cat].value++;
 					}
 				else {
@@ -615,7 +673,7 @@ public class DETaskSetCategoryCustomOrder extends ConfigurableTask implements Ac
 					}
 				}
 			}
-		if (sortMode == cSortModeSize) {
+		if (sortMode == cSortModeSize || sortMode == cSortModeAlpha) {
 			for (int cat=0; cat<category.length; cat++)
 				category[cat].count = 1;	// to not put empty categories at the end of the sorted list
 			}
@@ -625,15 +683,15 @@ public class DETaskSetCategoryCustomOrder extends ConfigurableTask implements Ac
 					category[cat].value /= category[cat].count;
 			}
 
-		Arrays.sort(category, new Comparator<CategoryToSort>() {
-			@Override
-			public int compare(CategoryToSort c1, CategoryToSort c2) {
-				if (c1.count == 0)
-					return (c2.count == 0) ? 0 : 1;
-				if (c2.count == 0)
-					return -1;
+		Arrays.sort(category, (c1, c2) -> {
+			if (c1.count == 0)
+				return (c2.count == 0) ? 0 : 1;
+			if (c2.count == 0)
+				return -1;
+			if (sortMode == cSortModeAlpha)
+				return (c1.alpha.equals(c2.alpha)) ? 0 : (isAscending ^ (c1.alpha.compareTo(c2.alpha)) > 0) ? -1 : 1;
+			else
 				return (c1.value == c2.value) ? 0 : (isAscending ^ (c1.value > c2.value)) ? -1 : 1;
-				}
 			});
 
 		String[] name = new String[category.length];
@@ -646,10 +704,12 @@ public class DETaskSetCategoryCustomOrder extends ConfigurableTask implements Ac
 	private class CategoryToSort {
 		int count;
 		String name;
+		String alpha;
 		float value;
 
 		private CategoryToSort(String name) {
 			this.name = name;
+			this.alpha = "";
 			}
 		}
 

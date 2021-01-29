@@ -18,14 +18,12 @@
 
 package com.actelion.research.datawarrior.task.chem;
 
-import java.util.Properties;
-
 import com.actelion.research.chem.IsomericSmilesCreator;
 import com.actelion.research.chem.StereoMolecule;
 import com.actelion.research.datawarrior.DEFrame;
 
 
-public class DETaskAddSmiles extends DETaskAbstractAddChemProperty implements Runnable {
+public class DETaskAddSmiles extends DETaskAbstractFromStructure implements Runnable {
 	public static final String TASK_NAME = "Add Smiles Codes";
 
 	public DETaskAddSmiles(DEFrame parent) {
@@ -35,6 +33,11 @@ public class DETaskAddSmiles extends DETaskAbstractAddChemProperty implements Ru
 	@Override
 	public String getTaskName() {
 		return TASK_NAME;
+		}
+
+	@Override
+	public String getHelpURL() {
+		return "/html/help/chemistry.html#AddSmiles";
 		}
 
 	@Override

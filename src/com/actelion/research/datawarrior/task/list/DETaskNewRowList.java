@@ -18,10 +18,12 @@
 
 package com.actelion.research.datawarrior.task.list;
 
+import com.actelion.research.gui.hidpi.HiDPIHelper;
+import com.actelion.research.table.model.CompoundRecord;
 import com.actelion.research.table.model.CompoundTableListHandler;
 import info.clearthought.layout.TableLayout;
 
-import java.awt.Toolkit;
+import java.awt.*;
 import java.awt.datatransfer.Clipboard;
 import java.awt.datatransfer.DataFlavor;
 import java.awt.datatransfer.Transferable;
@@ -29,16 +31,9 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.io.BufferedReader;
 import java.io.StringReader;
-import java.util.ArrayList;
-import java.util.Properties;
-import java.util.TreeSet;
+import java.util.*;
 
-import javax.swing.JCheckBox;
-import javax.swing.JComboBox;
-import javax.swing.JComponent;
-import javax.swing.JLabel;
-import javax.swing.JPanel;
-import javax.swing.JTextField;
+import javax.swing.*;
 
 import com.actelion.research.datawarrior.DEFrame;
 import com.actelion.research.datawarrior.task.ConfigurableTask;
@@ -54,22 +49,30 @@ public class DETaskNewRowList extends ConfigurableTask implements ActionListener
 	public static final int MODE_EMPTY = 3;
 	public static final int MODE_ALL = 4;
 	public static final int MODE_CLIPBOARD = 5;
+	public static final int MODE_DUPLICATE = 6;	// this mode and beyond require selected columns as criteria
+	public static final int MODE_UNIQUE = 7;
+	public static final int MODE_DISTINCT = 8;
 
 	private static final String PROPERTY_ID_COLUMN = "idColumn";
 	private static final String PROPERTY_EXTENSION_COLUMN = "extensionColumn";
 	private static final String PROPERTY_MODE = "mode";
 	private static final String PROPERTY_HITLIST_NAME = "listName";
+	private static final String PROPERTY_COLUMN_LIST = "columnList";
+	private static final String PROPERTY_CASE_SENSITIVE = "caseSensitive";
 
 	private static final String DEFAULT_LIST_NAME = "Unnamed Rowlist";
 
-	private static final String[] MODE_TEXT = { "selected rows", "visible rows", "hidden rows", "no rows", "all rows", "IDs in clipboard" };
-	private static final String[] MODE_CODE = { "selected", "visible", "hidden", "empty", "all", "clipboard" };
+	private static final String[] MODE_TEXT = { "selected rows", "visible rows", "hidden rows", "no rows", "all rows", "IDs in clipboard", "duplicate rows", "unique rows", "distinct rows" };
+	private static final String[] MODE_CODE = { "selected", "visible", "hidden", "empty", "all", "clipboard", "duplicate", "unique", "distinct" };
 
 	private CompoundTableModel	mTableModel;
+	private JPanel				mDialogPanel,mActiveOptionPanel,mClipboardPanel, mColumnSelectionPanel;
 	private JTextField			mTextFieldHitlistName;
-	private JCheckBox			mCheckBoxExtendList;
+	private JCheckBox			mCheckBoxExtendList,mCheckBoxCaseSensitive;
 	private JComboBox			mComboBoxExtentionColumn,mComboBoxMode,mComboBoxIDColumn;
 	private int					mFixedMode,mSuggestedIDColumn;
+	private JList				mListColumns;
+	private JTextArea			mTextArea;
 
 	/**
 	 * The fixedMode parameter may be used to predefine the configuration's mode setting.
@@ -88,9 +91,30 @@ public class DETaskNewRowList extends ConfigurableTask implements ActionListener
 		if (e.getSource() == mComboBoxMode) {
 			mCheckBoxExtendList.setEnabled(mComboBoxMode.getSelectedIndex() != MODE_EMPTY && mComboBoxMode.getSelectedIndex() != MODE_ALL);
 			mComboBoxExtentionColumn.setEnabled(mCheckBoxExtendList.isEnabled() && mCheckBoxExtendList.isSelected());
-			mComboBoxIDColumn.setEnabled(mComboBoxMode.getSelectedIndex() == MODE_CLIPBOARD);
+
+			int mode = mComboBoxMode.getSelectedIndex();
+
+			mCheckBoxCaseSensitive.setEnabled(mode >= MODE_CLIPBOARD);
+
+			JPanel optionPanel = (mode == MODE_CLIPBOARD) ? mClipboardPanel
+					: (mode >= MODE_DUPLICATE) ? mColumnSelectionPanel : null;
+
+			if (mActiveOptionPanel == optionPanel)
+				return;
+
+			if (mActiveOptionPanel != null)
+				mDialogPanel.remove(mActiveOptionPanel);
+
+			if (optionPanel != null)
+				mDialogPanel.add(optionPanel, "1,5,3,5");
+
+			mActiveOptionPanel = optionPanel;
+
+			getDialog().pack();
+
 			return;
 			}
+
 		if (e.getSource() == mCheckBoxExtendList) {
 			mComboBoxExtentionColumn.setEnabled(mCheckBoxExtendList.isSelected());
 			return;
@@ -100,7 +124,7 @@ public class DETaskNewRowList extends ConfigurableTask implements ActionListener
 	@Override
 	public boolean isConfigurable() {
 		if (mTableModel.getTotalRowCount() == 0) {
-			showErrorMessage("No rows found");
+			showErrorMessage("You cannot create a row list without any data.");
 			return false;
 			}
 		if (mTableModel.getUnusedRowFlagCount() == 0) {
@@ -116,40 +140,51 @@ public class DETaskNewRowList extends ConfigurableTask implements ActionListener
 		}
 
 	@Override
-	public JComponent createDialogContent() {
-		JPanel sp = new JPanel();
-		double[][] size = { {8, TableLayout.PREFERRED, 8, TableLayout.PREFERRED, 8},
-							{8, TableLayout.PREFERRED, 8, TableLayout.PREFERRED, 8,
-								TableLayout.PREFERRED, 16, TableLayout.PREFERRED, 4, TableLayout.PREFERRED, 8} };
-		sp.setLayout(new TableLayout(size));
+	public String getHelpURL() {
+		return "/html/help/lists.html#Creation";
+		}
 
-		sp.add(new JLabel("Row list name:"), "1,1");
+	@Override
+	public JComponent createDialogContent() {
+		int gap = HiDPIHelper.scale(8);
+		mDialogPanel = new JPanel();
+		double[][] size = { {gap, TableLayout.PREFERRED, gap, TableLayout.PREFERRED, gap},
+							{gap, TableLayout.PREFERRED, gap, TableLayout.PREFERRED, 2*gap, TableLayout.PREFERRED, gap,
+									TableLayout.PREFERRED, 2*gap, TableLayout.PREFERRED, gap/2, TableLayout.PREFERRED, gap} };
+		mDialogPanel.setLayout(new TableLayout(size));
+
+		mDialogPanel.add(new JLabel("Row list name:"), "1,1");
 		mTextFieldHitlistName = new JTextField(16);
-		sp.add(mTextFieldHitlistName, "3,1");
+		mDialogPanel.add(mTextFieldHitlistName, "3,1");
 
 		if (mFixedMode == -1) {
-			sp.add(new JLabel("Create row list from:"), "1,3");
+			mDialogPanel.add(new JLabel("Create row list from:"), "1,3");
 			mComboBoxMode = new JComboBox(MODE_TEXT);
 			mComboBoxMode.addActionListener(this);
-			sp.add(mComboBoxMode, "3,3");
+			mDialogPanel.add(mComboBoxMode, "3,3");
+
+			mClipboardPanel = createClipboardPanel();
+			mColumnSelectionPanel = createColumnSelectionPanel();
+			}
+		else if (mFixedMode == MODE_CLIPBOARD) {
+			mClipboardPanel = createClipboardPanel();
+			mDialogPanel.add(mClipboardPanel, "1,5,3,5");
+			}
+		else if (mFixedMode >= MODE_DUPLICATE) {
+			mColumnSelectionPanel = createColumnSelectionPanel();
+			mDialogPanel.add(mColumnSelectionPanel, "1,5,3,5");
 			}
 
-		if (mFixedMode == -1 || mFixedMode == MODE_CLIPBOARD) {
-			sp.add(new JLabel("Column containing IDs:"), "1,5");
-			ArrayList<String> idColumnList = new ArrayList<String>();
-			for (int column=0; column<mTableModel.getTotalColumnCount(); column++)
-				if (qualifiesAsIDColumn(column))
-					idColumnList.add(mTableModel.getColumnTitle(column));
-			mComboBoxIDColumn = new JComboBox(idColumnList.toArray(new String[0]));
-			mComboBoxIDColumn.setEditable(mFixedMode == -1);
-			sp.add(mComboBoxIDColumn, "3,5");
+		if (mFixedMode == -1 || mFixedMode >= MODE_CLIPBOARD) {
+			mCheckBoxCaseSensitive = new JCheckBox("Case sensitive");
+			mDialogPanel.add(mCheckBoxCaseSensitive, "1,7");
 			}
 
 		mCheckBoxExtendList = new JCheckBox("Extend list to all rows of same category", false);
 		mCheckBoxExtendList.addActionListener(this);
-		sp.add(mCheckBoxExtendList, "1,7,3,7");
+		mDialogPanel.add(mCheckBoxExtendList, "1,9,3,9");
 
-		sp.add(new JLabel("Category column:", JLabel.RIGHT), "1,9");
+		mDialogPanel.add(new JLabel("Category column:", JLabel.RIGHT), "1,11");
 		ArrayList<String> categoryColumnList = new ArrayList<String>();
 		for (int column=0; column<mTableModel.getTotalColumnCount(); column++)
 			if (mTableModel.isColumnTypeCategory(column))
@@ -157,9 +192,57 @@ public class DETaskNewRowList extends ConfigurableTask implements ActionListener
 		mComboBoxExtentionColumn = new JComboBox(categoryColumnList.toArray(new String[0]));
 		mComboBoxExtentionColumn.setEnabled(false);
 		mComboBoxExtentionColumn.setEditable(mFixedMode == -1);
-		sp.add(mComboBoxExtentionColumn, "3,9");
+		mDialogPanel.add(mComboBoxExtentionColumn, "3,11");
 
-		return sp;
+		return mDialogPanel;
+		}
+
+	private JPanel createClipboardPanel() {
+		double[][] size = { {TableLayout.PREFERRED, HiDPIHelper.scale(8), TableLayout.PREFERRED}, {TableLayout.PREFERRED}};
+		JPanel p = new JPanel();
+		p.setLayout(new TableLayout(size));
+		p.add(new JLabel("Column containing IDs:"), "0,0");
+		ArrayList<String> idColumnList = new ArrayList<String>();
+		for (int column=0; column<mTableModel.getTotalColumnCount(); column++)
+			if (qualifiesAsIDColumn(column))
+				idColumnList.add(mTableModel.getColumnTitle(column));
+		mComboBoxIDColumn = new JComboBox(idColumnList.toArray(new String[0]));
+		mComboBoxIDColumn.setEditable(mFixedMode == -1);
+		p.add(mComboBoxIDColumn, "2,0");
+		return p;
+		}
+
+	private JPanel createColumnSelectionPanel() {
+		int gap = HiDPIHelper.scale(8);
+		double[][] size = { {TableLayout.PREFERRED},
+				{TableLayout.PREFERRED, gap/2, TableLayout.PREFERRED, gap, TableLayout.PREFERRED} };
+		JPanel p = new JPanel();
+		p.setLayout(new TableLayout(size));
+
+		p.add(new JLabel("Select column(s) to consider for equivalence check!", SwingConstants.CENTER), "0,0");
+		p.add(new JLabel("(use <CTRL> for multiple selections)", SwingConstants.CENTER), "0,2");
+
+		ArrayList<String> columnNameList = new ArrayList<String>();
+		for (int column=0; column<mTableModel.getTotalColumnCount(); column++) {
+			String specialType = mTableModel.getColumnSpecialType(column);
+			if (specialType == null
+					|| specialType.equals(CompoundTableModel.cColumnTypeIDCode)
+					|| specialType.equals(CompoundTableModel.cColumnTypeRXNCode))
+				columnNameList.add(mTableModel.getColumnTitle(column));
+			}
+		JScrollPane scrollPane = null;
+		if (isInteractive()) {
+			mListColumns = new JList(columnNameList.toArray());
+			scrollPane = new JScrollPane(mListColumns);
+			}
+		else {
+			mTextArea = new JTextArea();
+			scrollPane = new JScrollPane(mTextArea);
+			}
+		scrollPane.setPreferredSize(new Dimension(220,160));
+		p.add(scrollPane, "0,4");
+
+		return p;
 		}
 
 	@Override
@@ -174,6 +257,18 @@ public class DETaskNewRowList extends ConfigurableTask implements ActionListener
 		if (mCheckBoxExtendList.isSelected())
 			configuration.setProperty(PROPERTY_EXTENSION_COLUMN, mTableModel.getColumnTitleNoAlias(
 					(String)mComboBoxExtentionColumn.getSelectedItem()));
+
+		if (mode >= MODE_CLIPBOARD)
+			configuration.setProperty(PROPERTY_CASE_SENSITIVE, mCheckBoxCaseSensitive.isSelected() ? "true" : "false");
+
+		if (mode >= MODE_DUPLICATE) {
+			String columnNames = isInteractive() ?
+					getSelectedColumnsFromList(mListColumns, mTableModel)
+					: mTextArea.getText().replace('\n', '\t');
+			if (columnNames != null && columnNames.length() != 0)
+				configuration.setProperty(PROPERTY_COLUMN_LIST, columnNames);
+			}
+
 		return configuration;
 		}
 
@@ -209,6 +304,17 @@ public class DETaskNewRowList extends ConfigurableTask implements ActionListener
 				}
 			}
 
+		if (mFixedMode == -1 || mFixedMode >= MODE_CLIPBOARD)
+			mCheckBoxCaseSensitive.setSelected("true".equals(configuration.getProperty(PROPERTY_CASE_SENSITIVE, "true")));
+
+		if (mFixedMode == -1 || mFixedMode >= MODE_DUPLICATE) {
+			String columnNames = configuration.getProperty(PROPERTY_COLUMN_LIST, "");
+			if (isInteractive())
+				selectColumnsInList(mListColumns, columnNames, mTableModel);
+			else
+				mTextArea.setText(columnNames.replace('\t', '\n'));
+			}
+
 		if (mComboBoxIDColumn != null) {
 			String idColumn = configuration.getProperty(PROPERTY_ID_COLUMN, "");
 			if (idColumn.length() != 0) {
@@ -228,12 +334,22 @@ public class DETaskNewRowList extends ConfigurableTask implements ActionListener
 		if (mFixedMode == -1)
 			mComboBoxMode.setSelectedIndex(MODE_SELECTED);
 		mTextFieldHitlistName.setText((mFixedMode == -1) ? DEFAULT_LIST_NAME : MODE_TEXT[mFixedMode]);
-		if (mComboBoxIDColumn != null) {
-			if (mFixedMode != -1)
-				selectSuggestedItemOfComboBoxIDColumn();
-			else if (mComboBoxIDColumn.getItemCount() != 0)
-				mComboBoxIDColumn.setSelectedIndex(0);
+
+		if (mFixedMode == -1 || mFixedMode >= MODE_DUPLICATE) {
+			if (isInteractive())
+				mListColumns.clearSelection();
+			else
+				mTextArea.setText("");
 			}
+
+		if (mCheckBoxCaseSensitive != null)
+			mCheckBoxCaseSensitive.setSelected(true);
+
+		if (mFixedMode == MODE_CLIPBOARD)
+			selectSuggestedItemOfComboBoxIDColumn();
+		else if (mFixedMode == -1 && mComboBoxIDColumn.getItemCount() != 0)
+			mComboBoxIDColumn.setSelectedIndex(0);
+
 		mCheckBoxExtendList.setSelected(false);
 		mComboBoxExtentionColumn.setEnabled(false);
 		}
@@ -245,6 +361,39 @@ public class DETaskNewRowList extends ConfigurableTask implements ActionListener
 			return false;
 			}
 
+		int mode = findListIndex(configuration.getProperty(PROPERTY_MODE), MODE_CODE, -1);
+		if (mode == -1) {
+			showErrorMessage("No mode specified.");
+			return false;
+			}
+
+
+		if (mode >= MODE_DUPLICATE) {
+			String columnList = configuration.getProperty(PROPERTY_COLUMN_LIST);
+			if (columnList == null) {
+				showErrorMessage("Columns for uniqueness not defined.");
+				return false;
+				}
+
+			if (isLive) {
+				String[] columnName = columnList.split("\\t");
+				int[] column = new int[columnName.length];
+				for (int i=0; i<columnName.length; i++) {
+					column[i] = mTableModel.findColumn(columnName[i]);
+					if (column[i] == -1) {
+						showErrorMessage("Column '"+columnName[i]+"' not found.");
+						return false;
+						}
+					}
+				for (int i=0; i<column.length; i++) {
+					if (!columnQualifiesForUniqueness(column[i])) {
+						showErrorMessage("Column '"+columnName[i]+"' cannot be used for a redundency check.");
+						return false;
+						}
+					}
+				}
+			}
+
 		if (isLive) {
 			String columnName = configuration.getProperty(PROPERTY_EXTENSION_COLUMN);
 			if (columnName != null) {
@@ -254,8 +403,8 @@ public class DETaskNewRowList extends ConfigurableTask implements ActionListener
 					}
 				}
 
-			if (MODE_CODE[MODE_CLIPBOARD].equals(configuration.getProperty(PROPERTY_MODE))) {
-				TreeSet<String> keySet = analyzeClipboard();
+			if (mode == MODE_CLIPBOARD) {
+				TreeSet<String> keySet = analyzeClipboard(true);
 				if (keySet == null) {
 					showErrorMessage("The clipboard is empty.");
 					return false;
@@ -272,6 +421,13 @@ public class DETaskNewRowList extends ConfigurableTask implements ActionListener
 		return true;
 		}
 
+	private boolean columnQualifiesForUniqueness(int column) {
+		String specialType = mTableModel.getColumnSpecialType(column);
+		return (specialType == null
+				|| specialType.equals(CompoundTableModel.cColumnTypeIDCode)
+				|| specialType.equals(CompoundTableModel.cColumnTypeRXNCode));
+		}
+
 	private void selectSuggestedItemOfComboBoxIDColumn() {
 		int column = suggestIDColumn();
 		if (column != -1)
@@ -279,7 +435,9 @@ public class DETaskNewRowList extends ConfigurableTask implements ActionListener
 		}
 
 	private boolean qualifiesAsIDColumn(int column) {
-		return mTableModel.isColumnTypeString(column) && mTableModel.getColumnSpecialType(column) == null;
+		return mTableModel.getColumnSpecialType(column) == null;
+// no reason to exclude numerical columns, TLS 25-Apr-2019
+//		return mTableModel.isColumnTypeString(column) && mTableModel.getColumnSpecialType(column) == null;
 		}
 
 	/**
@@ -288,7 +446,7 @@ public class DETaskNewRowList extends ConfigurableTask implements ActionListener
 	 */
 	private int suggestIDColumn() {
 		if (mSuggestedIDColumn == -1) {
-			TreeSet<String> keySet = analyzeClipboard();
+			TreeSet<String> keySet = analyzeClipboard(true);
 			if (keySet != null) {
 				int maxMatchCount = 0;
 				for (int column=0; column<mTableModel.getTotalColumnCount(); column++) {
@@ -322,7 +480,7 @@ public class DETaskNewRowList extends ConfigurableTask implements ActionListener
 	 * Analyzes the clipboard content and sets mKeySet, mListName, mKeyColumn
 	 * @return set of unique IDs found in clipboard or null, if clipboard is empty
 	 */
-	private TreeSet<String> analyzeClipboard() {
+	private TreeSet<String> analyzeClipboard(boolean caseSensitive) {
 		TreeSet<String> keySet = null;
 
 		Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
@@ -335,6 +493,8 @@ public class DETaskNewRowList extends ConfigurableTask implements ActionListener
 			keySet = new TreeSet<String>();
 			String key = theReader.readLine();
 			while (key != null) {
+				if (!caseSensitive)
+					key.toLowerCase();
 				keySet.add(key);
 				key = theReader.readLine();
 				}
@@ -354,19 +514,70 @@ public class DETaskNewRowList extends ConfigurableTask implements ActionListener
 						: (mode == MODE_VISIBLE)	? CompoundTableListHandler.FROM_VISIBLE
 						: (mode == MODE_HIDDEN)		? CompoundTableListHandler.FROM_HIDDEN
 						: (mode == MODE_CLIPBOARD)	? CompoundTableListHandler.FROM_KEY_SET
+						: (mode == MODE_DUPLICATE)	? CompoundTableListHandler.EMPTY_LIST
+						: (mode == MODE_UNIQUE)		? CompoundTableListHandler.EMPTY_LIST
+						: (mode == MODE_DISTINCT)	? CompoundTableListHandler.EMPTY_LIST
 						: (mode == MODE_EMPTY)		? CompoundTableListHandler.EMPTY_LIST
 						:							  CompoundTableListHandler.ALL_IN_LIST;
 						
 		String name = configuration.getProperty(PROPERTY_HITLIST_NAME);
 		int extensionColumn = mTableModel.findColumn(configuration.getProperty(PROPERTY_EXTENSION_COLUMN));
 
-		TreeSet<String> keySet = analyzeClipboard();
-		int keyColumn = mTableModel.findColumn(configuration.getProperty(PROPERTY_ID_COLUMN));
-		if (keyColumn == -1)
-			keyColumn = suggestIDColumn();
+		boolean caseSensitive = "true".equals(configuration.getProperty(PROPERTY_CASE_SENSITIVE, "true"));
 
-		if (mTableModel.getListHandler().createList(name, extensionColumn, hitlistMode, keyColumn, keySet) == null)
+		TreeSet<String> keySet = null;
+		int keyColumn = -1;
+		if (mode == MODE_CLIPBOARD) {
+			keySet = analyzeClipboard(caseSensitive);
+			keyColumn = mTableModel.findColumn(configuration.getProperty(PROPERTY_ID_COLUMN));
+			if (keyColumn == -1)
+				keyColumn = suggestIDColumn();
+			}
+
+		name = mTableModel.getListHandler().createList(name, extensionColumn, hitlistMode, keyColumn, keySet, !caseSensitive);
+		if (name == null)
 			showErrorMessage("The maximum number of filters/lists is reached.");
+		else if (mode >= MODE_DUPLICATE)
+			setHitlistFlags(configuration, mode, name, caseSensitive);
+		}
+
+	private void setHitlistFlags(Properties configuration, int mode, String listName, boolean caseSensitive) {
+		String[] columnName = configuration.getProperty(PROPERTY_COLUMN_LIST).split("\\t");
+		int[] columnList = new int[columnName.length];
+		for (int i=0; i<columnList.length; i++)
+			columnList[i] = mTableModel.findColumn(columnName[i]);
+
+		CompoundRecord[] record = new CompoundRecord[mTableModel.getTotalRowCount()];
+		for (int row=0; row<mTableModel.getTotalRowCount(); row++)
+			record[row] = mTableModel.getTotalRecord(row);
+
+		RedundancyComparator comparator = new RedundancyComparator(mTableModel, columnList, caseSensitive);
+
+		Arrays.sort(record, comparator);
+
+		CompoundTableListHandler listHandler = mTableModel.getListHandler();
+		int hitlistFlagNo = listHandler.getListFlagNo(listName);
+
+		if (mode == MODE_UNIQUE) {
+			boolean isFirstInSet = true;
+			for (int row=0; row<record.length; row++) {
+				boolean isLastInSet = (row + 1 == record.length || comparator.compare(record[row], record[row + 1]) != 0);
+				if (isFirstInSet && isLastInSet)
+					listHandler.addRecordSilent(record[row], hitlistFlagNo);
+				isFirstInSet = isLastInSet;
+				}
+			}
+		else if (mode == MODE_DUPLICATE) {
+			for (int row=1; row<record.length; row++)
+				if (comparator.compare(record[row - 1], record[row]) == 0)
+					listHandler.addRecordSilent(record[row], hitlistFlagNo);
+			}
+		else if (mode == MODE_DISTINCT) {
+			listHandler.addRecordSilent(record[0], hitlistFlagNo);
+			for (int row=1; row<record.length; row++)
+				if (comparator.compare(record[row - 1], record[row]) != 0)
+					listHandler.addRecordSilent(record[row], hitlistFlagNo);
+			}
 		}
 
 	@Override
@@ -374,3 +585,37 @@ public class DETaskNewRowList extends ConfigurableTask implements ActionListener
 		return null;
 		}
 	}
+
+class RedundancyComparator implements Comparator<CompoundRecord> {
+	private CompoundTableModel mTableModel;
+	private int[] mColumnList;
+	private boolean[] mIsCaseSensitive;
+
+	public RedundancyComparator(CompoundTableModel tableModel, int[] columnList, boolean caseSensitive) {
+		mTableModel = tableModel;
+		mColumnList = columnList;
+		mIsCaseSensitive = new boolean[columnList.length];
+		for (int i=0; i<columnList.length; i++)
+			mIsCaseSensitive[i] = caseSensitive || mTableModel.getColumnSpecialType(columnList[i]) != null;
+	}
+
+	public int compare(CompoundRecord o1, CompoundRecord o2) {
+		int comparison = 0;
+		for (int i=0; i<mColumnList.length; i++) {
+			String s1 = mTableModel.getValue(o1, mColumnList[i]);
+			String s2 = mTableModel.getValue(o2, mColumnList[i]);
+			if (!mIsCaseSensitive[i]) {
+				if (s1 != null)
+					s1 = s1.toLowerCase();
+				if (s2 != null)
+					s2 = s2.toLowerCase();
+				}
+			comparison = (s1 == null) ? ((s2 == null) ? 0 : 1)
+					: (s2 == null) ? -1
+					: s1.compareTo(s2);
+			if (comparison != 0)
+				return comparison;
+		}
+		return comparison;
+	}
+}

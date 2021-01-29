@@ -18,21 +18,17 @@
 
 package com.actelion.research.datawarrior.task.view;
 
-import info.clearthought.layout.TableLayout;
-
-import java.awt.Frame;
-import java.util.Properties;
-
-import javax.swing.JComboBox;
-import javax.swing.JComponent;
-import javax.swing.JLabel;
-import javax.swing.JPanel;
-
 import com.actelion.research.datawarrior.DEMainPane;
 import com.actelion.research.datawarrior.task.ConfigurableTask;
+import com.actelion.research.gui.hidpi.HiDPIHelper;
 import com.actelion.research.table.view.CompoundTableView;
 import com.actelion.research.table.view.JVisualization;
 import com.actelion.research.table.view.VisualizationPanel;
+import info.clearthought.layout.TableLayout;
+
+import javax.swing.*;
+import java.awt.*;
+import java.util.Properties;
 
 
 public class DETaskSetPreferredChartType extends DETaskAbstractSetViewOptions {
@@ -65,10 +61,11 @@ public class DETaskSetPreferredChartType extends DETaskAbstractSetViewOptions {
 		}
 
 	@Override
-	public JComponent createInnerDialogContent() {
+	public JComponent createViewOptionContent() {
 		JPanel p1 = new JPanel();
-		double[][] size = { {8, TableLayout.PREFERRED, 8, TableLayout.PREFERRED, 8, TableLayout.PREFERRED, 8, TableLayout.PREFERRED, 8},
-							{8, TableLayout.PREFERRED, 8, TableLayout.PREFERRED, 8} };
+		int gap = HiDPIHelper.scale(8);
+		double[][] size = { {gap, TableLayout.PREFERRED, gap, TableLayout.PREFERRED, gap, TableLayout.PREFERRED, gap, TableLayout.PREFERRED, gap},
+							{gap, TableLayout.PREFERRED, gap, TableLayout.PREFERRED, gap} };
 		p1.setLayout(new TableLayout(size));
 
 		p1.add(new JLabel("Preferred Chart Type:"), "1,1");
@@ -143,14 +140,15 @@ public class DETaskSetPreferredChartType extends DETaskAbstractSetViewOptions {
 		}
 
 	@Override
-	public void addViewConfiguration(Properties configuration) {
-		int type = getInteractiveVisualization().getPreferredChartType();
+	public void addViewConfiguration(CompoundTableView view, Properties configuration) {
+		JVisualization visualization = ((VisualizationPanel)view).getVisualization();
+		int type = visualization.getPreferredChartType();
 		configuration.setProperty(PROPERTY_TYPE, JVisualization.CHART_TYPE_CODE[type]);
 		if (type == JVisualization.cChartTypeBars || type == JVisualization.cChartTypePies) {
-			int mode = getInteractiveVisualization().getPreferredChartMode();
+			int mode = visualization.getPreferredChartMode();
 			configuration.setProperty(PROPERTY_MODE, JVisualization.CHART_MODE_CODE[mode]);
 			if (mode != JVisualization.cChartModeCount && mode != JVisualization.cChartModePercent)
-				configuration.setProperty(PROPERTY_COLUMN, ""+getTableModel().getColumnTitleNoAlias(getInteractiveVisualization().getPreferredChartColumn()));
+				configuration.setProperty(PROPERTY_COLUMN, ""+getTableModel().getColumnTitleNoAlias(visualization.getPreferredChartColumn()));
 			}
 		}
 
@@ -195,15 +193,17 @@ public class DETaskSetPreferredChartType extends DETaskAbstractSetViewOptions {
 
 	@Override
 	public void applyConfiguration(CompoundTableView view, Properties configuration, boolean isAdjusting) {
-		JVisualization visualization = ((VisualizationPanel)view).getVisualization();
-		int type = findListIndex(configuration.getProperty(PROPERTY_TYPE), JVisualization.CHART_TYPE_CODE, JVisualization.cChartTypeScatterPlot);
-		int mode = JVisualization.cChartModeCount;
-		int column = -1;
-		if (type == JVisualization.cChartTypeBars || type == JVisualization.cChartTypePies) {
-			mode = findListIndex(configuration.getProperty(PROPERTY_MODE), JVisualization.CHART_MODE_CODE, JVisualization.cChartModeCount);
-			if (mode != JVisualization.cChartModeCount && mode != JVisualization.cChartModePercent)
-				column = getTableModel().findColumn(configuration.getProperty(PROPERTY_COLUMN));
+		if (view instanceof VisualizationPanel) {
+			JVisualization visualization = ((VisualizationPanel)view).getVisualization();
+			int type = findListIndex(configuration.getProperty(PROPERTY_TYPE), JVisualization.CHART_TYPE_CODE, JVisualization.cChartTypeScatterPlot);
+			int mode = JVisualization.cChartModeCount;
+			int column = -1;
+			if (type == JVisualization.cChartTypeBars || type == JVisualization.cChartTypePies) {
+				mode = findListIndex(configuration.getProperty(PROPERTY_MODE), JVisualization.CHART_MODE_CODE, JVisualization.cChartModeCount);
+				if (mode != JVisualization.cChartModeCount && mode != JVisualization.cChartModePercent)
+					column = getTableModel().findColumn(configuration.getProperty(PROPERTY_COLUMN));
+				}
+			visualization.setPreferredChartType(type, mode, column);
 			}
-		visualization.setPreferredChartType(type, mode, column);
 		}
 	}

@@ -18,23 +18,17 @@
 
 package com.actelion.research.datawarrior.task.filter;
 
-import com.actelion.research.datawarrior.task.DEMacroRecorder;
-import info.clearthought.layout.TableLayout;
-
-import java.awt.Frame;
-import java.util.Properties;
-
-import javax.swing.JComboBox;
-import javax.swing.JComponent;
-import javax.swing.JLabel;
-import javax.swing.JPanel;
-import javax.swing.JTextField;
-
 import com.actelion.research.datawarrior.DEFrame;
 import com.actelion.research.datawarrior.DEPruningPanel;
 import com.actelion.research.datawarrior.task.ConfigurableTask;
-import com.actelion.research.table.model.CompoundTableModel;
+import com.actelion.research.datawarrior.task.DEMacroRecorder;
 import com.actelion.research.table.filter.JFilterPanel;
+import com.actelion.research.table.model.CompoundTableModel;
+import info.clearthought.layout.TableLayout;
+
+import javax.swing.*;
+import java.awt.*;
+import java.util.Properties;
 
 /**
  * This class handles the redundancies that all classes operating on a view have:<br>
@@ -45,6 +39,7 @@ public abstract class DEAbstractFilterTask extends ConfigurableTask {
 	protected static final String PROPERTY_DUPLICATE = "duplicate";
 	private static final String PROPERTY_COLUMN = "column";
 	private static final String PROPERTY_SETTINGS = "settings";
+	private static final String PROPERTY_ANIMATION = "animation";
 
 	private JComboBox			mComboBox;
 	private JTextField			mTextFieldIndex;
@@ -141,6 +136,9 @@ public abstract class DEAbstractFilterTask extends ConfigurableTask {
 		String filterSettings = mFilter.getSettings();
 		if (filterSettings != null)
 			configuration.setProperty(PROPERTY_SETTINGS, filterSettings);
+		String animation = mFilter.getAnimationSettings();
+		if (animation != null)
+			configuration.setProperty(PROPERTY_ANIMATION, animation);
 		return configuration;
 		}
 
@@ -162,6 +160,9 @@ public abstract class DEAbstractFilterTask extends ConfigurableTask {
 		String filterSettings = mFilter.getSettings();
 		if (filterSettings != null)
 			configuration.setProperty(PROPERTY_SETTINGS, filterSettings);
+		String animation = mFilter.getAnimationSettings();
+		if (animation != null)
+			configuration.setProperty(PROPERTY_ANIMATION, animation);
 		return configuration;
 		}
 
@@ -176,6 +177,9 @@ public abstract class DEAbstractFilterTask extends ConfigurableTask {
 			}
 		mTextFieldIndex.setText(configuration.getProperty(PROPERTY_DUPLICATE, "1"));
 		mFilter.applySettings(configuration.getProperty(PROPERTY_SETTINGS), false);
+		String animation = configuration.getProperty(PROPERTY_ANIMATION);
+		if (animation != null)
+			mFilter.applyAnimationSettings(animation);
 		}
 
 	@Override
@@ -280,6 +284,9 @@ public abstract class DEAbstractFilterTask extends ConfigurableTask {
 			boolean suppressMessages = DEMacroRecorder.getInstance().isRunningMacro()
 			&& (DEMacroRecorder.getInstance().getMessageMode() == DEMacroRecorder.MESSAGE_MODE_SKIP_ERRORS);
 			filter.applySettings(settings, suppressMessages);
+			String animation = configuration.getProperty(PROPERTY_ANIMATION);
+			if (animation != null)
+				filter.applyAnimationSettings(animation);
 			}
 		}
 

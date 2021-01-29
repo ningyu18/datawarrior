@@ -22,6 +22,7 @@ import com.actelion.research.datawarrior.DEFrame;
 import com.actelion.research.datawarrior.DataWarrior;
 import com.actelion.research.datawarrior.task.ConfigurableTask;
 import com.actelion.research.gui.FileHelper;
+import com.actelion.research.gui.hidpi.HiDPIHelper;
 import info.clearthought.layout.TableLayout;
 
 import javax.swing.*;
@@ -46,19 +47,6 @@ public abstract class DETaskAbstractOpenFile extends ConfigurableTask implements
 	private volatile File	mFile;
 
 	/**
-	 * If the given path starts with a valid variable name, then this
-	 * is replaced by the corresponding path on the current system and all file separators
-	 * are converted to the correct ones for the current platform.
-	 * Valid variable names are $HOME, $TEMP, $PARENT or resource file names.
-	 * @param path possibly starting with variable, e.g. "$EXAMPLE/drugs.dwar"
-	 * @return untouched path or path with resolved variable, e.g. "/opt/datawarrior/example/drugs.dwar"
-	 */
-	@Override
-	public String resolvePathVariables(String path) {
-		return DataWarrior.resolvePathVariables(path);
-		}
-
-	/**
 	 * Creates an open-file task which only shows a configuration dialog, if the task
 	 * is not invoked interactively. Otherwise a file chooser is shown to directly select
 	 * the file to be opened.
@@ -71,7 +59,6 @@ public abstract class DETaskAbstractOpenFile extends ConfigurableTask implements
 		// All tasks that use CompoundTableLoader need to run in an own thread if they run in a macro
 		// to prevent the CompoundTableLoader to run processData() in a new thread without waiting
 		// in the EDT
-//		super(parent, !isInteractive);	// non-interactive tasks use own thread
 		mApplication = application;
 		mDialogTitle = dialogTitle;
 		mAllowedFileTypes = allowedFileTypes;
@@ -135,13 +122,15 @@ public abstract class DETaskAbstractOpenFile extends ConfigurableTask implements
 
 	@Override
 	public JPanel createDialogContent() {
-		double[][] size = { {8, TableLayout.PREFERRED, 4, TableLayout.PREFERRED, TableLayout.FILL, TableLayout.PREFERRED, 8},
-							{8, TableLayout.PREFERRED, 8, TableLayout.PREFERRED, 16, TableLayout.PREFERRED } };
+		int gap = HiDPIHelper.scale(8);
+		double[][] size = { {gap, TableLayout.PREFERRED, gap/2, TableLayout.PREFERRED, TableLayout.FILL, TableLayout.PREFERRED, gap},
+							{gap, TableLayout.PREFERRED, gap, TableLayout.PREFERRED, 2*gap, TableLayout.PREFERRED } };
 
 		JPanel content = new JPanel();
 		content.setLayout(new TableLayout(size));
 
 		mFilePathLabel = new JFilePathLabel(!isInteractive());
+		mFilePathLabel.setListener(this);
 		content.add(new JLabel("File:"), "1,1");
 		content.add(mFilePathLabel, "3,1");
 
@@ -240,6 +229,9 @@ public abstract class DETaskAbstractOpenFile extends ConfigurableTask implements
 				}
 			enableItems();
 			return;
+			}
+		if (e.getSource() == mFilePathLabel) {
+			enableItems();
 			}
 		if (!isInteractive() && e.getSource() == mCheckBoxChooseDuringMacro) {
 			enableItems();

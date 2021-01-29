@@ -25,14 +25,16 @@ public interface TaskConstantsELib {
 	public static final String[] GENERATION_OPTIONS = {GENERATIONS_AUTOMATIC, "10", "25", "50", "75", "100", "150", "200", "300", "400", GENERATIONS_UNLIMITED };
 
 	public static final String DEFAULT_COMPOUNDS = "128";
-	public static final String[] COMPOUND_OPTIONS = {"8", "16", "32", "64", DEFAULT_COMPOUNDS, "256", "512", "1024", "2048", "4096"};
+	public static final String[] COMPOUND_OPTIONS = {"8", "16", "32", "64", "128", "256", "512", "1024", "2048", "4096"};
 
 	public static final String DEFAULT_SURVIVALS = "8";
-	public static final String[] SURVIVAL_OPTIONS = {"1", "2", "4", DEFAULT_SURVIVALS, "16", "32"};
+	public static final String[] SURVIVAL_OPTIONS = {"1", "2", "4", "8", "16", "32", "64", "128", "256"};
 
 	public static final String[] COMPOUND_KIND_TEXT = {"Approved drugs", "Natural products"};
 	public static final String[] COMPOUND_KIND_CODE = {"drugs", "naturalProducts"};
-	public static final String[] COMPOUND_KIND_FILE = {"chembl14drugs.typ", "naturalProducts.typ"};
+	public static final String[] COMPOUND_KIND_FILE = {"drugbank_nosugar.typ", "derep.typ"};
+	public static final int COMPOUND_KIND_DRUGS = 0;
+	public static final int COMPOUND_KIND_NATURAL_PRODUCTS = 1;
 
     public static final String PROPERTY_START_SET = "startSet";
     public static final String PROPERTY_SURVIVAL_COUNT = "survivalCount";

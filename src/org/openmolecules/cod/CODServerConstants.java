@@ -19,12 +19,6 @@
 package org.openmolecules.cod;
 
 public interface CODServerConstants {
-// The SERVER_URL is only used by the client
-//	public static final String SERVER_URL = "http://localhost:8086";
-	public static final String SERVER_URL = "http://cod.openmolecules.org";
-//	public static final String SERVER_URL = "http://chbsuc-cloud02.it.actelion.com:8086";
-//	public static final String SERVER_URL = "http://chalus-smicro2.it.actelion.com:8086";
-
 	public static final int RESULT_STRUCTURE_COLUMNS = 4;
 	public static final int RESULT_COLUMN_IDCODE = 0;
 	public static final int RESULT_COLUMN_COORDS2D = 1;

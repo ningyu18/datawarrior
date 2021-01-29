@@ -30,5 +30,5 @@ public interface FocusableView extends CompoundTableView {
 	 * 
 	 * @param no a valid hitlist number,cFocusOnSelection or cHitlistUnassigned
 	 */
-	public void setFocusHitlist(int no);
+	public void setFocusList(int no);
 	}

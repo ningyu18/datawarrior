@@ -18,21 +18,16 @@
 
 package com.actelion.research.datawarrior.task.view;
 
-import java.awt.Dimension;
-import java.awt.Frame;
-import java.util.Properties;
-
-import javax.swing.JComponent;
-import javax.swing.JLabel;
-import javax.swing.JPanel;
-import javax.swing.JSlider;
-
 import com.actelion.research.datawarrior.DEMainPane;
 import com.actelion.research.gui.hidpi.HiDPIHelper;
 import com.actelion.research.table.view.CompoundTableView;
 import com.actelion.research.table.view.JVisualization2D;
 import com.actelion.research.table.view.VisualizationPanel;
 import com.actelion.research.table.view.VisualizationPanel2D;
+
+import javax.swing.*;
+import java.awt.*;
+import java.util.Properties;
 
 
 public class DETaskSetMarkerTransparency extends DETaskAbstractSetViewOptions {
@@ -62,7 +57,12 @@ public class DETaskSetMarkerTransparency extends DETaskAbstractSetViewOptions {
 		}
 
 	@Override
-	public JComponent createInnerDialogContent() {
+	public OTHER_VIEWS getOtherViewMode() {
+		return OTHER_VIEWS.GRAPHICAL2D;
+		}
+
+	@Override
+	public JComponent createViewOptionContent() {
 		JPanel sp = new JPanel();
 		mSlider = new JSlider(JSlider.HORIZONTAL, 0, 100, 0);
 		mSlider.setPreferredSize(new Dimension(HiDPIHelper.scale(100), mSlider.getPreferredSize().height));
@@ -96,8 +96,9 @@ public class DETaskSetMarkerTransparency extends DETaskAbstractSetViewOptions {
 		}
 
 	@Override
-	public void addViewConfiguration(Properties configuration) {
-		configuration.setProperty(PROPERTY_TRANSPARENCY, ""+((JVisualization2D) getInteractiveVisualization()).getMarkerTransparency());
+	public void addViewConfiguration(CompoundTableView view, Properties configuration) {
+		JVisualization2D visualization = (JVisualization2D)((VisualizationPanel)view).getVisualization();
+		configuration.setProperty(PROPERTY_TRANSPARENCY, ""+visualization.getMarkerTransparency());
 		}
 
 	@Override
@@ -111,12 +112,14 @@ public class DETaskSetMarkerTransparency extends DETaskAbstractSetViewOptions {
 
 	@Override
 	public void applyConfiguration(CompoundTableView view, Properties configuration, boolean isAdjusting) {
-		JVisualization2D visualization = (JVisualization2D)((VisualizationPanel)view).getVisualization();
-		float transparency = 0f;
-		try {
-			transparency = Float.parseFloat(configuration.getProperty(PROPERTY_TRANSPARENCY, "0"));
-			visualization.setMarkerTransparency(transparency);
+		if (view instanceof VisualizationPanel2D) {
+			JVisualization2D visualization = (JVisualization2D)((VisualizationPanel)view).getVisualization();
+			float transparency = 0f;
+			try {
+				transparency = Float.parseFloat(configuration.getProperty(PROPERTY_TRANSPARENCY, "0"));
+				visualization.setMarkerTransparency(transparency);
+				}
+			catch (NumberFormatException nfe) {}
 			}
-		catch (NumberFormatException nfe) {}
 		}
 	}

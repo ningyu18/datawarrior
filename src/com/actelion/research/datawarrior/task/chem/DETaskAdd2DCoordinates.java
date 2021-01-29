@@ -22,7 +22,6 @@ import com.actelion.research.chem.*;
 import com.actelion.research.chem.coords.CoordinateInventor;
 import com.actelion.research.chem.coords.InventorTemplate;
 import com.actelion.research.chem.descriptor.DescriptorConstants;
-import com.actelion.research.chem.descriptor.DescriptorHandlerFFP512;
 import com.actelion.research.chem.io.CompoundTableConstants;
 import com.actelion.research.datawarrior.DEFrame;
 import com.actelion.research.gui.CompoundCollectionModel;
@@ -41,7 +40,7 @@ import java.util.Properties;
 import java.util.TreeMap;
 
 
-public class DETaskAdd2DCoordinates extends DETaskAbstractAddChemProperty implements ActionListener,Runnable {
+public class DETaskAdd2DCoordinates extends DETaskAbstractFromStructure implements ActionListener,Runnable {
 	public static final String TASK_NAME = "Generate 2D-Atom-Coordinates";
 
 	private static final String PROPERTY_SCAFFOLD_LIST = "scaffolds";
@@ -208,19 +207,19 @@ public class DETaskAdd2DCoordinates extends DETaskAbstractAddChemProperty implem
 				CompoundTableModel.cColumnType2DCoordinates);
 		getTableModel().setColumnProperty(firstNewColumn,
 				CompoundTableModel.cColumnPropertyParentColumn,
-				getTableModel().getColumnTitleNoAlias(getStructureColumn()));
+				getTableModel().getColumnTitleNoAlias(getChemistryColumn()));
 		}
 
 	@Override
 	protected String getNewColumnName(int column) {
-		return "2D-"+getTableModel().getColumnTitle(getStructureColumn());
+		return "2D-"+getTableModel().getColumnTitle(getChemistryColumn());
 		}
 
 	@Override
 	protected boolean preprocessRows(Properties configuration) {
 		mIDCodeErrors = 0;
 
-		int idcodeColumn = getStructureColumn();
+		int idcodeColumn = getChemistryColumn();
 		mCoordinateColumn = getTableModel().getChildColumn(idcodeColumn, CompoundTableConstants.cColumnType2DCoordinates);
 
 		String scaffolds = configuration.getProperty(PROPERTY_SCAFFOLD_LIST, "");
@@ -230,7 +229,7 @@ public class DETaskAdd2DCoordinates extends DETaskAbstractAddChemProperty implem
 			String[] idcodeList = scaffolds.split("\\t");
 			for (int i=0; i<idcodeList.length; i++) {
 				StereoMolecule scaffold = new IDCodeParser().getCompactMolecule(idcodeList[i]);
-				int[] ffp = ffpCreator.createIndex(scaffold);
+				long[] ffp = ffpCreator.createLongIndex(scaffold);
 				mExplicitScaffoldList.add(new InventorTemplate(scaffold, ffp));
 				}
 			}
@@ -262,7 +261,7 @@ public class DETaskAdd2DCoordinates extends DETaskAbstractAddChemProperty implem
 		}
 
 	@Override
-	public void processRow(int row, int firstNewColumn, StereoMolecule containerMol) throws Exception {
+	public void processRow(int row, int firstNewColumn, StereoMolecule containerMol) {
 		int coordinateColumn = (mCoordinateColumn != -1) ? mCoordinateColumn : firstNewColumn;
 		StereoMolecule mol = getChemicalStructure(row, containerMol);
 		if (mol != null && mol.getAllAtoms() != 0) {
@@ -285,7 +284,7 @@ public class DETaskAdd2DCoordinates extends DETaskAbstractAddChemProperty implem
 					}
 				else {
 					SSSearcherWithIndex searcher = new SSSearcherWithIndex();
-					searcher.setMolecule(mol, (int[])getTableModel().getTotalRecord(row).getData(mFFPColumn));
+					searcher.setMolecule(mol, (long[])getTableModel().getTotalRecord(row).getData(mFFPColumn));
 					for (InventorTemplate s:mExplicitScaffoldList) {
 						searcher.setFragment(s.getFragment(), s.getFFP());
 						if (searcher.findFragmentInMolecule(SSSearcher.cCountModeFirstMatch, SSSearcher.cDefaultMatchMode) != 0) {
@@ -299,7 +298,6 @@ public class DETaskAdd2DCoordinates extends DETaskAbstractAddChemProperty implem
 					CoordinateInventor inventor = new CoordinateInventor();
 					inventor.setCustomTemplateList(mExplicitScaffoldList);
 					inventor.invent(mol);
-					mol.setStereoBondsFromParity();
 
 					if (mScaffoldAtoms != null) {
 						mScaffoldColorBuilder.setLength(0);
@@ -373,24 +371,24 @@ public class DETaskAdd2DCoordinates extends DETaskAbstractAddChemProperty implem
 			if (!found) {
 				mol.ensureHelperArrays(Molecule.cHelperParities);
 				new CoordinateInventor().invent(mol);
-				mol.setStereoBondsFromParity();
+//				mol.setStereoBondsFromParity(); not needed anymore
 				}
 
 			Canonizer canonizer = new Canonizer(mol);
-			if (!canonizer.getIDCode().equals(getTableModel().getTotalValueAt(row, getStructureColumn()))) {
-				boolean idcodesDiffer = !freshIDCode.equals(getTableModel().getTotalValueAt(row, getStructureColumn()));
+			if (!canonizer.getIDCode().equals(getTableModel().getTotalValueAt(row, getChemistryColumn()))) {
+				boolean idcodesDiffer = !freshIDCode.equals(getTableModel().getTotalValueAt(row, getChemistryColumn()));
 				if (!idcodesDiffer)
 					mIDCodeErrors++;
 
 				if (System.getProperty("development") != null) {
 					if (idcodesDiffer) {
 						System.out.println("ERROR: idcodes before 2D-coordinate generation differ!!!");
-						System.out.println(" file: " + getTableModel().getTotalValueAt(row, getStructureColumn()));
+						System.out.println(" file: " + getTableModel().getTotalValueAt(row, getChemistryColumn()));
 						System.out.println("fresh: " + freshIDCode);
 						}
 					else {
 						System.out.println("WARNING: idcodes after 2D-coordinate generation differ!!!");
-						System.out.println("old: " + getTableModel().getTotalValueAt(row, getStructureColumn()));
+						System.out.println("old: " + getTableModel().getTotalValueAt(row, getChemistryColumn()));
 						System.out.println("new: " + canonizer.getIDCode());
 						}
 					}
@@ -412,7 +410,7 @@ public class DETaskAdd2DCoordinates extends DETaskAbstractAddChemProperty implem
 			mol.setAtomMarker(scaffoldAtomToAtom[atom], true);
 			}
 		new CoordinateInventor(CoordinateInventor.MODE_PREFER_MARKED_ATOM_COORDS).invent(mol);
-		mol.setStereoBondsFromParity();
+//		mol.setStereoBondsFromParity(); not needed anymore
 
 		if (mScaffoldAtoms != null) {
 			mScaffoldColorBuilder.setLength(0);
@@ -437,7 +435,7 @@ public class DETaskAdd2DCoordinates extends DETaskAbstractAddChemProperty implem
 			getTableModel().setColumnProperty(colorColumn, CompoundTableConstants.cColumnPropertySpecialType,
 					CompoundTableConstants.cColumnTypeAtomColorInfo);
 			getTableModel().setColumnProperty(colorColumn, CompoundTableConstants.cColumnPropertyParentColumn,
-					getTableModel().getColumnTitleNoAlias(getStructureColumn()));
+					getTableModel().getColumnTitleNoAlias(getChemistryColumn()));
 			for (int row=0; row<getTableModel().getTotalRowCount(); row++)
 				getTableModel().setTotalDataAt(mScaffoldAtoms[row], row, colorColumn);
 			getTableModel().finalizeNewColumns(colorColumn, this);

@@ -21,15 +21,16 @@ package com.actelion.research.datawarrior;
 import com.actelion.research.gui.form.AbstractFormObject;
 import com.actelion.research.gui.form.FormObjectFactory;
 import com.actelion.research.gui.form.JFormDesigner;
-import com.actelion.research.gui.form.JStructure3DFormObject;
 import com.actelion.research.gui.hidpi.JBrowseButtons;
-import com.actelion.research.table.*;
+import com.actelion.research.table.CompoundTableColorHandler;
+import com.actelion.research.table.DetailPopupProvider;
 import com.actelion.research.table.model.CompoundRecord;
 import com.actelion.research.table.model.CompoundTableEvent;
 import com.actelion.research.table.model.CompoundTableListEvent;
 import com.actelion.research.table.model.CompoundTableModel;
 import com.actelion.research.table.view.CompoundTableView;
 import com.actelion.research.table.view.JCompoundTableForm;
+import com.actelion.research.table.view.ViewSelectionHelper;
 import info.clearthought.layout.TableLayout;
 
 import javax.swing.*;
@@ -42,7 +43,7 @@ import java.awt.event.MouseEvent;
 public class DEFormView extends JComponent implements ActionListener,CompoundTableView {
     private static final long serialVersionUID = 0x20080620;
 
-    private CompoundTableModel mTableModel;
+	private CompoundTableModel mTableModel;
 	private JCompoundTableForm	mCompoundTableForm;
 	private JLabel				mLabel;
 	private JPanel				mFormView;
@@ -51,21 +52,24 @@ public class DEFormView extends JComponent implements ActionListener,CompoundTab
 	private boolean				mIsDesignMode,mIsEditMode;
 	private DetailPopupProvider	mDetailPopupProvider;
 	private MouseAdapter		mPopupListener;
+	private ViewSelectionHelper	mViewSelectionHelper;
 
 	public DEFormView(Frame parent, CompoundTableModel tableModel, CompoundTableColorHandler colorHandler) {
 		mTableModel = tableModel;
 
-		if (JStructure3DFormObject.getCopyActionProvider() == null)
-			JStructure3DFormObject.setCopyActionProvider(new MolViewerActionCopy(parent));
-		if (JStructure3DFormObject.getRaytraceActionProvider() == null)
-			JStructure3DFormObject.setRaytraceActionProvider(new MolViewerActionRaytrace(parent));
+//		if (JStructure3DFormObject.getCopyActionProvider() == null)
+//			JStructure3DFormObject.setCopyActionProvider(new MolViewerActionCopy(parent));
+//		if (JStructure3DFormObject.getRaytraceActionProvider() == null)
+//			JStructure3DFormObject.setRaytraceActionProvider(new MolViewerActionRaytrace(parent));
 
 		mFormView = new JPanel();
 		mFormView.setLayout(new BorderLayout());
 
+		final CompoundTableView _this = this;
 		mPopupListener = new MouseAdapter() {
 			@Override
 		    public void mousePressed(MouseEvent e) {
+				mViewSelectionHelper.setSelectedView(_this);
 				if (e.isPopupTrigger())
 					handlePopupTrigger(e);
 				}
@@ -84,7 +88,7 @@ public class DEFormView extends JComponent implements ActionListener,CompoundTab
 			public AbstractFormObject addFormObject(String key, String type) {
 				AbstractFormObject fo = super.addFormObject(key, type);
 				if (fo != null)
-					fo.getComponent().addMouseListener(mPopupListener);
+					addOrRemovePopupListener(fo, true);
 				return fo;
 				}
 
@@ -92,7 +96,7 @@ public class DEFormView extends JComponent implements ActionListener,CompoundTab
 			public AbstractFormObject addFormObject(String key, String type, String constraint) {
 				AbstractFormObject fo = super.addFormObject(key, type, constraint);
 				if (fo != null)
-					fo.getComponent().addMouseListener(mPopupListener);
+					addOrRemovePopupListener(fo, true);
 				return fo;
 				}
 
@@ -100,13 +104,13 @@ public class DEFormView extends JComponent implements ActionListener,CompoundTab
 			public AbstractFormObject addFormObject(String objectDescriptor) {
 				AbstractFormObject fo = super.addFormObject(objectDescriptor);
 				if (fo != null)
-					fo.getComponent().addMouseListener(mPopupListener);
+					addOrRemovePopupListener(fo, true);
 				return fo;
 				}
 
 			@Override
 			public void removeFormObject(int no) {
-				getFormObject(no).getComponent().removeMouseListener(mPopupListener);
+				addOrRemovePopupListener(getFormObject(no), false);
 				super.removeFormObject(no);
 				}
 			};
@@ -145,11 +149,46 @@ public class DEFormView extends JComponent implements ActionListener,CompoundTab
 		setLayout(new OverlayLayout(this));
 		add(mFormView);
 		add(mFormDesigner);
+
+		MouseAdapter viewSelectionMouseAdapter = new MouseAdapter() {
+			@Override
+			public void mousePressed(MouseEvent e) {
+				mViewSelectionHelper.setSelectedView(_this);
+				}
+			};
+		addMouseListener(viewSelectionMouseAdapter);
+		mCompoundTableForm.addMouseListener(viewSelectionMouseAdapter);
+		mFormDesigner.addMouseListener(viewSelectionMouseAdapter);
+		}
+
+	private void addOrRemovePopupListener(AbstractFormObject fo, boolean isAdd) {
+		JComponent outerComponent = fo.getComponent();	// may be a JScrollPane, which has a border and therefore must also produce the popup
+		JComponent innerComponent = (outerComponent instanceof JScrollPane) ? (JComponent)((JScrollPane)outerComponent).getViewport().getView() : null;
+		if (isAdd) {
+			outerComponent.addMouseListener(mPopupListener);
+			if (innerComponent != null)
+				innerComponent.addMouseListener(mPopupListener);
+			}
+		else {
+			outerComponent.removeMouseListener(mPopupListener);
+			if (innerComponent != null)
+				innerComponent.removeMouseListener(mPopupListener);
+			}
 		}
 
 	public void setDetailPopupProvider(DetailPopupProvider p) {
         mDetailPopupProvider = p;
         }
+
+	@Override
+	public void setViewSelectionHelper(ViewSelectionHelper l) {
+		mViewSelectionHelper = l;
+		}
+
+	@Override
+	public boolean copyViewContent() {
+		return false;
+		}
 
 	@Override
 	public CompoundTableModel getTableModel() {
@@ -162,13 +201,16 @@ public class DEFormView extends JComponent implements ActionListener,CompoundTab
     		if (record != null) {
             	for (int i=0; i<mCompoundTableForm.getFormObjectCount(); i++) {
             		AbstractFormObject fo = mCompoundTableForm.getFormObject(i);
-            		if (fo.getComponent() == e.getSource()) {
-	            		if (fo.getType() == FormObjectFactory.TYPE_SINGLE_LINE_TEXT
-	            		 || fo.getType() == FormObjectFactory.TYPE_MULTI_LINE_TEXT) {
+            		if (fo.getComponent() == e.getSource()
+					 || (fo.getComponent() instanceof JScrollPane && ((JScrollPane)fo.getComponent()).getViewport().getView() == e.getSource())) {
+	            		if (FormObjectFactory.TYPE_SINGLE_LINE_TEXT.equals(fo.getType())
+	            		 || FormObjectFactory.TYPE_MULTI_LINE_TEXT.equals(fo.getType())
+	            		 || FormObjectFactory.TYPE_STRUCTURE.equals(fo.getType())
+	            		 || FormObjectFactory.TYPE_REACTION.equals(fo.getType())) {
 			        		int column = mTableModel.findColumn(fo.getKey());
-			                JPopupMenu popup = mDetailPopupProvider.createPopupMenu(record, this, column);
+			                JPopupMenu popup = mDetailPopupProvider.createPopupMenu(record, this, column, e.isControlDown());
 			                if (popup != null)
-			                    popup.show(fo.getComponent(), e.getX(), e.getY());
+			                    popup.show(e.getComponent(), e.getX(), e.getY());
 	            			}
 	            		break;
             			}
@@ -192,7 +234,7 @@ public class DEFormView extends JComponent implements ActionListener,CompoundTab
 		int rowCount = mTableModel.getRowCount();
 		if (e.getSource() == mButtonNew) {
 			int firstNewRow = mTableModel.getTotalRowCount();
-		    mTableModel.addNewRows(1);
+		    mTableModel.addNewRows(1, true);
 		    mTableModel.finalizeNewRows(firstNewRow, null);
 		    CompoundRecord record = mTableModel.getTotalRecord(firstNewRow);
 		    if (mTableModel.isVisible(record)) {
@@ -249,6 +291,10 @@ public class DEFormView extends JComponent implements ActionListener,CompoundTab
 
 	public void createDefaultLayout() {
 		mCompoundTableForm.createDefaultLayout();
+		}
+
+	public void createLayout(boolean[] includeTableColumn, boolean includeDetails, boolean includeLookups, int formColumnCount) {
+		mCompoundTableForm.createLayout(includeTableColumn, includeDetails, includeLookups, formColumnCount);
 		}
 
 	public boolean isDesignMode() {

@@ -1,6 +1,7 @@
 package com.actelion.research.datawarrior.task.view;
 
 import com.actelion.research.datawarrior.DEMainPane;
+import com.actelion.research.gui.hidpi.HiDPIHelper;
 import com.actelion.research.table.view.CompoundTableView;
 import com.actelion.research.table.view.JStructureGrid;
 import info.clearthought.layout.TableLayout;
@@ -49,9 +50,10 @@ public class DETaskSetHorizontalStructureCount extends DETaskAbstractSetViewOpti
 	}
 
 	@Override
-	public JComponent createInnerDialogContent() {
-		double[][] size = { {8, TableLayout.PREFERRED, 4, TableLayout.PREFERRED, 8},
-				{8, TableLayout.PREFERRED, 8} };
+	public JComponent createViewOptionContent() {
+		int gap = HiDPIHelper.scale(8);
+		double[][] size = { {gap, TableLayout.PREFERRED, gap/2, TableLayout.PREFERRED, gap},
+							{gap, TableLayout.PREFERRED, gap} };
 		JPanel cp = new JPanel();
 		cp.setLayout(new TableLayout(size));
 
@@ -86,8 +88,8 @@ public class DETaskSetHorizontalStructureCount extends DETaskAbstractSetViewOpti
 	}
 
 	@Override
-	public void addViewConfiguration(Properties configuration) {
-		int count = ((JStructureGrid)getInteractiveView()).getColumnCount();
+	public void addViewConfiguration(CompoundTableView view, Properties configuration) {
+		int count = ((JStructureGrid)view).getColumnCount();
 		configuration.setProperty(PROPERTY_COUNT, Integer.toString(count));
 	}
 
@@ -111,7 +113,9 @@ public class DETaskSetHorizontalStructureCount extends DETaskAbstractSetViewOpti
 
 	@Override
 	public void applyConfiguration(CompoundTableView view, Properties configuration, boolean isAdjusting) {
-		int count = Integer.parseInt(configuration.getProperty(PROPERTY_COUNT, DEFAULT_COUNT));
-		((JStructureGrid)view).setColumnCount(count);
+		if (view instanceof JStructureGrid) {
+			int count = Integer.parseInt(configuration.getProperty(PROPERTY_COUNT, DEFAULT_COUNT));
+			((JStructureGrid)view).setColumnCount(count);
+		}
 	}
 }

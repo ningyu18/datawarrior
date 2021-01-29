@@ -18,21 +18,6 @@
 
 package com.actelion.research.datawarrior.task;
 
-import info.clearthought.layout.TableLayout;
-
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
-import java.io.File;
-import java.util.ArrayList;
-import java.util.Properties;
-import java.util.TreeSet;
-
-import javax.swing.JCheckBox;
-import javax.swing.JComboBox;
-import javax.swing.JLabel;
-import javax.swing.JPanel;
-import javax.swing.JTextField;
-
 import com.actelion.research.chem.DiversitySelector;
 import com.actelion.research.chem.SortedStringList;
 import com.actelion.research.chem.descriptor.DescriptorHelper;
@@ -42,6 +27,15 @@ import com.actelion.research.chem.io.SDFileParser;
 import com.actelion.research.datawarrior.DEFrame;
 import com.actelion.research.gui.FileHelper;
 import com.actelion.research.table.model.CompoundTableModel;
+import info.clearthought.layout.TableLayout;
+
+import javax.swing.*;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.io.File;
+import java.util.ArrayList;
+import java.util.Properties;
+import java.util.TreeSet;
 
 
 public class DETaskSelectDiverse extends ConfigurableTask implements ActionListener,Runnable {
@@ -137,7 +131,8 @@ public class DETaskSelectDiverse extends ConfigurableTask implements ActionListe
 			showErrorMessage("Descriptor '"+descriptorName+"' must end with '[<descriptor name>]'.");
 			return false;
 			}
-		if (!DescriptorHelper.isBinaryFingerprint(descriptorName.substring(index1+1, index2))) {
+		String shortName = descriptorName.substring(index1+1, index2);
+		if (!DescriptorHelper.isBinaryFingerprint(shortName)) {
 			showErrorMessage("Descriptor '"+descriptorName+"' is not a binary fingerprint.");
 			return false;
 			}
@@ -326,7 +321,7 @@ public class DETaskSelectDiverse extends ConfigurableTask implements ActionListe
 						String idcode = parser.getIDCode();
 						if (idcode != null && !uniqueCompoundList.contains(idcode)) {
 							uniqueCompoundList.add(idcode);
-							selector.addToExistingSet((int[])parser.getDescriptor(descriptorType));
+							selector.addToExistingSet((long[])parser.getDescriptor(descriptorType));
 							}
 						else {
 							errors++;
@@ -345,13 +340,13 @@ public class DETaskSelectDiverse extends ConfigurableTask implements ActionListe
 		int[] originalIndex = null;
 		int[] selected = null;
 		if (!threadMustDie()) {
-			ArrayList<int[]> indexList = new ArrayList<int[]>();
+			ArrayList<long[]> indexList = new ArrayList<long[]>();
 			int uniqueStructureCount = getUniqueStructureCount(descriptorColumn);
 			originalIndex = new int[uniqueStructureCount];
 			for (int i=0; i<mTableModel.getTotalRowCount(); i++) {
 				String idcode = mTableModel.getTotalValueAt(i, idcodeColumn);
 				if (idcode != null && !uniqueCompoundList.contains(idcode)) {
-					int[] features = (int[])mTableModel.getTotalRecord(i).getData(descriptorColumn);
+					long[] features = (long[])mTableModel.getTotalRecord(i).getData(descriptorColumn);
 					if (features != null) {
 						uniqueCompoundList.add(idcode);
 						originalIndex[indexList.size()] = i;
@@ -364,12 +359,12 @@ public class DETaskSelectDiverse extends ConfigurableTask implements ActionListe
 				showErrorMessage("Descriptor column does not contains descriptors.");
 				}
 			else {
-				int[][] featureList = new int[indexList.size()][];
+				long[][] featureList = new long[indexList.size()][];
 				for (int i=0; i<indexList.size(); i++)
 					featureList[i] = indexList.get(i);
 	
 				int compoundsToSelect = (selectionCount == -1) ? uniqueStructureCount : selectionCount;
-				selected = selector.select(indexList.toArray(new int[0][]), compoundsToSelect);
+				selected = selector.select(indexList.toArray(new long[0][]), compoundsToSelect);
 				}
 			}
 

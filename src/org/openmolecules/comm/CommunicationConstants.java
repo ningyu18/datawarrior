@@ -26,6 +26,7 @@ public interface CommunicationConstants {
     public static final String KEY_SESSION_ID = "sessionID";
     public static final String KEY_REQUEST = "what";
     public static final String KEY_QUERY = "query";
+    public static final String KEY_APP_NAME = "appname";
 
     public static final String REQUEST_NEW_SESSION = "new";
     public static final String REQUEST_END_SESSION = "end";

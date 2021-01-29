@@ -18,6 +18,7 @@
 
 package com.actelion.research.datawarrior.task.file;
 
+import com.actelion.research.chem.io.CompoundTableConstants;
 import com.actelion.research.datawarrior.DEMainPane;
 import com.actelion.research.gui.dock.Dockable;
 import com.actelion.research.table.DataDependentPropertyWriter;
@@ -62,11 +63,13 @@ public class CustomLabelPositionWriter implements DataDependentPropertyWriter {
 			if (view instanceof VisualizationPanel) {
 				JVisualization visualization = ((VisualizationPanel)view).getVisualization();
 				if (visualization.hasCustomPositionLabels()) {
-					writer.write(JVisualization.CUSTOM_LABEL_POSITION_START_VIEW_TAG);
+					writer.write(CompoundTableConstants.cViewNameStart);
 					writer.write(dockable.getTitle());
 					writer.write("\">");
 					writer.newLine();
 					visualization.writeCustomLabelPositions(writer);
+					writer.write(CompoundTableConstants.cViewNameEnd);
+					writer.newLine();
 				}
 			}
 		}

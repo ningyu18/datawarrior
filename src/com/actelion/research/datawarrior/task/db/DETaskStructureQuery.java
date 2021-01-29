@@ -24,8 +24,8 @@ import com.actelion.research.chem.SSSearcherWithIndex;
 import com.actelion.research.chem.StereoMolecule;
 import com.actelion.research.chem.StructureSearchSpecification;
 import com.actelion.research.chem.descriptor.DescriptorConstants;
-import com.actelion.research.chem.descriptor.DescriptorHandlerFFP512;
-import com.actelion.research.database.OsirisConnectionHelper;
+import com.actelion.research.chem.descriptor.DescriptorHandlerLongFFP512;
+import com.actelion.research.chem.io.CompoundTableConstants;
 import com.actelion.research.datawarrior.DEFrame;
 import com.actelion.research.datawarrior.DataWarrior;
 import com.actelion.research.datawarrior.task.ConfigurableTask;
@@ -63,9 +63,12 @@ public abstract class DETaskStructureQuery extends ConfigurableTask implements A
     protected static final String PROPERTY_SIMILARITY = "similarity";
     protected static final String PROPERTY_DESCRIPTOR_NAME = "descriptorName";	// not used yet; for future use
 
-    private static final String[] SEARCH_TYPE_TEXT = {"superstructures of", "similar structures to", "equal structures to" };
-    private static final String[] SEARCH_TYPE_TEXT_EXT = {"superstructures of", "similar structures to", "equal structures to", "stereo isomers of", "tautomers of" };
-    private static final String[] SEARCH_TYPE_CODE = {"sss", "similarity", "exact", "noStereo", "tautomer" };
+	public static final int SEARCH_TYPES_SSS_SIM = 2;
+	public static final int SEARCH_TYPES_SSS_SIM_EXACT = 3;
+	public static final int SEARCH_TYPES_SSS_SIM_EXACT_NOSTEREO_TAUTO = 4;
+
+    private static final String[] SEARCH_TYPE_TEXT = {"superstructures of", "similar structures to", "equal structures to", "stereo isomers of", "tautomers of" };
+	protected static final String[] SEARCH_TYPE_CODE = {"sss", "similarity", "exact", "noStereo", "tautomer" };
     private static final String[] QUERY_SOURCE = {"the structure drawn below", "any selected structure"};
     protected static final String[] QUERY_SOURCE_CODE = {"drawn", "selected"};
 
@@ -80,7 +83,7 @@ public abstract class DETaskStructureQuery extends ConfigurableTask implements A
     private JComboBox   		    mComboBoxSearchType,mComboBoxQuerySource;
     private JEditableStructureView  mStructureView;
     private JSlider         		mSimilaritySlider;
-    private boolean					mDisableEvents,mIsMultiStructureQueryPossible;
+    private boolean					mDisableEvents,mAreStructuresSelected,mAreSubStructuresSelected,mIsSSS;
     private int						mIDCodeColumn;
 
 	public static boolean isIndexVersionOK(Connection connection) throws SQLException {
@@ -105,21 +108,23 @@ public abstract class DETaskStructureQuery extends ConfigurableTask implements A
 		return indexVersionOK;
 		}
 	
-    public DETaskStructureQuery(DEFrame owner, DataWarrior application, boolean dataFromOSIRIS) {
+    public DETaskStructureQuery(DEFrame owner, DataWarrior application) {
     	super(owner, true);
 
     	mApplication = application;
 		mSourceTableModel = owner.getTableModel();
 
-        CompoundTableModel tableModel = ((DEFrame)owner).getTableModel();
-        mIsMultiStructureQueryPossible = false;
+        CompoundTableModel tableModel = owner.getTableModel();
+        mAreStructuresSelected = false;
+		mAreSubStructuresSelected = false;
         for (int column=0; column<tableModel.getTotalColumnCount(); column++) {
-            if (CompoundTableModel.cColumnTypeIDCode.equals(tableModel.getColumnSpecialType(column))) {
-                mIsMultiStructureQueryPossible = true;
-                break;
+            if (tableModel.isColumnTypeStructure(column)) {
+                mAreStructuresSelected = true;
+                if ("true".equals(tableModel.getColumnProperty(column, CompoundTableConstants.cColumnPropertyIsFragment)))
+					mAreSubStructuresSelected = true;
                 }
             }
-        if (mIsMultiStructureQueryPossible) {
+        if (mAreStructuresSelected) {
             boolean selectionFound = false;
             for (int row=0; row<tableModel.getRowCount(); row++) {
                 if (tableModel.isSelected(row)) {
@@ -127,22 +132,11 @@ public abstract class DETaskStructureQuery extends ConfigurableTask implements A
                     break;
                     }
                 }
-            if (!selectionFound)
-                mIsMultiStructureQueryPossible = false;
-            }
-
-		if (dataFromOSIRIS) {
-			try {
-				mConnection = OsirisConnectionHelper.getConnection(owner);
-				if (mConnection == null)	// user cancelled login dialog
-					return;
+            if (!selectionFound) {
+				mAreStructuresSelected = false;
+				mAreSubStructuresSelected = false;
 				}
-			catch (Exception e) {
-	    		JOptionPane.showMessageDialog(owner, e);
-		    	return;
-			    }
-			}
-
+            }
 	    }
 
 	protected abstract String getDocumentTitle();
@@ -166,7 +160,7 @@ public abstract class DETaskStructureQuery extends ConfigurableTask implements A
     		drawnStructureAvailable = true;
     		}
 
-    	if (drawnStructureAvailable || mComboBoxQuerySource.getSelectedIndex() == QUERY_SOURCE_SELECTED) {
+    	if (drawnStructureAvailable || (mComboBoxQuerySource != null && mComboBoxQuerySource.getSelectedIndex() == QUERY_SOURCE_SELECTED)) {
 	    	if (mComboBoxSearchType != null)
 	    		configuration.setProperty(PROPERTY_SEARCH_TYPE, SEARCH_TYPE_CODE[mComboBoxSearchType.getSelectedIndex()]);
 	
@@ -387,28 +381,46 @@ public abstract class DETaskStructureQuery extends ConfigurableTask implements A
 
     	if (e.getSource() == mComboBoxSearchType) {
             boolean isSSS = (SEARCH_TYPE[mComboBoxSearchType.getSelectedIndex()]==SEARCH_TYPE_SSS);
+			boolean isSim = (SEARCH_TYPE[mComboBoxSearchType.getSelectedIndex()]==SEARCH_TYPE_SIMILARITY);
             if (mStructureView.getMolecule().isFragment() ^ isSSS) {
 	            mStructureView.getMolecule().setFragment(isSSS);
 	            mStructureView.structureChanged();
             	}
-            if (isSSS && mComboBoxQuerySource.getSelectedIndex()==QUERY_SOURCE_SELECTED) {
-            	mDisableEvents = true;
-            	mComboBoxQuerySource.setSelectedIndex(QUERY_SOURCE_DRAWN);
-            	mDisableEvents = false;
-            	}
+            if (mComboBoxQuerySource.getSelectedIndex()==QUERY_SOURCE_SELECTED) {
+            	if (isSSS && !mAreSubStructuresSelected) {
+					mDisableEvents = true;
+					mComboBoxQuerySource.setSelectedIndex(QUERY_SOURCE_DRAWN);
+					mDisableEvents = false;
+					}
+				else if (isSim && !mAreStructuresSelected) {
+					mDisableEvents = true;
+					mComboBoxQuerySource.setSelectedIndex(QUERY_SOURCE_DRAWN);
+					mDisableEvents = false;
+					}
+				}
             enableStructureItems();
             return;
             }
         else if (e.getSource() == mComboBoxQuerySource) {
             boolean isMultiQuery = (mComboBoxQuerySource.getSelectedIndex()==QUERY_SOURCE_SELECTED);
-            if (isMultiQuery && SEARCH_TYPE[mComboBoxSearchType.getSelectedIndex()]==SEARCH_TYPE_SSS) {
-            	mDisableEvents = true;
-            	mComboBoxSearchType.setSelectedIndex(findArrayIndex(SEARCH_TYPE_SIMILARITY, SEARCH_TYPE));
-            	mDisableEvents = false;
+            if (isMultiQuery) {
+				if (SEARCH_TYPE[mComboBoxSearchType.getSelectedIndex()]==SEARCH_TYPE_SSS && !mAreSubStructuresSelected && mAreStructuresSelected) {
+					mDisableEvents = true;
+					mComboBoxSearchType.setSelectedIndex(findArrayIndex(SEARCH_TYPE_SIMILARITY, SEARCH_TYPE));
+					mDisableEvents = false;
 
-	            mStructureView.getMolecule().setFragment(false);
-	            mStructureView.structureChanged();
-            	}
+					mStructureView.getMolecule().setFragment(false);
+					mStructureView.structureChanged();
+					}
+				else if (SEARCH_TYPE[mComboBoxSearchType.getSelectedIndex()]==SEARCH_TYPE_SIMILARITY && !mAreStructuresSelected && mAreSubStructuresSelected) {
+					mDisableEvents = true;
+					mComboBoxSearchType.setSelectedIndex(findArrayIndex(SEARCH_TYPE_SSS, SEARCH_TYPE));
+					mDisableEvents = false;
+
+					mStructureView.getMolecule().setFragment(true);
+					mStructureView.structureChanged();
+					}
+				}
             enableStructureItems();
             return;
             }
@@ -430,6 +442,8 @@ public abstract class DETaskStructureQuery extends ConfigurableTask implements A
 	public void runTask(Properties configuration) {
 		startProgress("Retrieving Chemical Structure Data...", 0, 0);
 
+		mIsSSS = (SEARCH_TYPE_SSS == SEARCH_TYPE[findListIndex(configuration.getProperty(PROPERTY_SEARCH_TYPE), SEARCH_TYPE_CODE, 1)]);
+
 		try {
 		    retrieveRecords();
 			}
@@ -440,7 +454,7 @@ public abstract class DETaskStructureQuery extends ConfigurableTask implements A
 			return;
 			}
 		if (mResultList.size() == 0) {
-			showErrorMessage("Your query did not retrieve any records.");
+			showMessage("Your query did not retrieve any records.", WARNING_MESSAGE);
 			mResultList = null;
 			return;
 			}
@@ -455,7 +469,7 @@ public abstract class DETaskStructureQuery extends ConfigurableTask implements A
 			tableModel.initializeTable(mResultList.size(), columnCount);
             prepareStructureColumns(tableModel);
             if (getIdentifierColumn() != -1)
-            	tableModel.setColumnProperty(0, CompoundTableModel.cColumnPropertyIdentifierColumn, columnName[getIdentifierColumn()]);
+            	tableModel.setColumnProperty(0, CompoundTableModel.cColumnPropertyRelatedIdentifierColumn, columnName[getIdentifierColumn()]);
 			for (int i=getStructureColumnCount(); i<columnCount; i++)
 				tableModel.setColumnName(columnName[i-getStructureColumnCount()], i);
 
@@ -473,19 +487,15 @@ public abstract class DETaskStructureQuery extends ConfigurableTask implements A
 		mResultList = null;
 
         if (mTargetFrame != null) {
-        	setColumnProperties();
-        	int rtpKind = useDefaultRuntimeProperties() ? CompoundTableEvent.cSpecifierDefaultRuntimeProperties
-        												: CompoundTableEvent.cSpecifierNoRuntimeProperties;
-        	mTargetFrame.getTableModel().finalizeTable(rtpKind, this);
+        	setColumnProperties(mTargetFrame.getTableModel());
+        	mTargetFrame.getTableModel().finalizeTable(getRuntimePropertiesMode(), this);
         	}
 
         if (mTargetFrame != null) {
         	try {
-				SwingUtilities.invokeAndWait(new Runnable() {
-					public void run() {
-			        	mTargetFrame.setTitle(getDocumentTitle());
-				        setRuntimeProperties();
-						}
+				SwingUtilities.invokeAndWait(() -> {
+		            mTargetFrame.setTitle(getDocumentTitle());
+			        setRuntimeProperties();
 					} );
         		}
         	catch (Exception e) {}
@@ -508,7 +518,7 @@ public abstract class DETaskStructureQuery extends ConfigurableTask implements A
 			for (int i=0; i<noOfColumns; i++) {
 			    // default columns: 0->idcodeBytes; 1->coordinateBytes, 2->fragFpInts; 3...->valueBytes
 			    if (i == getFragFpColumn()) {	// fragFp
-			        newResult[i] = DescriptorHandlerFFP512.getDefaultInstance().decode(rset.getString(i+1));
+			        newResult[i] = DescriptorHandlerLongFFP512.getDefaultInstance().decode(rset.getString(i+1));
 			    	}
 				else {
 					String s = rset.getString(i+1);
@@ -523,6 +533,27 @@ public abstract class DETaskStructureQuery extends ConfigurableTask implements A
 			}
 		rset.close();
 		stmt.close();
+		}
+
+	/**
+	 * The long term intention is to run all our structure servers on long descriptors.
+	 * As long as some of them use int descriptors, which are passed to the client as part
+	 * of the result rows, this method converts int[] descriptors to long[] ones.
+	 * This way the server may be updated any time without interfering the client (DataWarrior).
+	 * @param fp
+	 * @return
+	 */
+	protected long[] ensureLongFp(Object fp) {
+		if (fp instanceof long[])
+			return (long[])fp;
+
+		int[] ifp = (int[])fp;
+		long[] lfp = new long[ifp.length / 2];
+
+		for (int i=0; i<lfp.length; i++)
+			lfp[i] = ((long)ifp[i*2] << 32) | ifp[i*2+1];
+
+		return lfp;
 		}
 
 	/**
@@ -609,15 +640,17 @@ public abstract class DETaskStructureQuery extends ConfigurableTask implements A
      * @return
      */
     protected boolean isMultiStructureQueryPossible() {
-    	return mIsMultiStructureQueryPossible;
+    	return mAreStructuresSelected;
     	}
 
-    protected JComponent createComboBoxSearchType() {
-    	return createComboBoxSearchType(false);
-    	}
-
-    protected JComponent createComboBoxSearchType(boolean includeExtended) {
-        mComboBoxSearchType = new JComboBox(includeExtended ? SEARCH_TYPE_TEXT_EXT : SEARCH_TYPE_TEXT);
+	/**
+	 * @param options one of SEARCH_TYPES...
+	 * @return
+	 */
+	protected JComponent createComboBoxSearchType(int options) {
+        mComboBoxSearchType = new JComboBox();
+        for (int i=0; i<options; i++)
+        	mComboBoxSearchType.addItem(SEARCH_TYPE_TEXT[i]);
         mComboBoxSearchType.addActionListener(this);
         return mComboBoxSearchType;
     	}
@@ -625,7 +658,7 @@ public abstract class DETaskStructureQuery extends ConfigurableTask implements A
     protected JComponent createComboBoxQuerySource() {
         mComboBoxQuerySource = new JComboBox(QUERY_SOURCE);
         mComboBoxQuerySource.addActionListener(this);
-        mComboBoxQuerySource.setEnabled(mIsMultiStructureQueryPossible);
+        mComboBoxQuerySource.setEnabled(mAreStructuresSelected);
         return mComboBoxQuerySource;
     	}
 
@@ -666,9 +699,10 @@ public abstract class DETaskStructureQuery extends ConfigurableTask implements A
         boolean isSSS = (SEARCH_TYPE[mComboBoxSearchType.getSelectedIndex()]==SEARCH_TYPE_SSS);
         boolean isSimilaritySearch = (SEARCH_TYPE[mComboBoxSearchType.getSelectedIndex()]==SEARCH_TYPE_SIMILARITY);
 
-        mSimilaritySlider.setEnabled(isSimilaritySearch);
+        if (mSimilaritySlider != null)
+	        mSimilaritySlider.setEnabled(isSimilaritySearch);
         if (mComboBoxQuerySource != null)
-        	mComboBoxQuerySource.setEnabled(isMultiStructureQueryPossible() && !isSSS);
+        	mComboBoxQuerySource.setEnabled(isMultiStructureQueryPossible() && (!isSSS || mAreSubStructuresSelected));
         mStructureView.setEnabled(mComboBoxQuerySource == null || mComboBoxQuerySource.getSelectedIndex()==QUERY_SOURCE_DRAWN);
     	}
 
@@ -687,11 +721,7 @@ public abstract class DETaskStructureQuery extends ConfigurableTask implements A
     	else {
 	    	mIDCodeColumn = -1;
 	    	try {
-				SwingUtilities.invokeAndWait(new Runnable() {
-					public void run() {
-		                mIDCodeColumn = selectIDCodeColumn();
-						}
-					} );
+				SwingUtilities.invokeAndWait(() -> mIDCodeColumn = selectIDCodeColumn() );
 	    		}
 	    	catch (Exception e) {}
     		}
@@ -736,7 +766,8 @@ public abstract class DETaskStructureQuery extends ConfigurableTask implements A
         int idcodeColumn = -1;
         ArrayList<String> structureColumnList = null;
         for (int column=0; column<mSourceTableModel.getTotalColumnCount(); column++) {
-            if (CompoundTableModel.cColumnTypeIDCode.equals(mSourceTableModel.getColumnSpecialType(column))) {
+            if (mSourceTableModel.isColumnTypeStructure(column)
+			 && (!mIsSSS ^ "true".equals(mSourceTableModel.getColumnProperty(column, CompoundTableConstants.cColumnPropertyIsFragment)))) {
                 if (idcodeColumn == -1) {
                     idcodeColumn = column;
                     }
@@ -795,14 +826,15 @@ public abstract class DETaskStructureQuery extends ConfigurableTask implements A
      * May be overridden to define special columns before finalizing the tableModel.
      * This method is called from the worker thread.
      */
-    protected void setColumnProperties() {}
+    protected void setColumnProperties(CompoundTableModel tableModel) {}
 
     /**
-     * Override this and return false, if you don't want any views and filters created
-     * @return
+     * Override this and return CompoundTableEvent.cSpecifierNoRuntimeProperties or cSpecifierDefaultFilters,
+     * if you don't want the default cSpecifierDefaultFiltersAndViews
+     * @return one of CompoundTableEvent.cSpecifier...
      */
-    protected boolean useDefaultRuntimeProperties() {
-    	return true;
+    protected int getRuntimePropertiesMode() {
+    	return CompoundTableEvent.cSpecifierDefaultFiltersAndViews;
     	}
 
     /**

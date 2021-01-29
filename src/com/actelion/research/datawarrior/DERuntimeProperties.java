@@ -21,19 +21,25 @@ package com.actelion.research.datawarrior;
 import com.actelion.research.calc.CorrelationCalculator;
 import com.actelion.research.chem.descriptor.DescriptorConstants;
 import com.actelion.research.datawarrior.task.DEMacroRecorder;
+import com.actelion.research.datawarrior.task.view.DETaskSetStructureDisplayMode;
 import com.actelion.research.gui.JMultiPanelView;
 import com.actelion.research.gui.JPruningBar;
 import com.actelion.research.gui.hidpi.HiDPIHelper;
-import com.actelion.research.table.*;
-import com.actelion.research.table.filter.*;
+import com.actelion.research.table.CompoundTableColorHandler;
+import com.actelion.research.table.MarkerLabelDisplayer;
+import com.actelion.research.table.RuntimeProperties;
+import com.actelion.research.table.filter.JFilterPanel;
 import com.actelion.research.table.model.CompoundTableListHandler;
 import com.actelion.research.table.model.CompoundTableModel;
 import com.actelion.research.table.view.*;
+import com.actelion.research.table.view.config.CardsViewConfiguration;
+import com.actelion.research.table.view.config.ViewConfiguration;
 import com.actelion.research.util.DoubleFormat;
 
 import javax.swing.*;
 import java.awt.*;
 
+import static com.actelion.research.table.MarkerLabelConstants.cOnePerCategoryMode;
 import static com.actelion.research.table.view.JVisualization.DEFAULT_LABEL_TRANSPARENCY;
 
 public class DERuntimeProperties extends RuntimeProperties {
@@ -42,6 +48,7 @@ public class DERuntimeProperties extends RuntimeProperties {
 	private static final String cViewTypeTable = "tableView";
 	private static final String cViewType2D = "2Dview";
 	private static final String cViewType3D = "3Dview";
+	private static final String cViewTypeCards = "cardsView";
 	private static final String cViewTypeForm = "formView";
 	private static final String cViewTypeStructureGrid = "structureView";
 	private static final String cViewTypeExplanation = "explanationView";
@@ -54,12 +61,15 @@ public class DERuntimeProperties extends RuntimeProperties {
 	private static final String cMainViewName = "mainViewName";
 	private static final String cMainViewType = "mainViewType";
 	private static final String cMainViewDockInfo = "mainViewDockInfo";
+	private static final String cMainViewInFront = "mainViewInFront";
 	private static final String cDetailView = "detailView";
 	private static final String cTableRowHeight = "rowHeight";
+	private static final String cTableHeaderLines = "headerLines";
 	private static final String cTableColumnWidth = "columnWidth";
 	private static final String cTableColumnWrapping = "columnWrapping";
 	private static final String cTableColumnVisibility = "columnVisibility";
 	private static final String cTableColumnOrder = "columnOrder";
+	private static final String cTableColumnFilter = "columnFilter";
 	private static final String cTableText = "Text_";				// suffix for cColor???? keys in case of table view column text color
 	private static final String cTableBackground = "Background_";	// suffix for cColor???? keys in case of table view column background color
 	private static final String cFastRendering = "fastRendering";
@@ -78,7 +88,12 @@ public class DERuntimeProperties extends RuntimeProperties {
 	private static final String cFocusList = "focusHitlist";
 	private static final String cLabelList = "labelHitlist";
 	private static final String cListIsSelection = "selection";
+	private static final String cLabelOPCCategory = "opcCategory";
+	private static final String cLabelOPCValue = "opcValue";
+	private static final String cLabelOPCMode = "opcMode";
 	private static final String cMarkerSize = "markersize";
+	private static final String cMarkerSizeMin = "markersizeMin";
+	private static final String cMarkerSizeMax = "markersizeMax";
 	private static final String cSizeColumn = "sizeColumn";
 	private static final String cSizeInversion = "sizeInversion";
 	private static final String cSizeProportional = "sizeProportional";
@@ -86,6 +101,9 @@ public class DERuntimeProperties extends RuntimeProperties {
 	private static final String cLabelSize = "labelSize";
 	private static final String cLabelColumn = "labelColumn";
 	private static final String cLabelMode = "labelMode";
+	private static final String cLabelShowColumnNameInTable = "labelColumnNameInTable";
+	private static final String cLabelBlackOrWhite = "labelBlackOrWhite";
+	private static final String cLabelPositionOptimization = "labelPositionOptimization";
 	private static final String cColorColumn = "colorColumn";
 	private static final String cColorCount = "colorCount";
 	private static final String cColor = "color";
@@ -107,6 +125,11 @@ public class DERuntimeProperties extends RuntimeProperties {
 	private static final String cSuppressGrid = "suppressGrid";
 	private static final String cSuppressLegend = "suppressLegend";
 	private static final String cSuppressScale = "suppressScale";
+	private static final String cDynamicScale = "dynamicScale";
+	private static final String cScaleStyle = "scaleStyle";
+	private static final String cDrawMarkerOutline = "drawMarkerOutline";
+	private static final String cDrawBoxOutline = "drawBoxOutline";
+	private static final String cScatterplotMargin = "scatterplotMargin";
 	private static final String cViewFontSize = "fontSize";
 	private static final String cShapeColumn = "shapeColumn";
 	private static final String cMarkerTransparency = "markertransparency";
@@ -118,6 +141,8 @@ public class DERuntimeProperties extends RuntimeProperties {
 	private static final String cConnectionColumnConnectAll = "<connectAll>";
 	private static final String cConnectionColumnConnectCases = "<connectCases>";
 	private static final String cConnectionLineWidth = "connectionLineWidth";
+	private static final String cAutoZoomColumn = "autoZoomColumn";
+	private static final String cAutoZoomFactor = "autoZoomFactor";
 	private static final String cTreeViewMode = "treeViewMode";
 	private static final String cTreeViewRadius = "treeViewRadius";
 	private static final String cTreeViewShowAll = "treeViewShowAll";
@@ -137,6 +162,9 @@ public class DERuntimeProperties extends RuntimeProperties {
 	private static final String cCurveMode = "meanLineMode";
 	private static final String cCurveStdDev = "meanLineStdDev";
 	private static final String cCurveSplitByCategory = "splitCurveByCategory";
+	private static final String cCurveLineWidth = "curveLineWidth";
+	private static final String cCurveSmoothing = "curveSmoothing";
+	private static final String cShowBarOrPieSizeValue = "showBarOrPieSizeValue";
 	private static final String cShowStdDev = "boxPlotShowStdDev";
 	private static final String cShowConfInterval = "boxPlotShowConfInterval";
 	private static final String cShowValueCount = "boxPlotShowCount";
@@ -146,6 +174,8 @@ public class DERuntimeProperties extends RuntimeProperties {
 	private static final String cPValueRefCategory = "pValueRefCategory";
 	private static final String cCorrelationCoefficient = "corrCoefficient";
 	private static final String cAffectGlobalExclusion = "affectGlobalExclusion";
+	private static final String cIgnoreGlobalExclusion = "ignoreGlobalExclusion";
+	private static final String cLocalExclusionList = "localExclusionList";
 	private static final String cShowNaNValues = "showNaNValues";
 	private static final String cShowLabelBackground = "showLabelBackground";
 	private static final String cRotation = "rotationMatrix";
@@ -154,25 +184,23 @@ public class DERuntimeProperties extends RuntimeProperties {
 	private static final String cStructureGridColumn = "structureGridColumn";
 	private static final String cStructureGridColumns = "structureGridColumns";
 	private static final String cFilter = "filter";
-	private static final String cFilterTypeCategoryBrowser = "#browser#";
-	private static final String cFilterTypeDouble = "#double#";
-	private static final String cFilterTypeCategory = "#category#";
-	private static final String cFilterTypeText = "#string#";
-	private static final String cFilterTypeAllColumnText = "#allColumnText#";
-	private static final String cFilterTypeHitlist = "#hitlist#";
-	private static final String cFilterTypeStructure = "#structure#";
-	private static final String cFilterTypeSSSList = "#sssList#";
-	private static final String cFilterTypeSIMList = "#simList#";
-	private static final String cFilterTypeReaction = "#reaction#";
 	private static final String cFilterAnimation = "filterAnimation";
 	private static final String cFormLayout = "formLayout";
 	private static final String cFormObjectCount = "formObjectCount";
 	private static final String cFormObjectInfo = "formObjectInfo";
+	private static final String cStructureDisplayStereoMode = "structureDisplayStereoMode";
+	private static final String cStructureDisplayColorMode = "structureDisplayStereoMode";
 
 	private DEParentPane	mParentPane;
 	private DEMainPane		mMainPane;
 	private DEDetailPane	mDetailPane;
 	private DEPruningPanel	mPruningPanel;
+
+	public static DERuntimeProperties getTableOnlyProperties(DEParentPane parentPane) {
+		DERuntimeProperties rtp = new DERuntimeProperties(parentPane);
+		rtp.setProperty(cMainViewCount, "1");
+		return rtp;
+		}
 
 	public DERuntimeProperties(DEParentPane parentPane) {
 		super(parentPane.getTableModel());
@@ -200,11 +228,7 @@ public class DERuntimeProperties extends RuntimeProperties {
 		else {
 				// if we are not in the event dispatcher thread we need to use invokeAndWait
 			try {
-				SwingUtilities.invokeAndWait(new Runnable() {
-					public void run() {
-						doApply();
-						}
-					} );
+				SwingUtilities.invokeAndWait(() -> doApply());
 				}
 			catch (Exception e) {
 				e.printStackTrace();
@@ -245,7 +269,7 @@ public class DERuntimeProperties extends RuntimeProperties {
 			applyViewProperties(mMainPane.add2DView("2D View", "Table\tcenter"), "2D");
 			applyViewProperties(mMainPane.add3DView("3D View", "Table\tcenter"), "3D");
 			for (int column=0; column<mTableModel.getTotalColumnCount(); column++) {
-				if (CompoundTableModel.cColumnTypeIDCode.equals(mTableModel.getColumnSpecialType(column))) {
+				if (mTableModel.isColumnTypeStructure(column)) {
 					applyViewProperties(mMainPane.addStructureView("Structures", "Table\tcenter", column), "StructureView");
 					break;
 					}
@@ -281,6 +305,7 @@ public class DERuntimeProperties extends RuntimeProperties {
 							   : viewType.equals(cViewTypeTable) ? mMainPane.addTableView(tabName, dockInfo)
 							   : viewType.equals(cViewType2D) ? mMainPane.add2DView(tabName, dockInfo)
 							   : viewType.equals(cViewType3D) ? mMainPane.add3DView(tabName, dockInfo)
+							   : viewType.equals(cViewTypeCards) ? mMainPane.addCardsView(tabName, dockInfo)
 							   : viewType.equals(cViewTypeForm) ? mMainPane.addFormView(tabName, dockInfo, false)
 							   : viewType.equals(cViewTypeStructureGrid) ? mMainPane.addStructureView(tabName, dockInfo, -1)
 							   : viewType.equals(cViewTypeExplanation) ? mMainPane.addExplanationView(tabName, dockInfo)
@@ -289,6 +314,10 @@ public class DERuntimeProperties extends RuntimeProperties {
 				if (view != null)
 					applyViewProperties(view, "_" + tabName);
 				}
+
+			for (int i=0; i<viewCount; i++)
+				if ("true".equals(getProperty(cMainViewInFront + i)))
+					mMainPane.setToFrontInTabbedPane(getProperty(cMainViewName+i));
 
 			for (int i=0; i<viewCount; i++) {
 				String viewType = getProperty(cMainViewType+i);
@@ -305,71 +334,7 @@ public class DERuntimeProperties extends RuntimeProperties {
 
 		String property = null;
 		for (int i=0; (property=getProperty(cFilter+i))!=null; i++) {
-
-			// Formats prior V2.7.0 didn't store column names for structure filters.
-			if (property.equals(cFilterTypeStructure))
-				property = cFilterTypeStructure + "\tStructure";
-
-			int index1 = property.indexOf('\t');
-
-			// Formats prior V2.7.0 didn't store column names for structure filters.
-			if (property.startsWith(cFilterTypeStructure+"\t#substructure#")
-			 || property.startsWith(cFilterTypeStructure+"\t#similarity#")
-			 || property.startsWith(cFilterTypeStructure+"\t#inverse#\t#substructure#")
-			 || property.startsWith(cFilterTypeStructure+"\t#inverse#\t#similarity#"))
-				property = cFilterTypeStructure+"\tStructure"+property.substring(index1);
-
-			JFilterPanel filter = null;
-			if (property.startsWith(cFilterTypeCategoryBrowser)) {
-				try {
-					filter = mPruningPanel.addCategoryBrowser(mTableModel);
-					if (index1 != -1)
-						filter.applySettings(property.substring(index1+1), suppressMessages);
-					}
-				catch (DEPruningPanel.FilterException fpe) {}
-				}
-			else if (property.startsWith(cFilterTypeHitlist)) {
-				if (mTableModel.getListHandler().getListCount() > 0) {
-					try {
-						filter = mPruningPanel.addHitlistFilter(mTableModel);
-						if (index1 != -1)
-							filter.applySettings(property.substring(index1+1), suppressMessages);
-						}
-					catch (DEPruningPanel.FilterException fpe) {}
-					}
-				}
-			else if (index1 != -1) {
-				int index2 = property.indexOf('\t', index1+1);
-				String columnName = (index2 == -1) ? property.substring(index1+1)
-												   : property.substring(index1+1, index2);
-
-				int column = (columnName.equals(JFilterPanel.ALL_COLUMN_CODE)) ?
-						JFilterPanel.PSEUDO_COLUMN_ALL_COLUMNS : mTableModel.findColumn(columnName);
-
-				if (column != -1) {
-					try {
-						if (property.startsWith(cFilterTypeDouble))
-							filter = mPruningPanel.addDoubleFilter(mTableModel, column);
-						else if (property.startsWith(cFilterTypeCategory))
-							filter = mPruningPanel.addCategoryFilter(mTableModel, column);
-						else if (property.startsWith(cFilterTypeText))
-							filter = mPruningPanel.addTextFilter(mTableModel, column);
-						else if (property.startsWith(cFilterTypeStructure))
-							filter = mPruningPanel.addStructureFilter(mTableModel, column, null);
-						else if (property.startsWith(cFilterTypeSSSList))
-							filter = mPruningPanel.addStructureListFilter(mTableModel, column, true);
-						else if (property.startsWith(cFilterTypeSIMList))
-							filter = mPruningPanel.addStructureListFilter(mTableModel, column, false);
-						else if (property.startsWith(cFilterTypeReaction))
-							filter = mPruningPanel.addReactionFilter(mTableModel, column, null);
-						if (filter != null
-						 && index2 != -1) {
-							filter.applySettings(property.substring(index2 + 1), suppressMessages);
-							}
-						}
-					catch (DEPruningPanel.FilterException fpe) {}
-					}
-				}
+			JFilterPanel filter = mPruningPanel.createFilterFromSettings(property, suppressMessages);
 
 			if (filter != null) {
 				String settings = getProperty(cFilterAnimation+i);
@@ -393,15 +358,6 @@ public class DERuntimeProperties extends RuntimeProperties {
 					mDetailPane.setProperties("height["+detail+"]=1.0");
 				}
 			}
-		}
-
-	private JStructureGrid addStructureView(String tabName, String dockInfo) {
-		String value = getProperty(cStructureGridColumn + "_" + tabName);
-		if (value == null)  // to be compatible with prior V2.7.0 format
-			value = "Structure";
-		int column = mTableModel.findColumn(value);
-		
-		return (column == -1) ? null : mMainPane.addStructureView(tabName, dockInfo, column);
 		}
 
 	private void applyMarkerLabelDisplayerProperties(String viewName, MarkerLabelDisplayer displayer) {
@@ -431,15 +387,47 @@ public class DERuntimeProperties extends RuntimeProperties {
 				}
 			}
 
+		int opcCategory = mTableModel.findColumn(getProperty(cLabelOPCCategory + viewName));
+		if (opcCategory != -1) {
+			int opcValue = mTableModel.findColumn(getProperty(cLabelOPCValue + viewName));
+			if (opcValue != -1) {
+				String mode = getProperty(cLabelOPCMode + viewName);
+				for (int i = 0; i<cOnePerCategoryMode.length; i++) {
+					if (cOnePerCategoryMode[i].equals(mode)) {
+						displayer.setMarkerLabelOnePerCategory(opcCategory, opcValue, i);
+						break;
+						}
+					}
+				}
+			}
+
 		String mode = getProperty(cLabelMode+viewName);
 		displayer.setMarkerLabelsInTreeViewOnly("inDetailGraphOnly".equals(mode));
 
 		String size = getProperty(cLabelSize+viewName);
 		if (size != null)
 			displayer.setMarkerLabelSize(Float.parseFloat(size), false);
+
+		String columnNameInTable = getProperty(cLabelShowColumnNameInTable+viewName);
+		if (columnNameInTable != null)
+			displayer.setShowColumnNameInTable("true".equals(columnNameInTable));
+
+		String optimizePositions = getProperty(cLabelPositionOptimization+viewName);
+		if (optimizePositions != null)
+			displayer.setOptimizeLabelPositions("true".equals(optimizePositions));
+
+		String blackOrWhite = getProperty(cLabelBlackOrWhite+viewName);
+		if (blackOrWhite != null)
+			displayer.setMarkerLabelsBlackOrWhite("true".equals(blackOrWhite));
 		}
 
 	public void applyViewProperties(CompoundTableView view, String viewName) {
+		ViewConfiguration config = getViewConfiguration(viewName.substring(1));
+		if (config != null) {
+			config.apply(view);
+			return;
+			}
+
 		if (view instanceof DETableView) {
 			DETable table = ((DETableView)view).getTable();
 			String value = getProperty(cTableRowHeight+viewName);
@@ -447,6 +435,9 @@ public class DERuntimeProperties extends RuntimeProperties {
 			value = getProperty(cViewFontSize+viewName);
 			if (value != null)
 				table.setFontSize(Integer.parseInt(value));
+			value = getProperty(cTableHeaderLines+viewName);
+			if (value != null)
+				((DETableView)view).setHeaderLineCount(Integer.parseInt(value));
 			for (int modelColumn=0; modelColumn<mTableModel.getColumnCount(); modelColumn++) {
 				int column = mTableModel.convertFromDisplayableColumnIndex(modelColumn);
 				value = getProperty(cTableColumnWidth+viewName+"_"+mTableModel.getColumnTitleNoAlias(column));
@@ -455,9 +446,6 @@ public class DERuntimeProperties extends RuntimeProperties {
 				value = getProperty(cTableColumnWrapping+viewName+"_"+mTableModel.getColumnTitleNoAlias(column));
 				if (value != null)
 					((DETableView)view).setTextWrapping(column, value.equals("true"));
-				value = getProperty(cTableColumnVisibility+viewName+"_"+mTableModel.getColumnTitleNoAlias(column));
-				if (value != null)
-					((DETableView)view).setColumnVisibility(column, value.equals("true"));
 				value = getProperty(cColorColumn+cTableText+viewName+mTableModel.getColumnTitleNoAlias(column));
 				if (value != null)
 					applyViewColorProperties(cTableText+viewName+mTableModel.getColumnTitleNoAlias(column),
@@ -469,13 +457,23 @@ public class DERuntimeProperties extends RuntimeProperties {
 				}
 			value = getProperty(cTableColumnOrder+viewName);
 			if (value != null)
-				table.setColumnOrder(value);
+				table.setColumnOrderString(value);
+
+			value = getProperty(cTableColumnFilter+viewName);
+			if (value != null)
+				table.setColumnFilterText(value);
+			for (int modelColumn=0; modelColumn<mTableModel.getColumnCount(); modelColumn++) { // manual column visibility may override filter
+				int column = mTableModel.convertFromDisplayableColumnIndex(modelColumn);
+				value = getProperty(cTableColumnVisibility+viewName+"_"+mTableModel.getColumnTitleNoAlias(column));
+				if (value != null)
+					((DETableView)view).setColumnVisibility(column, value.equals("true"));
+				}
 			}
 		else if (view instanceof VisualizationPanel) {
 			VisualizationPanel vpanel = (VisualizationPanel)view;
 			JVisualization visualization = vpanel.getVisualization();
 
-			int chartType = JVisualization2D.cChartTypeBars;
+			int chartType = -1;
 			int chartMode = JVisualization2D.cChartModeCount;
 			int chartColumn = JVisualization.cColumnUnassigned;
 
@@ -545,6 +543,10 @@ public class DERuntimeProperties extends RuntimeProperties {
 					}
 				}
 
+			value = getProperty(cScatterplotMargin + viewName);
+			if (value != null)
+				visualization.setScatterPlotMargin(Float.parseFloat(value));
+
 			value = getProperty(cViewFontSize + viewName);
 			if (value != null)
 				visualization.setFontSize(Float.parseFloat(value), false);
@@ -577,6 +579,14 @@ public class DERuntimeProperties extends RuntimeProperties {
 			if (value != null)
 				visualization.setFastRendering("true".equals(value));
 
+			value = getProperty(cDrawBoxOutline + viewName);
+			if (value != null)
+				((JVisualization2D)visualization).setDrawBoxOutline("true".equals(value));
+
+			value = getProperty(cDrawMarkerOutline + viewName);
+			if (value != null)
+				((JVisualization2D)visualization).setDrawMarkerOutline("true".equals(value));
+
 			value = getProperty(cMarkerSize + viewName);
 			if (value != null)
 				visualization.setMarkerSize(Float.parseFloat(value), false);
@@ -602,8 +612,13 @@ public class DERuntimeProperties extends RuntimeProperties {
 				else {
 					column = mTableModel.findColumn(value);
 					}
-				if (column != JVisualization.cColumnUnassigned)
-					visualization.setMarkerSizeColumn(column);
+				if (column != JVisualization.cColumnUnassigned) {
+					value = getProperty(cMarkerSizeMin + viewName);
+					float min = (value == null) ? Float.NaN : Float.parseFloat(value);
+					value = getProperty(cMarkerSizeMax + viewName);
+					float max = (value == null) ? Float.NaN : Float.parseFloat(value);
+					visualization.setMarkerSizeColumn(column, min, max);
+					}
 				}
 
 			applyViewColorProperties(viewName, visualization.getMarkerColor());
@@ -695,8 +710,7 @@ public class DERuntimeProperties extends RuntimeProperties {
 					value = getProperty(cConnectionArrows+viewName);
 					visualization.setConnectionLineInversion("inverted".equals(value));
 					value = getProperty(cConnectionLineWidth+viewName);
-					float lineWidth = (value != null) ? Float.parseFloat(value)
-									 : visualization.getMarkerSize();
+					float lineWidth = (value != null) ? Float.parseFloat(value) : 1.0f;
 					visualization.setConnectionLineWidth(lineWidth, false);
 
 					int treeViewMode = decodeProperty(cTreeViewMode+viewName, JVisualization.TREE_VIEW_MODE_CODE);
@@ -716,6 +730,16 @@ public class DERuntimeProperties extends RuntimeProperties {
 					}
 				}
 
+			value = getProperty(cAutoZoomFactor+viewName);
+			if (value != null) {
+				float azf = Float.parseFloat(value);
+				int column = JVisualization.cColumnUnassigned;
+				value = getProperty(cAutoZoomColumn+viewName);
+				if (value != null)
+					column = mTableModel.findColumn(value);
+				vpanel.setAutoZoom(azf, column, false);
+				}
+
 			value = getProperty(cUsedAsFilter+viewName);
 			visualization.setUseAsFilter(value != null && value.equals("true"));
 
@@ -728,9 +752,20 @@ public class DERuntimeProperties extends RuntimeProperties {
 			value = getProperty(cAffectGlobalExclusion+viewName);
 			visualization.setAffectGlobalExclusion(value == null || value.equals("true"));
 
+			value = getProperty(cIgnoreGlobalExclusion+viewName);
+			visualization.setIgnoreGlobalExclusion(value != null && value.equals("true"));
+
+			int exclusionList = mTableModel.getListHandler().getListIndex(getProperty(cLocalExclusionList+viewName));
+			if (exclusionList != -1)
+				visualization.setLocalExclusionList(exclusionList);
+
 			int scaleMode = decodeProperty(cSuppressScale+viewName, JVisualization.SCALE_MODE_CODE);
 			if (scaleMode != -1)
 				visualization.setScaleMode(scaleMode);
+
+			int scaleStyle = decodeProperty(cScaleStyle+viewName, JVisualization.SCALE_STYLE_CODE);
+			if (scaleStyle != -1)
+				visualization.setScaleStyle(scaleStyle);
 
 			int gridMode = decodeProperty(cSuppressGrid+viewName, JVisualization.GRID_MODE_CODE);
 			if (gridMode != -1)
@@ -738,6 +773,12 @@ public class DERuntimeProperties extends RuntimeProperties {
 
 			value = getProperty(cSuppressLegend+viewName);
 			visualization.setSuppressLegend("true".equals(value));
+
+			value = getProperty(cDynamicScale+viewName);
+			visualization.setDynamicScale(!"false".equals(value));
+
+			value = getProperty(cShowBarOrPieSizeValue+viewName);
+			visualization.setShowBarOrPieSizeValue(value != null && value.equals("true"));
 
 			value = getProperty(cShowStdDev+viewName);
 			visualization.setShowStandardDeviation(value != null && value.equals("true"));
@@ -908,6 +949,13 @@ public class DERuntimeProperties extends RuntimeProperties {
 					value = getProperty(cCurveSplitByCategory+viewName);
 					boolean split = (value != null && value.equals("true"));
 					((JVisualization2D)visualization).setCurveMode(mode, stdDev, split);
+					value = getProperty(cCurveLineWidth+viewName);
+					float curveLineWidth = (value == null) ? JVisualization2D.DEFAULT_CURVE_LINE_WIDTH : Float.parseFloat(value);
+					((JVisualization2D)visualization).setCurveLineWidth(curveLineWidth);
+
+					value = getProperty(cCurveSmoothing+viewName);
+					if (value != null)
+						((JVisualization2D)visualization).setCurveSmoothing(Float.parseFloat(value));
 					}
 
 				int type = decodeProperty(cCorrelationCoefficient+viewName, CorrelationCalculator.TYPE_NAME);
@@ -978,18 +1026,36 @@ public class DERuntimeProperties extends RuntimeProperties {
 			if (value == null)  // to be compatible with prior V2.7.0 format
 				value = "Structure";
 			((JStructureGrid)view).setStructureColumn(mTableModel.findColumn(value));
+
+			value = getProperty(cStructureDisplayStereoMode+viewName);
+			if (value != null) {
+				int stereoModeIndex = DETaskSetStructureDisplayMode.findStereoModeIndex(value, -1);
+				if (stereoModeIndex != -1) {
+					int currentModeWithoutStereo = (((JStructureGrid)view).getStructureDisplayMode() & ~DETaskSetStructureDisplayMode.STEREO_MODE_MASK);
+					((JStructureGrid)view).setStructureDisplayMode(currentModeWithoutStereo | DETaskSetStructureDisplayMode.STEREO_MODE[stereoModeIndex]);
+					}
+				}
+
+			value = getProperty(cStructureDisplayColorMode+viewName);
+			if (value != null) {
+				int colorModeIndex = DETaskSetStructureDisplayMode.findColorModeIndex(value, -1);
+				if (colorModeIndex != -1) {
+					int currentModeWithoutColor = (((JStructureGrid)view).getStructureDisplayMode() & ~DETaskSetStructureDisplayMode.COLOR_MODE_MASK);
+					((JStructureGrid)view).setStructureDisplayMode(currentModeWithoutColor | DETaskSetStructureDisplayMode.COLOR_MODE[colorModeIndex]);
+					}
+				}
 			}
 		
 		if (view instanceof FocusableView) {
 			String value = getProperty(cFocusList + viewName);
 			if (value != null) {
 				if (value.equals(cListIsSelection)) {
-					((FocusableView)view).setFocusHitlist(JVisualization.cFocusOnSelection);
+					((FocusableView)view).setFocusList(FocusableView.cFocusOnSelection);
 					}
 				else {
 					int hitlist = mTableModel.getListHandler().getListIndex(value);
 					if (hitlist != -1)
-						((FocusableView)view).setFocusHitlist(hitlist);
+						((FocusableView)view).setFocusList(hitlist);
 					}
 				}
 			}
@@ -1097,11 +1163,7 @@ public class DERuntimeProperties extends RuntimeProperties {
 		else {
 			// if we are running macros, recently set properties (e.g. JSplitPane.deviderLocation) are not yet correct, if not queried in the EDT
 			try {
-				SwingUtilities.invokeAndWait(new Runnable() {
-					public void run() {
-						doLearn();
-						}
-					});
+				SwingUtilities.invokeAndWait(() -> doLearn() );
 				}
 			catch (Exception e) {
 				e.printStackTrace();
@@ -1117,418 +1179,458 @@ public class DERuntimeProperties extends RuntimeProperties {
 		setProperty(cDetailView, mDetailPane.getProperties());
 		String[] dockInfo = mMainPane.getDockInfoSequence();
 		setProperty(cMainViewCount, dockInfo == null ? "0" : Integer.toString(dockInfo.length));
-		for (int i=0; i<dockInfo.length; i++) {
-			int dockInfoIndex = dockInfo[i].indexOf('\t');
-			String title = dockInfo[i].substring(0, dockInfoIndex);
-			String state = dockInfo[i].substring(dockInfoIndex+1);
-			CompoundTableView view = mMainPane.getView(title);
-			setProperty(cMainViewName+i, title);
-			setProperty(cMainViewType+i, (view instanceof DETableView) ? cViewTypeTable
-									   : (view instanceof VisualizationPanel2D) ? cViewType2D
-									   : (view instanceof VisualizationPanel3D) ? cViewType3D
-									   : (view instanceof DEFormView) ? cViewTypeForm
-									   : (view instanceof JStructureGrid) ? cViewTypeStructureGrid
-									   : (view instanceof ExplanationView) ? cViewTypeExplanation
-									   : (view instanceof DEMacroEditor) ? cViewTypeMacroEditor
-									   : "UNKNOWN_VIEW");
-			setProperty(cMainViewDockInfo+i, state);
+		if (dockInfo != null) {
+			for (int i=0; i<dockInfo.length; i++) {
+				int dockInfoIndex = dockInfo[i].indexOf('\t');
+				String title = dockInfo[i].substring(0, dockInfoIndex);
+				String state = dockInfo[i].substring(dockInfoIndex+1);
+				CompoundTableView view = mMainPane.getView(title);
+				setProperty(cMainViewName+i, title);
+				setProperty(cMainViewType+i, (view instanceof DETableView) ? cViewTypeTable
+										   : (view instanceof VisualizationPanel2D) ? cViewType2D
+										   : (view instanceof VisualizationPanel3D) ? cViewType3D
+										   : (view instanceof JCardView) ? cViewTypeCards
+										   : (view instanceof DEFormView) ? cViewTypeForm
+										   : (view instanceof JStructureGrid) ? cViewTypeStructureGrid
+										   : (view instanceof ExplanationView) ? cViewTypeExplanation
+										   : (view instanceof DEMacroEditor) ? cViewTypeMacroEditor
+										   : "UNKNOWN_VIEW");
+				setProperty(cMainViewDockInfo+i, state);
+				if (mMainPane.isInFrontInTabbedPane(title))
+					setProperty(cMainViewInFront+i, "true");
 
-			String viewName = "_"+title;
-			if (view instanceof DETableView) {
-				DETable table = ((DETableView)view).getTable();
-				setProperty(cTableRowHeight+viewName, Integer.toString(Math.round((float)table.getRowHeight()/HiDPIHelper.getUIScaleFactor())));
-				int fontSize = table.getFontSize();
-				if (fontSize != DETable.DEFAULT_FONT_SIZE)
-					setProperty(cViewFontSize+viewName, ""+fontSize);
+				String viewName = "_"+title;
+				if (view instanceof DETableView) {
+// TODO store new format of view configurations for all views and translate from old to new configuration key names
+//					mViewConfiguration[i] = new DETableConfiguration((DETableView)view, i, mTableModel);
+//					mViewConfiguration[i].learn();
 
-				// store column width for all visible columns
-				for (int modelColumn=0; modelColumn<mTableModel.getColumnCount(); modelColumn++) {
-					int column = mTableModel.convertFromDisplayableColumnIndex(modelColumn);
-					if (((DETableView)view).isColumnVisible(column)) {
-						int viewColumn = table.convertColumnIndexToView(modelColumn);
-						setProperty(cTableColumnWidth+viewName+"_"+mTableModel.getColumnTitleNoAlias(column),
-								""+(int)(table.getColumnModel().getColumn(viewColumn).getPreferredWidth()/HiDPIHelper.getUIScaleFactor()));
-						if (((DETableView)view).getTextWrapping(column))
+					DETable table = ((DETableView)view).getTable();
+					setProperty(cTableRowHeight+viewName, Integer.toString(Math.round((float)table.getRowHeight()/HiDPIHelper.getUIScaleFactor())));
+					int fontSize = table.getFontSize();
+					if (fontSize != DETable.DEFAULT_FONT_SIZE)
+						setProperty(cViewFontSize+viewName, ""+fontSize);
+					int headerLines = ((DETableView)view).getHeaderLineCount();
+					if (headerLines != 1)
+						setProperty(cTableHeaderLines+viewName, ""+headerLines);
+
+					// store column width for all visible columns
+					for (int modelColumn=0; modelColumn<mTableModel.getColumnCount(); modelColumn++) {
+						int column = mTableModel.convertFromDisplayableColumnIndex(modelColumn);
+						setProperty(cTableColumnWidth+viewName+"_"+mTableModel.getColumnTitleNoAlias(column), ""+table.getColumnWidth(column));
+						if (table.isTextWrapped(column))
 							setProperty(cTableColumnWrapping+viewName+"_"+mTableModel.getColumnTitleNoAlias(column), "true");
+						String columnVisibility = table.getExplicitColumnVisibilityString(column);
+						if (columnVisibility != null)
+							setProperty(cTableColumnVisibility+viewName+"_"+mTableModel.getColumnTitleNoAlias(column), columnVisibility);
+						if (((DETableView)view).getColorHandler().hasColorAssigned(column, CompoundTableColorHandler.FOREGROUND))
+							learnViewColorProperties(cTableText+viewName+mTableModel.getColumnTitleNoAlias(column),
+									((DETableView)view).getColorHandler().getVisualizationColor(column, CompoundTableColorHandler.FOREGROUND));
+						if (((DETableView)view).getColorHandler().hasColorAssigned(column, CompoundTableColorHandler.BACKGROUND))
+							learnViewColorProperties(cTableBackground+viewName+mTableModel.getColumnTitleNoAlias(column),
+									((DETableView)view).getColorHandler().getVisualizationColor(column, CompoundTableColorHandler.BACKGROUND));
+						}
+
+					String order = table.getColumnOrderString();
+					if (order != null)
+						setProperty(cTableColumnOrder+viewName, order);
+					String filter = table.getColumnFilterText();
+					if (filter != null)
+						setProperty(cTableColumnFilter+viewName, filter);
+					}
+				if (view instanceof JCardView) {
+					CardsViewConfiguration config = new CardsViewConfiguration(mTableModel);
+					config.learn((JCardView)view);
+					addViewConfiguration(title, config);
+					}
+				else if (view instanceof VisualizationPanel) {
+					VisualizationPanel vpanel = (VisualizationPanel)view;
+					JVisualization visualization = vpanel.getVisualization();
+
+					VisualizationPanel master = vpanel.getSynchronizationMaster();
+					if (master != null) {
+						setProperty(cMasterView+viewName, mMainPane.getViewTitle(master));
 						}
 					else {
-						setProperty(cTableColumnVisibility+viewName+"_"+mTableModel.getColumnTitleNoAlias(column), "false");
-						}
-					if (((DETableView)view).getColorHandler().hasColorAssigned(column, CompoundTableColorHandler.FOREGROUND))
-						learnViewColorProperties(cTableText+viewName+mTableModel.getColumnTitleNoAlias(column),
-								((DETableView)view).getColorHandler().getVisualizationColor(column, CompoundTableColorHandler.FOREGROUND));
-					if (((DETableView)view).getColorHandler().hasColorAssigned(column, CompoundTableColorHandler.BACKGROUND))
-						learnViewColorProperties(cTableBackground+viewName+mTableModel.getColumnTitleNoAlias(column),
-								((DETableView)view).getColorHandler().getVisualizationColor(column, CompoundTableColorHandler.BACKGROUND));
-					}
+						int dimensions = vpanel.getDimensionCount();
+						for (int j=0; j<dimensions; j++) {
+									// popups assigning column to axis
+							String key = cAxisColumn + viewName + "_" + j;
+							setProperty(key, vpanel.getAxisColumnName(j));
 
-				String order = table.getColumnOrder();
-				if (order != null)
-					setProperty(cTableColumnOrder+viewName, order);
-				}
-			else if (view instanceof VisualizationPanel) {
-				VisualizationPanel vpanel = (VisualizationPanel)view;
-				JVisualization visualization = vpanel.getVisualization();
-
-				VisualizationPanel master = vpanel.getSynchronizationMaster();
-				if (master != null) {
-					setProperty(cMasterView+viewName, mMainPane.getViewTitle(master));
-					}
-				else {
-					int dimensions = vpanel.getDimensionCount();
-					for (int j=0; j<dimensions; j++) {
-								// popups assigning column to axis
-						String key = cAxisColumn + viewName + "_" + j;
-						setProperty(key, vpanel.getAxisColumnName(j));
-
-						// setting visible range the new way (after 20-Feb-2017)
-						JPruningBar pbar = vpanel.getPruningBar(j);
-						if (pbar.getLowValue() != pbar.getMinimumValue()) {
-							key = cAxisMin + viewName + "_" + j;
-							setProperty(key, ""+visualization.getVisibleMin(j));
+							// setting visible range the new way (after 20-Feb-2017)
+							JPruningBar pbar = vpanel.getPruningBar(j);
+							if (pbar.getLowValue() != pbar.getMinimumValue()) {
+								key = cAxisMin + viewName + "_" + j;
+								setProperty(key, ""+visualization.getVisibleMin(j));
+								}
+							if (pbar.getHighValue() != pbar.getMaximumValue()) {
+								key = cAxisMax + viewName + "_" + j;
+								setProperty(key, ""+visualization.getVisibleMax(j));
+								}
 							}
-						if (pbar.getHighValue() != pbar.getMaximumValue()) {
-							key = cAxisMax + viewName + "_" + j;
-							setProperty(key, ""+visualization.getVisibleMax(j));
+
+						if (view instanceof VisualizationPanel3D) {
+							float[][] rotation = ((JVisualization3D)visualization).getRotationMatrix();
+							for (int j=0; j<3; j++)
+								for (int k=0; k<3; k++)
+									setProperty(cRotation+viewName+j+k, DoubleFormat.toString(rotation[j][k]));
 							}
 						}
+
+					setProperty(cScatterplotMargin+viewName, ""+visualization.getScatterPlotMargin());
+
+					if (visualization.getFontSize() != 1.0)
+						setProperty(cViewFontSize+viewName, ""+visualization.getFontSize());
+
+					if (!visualization.getViewBackground().equals(Color.WHITE))
+						setProperty(cViewBackground+viewName, ""+visualization.getViewBackground().getRGB());
+
+					if (!visualization.getLabelBackground().equals(JVisualization.DEFAULT_LABEL_BACKGROUND))
+						setProperty(cLabelBackground+viewName, ""+visualization.getLabelBackground().getRGB());
+
+					if (visualization.getLabelTransparency() != DEFAULT_LABEL_TRANSPARENCY)
+						setProperty(cLabelTransparency+viewName, DoubleFormat.toString(visualization.getLabelTransparency()));
 
 					if (view instanceof VisualizationPanel3D) {
-						float[][] rotation = ((JVisualization3D)visualization).getRotationMatrix();
-						for (int j=0; j<3; j++)
-							for (int k=0; k<3; k++)
-								setProperty(cRotation+viewName+j+k, DoubleFormat.toString(rotation[j][k]));
-						}
-					}
-
-				if (visualization.getFontSize() != 1.0)
-					setProperty(cViewFontSize+viewName, ""+visualization.getFontSize());
-
-				if (!visualization.getViewBackground().equals(Color.WHITE))
-					setProperty(cViewBackground+viewName, ""+visualization.getViewBackground().getRGB());
-
-				if (!visualization.getLabelBackground().equals(JVisualization.DEFAULT_LABEL_BACKGROUND))
-					setProperty(cLabelBackground+viewName, ""+visualization.getLabelBackground().getRGB());
-
-				if (visualization.getLabelTransparency() != DEFAULT_LABEL_TRANSPARENCY)
-					setProperty(cLabelTransparency+viewName, DoubleFormat.toString(visualization.getLabelTransparency()));
-
-				if (view instanceof VisualizationPanel3D) {
-					Color faceColor = ((JVisualization3D) visualization).getGraphFaceColor();
-					if (!faceColor.equals(JVisualization3D.DEFAULT_GRAPH_FACE_COLOR))
-						setProperty(cFaceColor3D + viewName, "" + faceColor.getRGB());
-					}
-
-				if (visualization.isSplitViewConfigured())
-					setProperty(cTitleBackground+viewName, ""+visualization.getTitleBackground().getRGB());
-
-				if (visualization.getJittering() != 0.0) {
-					setProperty(cJittering + viewName, "" + visualization.getJittering());
-					setProperty(cJitterAxes + viewName, "" + visualization.getJitterAxes());
-					}
-
-				if (visualization.isFastRendering())
-					setProperty(cFastRendering+viewName, "true");
-
-				if (visualization.getMarkerSize() != 1.0)
-					setProperty(cMarkerSize+viewName, ""+visualization.getMarkerSize());
-
-				if (visualization.getMarkerSizeInversion())
-					setProperty(cSizeInversion+viewName, "true");
-
-				if (visualization.getMarkerSizeProportional())
-					setProperty(cSizeProportional+viewName, "true");
-
-				if (!visualization.isMarkerSizeZoomAdapted())
-					setProperty(cSizeAdaption+viewName, "false");
-
-				int column = visualization.getMarkerSizeColumn();
-				if (column != JVisualization.cColumnUnassigned) {
-					String key = cSizeColumn+viewName;
-					if (CompoundTableListHandler.isListColumn(column))
-						setProperty(key, "sizeByHitlist\t"
-								+ mTableModel.getListHandler().getListName(
-										CompoundTableListHandler.getListFromColumn(column)));
-					else {
-						setProperty(key, mTableModel.getColumnTitleNoAlias(column));
-						}
-					}
-
-				learnViewColorProperties(viewName, visualization.getMarkerColor());
-
-				column = visualization.getMarkerShapeColumn();
-				if (column != JVisualization.cColumnUnassigned) {
-					if (CompoundTableListHandler.isListColumn(column))
-						setProperty(cShapeColumn+viewName, "shapeByHitlist\t"
-								+ mTableModel.getListHandler().getListName(
-										CompoundTableListHandler.getListFromColumn(column)));
-					else
-						setProperty(cShapeColumn+viewName, mTableModel.getColumnTitleNoAlias(column));
-					}
-
-				if (visualization.isCaseSeparationDone()) {
-					int csColumn = visualization.getCaseSeparationColumn();
-					if (csColumn != JVisualization.cColumnUnassigned) {
-						if (CompoundTableListHandler.isListColumn(csColumn))
-							setProperty(cCaseSeparationColumn+viewName, "splitByHitlist\t"
-									+ mTableModel.getListHandler().getListName(
-											CompoundTableListHandler.getListFromColumn(csColumn)));
-						else
-							setProperty(cCaseSeparationColumn+viewName, mTableModel.getColumnTitleNoAlias(csColumn));
-						setProperty(cCaseSeparationValue+viewName, ""+visualization.getCaseSeparationValue());
-						}
-					}
-
-				int[] sc = visualization.getSplittingColumns();
-				if (sc[0] != JVisualization.cColumnUnassigned) {
-					if (CompoundTableListHandler.isListColumn(sc[0]))
-						setProperty(cSplitViewColumn1+viewName, "splitByHitlist\t"
-								+ mTableModel.getListHandler().getListName(
-										CompoundTableListHandler.getListFromColumn(sc[0])));
-					else
-						setProperty(cSplitViewColumn1+viewName, mTableModel.getColumnTitleNoAlias(sc[0]));
-					setProperty(cSplitViewAspect+viewName, ""+visualization.getSplittingAspectRatio());
-					setProperty(cSplitViewShowEmpty+viewName, visualization.isShowEmptyInSplitView() ? "true" : "false");
-					}
-				if (sc[1] != JVisualization.cColumnUnassigned) {
-					if (CompoundTableListHandler.isListColumn(sc[1]))
-						setProperty(cSplitViewColumn2+viewName, "splitByHitlist\t"
-								+ mTableModel.getListHandler().getListName(
-										CompoundTableListHandler.getListFromColumn(sc[1])));
-					else
-						setProperty(cSplitViewColumn2+viewName, mTableModel.getColumnTitleNoAlias(sc[1]));
-					}
-
-				learnMarkerLabelDisplayerProperties(viewName, visualization);
-
-				int type = visualization.getChartType();
-				setProperty(cChartType+viewName, JVisualization.CHART_TYPE_CODE[type]);
-				if (type == JVisualization.cChartTypeBars || type == JVisualization.cChartTypePies) {
-					int mode = visualization.getPreferredChartMode();
-					setProperty(cChartMode+viewName, JVisualization.CHART_MODE_CODE[mode]);
-					if (mode != JVisualization.cChartModeCount && mode != JVisualization.cChartModePercent) {
-						column = visualization.getPreferredChartColumn();
-						setProperty(cChartColumn+viewName, mTableModel.getColumnTitleNoAlias(column));
-						}
-					}
-
-				column = visualization.getConnectionColumn();
-				if (column != JVisualization.cColumnUnassigned) {
-					setProperty(cConnectionColumn1+viewName,
-							(column == JVisualization.cConnectionColumnConnectAll) ? cConnectionColumnConnectAll
-						  : (column == JVisualization.cConnectionColumnConnectCases) ? cConnectionColumnConnectCases
-						  : mTableModel.getColumnTitleNoAlias(column));
-					column = visualization.getConnectionOrderColumn();
-					if (column != JVisualization.cColumnUnassigned)
-						setProperty(cConnectionColumn2+viewName, mTableModel.getColumnTitleNoAlias(column));
-					if (visualization.isConnectionLineInverted())
-						setProperty(cConnectionArrows+viewName, "inverted");
-					double lineWidth = visualization.getConnectionLineWidth();
-					if (lineWidth != 1.0)
-						setProperty(cConnectionLineWidth+viewName, ""+lineWidth);
-
-					if (visualization.getTreeViewMode() != JVisualization.cTreeViewModeNone) {
-						setProperty(cTreeViewMode+viewName, JVisualization.TREE_VIEW_MODE_CODE[visualization.getTreeViewMode()]);
-						setProperty(cTreeViewRadius+viewName, ""+visualization.getTreeViewRadius());
-						setProperty(cTreeViewShowAll+viewName, visualization.isTreeViewShowAll() ? "true" : "false");
-						setProperty(cTreeViewIsDynamic+viewName, visualization.isTreeViewDynamic() ? "true" : "false");
-						setProperty(cTreeViewIsInverted+viewName, visualization.isTreeViewInverted() ? "true" : "false");
-						}
-					}
-
-				if (visualization.isUsedAsFilter())
-					setProperty(cUsedAsFilter+viewName, "true");
-
-				if (visualization.getShowNaNValues())
-					setProperty(cShowNaNValues+viewName, "true");
-
-				if (visualization.isShowLabelBackground())
-					setProperty(cShowLabelBackground+viewName, "true");
-
-				if (!visualization.getAffectGlobalExclusion())
-					setProperty(cAffectGlobalExclusion+viewName, "false");
-
-				if (visualization.getGridMode() != JVisualization.cGridModeShown)
-					setProperty(cSuppressGrid+viewName, JVisualization.GRID_MODE_CODE[visualization.getGridMode()]);
-
-				if (visualization.isLegendSuppressed())
-					setProperty(cSuppressLegend+viewName, "true");
-
-				if (visualization.getScaleMode() != JVisualization.cScaleModeShown)
-					setProperty(cSuppressScale+viewName, JVisualization.SCALE_MODE_CODE[visualization.getScaleMode()]);
-
-				if (visualization.isShowStandardDeviation())
-					setProperty(cShowStdDev+viewName, "true");
-
-				if (visualization.isShowConfidenceInterval())
-					setProperty(cShowConfInterval+viewName, "true");
-
-				if (visualization.isShowValueCount())
-					setProperty(cShowValueCount+viewName, "true");
-
-				if (visualization.isShowFoldChange())
-					setProperty(cShowFoldChange+viewName, "true");
-
-				if (visualization.isShowPValue())
-					setProperty(cShowPValue+viewName, "true");
-
-				column = visualization.getPValueColumn();
-				if (column != JVisualization.cColumnUnassigned) {
-					setProperty(cPValueColumn+viewName, mTableModel.getColumnTitleNoAlias(column));
-					setProperty(cPValueRefCategory+viewName, visualization.getPValueRefCategory());
-					}
-	
-				int boxplotMeanMode = visualization.getBoxplotMeanMode();
-				if (boxplotMeanMode != JVisualization.BOXPLOT_DEFAULT_MEAN_MODE)
-					setProperty(cBoxplotMeanMode+viewName, JVisualization.BOXPLOT_MEAN_MODE_CODE[boxplotMeanMode]);
-
-				if (visualization.isShowMeanAndMedianValues())
-					setProperty(cBoxplotShowMeanValues+viewName, "true");
-
-				if (view instanceof VisualizationPanel2D) {
-					double transparency = ((JVisualization2D)visualization).getMarkerTransparency();
-					if (transparency != 0.0) {
-						setProperty(cMarkerTransparency+viewName, ""+transparency);
+						Color faceColor = ((JVisualization3D) visualization).getGraphFaceColor();
+						if (!faceColor.equals(JVisualization3D.DEFAULT_GRAPH_FACE_COLOR))
+							setProperty(cFaceColor3D + viewName, "" + faceColor.getRGB());
 						}
 
-					int[] multiValueMarkerColumn = ((JVisualization2D)visualization).getMultiValueMarkerColumns();
-					if (multiValueMarkerColumn != null) {
-						int multiValueMarkerMode = ((JVisualization2D)visualization).getMultiValueMarkerMode();
-						setProperty(cMultiValueMarkerMode+viewName, JVisualization2D.MULTI_VALUE_MARKER_MODE_CODE[multiValueMarkerMode]);
-						StringBuilder columnNames = new StringBuilder(mTableModel.getColumnTitleNoAlias(multiValueMarkerColumn[0]));
-						for (int j=1; j<multiValueMarkerColumn.length; j++)
-							columnNames.append('\t').append(mTableModel.getColumnTitleNoAlias(multiValueMarkerColumn[j]));
-						setProperty(cMultiValueMarkerColumns+viewName, ""+columnNames.toString());
+					if (visualization.isSplitViewConfigured())
+						setProperty(cTitleBackground+viewName, ""+visualization.getTitleBackground().getRGB());
+
+					if (visualization.getJittering() != 0.0) {
+						setProperty(cJittering + viewName, "" + visualization.getJittering());
+						setProperty(cJitterAxes + viewName, "" + visualization.getJitterAxes());
 						}
 
-					column = ((JVisualization2D)visualization).getBackgroundColor().getColorColumn();
+					setProperty(cFastRendering+viewName, visualization.isFastRendering() ? "true" : "false");
+
+					if (visualization instanceof JVisualization2D && ((JVisualization2D)visualization).isDrawBarPieBoxOutline())
+						setProperty(cDrawBoxOutline+viewName, "true");
+
+					if (visualization instanceof JVisualization2D && !((JVisualization2D)visualization).isDrawMarkerOutline())
+						setProperty(cDrawMarkerOutline+viewName, "false");
+
+					if (visualization.getMarkerSize() != 1.0)
+						setProperty(cMarkerSize+viewName, ""+visualization.getMarkerSize());
+
+					if (visualization.getMarkerSizeInversion())
+						setProperty(cSizeInversion+viewName, "true");
+
+					if (visualization.getMarkerSizeProportional())
+						setProperty(cSizeProportional+viewName, "true");
+
+					if (!visualization.isMarkerSizeZoomAdapted())
+						setProperty(cSizeAdaption+viewName, "false");
+
+					int column = visualization.getMarkerSizeColumn();
 					if (column != JVisualization.cColumnUnassigned) {
-						String key = cBackgroundColorColumn+viewName;
+						String key = cSizeColumn+viewName;
 						if (CompoundTableListHandler.isListColumn(column))
-							setProperty(key, "colorByHitlist\t"
+							setProperty(key, "sizeByHitlist\t"
 									+ mTableModel.getListHandler().getListName(
-											CompoundTableListHandler.getListFromColumn(column)));
+											CompoundTableListHandler.convertToListIndex(column)));
 						else {
 							setProperty(key, mTableModel.getColumnTitleNoAlias(column));
+							float min = visualization.getMarkerSizeMin();
+							if (!Float.isNaN(min))
+								setProperty(cMarkerSizeMin+viewName, Float.toString(min));
+							float max = visualization.getMarkerSizeMax();
+							if (!Float.isNaN(max))
+								setProperty(cMarkerSizeMax+viewName, Float.toString(max));
 							}
-
-						int mode = ((JVisualization2D)visualization).getBackgroundColor().getColorListMode();
-						key = cBackgroundColorListMode+viewName;
-						if (mode == VisualizationColor.cColorListModeCategories)
-							setProperty(key, "Categories");
-						else if (mode == VisualizationColor.cColorListModeHSBShort)
-							setProperty(key, "HSBShort");
-						else if (mode == VisualizationColor.cColorListModeHSBLong)
-							setProperty(key, "HSBLong");
-						else if (mode == VisualizationColor.cColorListModeStraight)
-							setProperty(key, "straight");
-
-						Color[] colorList = ((JVisualization2D)visualization).getBackgroundColor().getColorListWithoutDefaults();
-						if (mode == VisualizationColor.cColorListModeCategories) {
-							setProperty(cBackgroundColorCount+viewName, ""+colorList.length);
-							for (int j=0; j<colorList.length; j++)
-								setProperty(cBackgroundColor+viewName+"_"+j, ""+colorList[j].getRGB());
-							}
-						else {
-							setProperty(cBackgroundColor+viewName+"_0", ""+colorList[0].getRGB());
-							setProperty(cBackgroundColor+viewName+"_1", ""+colorList[colorList.length-1].getRGB());
-							}
-
-						int hitlist = ((JVisualization2D)visualization).getBackgroundColorConsidered();
-						String value = (hitlist == JVisualization2D.BACKGROUND_VISIBLE_RECORDS) ? "visibleRecords"
-									 : (hitlist == JVisualization2D.BACKGROUND_ALL_RECORDS) ? "allRecords"
-									 : "fromHitlist\t" + mTableModel.getListHandler().getListName(hitlist);
-						setProperty(cBackgroundColorRecords, value);
-						setProperty(cBackgroundColorRadius+viewName, ""+((JVisualization2D)visualization).getBackgroundColorRadius());
-						setProperty(cBackgroundColorFading+viewName, ""+((JVisualization2D)visualization).getBackgroundColorFading());
-
-						if (!Double.isNaN(((JVisualization2D)visualization).getBackgroundColor().getColorMin()))
-							setProperty(cBackgroundColorMin+viewName, ""+((JVisualization2D)visualization).getBackgroundColor().getColorMin());
-						if (!Double.isNaN(((JVisualization2D)visualization).getBackgroundColor().getColorMax()))
-							setProperty(cBackgroundColorMax+viewName, ""+((JVisualization2D)visualization).getBackgroundColor().getColorMax());
 						}
 
-					byte[] backgroundImageData = ((JVisualization2D)visualization).getBackgroundImageData();
-					if (backgroundImageData != null)
-						setBinary(cBackgroundImage+viewName, backgroundImageData);
+					learnViewColorProperties(viewName, visualization.getMarkerColor());
 
-					int curveMode = ((JVisualization2D)visualization).getCurveMode();
-					if (curveMode != 0) {
-						setProperty(cCurveMode+viewName, JVisualization2D.CURVE_MODE_CODE[curveMode]);
-						if (((JVisualization2D)visualization).isShowStandardDeviationLines())
-							setProperty(cCurveStdDev+viewName, "true");
-						if (((JVisualization2D)visualization).isCurveSplitByCategory())
-							setProperty(cCurveSplitByCategory+viewName, "true");
+					column = visualization.getMarkerShapeColumn();
+					if (column != JVisualization.cColumnUnassigned) {
+						if (CompoundTableListHandler.isListColumn(column))
+							setProperty(cShapeColumn+viewName, "shapeByHitlist\t"
+									+ mTableModel.getListHandler().getListName(
+											CompoundTableListHandler.convertToListIndex(column)));
+						else
+							setProperty(cShapeColumn+viewName, mTableModel.getColumnTitleNoAlias(column));
 						}
 
-					int correlationType = ((JVisualization2D)visualization).getShownCorrelationType();
-					if (correlationType != CorrelationCalculator.TYPE_NONE) {
-						setProperty(cCorrelationCoefficient+viewName, CorrelationCalculator.TYPE_NAME[correlationType]);
+					if (visualization.isCaseSeparationDone()) {
+						int csColumn = visualization.getCaseSeparationColumn();
+						if (csColumn != JVisualization.cColumnUnassigned) {
+							if (CompoundTableListHandler.isListColumn(csColumn))
+								setProperty(cCaseSeparationColumn+viewName, "splitByHitlist\t"
+										+ mTableModel.getListHandler().getListName(
+												CompoundTableListHandler.convertToListIndex(csColumn)));
+							else
+								setProperty(cCaseSeparationColumn+viewName, mTableModel.getColumnTitleNoAlias(csColumn));
+							setProperty(cCaseSeparationValue+viewName, ""+visualization.getCaseSeparationValue());
+							}
+						}
+
+					int[] sc = visualization.getSplittingColumns();
+					if (sc[0] != JVisualization.cColumnUnassigned) {
+						if (CompoundTableListHandler.isListColumn(sc[0]))
+							setProperty(cSplitViewColumn1+viewName, "splitByHitlist\t"
+									+ mTableModel.getListHandler().getListName(
+											CompoundTableListHandler.convertToListIndex(sc[0])));
+						else
+							setProperty(cSplitViewColumn1+viewName, mTableModel.getColumnTitleNoAlias(sc[0]));
+						setProperty(cSplitViewAspect+viewName, ""+visualization.getSplittingAspectRatio());
+						setProperty(cSplitViewShowEmpty+viewName, visualization.isShowEmptyInSplitView() ? "true" : "false");
+						}
+					if (sc[1] != JVisualization.cColumnUnassigned) {
+						if (CompoundTableListHandler.isListColumn(sc[1]))
+							setProperty(cSplitViewColumn2+viewName, "splitByHitlist\t"
+									+ mTableModel.getListHandler().getListName(
+											CompoundTableListHandler.convertToListIndex(sc[1])));
+						else
+							setProperty(cSplitViewColumn2+viewName, mTableModel.getColumnTitleNoAlias(sc[1]));
+						}
+
+					learnMarkerLabelDisplayerProperties(viewName, visualization);
+
+					int type = visualization.getChartType();
+					setProperty(cChartType+viewName, JVisualization.CHART_TYPE_CODE[type]);
+					if (type == JVisualization.cChartTypeBars || type == JVisualization.cChartTypePies) {
+						int mode = visualization.getPreferredChartMode();
+						setProperty(cChartMode+viewName, JVisualization.CHART_MODE_CODE[mode]);
+						if (mode != JVisualization.cChartModeCount && mode != JVisualization.cChartModePercent) {
+							column = visualization.getPreferredChartColumn();
+							setProperty(cChartColumn+viewName, mTableModel.getColumnTitleNoAlias(column));
+							}
+						}
+
+					column = visualization.getConnectionColumn();
+					if (column != JVisualization.cColumnUnassigned) {
+						setProperty(cConnectionColumn1+viewName,
+								(column == JVisualization.cConnectionColumnConnectAll) ? cConnectionColumnConnectAll
+							  : (column == JVisualization.cConnectionColumnConnectCases) ? cConnectionColumnConnectCases
+							  : mTableModel.getColumnTitleNoAlias(column));
+						column = visualization.getConnectionOrderColumn();
+						if (column != JVisualization.cColumnUnassigned)
+							setProperty(cConnectionColumn2+viewName, mTableModel.getColumnTitleNoAlias(column));
+						if (visualization.isConnectionLineInverted())
+							setProperty(cConnectionArrows+viewName, "inverted");
+						double lineWidth = visualization.getConnectionLineWidth();
+						if (lineWidth != 1.0)
+							setProperty(cConnectionLineWidth+viewName, ""+lineWidth);
+
+						if (visualization.getTreeViewMode() != JVisualization.cTreeViewModeNone) {
+							setProperty(cTreeViewMode+viewName, JVisualization.TREE_VIEW_MODE_CODE[visualization.getTreeViewMode()]);
+							setProperty(cTreeViewRadius+viewName, ""+visualization.getTreeViewRadius());
+							setProperty(cTreeViewShowAll+viewName, visualization.isTreeViewShowAll() ? "true" : "false");
+							setProperty(cTreeViewIsDynamic+viewName, visualization.isTreeViewDynamic() ? "true" : "false");
+							setProperty(cTreeViewIsInverted+viewName, visualization.isTreeViewInverted() ? "true" : "false");
+							}
+						}
+
+					float azf = vpanel.getAutoZoomFactor();
+					if (azf != 0) {
+						setProperty(cAutoZoomFactor+viewName, Float.toString(azf));
+						int azc = vpanel.getAutoZoomColumn();
+						if (azc != -1)
+							setProperty(cAutoZoomColumn+viewName, mTableModel.getColumnTitleNoAlias(azc));
+						}
+
+					if (visualization.isUsedAsFilter())
+						setProperty(cUsedAsFilter+viewName, "true");
+
+					if (visualization.getShowNaNValues())
+						setProperty(cShowNaNValues+viewName, "true");
+
+					if (visualization.isShowLabelBackground())
+						setProperty(cShowLabelBackground+viewName, "true");
+
+					if (!visualization.getAffectGlobalExclusion())
+						setProperty(cAffectGlobalExclusion+viewName, "false");
+
+					if (visualization.isIgnoreGlobalExclusion())
+						setProperty(cIgnoreGlobalExclusion+viewName, "true");
+
+					if (visualization.getLocalExclusionList() != -1)
+						setProperty(cLocalExclusionList+viewName, mTableModel.getListHandler().getListName(visualization.getLocalExclusionList()));
+
+					if (visualization.getGridMode() != JVisualization.cGridModeShown)
+						setProperty(cSuppressGrid+viewName, JVisualization.GRID_MODE_CODE[visualization.getGridMode()]);
+
+					if (visualization.isLegendSuppressed())
+						setProperty(cSuppressLegend+viewName, "true");
+
+					if (!visualization.isDynamicScale())
+						setProperty(cDynamicScale+viewName, "false");
+
+					if (visualization.getScaleMode() != JVisualization.cScaleModeShown)
+						setProperty(cSuppressScale+viewName, JVisualization.SCALE_MODE_CODE[visualization.getScaleMode()]);
+
+					setProperty(cScaleStyle+viewName, JVisualization.SCALE_STYLE_CODE[visualization.getScaleStyle()]);
+
+					if (visualization.isShowBarOrPieSizeValue())
+						setProperty(cShowBarOrPieSizeValue+viewName, "true");
+
+					if (visualization.isShowStandardDeviation())
+						setProperty(cShowStdDev+viewName, "true");
+
+					if (visualization.isShowConfidenceInterval())
+						setProperty(cShowConfInterval+viewName, "true");
+
+					if (visualization.isShowValueCount())
+						setProperty(cShowValueCount+viewName, "true");
+
+					if (visualization.isShowFoldChange())
+						setProperty(cShowFoldChange+viewName, "true");
+
+					if (visualization.isShowPValue())
+						setProperty(cShowPValue+viewName, "true");
+
+					column = visualization.getPValueColumn();
+					if (column != JVisualization.cColumnUnassigned) {
+						setProperty(cPValueColumn+viewName, mTableModel.getColumnTitleNoAlias(column));
+						setProperty(cPValueRefCategory+viewName, visualization.getPValueRefCategory());
+						}
+
+					int boxplotMeanMode = visualization.getBoxplotMeanMode();
+					if (boxplotMeanMode != JVisualization.BOXPLOT_DEFAULT_MEAN_MODE)
+						setProperty(cBoxplotMeanMode+viewName, JVisualization.BOXPLOT_MEAN_MODE_CODE[boxplotMeanMode]);
+
+					if (visualization.isShowMeanAndMedianValues())
+						setProperty(cBoxplotShowMeanValues+viewName, "true");
+
+					if (view instanceof VisualizationPanel2D) {
+						double transparency = ((JVisualization2D)visualization).getMarkerTransparency();
+						if (transparency != 0.0) {
+							setProperty(cMarkerTransparency+viewName, ""+transparency);
+							}
+
+						int[] multiValueMarkerColumn = ((JVisualization2D)visualization).getMultiValueMarkerColumns();
+						if (multiValueMarkerColumn != null) {
+							int multiValueMarkerMode = ((JVisualization2D)visualization).getMultiValueMarkerMode();
+							setProperty(cMultiValueMarkerMode+viewName, JVisualization2D.MULTI_VALUE_MARKER_MODE_CODE[multiValueMarkerMode]);
+							StringBuilder columnNames = new StringBuilder(mTableModel.getColumnTitleNoAlias(multiValueMarkerColumn[0]));
+							for (int j=1; j<multiValueMarkerColumn.length; j++)
+								columnNames.append('\t').append(mTableModel.getColumnTitleNoAlias(multiValueMarkerColumn[j]));
+							setProperty(cMultiValueMarkerColumns+viewName, ""+columnNames.toString());
+							}
+
+						column = ((JVisualization2D)visualization).getBackgroundColor().getColorColumn();
+						if (column != JVisualization.cColumnUnassigned) {
+							String key = cBackgroundColorColumn+viewName;
+							if (CompoundTableListHandler.isListColumn(column))
+								setProperty(key, "colorByHitlist\t"
+										+ mTableModel.getListHandler().getListName(
+												CompoundTableListHandler.convertToListIndex(column)));
+							else {
+								setProperty(key, mTableModel.getColumnTitleNoAlias(column));
+								}
+
+							int mode = ((JVisualization2D)visualization).getBackgroundColor().getColorListMode();
+							key = cBackgroundColorListMode+viewName;
+							if (mode == VisualizationColor.cColorListModeCategories)
+								setProperty(key, "Categories");
+							else if (mode == VisualizationColor.cColorListModeHSBShort)
+								setProperty(key, "HSBShort");
+							else if (mode == VisualizationColor.cColorListModeHSBLong)
+								setProperty(key, "HSBLong");
+							else if (mode == VisualizationColor.cColorListModeStraight)
+								setProperty(key, "straight");
+
+							Color[] colorList = ((JVisualization2D)visualization).getBackgroundColor().getColorListWithoutDefaults();
+							if (mode == VisualizationColor.cColorListModeCategories) {
+								setProperty(cBackgroundColorCount+viewName, ""+colorList.length);
+								for (int j=0; j<colorList.length; j++)
+									setProperty(cBackgroundColor+viewName+"_"+j, ""+colorList[j].getRGB());
+								}
+							else {
+								setProperty(cBackgroundColor+viewName+"_0", ""+colorList[0].getRGB());
+								setProperty(cBackgroundColor+viewName+"_1", ""+colorList[colorList.length-1].getRGB());
+								}
+
+							int hitlist = ((JVisualization2D)visualization).getBackgroundColorConsidered();
+							String value = (hitlist == JVisualization2D.BACKGROUND_VISIBLE_RECORDS) ? "visibleRecords"
+										 : (hitlist == JVisualization2D.BACKGROUND_ALL_RECORDS) ? "allRecords"
+										 : "fromHitlist\t" + mTableModel.getListHandler().getListName(hitlist);
+							setProperty(cBackgroundColorRecords, value);
+							setProperty(cBackgroundColorRadius+viewName, ""+((JVisualization2D)visualization).getBackgroundColorRadius());
+							setProperty(cBackgroundColorFading+viewName, ""+((JVisualization2D)visualization).getBackgroundColorFading());
+
+							if (!Double.isNaN(((JVisualization2D)visualization).getBackgroundColor().getColorMin()))
+								setProperty(cBackgroundColorMin+viewName, ""+((JVisualization2D)visualization).getBackgroundColor().getColorMin());
+							if (!Double.isNaN(((JVisualization2D)visualization).getBackgroundColor().getColorMax()))
+								setProperty(cBackgroundColorMax+viewName, ""+((JVisualization2D)visualization).getBackgroundColor().getColorMax());
+							}
+
+						byte[] backgroundImageData = ((JVisualization2D)visualization).getBackgroundImageData();
+						if (backgroundImageData != null)
+							setBinary(cBackgroundImage+viewName, backgroundImageData);
+
+						int curveMode = ((JVisualization2D)visualization).getCurveMode();
+						if (curveMode != 0) {
+							setProperty(cCurveMode+viewName, JVisualization2D.CURVE_MODE_CODE[curveMode]);
+							if (((JVisualization2D)visualization).isShowStandardDeviationArea())
+								setProperty(cCurveStdDev+viewName, "true");
+							if (((JVisualization2D)visualization).isCurveSplitByCategory())
+								setProperty(cCurveSplitByCategory+viewName, "true");
+							float curveLineWidth = ((JVisualization2D)visualization).getCurveLineWidth();
+							setProperty(cCurveLineWidth+viewName, ""+curveLineWidth);
+							if (curveMode == JVisualization2D.cCurveModeSmooth)
+								setProperty(cCurveSmoothing+viewName, ""+((JVisualization2D)visualization).getCurveSmoothing());
+							}
+
+						int correlationType = ((JVisualization2D)visualization).getShownCorrelationType();
+						if (correlationType != CorrelationCalculator.TYPE_NONE) {
+							setProperty(cCorrelationCoefficient+viewName, CorrelationCalculator.TYPE_NAME[correlationType]);
+							}
 						}
 					}
-				}
-			else if (view instanceof DEFormView) {
-				JCompoundTableForm form = ((DEFormView)view).getCompoundTableForm();
+				else if (view instanceof DEFormView) {
+					JCompoundTableForm form = ((DEFormView)view).getCompoundTableForm();
 
-				int fontSize = form.getFontSize();
-				if (fontSize != JCompoundTableForm.DEFAULT_FONT_SIZE)
-					setProperty(cViewFontSize+viewName, ""+fontSize);
+					int fontSize = form.getFontSize();
+					if (fontSize != JCompoundTableForm.DEFAULT_FONT_SIZE)
+						setProperty(cViewFontSize+viewName, ""+fontSize);
 
-				setProperty(cFormLayout+viewName, form.getFormLayoutDescriptor());
+					setProperty(cFormLayout+viewName, form.getFormLayoutDescriptor());
 
-				setProperty(cFormObjectCount+viewName, ""+form.getFormObjectCount());
-				for (int j=0; j<form.getFormObjectCount(); j++)
-					setProperty(cFormObjectInfo+viewName+"_"+j, ""+form.getFormObjectDescriptor(j));
-				}
-			else if (view instanceof JStructureGrid) {
-				learnMarkerLabelDisplayerProperties(viewName, (JStructureGrid)view);
+					setProperty(cFormObjectCount+viewName, ""+form.getFormObjectCount());
+					for (int j=0; j<form.getFormObjectCount(); j++)
+						setProperty(cFormObjectInfo+viewName+"_"+j, ""+form.getFormObjectDescriptor(j));
+					}
+				else if (view instanceof JStructureGrid) {
+					learnMarkerLabelDisplayerProperties(viewName, (JStructureGrid)view);
 
-				int structureGridColumns = ((JStructureGrid)view).getColumnCount();
-				setProperty(cStructureGridColumns+viewName, ""+structureGridColumns);
+					int structureGridColumns = ((JStructureGrid)view).getColumnCount();
+					setProperty(cStructureGridColumns+viewName, ""+structureGridColumns);
 
-				String structureGridColumn = mTableModel.getColumnTitleNoAlias(((JStructureGrid)view).getStructureColumn());
-				setProperty(cStructureGridColumn+viewName, ""+structureGridColumn);
-				}
+					String structureGridColumn = mTableModel.getColumnTitleNoAlias(((JStructureGrid)view).getStructureColumn());
+					setProperty(cStructureGridColumn+viewName, ""+structureGridColumn);
 
-			if (view instanceof FocusableView) {
-				if (((FocusableView)view).getFocusList() == JVisualization.cFocusOnSelection)
-					setProperty(cFocusList +viewName, cListIsSelection);
-				else if (((FocusableView)view).getFocusList() != JVisualization.cFocusNone)
-					setProperty(cFocusList +viewName, mTableModel.getListHandler().getListNames()[((FocusableView)view).getFocusList()]);
+					int stereoMode = ((JStructureGrid)view).getStructureDisplayMode() & DETaskSetStructureDisplayMode.STEREO_MODE_MASK;
+					if (stereoMode != DETaskSetStructureDisplayMode.DEFAULT_STEREO_MODE) {
+						int stereoModeIndex = DETaskSetStructureDisplayMode.findStereoModeIndex(stereoMode);
+						setProperty(cStructureDisplayStereoMode + viewName, DETaskSetStructureDisplayMode.STEREO_MODE_CODE[stereoModeIndex]);
+						}
+
+					int colorMode = ((JStructureGrid)view).getStructureDisplayMode() & DETaskSetStructureDisplayMode.COLOR_MODE_MASK;
+					if (colorMode != DETaskSetStructureDisplayMode.DEFAULT_COLOR_MODE) {
+						int colorModeIndex = DETaskSetStructureDisplayMode.findColorModeIndex(colorMode);
+						setProperty(cStructureDisplayColorMode + viewName, DETaskSetStructureDisplayMode.COLOR_MODE_CODE[colorModeIndex]);
+						}
+					}
+
+				if (view instanceof FocusableView) {
+					if (((FocusableView)view).getFocusList() == FocusableView.cFocusOnSelection)
+						setProperty(cFocusList +viewName, cListIsSelection);
+					else if (((FocusableView)view).getFocusList() != FocusableView.cFocusNone)
+						setProperty(cFocusList +viewName, mTableModel.getListHandler().getListNames()[((FocusableView)view).getFocusList()]);
+					}
 				}
 			}
 
 		for (int i=0; i<mPruningPanel.getFilterCount(); i++) {
 			JFilterPanel filter = mPruningPanel.getFilter(i);
 
-			int column = filter.getColumnIndex();
-			String columnName = (column == JFilterPanel.PSEUDO_COLUMN_ALL_COLUMNS) ? JFilterPanel.ALL_COLUMN_CODE
-							  : (column < 0) ? null : mTableModel.getColumnTitleNoAlias(column);
-
-			String property = null;
-			if (filter instanceof JCategoryBrowser)
-				property = cFilterTypeCategoryBrowser;
-			else if (filter instanceof JRangeFilterPanel)
-				property = cFilterTypeDouble + "\t" + columnName;
-			else if (filter instanceof JCategoryFilterPanel)
-				property = cFilterTypeCategory + "\t" + columnName;
-			else if (filter instanceof JTextFilterPanel)
-				property = cFilterTypeText + "\t" + columnName;
-			else if (filter instanceof JHitlistFilterPanel)
-				property = cFilterTypeHitlist;
-			else if (filter instanceof JSingleStructureFilterPanel)
-				property = cFilterTypeStructure + "\t" + columnName;
-			else if (filter instanceof JMultiStructureFilterPanel && ((JMultiStructureFilterPanel)filter).supportsSSS())
-				property = cFilterTypeSSSList + "\t" + columnName;
-			else if (filter instanceof JMultiStructureFilterPanel && ((JMultiStructureFilterPanel)filter).supportsSim())
-				property = cFilterTypeSIMList + "\t" + columnName;
-			else if (filter instanceof JReactionFilterPanel)
-				property = cFilterTypeReaction + "\t" + columnName;
-
-			String settings = filter.getSettings();
-			if (settings != null)
-				property = property.concat("\t" + settings);
-
+			String property = mPruningPanel.getFilterSettings(filter);
 			setProperty(cFilter+i, property);
 			}
 
@@ -1554,7 +1656,7 @@ public class DERuntimeProperties extends RuntimeProperties {
 			if (CompoundTableListHandler.isListColumn(column))
 				setProperty(key, "colorByHitlist\t"
 						+ mTableModel.getListHandler().getListName(
-								CompoundTableListHandler.getListFromColumn(column)));
+								CompoundTableListHandler.convertToListIndex(column)));
 			else {
 				setProperty(key, mTableModel.getColumnTitleNoAlias(column));
 				}
@@ -1605,12 +1707,31 @@ public class DERuntimeProperties extends RuntimeProperties {
 			else if (displayer.getMarkerLabelList() != JVisualization.cLabelsOnAllRows)
 				setProperty(cLabelList +viewName, mTableModel.getListHandler().getListNames()[displayer.getMarkerLabelList()]);
 
+			int[] opc = displayer.getMarkerLabelOnePerCategory();
+			if (opc != null && opc[0] != -1 && opc[1] != -1) {
+				setProperty(cLabelOPCCategory+viewName, mTableModel.getColumnTitleNoAlias(opc[0]));
+				setProperty(cLabelOPCValue+viewName, mTableModel.getColumnTitleNoAlias(opc[1]));
+				setProperty(cLabelOPCMode+viewName, MarkerLabelDisplayer.cOnePerCategoryMode[opc[2]]);
+				}
+
 			if (displayer.isMarkerLabelsInTreeViewOnly())
 				setProperty(cLabelMode+viewName, "inDetailGraphOnly");
 
 			double size = displayer.getMarkerLabelSize();
 			if (size != 1.0)
 				setProperty(cLabelSize+viewName, ""+size);
+
+			boolean hideColumnNameInTable = !displayer.isShowColumnNameInTable();
+			if (hideColumnNameInTable)
+				setProperty(cLabelShowColumnNameInTable+viewName, "false");
+
+			boolean optimizePositions = displayer.isOptimizeLabelPositions();
+			if (optimizePositions)
+				setProperty(cLabelPositionOptimization+viewName, "true");
+
+			boolean blackOrWhite = displayer.isMarkerLabelBlackOrWhite();
+			if (blackOrWhite)
+				setProperty(cLabelBlackOrWhite+viewName, "true");
 			}
 		}
 

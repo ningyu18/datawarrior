@@ -2,6 +2,7 @@ package com.actelion.research.datawarrior.task.table;
 
 import com.actelion.research.chem.io.CompoundTableConstants;
 import com.actelion.research.datawarrior.task.AbstractMultiColumnTask;
+import com.actelion.research.gui.hidpi.HiDPIHelper;
 import com.actelion.research.table.model.CompoundTableModel;
 import info.clearthought.layout.TableLayout;
 
@@ -84,7 +85,8 @@ public class DETaskSetNumericalColumnDisplayMode extends AbstractMultiColumnTask
 
 	@Override
 	public boolean isCompatibleColumn(int column) {
-		return getTableModel().isColumnTypeDouble(column) && !getTableModel().isColumnTypeDate(column);
+		// this includes date, although date is only compatible with summaryMode and showValueCount
+		return getTableModel().isColumnTypeDouble(column);
 		}
 
 	@Override
@@ -156,9 +158,10 @@ public class DETaskSetNumericalColumnDisplayMode extends AbstractMultiColumnTask
 
 	@Override
 	public JPanel createInnerDialogContent() {
-		double[][] size = { {TableLayout.PREFERRED, 8, TableLayout.PREFERRED},
-							{TableLayout.PREFERRED, 4, TableLayout.PREFERRED, 4, TableLayout.PREFERRED, 4,
-							 TableLayout.PREFERRED, 4, TableLayout.PREFERRED, 16} };
+		int gap = HiDPIHelper.scale(8);
+		double[][] size = { {gap, TableLayout.PREFERRED, gap, TableLayout.PREFERRED, gap},
+							{gap, TableLayout.PREFERRED, gap/2, TableLayout.PREFERRED, gap/2, TableLayout.PREFERRED, gap/2,
+							 TableLayout.PREFERRED, gap/2, TableLayout.PREFERRED, gap} };
 
 		mComboBoxSummaryMode = new JComboBox(CompoundTableConstants.cSummaryModeText);
 		mComboBoxSummaryMode.addItem(UNCHANGED_TEXT);
@@ -173,16 +176,16 @@ public class DETaskSetNumericalColumnDisplayMode extends AbstractMultiColumnTask
 
 		JPanel ip = new JPanel();
 		ip.setLayout(new TableLayout(size));
-		ip.add(new JLabel("Show multiple values as:"), "0,0");
-		ip.add(new JLabel("Show value count:"), "0,2");
-		ip.add(new JLabel("Show standard deviation:"), "0,4");
-		ip.add(new JLabel("Round to significant digits:"), "0,6");
-		ip.add(new JLabel("Values with modifiers:"), "0,8");
-		ip.add(mComboBoxSummaryMode, "2,0");
-		ip.add(mComboBoxValueCount, "2,2");
-		ip.add(mComboBoxStdDev, "2,4");
-		ip.add(mComboBoxRounding, "2,6");
-		ip.add(mComboBoxModifiers, "2,8");
+		ip.add(new JLabel("Show multiple values as:"), "1,1");
+		ip.add(new JLabel("Show value count:"), "1,3");
+		ip.add(new JLabel("Show standard deviation:"), "1,5");
+		ip.add(new JLabel("Round to significant digits:"), "1,7");
+		ip.add(new JLabel("Values with modifiers:"), "1,9");
+		ip.add(mComboBoxSummaryMode, "3,1");
+		ip.add(mComboBoxValueCount, "3,3");
+		ip.add(mComboBoxStdDev, "3,5");
+		ip.add(mComboBoxRounding, "3,7");
+		ip.add(mComboBoxModifiers, "3,9");
 		return ip;
 		}
 
@@ -200,12 +203,12 @@ public class DETaskSetNumericalColumnDisplayMode extends AbstractMultiColumnTask
 			if (summaryMode != UNCHANGED)
 				getTableModel().setColumnSummaryMode(column, summaryMode);
 			if (showValueCount != UNCHANGED)
-				getTableModel().setColumnSummaryCountHidden(column, showValueCount == 0);
-			if (showStdDev != UNCHANGED)
-				getTableModel().setColumnStdDeviationShown(column, showStdDev == 1);
-			if (rounding != UNCHANGED)
+				getTableModel().setColumnSummaryCountHidden(column, showValueCount == 1);
+			if (showStdDev != UNCHANGED && !getTableModel().isColumnTypeDate(column))
+				getTableModel().setColumnStdDeviationShown(column, showStdDev == 0);
+			if (rounding != UNCHANGED && !getTableModel().isColumnTypeDate(column))
 				getTableModel().setColumnSignificantDigits(column, rounding);
-			if (modifierValues != UNCHANGED)
+			if (modifierValues != UNCHANGED && !getTableModel().isColumnTypeDate(column))
 				getTableModel().setColumnModifierExclusion(column, modifierValues == 1);
 			}
 		}

@@ -13,7 +13,7 @@ public class JFXPDBFormObject extends ReferenceFormObject {
 		//		mComponent = new JFXPDBDetailView(null, null, null);
 	}
 
-	public int getRelativeHeight() {
+	public int getDefaultRelativeHeight() {
 		return 3;
 	}
 }

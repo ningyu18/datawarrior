@@ -26,6 +26,9 @@ import java.awt.event.FocusListener;
 import java.awt.geom.Rectangle2D;
 
 public class JTextFormObject extends AbstractFormObject implements FocusListener {
+	public static final int SINGLE_LINE_HEIGHT = 1;
+	public static final int MULTI_LINE_HEIGHT = 2;
+
 	private String mCurrentText;
 	private JTextArea mTextArea;
 
@@ -39,9 +42,11 @@ public class JTextFormObject extends AbstractFormObject implements FocusListener
 					super.setBorder(border);
 				}
 			};
+		mTextArea.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, mTextArea.getFont().getSize()));
 		mTextArea.addFocusListener(this);
 		mTextArea.setEditable(false);
 		mTextArea.setLineWrap(true);
+		mTextArea.setWrapStyleWord(true);
 
 		// set back to default behaviour, which is "TAB advances to next focusable item"
 		mTextArea.setFocusTraversalKeys(KeyboardFocusManager.FORWARD_TRAVERSAL_KEYS, null);
@@ -71,8 +76,8 @@ public class JTextFormObject extends AbstractFormObject implements FocusListener
 		mTextArea.setEditable(b);
 		}
 
-	public int getRelativeHeight() {
-		return (mType.equals(FormObjectFactory.TYPE_MULTI_LINE_TEXT)) ? 2 : 1;
+	public int getDefaultRelativeHeight() {
+		return (mType.equals(FormObjectFactory.TYPE_MULTI_LINE_TEXT)) ? MULTI_LINE_HEIGHT : SINGLE_LINE_HEIGHT;
 		}
 
 	public void setFont(Font font) {
@@ -87,7 +92,7 @@ public class JTextFormObject extends AbstractFormObject implements FocusListener
 				g2D.fill(r);
 				}
 			g2D.setColor(mPrintForeground != null ? mPrintForeground : Color.BLACK);
-			g2D.setFont(g2D.getFont().deriveFont(Font.PLAIN, (int)(mTextArea.getFont().getSize2D()*scale+0.5)));
+			g2D.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, (int)(mTextArea.getFont().getSize2D()*scale+0.5)));
 			FontMetrics metrics = g2D.getFontMetrics();
 			double height = metrics.getHeight();
 			double border = metrics.getStringBounds(" ", g2D).getWidth();

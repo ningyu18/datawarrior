@@ -18,8 +18,8 @@
 
 package com.actelion.research.datawarrior.task.data;
 
-import com.actelion.research.chem.io.CompoundTableConstants;
 import com.actelion.research.datawarrior.task.AbstractMultiColumnTask;
+import com.actelion.research.gui.hidpi.HiDPIHelper;
 import com.actelion.research.table.model.CompoundRecord;
 import com.actelion.research.table.model.CompoundTableModel;
 import com.actelion.research.util.DoubleFormat;
@@ -74,7 +74,7 @@ public class DETaskCalculateSelectivityScore extends AbstractMultiColumnTask {
 
 	@Override
 	public String getHelpURL() {
-		return "/html/help/analysis.html#Gini";
+		return "/html/help/data.html#Gini";
 		}
 
 	@Override
@@ -91,15 +91,16 @@ public class DETaskCalculateSelectivityScore extends AbstractMultiColumnTask {
 
 	@Override
 	public JPanel createInnerDialogContent() {
-		double[][] size = { {TableLayout.PREFERRED, 8, TableLayout.PREFERRED},
-				{TableLayout.PREFERRED, 16} };
+		int gap = HiDPIHelper.scale(8);
+		double[][] size = { {gap, TableLayout.PREFERRED, gap, TableLayout.PREFERRED, gap},
+							{gap, TableLayout.PREFERRED, gap} };
 
 		mComboBoxPreprocess = new JComboBox(PREPROCESS_TEXT);
 
 		JPanel ip = new JPanel();
 		ip.setLayout(new TableLayout(size));
-		ip.add(new JLabel("Value preprocessing:"), "0,0");
-		ip.add(mComboBoxPreprocess, "2,0");
+		ip.add(new JLabel("Value preprocessing:"), "1,1");
+		ip.add(mComboBoxPreprocess, "3,1");
 		return ip;
 		}
 

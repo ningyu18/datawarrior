@@ -24,21 +24,30 @@ public interface MarkerLabelDisplayer extends MarkerLabelConstants {
 
 	public void setMarkerLabels(int[] columnAtPosition);
 	public void setMarkerLabelList(int listNo);
+	public void setMarkerLabelOnePerCategory(int categoryColumn, int valueColumn, int mode);
     public void setMarkerLabelSize(float size, boolean isAdjusting);
 	public void setMarkerLabelsInTreeViewOnly(boolean inTreeViewOnly);
+	public void setMarkerLabelsBlackOrWhite(boolean blackAndWhite);
+	public void setOptimizeLabelPositions(boolean optimize);
+	public void setShowColumnNameInTable(boolean showColumnName);
 	public void setShowLabelBackground(boolean b);
 	public void setLabelTransparency(float transparency, boolean isAdjusting);
 	public float getMarkerLabelSize();
 	public int getMarkerLabelColumn(int position);
 	public int getMarkerLabelList();
-	public int getMarkerLabelTableEntryCount();
+	public int[] getMarkerLabelOnePerCategory();
+//	public int getMarkerLabelTableEntryCount();
 	public float getLabelTransparency();
 	public boolean supportsMidPositionLabels();
 	public boolean supportsMarkerLabelTable();
 	public boolean supportsLabelsByList();
 	public boolean supportsLabelBackground();
 	public boolean supportsLabelBackgroundTransparency();
+	public boolean supportsLabelPositionOptimization();
 	public boolean isMarkerLabelsInTreeViewOnly();
+	public boolean isMarkerLabelBlackOrWhite();
 	public boolean isShowLabelBackground();
 	public boolean isTreeViewModeEnabled();
+	public boolean isShowColumnNameInTable();
+	public boolean isOptimizeLabelPositions();
 	}

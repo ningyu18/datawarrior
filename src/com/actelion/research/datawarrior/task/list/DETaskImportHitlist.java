@@ -18,36 +18,30 @@
 
 package com.actelion.research.datawarrior.task.list;
 
+import com.actelion.research.datawarrior.DEFrame;
 import com.actelion.research.datawarrior.DataWarrior;
+import com.actelion.research.datawarrior.task.file.DETaskAbstractOpenFile;
+import com.actelion.research.gui.FileHelper;
+import com.actelion.research.gui.hidpi.HiDPIHelper;
 import com.actelion.research.io.BOMSkipper;
+import com.actelion.research.table.CompoundTableLoader;
 import com.actelion.research.table.model.CompoundTableListHandler;
+import com.actelion.research.table.model.CompoundTableModel;
 import info.clearthought.layout.TableLayout;
 
+import javax.swing.*;
+import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.IOException;
-import java.io.InputStreamReader;
+import java.io.*;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Properties;
 import java.util.TreeSet;
 
-import javax.swing.JComboBox;
-import javax.swing.JLabel;
-import javax.swing.JPanel;
-import javax.swing.JTextField;
-
-import com.actelion.research.datawarrior.DEFrame;
-import com.actelion.research.datawarrior.task.file.DETaskAbstractOpenFile;
-import com.actelion.research.gui.FileHelper;
-import com.actelion.research.table.CompoundTableLoader;
-import com.actelion.research.table.model.CompoundTableModel;
-
 public class DETaskImportHitlist extends DETaskAbstractOpenFile implements ActionListener {
 	private static final String PROPERTY_LISTNAME = "listName";
 	private static final String PROPERTY_KEYCOLUMN = "keyColumn";
+	private static final String PROPERTY_CASE_SENSITIVE = "caseSensitive";
 
 	private static final String ITEM_COLUMN_FROM_FILE = "<use column from list file>";
 
@@ -60,6 +54,7 @@ public class DETaskImportHitlist extends DETaskAbstractOpenFile implements Actio
     private TreeSet<String> mKeySet;
     private JTextField mFieldHitlistName;
     private JComboBox mComboBox;
+	private JCheckBox mCheckBoxCaseSensitive;
 
 	public DETaskImportHitlist(DataWarrior application) {
 		super(application, "Open Row List File", FileHelper.cFileTypeTextTabDelimited);
@@ -73,8 +68,9 @@ public class DETaskImportHitlist extends DETaskAbstractOpenFile implements Actio
 
 	@Override
     public JPanel createInnerDialogContent() {
-		double[][] size = { {TableLayout.PREFERRED, 4, TableLayout.PREFERRED},
-							{TableLayout.PREFERRED, 16, TableLayout.PREFERRED, 4, TableLayout.PREFERRED, 8} };
+		int gap = HiDPIHelper.scale(8);
+		double[][] size = { {TableLayout.PREFERRED, gap/2, TableLayout.PREFERRED},
+							{TableLayout.PREFERRED, 2*gap, TableLayout.PREFERRED, gap/2, TableLayout.PREFERRED, gap, TableLayout.PREFERRED, gap} };
 
 		JPanel content = new JPanel();
 		content.setLayout(new TableLayout(size));
@@ -87,10 +83,27 @@ public class DETaskImportHitlist extends DETaskAbstractOpenFile implements Actio
 		mFieldHitlistName = new JTextField("imported list");
 		content.add(new JLabel("Name of new row list:"), "0,2");
 		content.add(mFieldHitlistName, "2,2");
-		content.add(new JLabel("(Keep empty to use name from list file)", JLabel.CENTER), "0,4,2,4");
+		if (!isInteractive())
+			content.add(new JLabel("(Keep empty to use name defined in list file)", JLabel.CENTER), "0,4,2,4");
+
+		mCheckBoxCaseSensitive = new JCheckBox("Case sensitive");
+		mCheckBoxCaseSensitive.addActionListener(this);
+		content.add(mCheckBoxCaseSensitive, "0,6,2,6");
 
 		return content;
     	}
+
+	@Override
+	public void actionPerformed(ActionEvent e) {
+		if (e.getSource() == mCheckBoxCaseSensitive) {
+			String fileName = getDialogConfiguration().getProperty(PROPERTY_FILENAME, ASK_FOR_FILE);
+			if (!ASK_FOR_FILE.equals(fileName))
+				analyzeListFile(new File(fileName), mCheckBoxCaseSensitive.isSelected());
+			return;
+			}
+
+		super.actionPerformed(e);
+		}
 
 	@Override
     public boolean isConfigurationValid(Properties configuration, boolean isLive) {
@@ -98,13 +111,19 @@ public class DETaskImportHitlist extends DETaskAbstractOpenFile implements Actio
 			return false;
 
 		if (isLive) {
+			String listName = configuration.getProperty(PROPERTY_LISTNAME, "");
+			if (listName.length() == 0) {
+				showErrorMessage("No list name specified.");
+				return false;
+				}
 			String fileName = configuration.getProperty(PROPERTY_FILENAME, "");
 			if (fileName.length() == 0) {
 				showErrorMessage("No file specified.");
 				return false;
 				}
 			if (!ASK_FOR_FILE.equals(fileName)) {
-				String error = analyzeHitlist(new File(fileName));
+				boolean caseSensitive = "true".equals(configuration.getProperty(PROPERTY_CASE_SENSITIVE, "true"));
+				String error = analyzeListFile(new File(fileName), caseSensitive);
 				if (error != null) {
 					showErrorMessage(error);
 					return false;
@@ -128,6 +147,7 @@ public class DETaskImportHitlist extends DETaskAbstractOpenFile implements Actio
 
 	@Override
     public void setDialogConfigurationToDefault() {
+		mCheckBoxCaseSensitive.setSelected(true);	// do this first to be known for analyseHitlist()
 		super.setDialogConfigurationToDefault();
 
 		/* other items are set through fileChanged()
@@ -146,6 +166,7 @@ public class DETaskImportHitlist extends DETaskAbstractOpenFile implements Actio
 			mComboBox.setSelectedItem(keyColumnName);
 
 		mFieldHitlistName.setText(configuration.getProperty(PROPERTY_LISTNAME, ""));
+		mCheckBoxCaseSensitive.setSelected("true".equals(configuration.getProperty(PROPERTY_CASE_SENSITIVE, "true")));
 		}
 
     public Properties getDialogConfiguration() {
@@ -158,6 +179,8 @@ public class DETaskImportHitlist extends DETaskAbstractOpenFile implements Actio
     	String listName = mFieldHitlistName.getText();
     	if (listName != null)
     		configuration.setProperty(PROPERTY_LISTNAME, listName);
+
+    	configuration.setProperty(PROPERTY_CASE_SENSITIVE, mCheckBoxCaseSensitive.isSelected() ? "true" : "false");
 
     	return configuration;
     	}
@@ -172,7 +195,7 @@ public class DETaskImportHitlist extends DETaskAbstractOpenFile implements Actio
 	protected void fileChanged(File file) {
 		String error = null;
 		if (file != null && file.exists()) {
-			error = analyzeHitlist(file);
+			error = analyzeListFile(file, mCheckBoxCaseSensitive.isSelected());
 			if (error == null) {
 				mComboBox.removeAllItems();
 				mComboBox.addItem(ITEM_COLUMN_FROM_FILE);
@@ -217,11 +240,14 @@ public class DETaskImportHitlist extends DETaskAbstractOpenFile implements Actio
 		}
 
 	/**
-	 * Read and analyzes a hitlist file and sets mKeySet, mListName, mKeyColumn
+	 * Read and analyzes a hitlist file and sets mKeySet, mListName, mKeyColumn.
+	 * If the file is not a valid list file, but contains potential list entries,
+	 * then mListName is 'imported list' and mKeyColumn is set to that column that
+	 * matches the found keys best or -1, if there are no matches.
 	 * @param file
 	 * @return error message or null
 	 */
-	private String analyzeHitlist(File file) {
+	private String analyzeListFile(File file, boolean caseSensitive) {
 		mListName = null;
 		String keyColumnName = null;
 		BufferedReader theReader = null;
@@ -249,7 +275,12 @@ public class DETaskImportHitlist extends DETaskAbstractOpenFile implements Actio
 			theReader = new BufferedReader(new InputStreamReader(new FileInputStream(file), "UTF-8"));
 			BOMSkipper.skip(theReader);
 
-            mKeySet = readKeys(theReader);
+			if (isHitlistFile) {
+				theReader.readLine();
+				theReader.readLine();
+				}
+
+			mKeySet = readKeys(theReader, caseSensitive);
             theReader.close();
 
             if (mKeySet.isEmpty())
@@ -258,7 +289,7 @@ public class DETaskImportHitlist extends DETaskAbstractOpenFile implements Actio
             if (!isHitlistFile) {
             	for (String key:mKeySet)
             		if (key.indexOf('\t') != -1)
-                        return "The file '"+file.getName()+"' cannot be used as row list file.";
+                        return "Row list files must not contain multiple entries per line.\nThe file '"+file.getName()+"' cannot be used as row list file.";
 
             	mListName = "imported list";
                 }
@@ -272,7 +303,8 @@ public class DETaskImportHitlist extends DETaskAbstractOpenFile implements Actio
                 	for (int row=0; row<mTableModel.getTotalRowCount(); row++) {
                         String[] entry = mTableModel.separateEntries(mTableModel.getTotalValueAt(row, column));
                         for (int i=0; i<entry.length; i++) {
-                    		if (entry[i].length() > 0 && mKeySet.contains(entry[i])) {
+                        	String key = caseSensitive ? entry[i] : entry[i].toLowerCase();
+                    		if (key.length() != 0 && mKeySet.contains(key)) {
                     			matchCount++;
                         		break;
                     			}
@@ -337,10 +369,17 @@ public class DETaskImportHitlist extends DETaskAbstractOpenFile implements Actio
 		}
 
 	@Override
+	public String getHelpURL() {
+		return "/html/help/lists.html#ImportExport";
+		}
+
+	@Override
 	public DEFrame openFile(File file, Properties configuration) {
+		boolean caseSensitive = "true".equals(configuration.getProperty(PROPERTY_CASE_SENSITIVE, "true"));
+
 		// If we have a valid file name, then the file was already analyzed. Otherwise we have to analyze now.
 		if (ASK_FOR_FILE.equals(configuration.getProperty(PROPERTY_FILENAME))) {
-			String error = analyzeHitlist(file);
+			String error = analyzeListFile(file, caseSensitive);
 			if (error != null) {
 				showErrorMessage(error);
 				return null;
@@ -356,15 +395,17 @@ public class DETaskImportHitlist extends DETaskAbstractOpenFile implements Actio
 		if (listName != null)
 			mListName = listName;	// otherwise take the default created by analyzeHitlist()
 
-        mTableModel.getListHandler().createList(mListName, -1, CompoundTableListHandler.FROM_KEY_SET, keyColumn, mKeySet);
+		mTableModel.getListHandler().createList(mListName, -1, CompoundTableListHandler.FROM_KEY_SET, keyColumn, mKeySet, !caseSensitive);
 
         return null;
 		}
 
-	private TreeSet<String> readKeys(BufferedReader theReader) throws IOException {
+	private TreeSet<String> readKeys(BufferedReader theReader, boolean caseSensitive) throws IOException {
         TreeSet<String> keySet = new TreeSet<String>();
         String key = theReader.readLine();
         while (key != null) {
+        	if (!caseSensitive)
+        		key = key.toLowerCase();
             keySet.add(key);
             key = theReader.readLine();
             }

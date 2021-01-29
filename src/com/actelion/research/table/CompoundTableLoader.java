@@ -24,6 +24,7 @@ import com.actelion.research.chem.*;
 import com.actelion.research.chem.descriptor.DescriptorConstants;
 import com.actelion.research.chem.descriptor.DescriptorHandler;
 import com.actelion.research.chem.io.CompoundTableConstants;
+import com.actelion.research.chem.io.RDFileParser;
 import com.actelion.research.chem.io.SDFileParser;
 import com.actelion.research.chem.reaction.Reaction;
 import com.actelion.research.chem.reaction.ReactionEncoder;
@@ -31,14 +32,15 @@ import com.actelion.research.gui.FileHelper;
 import com.actelion.research.gui.JProgressDialog;
 import com.actelion.research.io.BOMSkipper;
 import com.actelion.research.table.model.*;
+import com.actelion.research.table.view.config.ViewConfiguration;
 import com.actelion.research.util.BinaryDecoder;
+import com.actelion.research.util.ByteArrayArrayComparator;
 import com.actelion.research.util.ByteArrayComparator;
 
 import javax.swing.*;
 import java.awt.*;
 import java.awt.datatransfer.Clipboard;
 import java.awt.datatransfer.DataFlavor;
-import java.awt.datatransfer.Transferable;
 import java.io.*;
 import java.net.URL;
 import java.util.*;
@@ -57,11 +59,13 @@ public class CompoundTableLoader implements CompoundTableConstants,Runnable {
 	public static final int	NO_COLUMN = -2;
 
 	public static final int MERGE_MODE_IS_KEY = 0;
-	public static final int MERGE_MODE_APPEND = 1;
-	public static final int MERGE_MODE_KEEP = 2;
-	public static final int MERGE_MODE_REPLACE = 3;
-	public static final int MERGE_MODE_USE_IF_EMPTY = 4;
-	public static final int MERGE_MODE_AS_PARENT = 5;	// <- from here merge mode(s) not being available for user selection
+	public static final int MERGE_MODE_IS_KEY_NO_CASE = 1;
+	public static final int MERGE_MODE_IS_KEY_WORD_SEARCH = 2;
+	public static final int MERGE_MODE_APPEND = 3;
+	public static final int MERGE_MODE_KEEP = 4;
+	public static final int MERGE_MODE_REPLACE = 5;
+	public static final int MERGE_MODE_USE_IF_EMPTY = 6;
+	public static final int MERGE_MODE_AS_PARENT = 7;	// <- from here merge mode(s) not being available for user selection
 
 	public static final int READ_DATA = 1;		// load data into buffer
 	public static final int REPLACE_DATA = 2;	// empty tablemodel and copy data from buffer to tablemodel
@@ -77,7 +81,6 @@ public class CompoundTableLoader implements CompoundTableConstants,Runnable {
 
 	private static final int MAX_COLUMNS_FOR_SMILES_CHECK = 64;
 	private static final int MAX_ROWS_FOR_SMILES_CHECK = 20;
-	private static final int MAX_ROWS_FOR_REACTION_SMILES_CHECK = 20;
 	private static final float MAX_TOLERATED_SMILES_FAILURE_RATE = 0.2f;
 
 
@@ -129,8 +132,9 @@ public class CompoundTableLoader implements CompoundTableConstants,Runnable {
 	private volatile int		mDataType,mAction;
 	private volatile TreeMap<String,DataDependentPropertyReader> mDataDependentPropertyReaderMap;
 	private int					mOldVersionIDCodeColumn,mOldVersionCoordinateColumn,mOldVersionCoordinate3DColumn;
-	private boolean				mWithHeaderLine,mAppendRest,mCoordsMayBe3D;
+	private boolean				mWithHeaderLine,mAppendRest,mCoordsMayBe3D,mIsGooglePatentsFile;
 	private volatile boolean	mOwnsProgressController;
+	private volatile char		mComma;
 	private String				mNewWindowTitle,mVersion;
 	private RuntimeProperties	mRuntimeProperties;
 	private String[]			mFieldNames;
@@ -174,11 +178,16 @@ public class CompoundTableLoader implements CompoundTableConstants,Runnable {
 	 */
 	public void paste(int headerRow) {
 		Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
-		Transferable theData = clipboard.getContents(this);
-		String s;
+		if (!clipboard.isDataFlavorAvailable(DataFlavor.stringFlavor))
+			return;
+
 		try {
-			s = (String)(theData.getTransferData(DataFlavor.stringFlavor));
-			mWithHeaderLine = (headerRow == 0) ? false : (headerRow == 1) ? true : analyzeHeaderLine(new StringReader(s));
+			String s = (String)clipboard.getData(DataFlavor.stringFlavor);
+			mWithHeaderLine = false;
+			if (headerRow == 1)
+				mWithHeaderLine = true;
+			else if (headerRow != 0)
+				mWithHeaderLine = analyzeHeaderLine(new StringReader(s));
 			mDataReader = new StringReader(s);
 			mAction = READ_DATA | REPLACE_DATA;
 			mDataType = FileHelper.cFileTypeTextTabDelimited;
@@ -230,7 +239,7 @@ public class CompoundTableLoader implements CompoundTableConstants,Runnable {
 	public void readFile(File file, RuntimeProperties properties, int dataType, int action) {
 		mFile = file;
 		try {
-			InputStreamReader reader = new InputStreamReader(new FileInputStream(mFile), "UTF-8");
+			BufferedReader reader = new BufferedReader(new InputStreamReader(new FileInputStream(mFile), "UTF-8"));
 			BOMSkipper.skip(reader);
 			readStream(reader, properties, dataType, action, mFile.getName());
 			}
@@ -246,7 +255,7 @@ public class CompoundTableLoader implements CompoundTableConstants,Runnable {
 			}
 		}
 
-	public void readStream(InputStreamReader reader, RuntimeProperties properties, int dataType, int action,
+	public void readStream(BufferedReader reader, RuntimeProperties properties, int dataType, int action,
 	                       String windowTitle) {
 		mDataReader = reader;
 		mDataType = dataType;
@@ -277,10 +286,11 @@ public class CompoundTableLoader implements CompoundTableConstants,Runnable {
 	 * Checks whether the columns defined in mergeMode as keys have content that uniquely
 	 * identifies every row.
 	 * @param keyColumnName matching the total previously read column count with at least one MERGE_MODE_IS_KEY entry
+	 * @param isIgnoreCase defines for every key column, whether its content shall be treated in a case sensitive way
 	 * @param pl null or progress listener to receive messages
 	 * @return true if all 
 	 */
-	public boolean areMergeKeysUnique(String[] keyColumnName, ProgressListener pl) {
+	public boolean areMergeKeysUnique(String[] keyColumnName, boolean[] isIgnoreCase, ProgressListener pl) {
 		if (pl != null)
 			pl.startProgress("Sorting new keys...", 0, (mFieldData.length > PROGRESS_LIMIT) ? mFieldData.length : 0);
 
@@ -299,7 +309,7 @@ public class CompoundTableLoader implements CompoundTableConstants,Runnable {
 			if (pl != null && mFieldData.length > PROGRESS_LIMIT && row%PROGRESS_STEP == 0)
 				pl.updateProgress(row);
 
-			byte[] key = constructMergeKey((Object[])mFieldData[row], keyColumn);
+			byte[] key = constructMergeKey(mFieldData[row], keyColumn, isIgnoreCase);
 			if (key != null) {
 				if (newKeySet.contains(key))
 					return false;
@@ -313,11 +323,13 @@ public class CompoundTableLoader implements CompoundTableConstants,Runnable {
 	/**
 	 * Combines all individual byte arrays from all key columns
 	 * separated by TAB codes. If none of the columns contain any data, then null is returned.
+	 * For columns that are marked to ignore the case, upper case letters (A-Z) are set to lower case
 	 * @param rowData
 	 * @param keyColumn
+	 * @param isIgnoreCase
 	 * @return null or row key as byte array
 	 */
-	private byte[] constructMergeKey(Object[] rowData, int[] keyColumn) {
+	private byte[] constructMergeKey(Object[] rowData, int[] keyColumn, boolean[] isIgnoreCase) {
 		int count = keyColumn.length - 1;	// TABs needed
 		for (int i=0; i<keyColumn.length; i++) {
 			byte[] data = (byte[])rowData[keyColumn[i]];
@@ -333,9 +345,12 @@ public class CompoundTableLoader implements CompoundTableConstants,Runnable {
 			if (i != 0)
 				key[index++] = '\t';
 			byte[] data = (byte[])rowData[keyColumn[i]];
-			if (data != null)
-				for (byte b:data)
+			if (data != null) {
+				if (isIgnoreCase[i])
+					data = new String(data).toLowerCase().getBytes();
+				for (byte b : data)
 					key[index++] = b;
+				}
 			}
 
 		return key;
@@ -479,6 +494,11 @@ public class CompoundTableLoader implements CompoundTableConstants,Runnable {
 				if (theLine == null)
 					break;
 
+				if (ViewConfiguration.isStartTag(theLine, cViewConfigTagName)) {
+					mRuntimeProperties.readViewConfiguration(theReader, theLine);
+					continue;
+					}
+
 				if (theLine.equals(cPropertiesStart)) {
 					mRuntimeProperties.read(theReader);
 					break;
@@ -492,28 +512,33 @@ public class CompoundTableLoader implements CompoundTableConstants,Runnable {
 		}
 
 	private boolean readTextData() {
-		mProgressController.startProgress("Reading Data...", 0, 0);
-
 		BufferedReader theReader = new BufferedReader(mDataReader);
-
 		String header = null;
 		mVersion = null;
 		int rowCount = -1;
+		boolean wasTouched = false;
 		boolean runtimePropertiesRead = false;
 		CompoundTableExtensionHandler extensionHandler = mTableModel.getExtensionHandler();
-		ArrayList<byte[]> lineList = new ArrayList<byte[]>();
+		ArrayList<byte[]> lineList = new ArrayList<>();
 		StringBuilder lineBuilder = new StringBuilder();
 
 		try {
 			while (true) {
+				boolean isFirstLine = !wasTouched;
+				wasTouched = true;
 				String theLine = theReader.readLine();
 				if (theLine == null)
 					break;
 
-				if (theLine.equals(cNativeFileHeaderStart)) {
+				if (isFirstLine && theLine.equals(cNativeFileHeaderStart)) {
 					rowCount = readFileHeader(theReader);
 					if (rowCount > PROGRESS_LIMIT)
 						mProgressController.startProgress("Reading Data...", 0, (rowCount > PROGRESS_LIMIT) ? rowCount : 0);
+					continue;
+					}
+
+				if (isFirstLine && isGooglePatentsFile(theLine)) {
+					prepareGooglePatentsFile();
 					continue;
 					}
 
@@ -521,7 +546,7 @@ public class CompoundTableLoader implements CompoundTableConstants,Runnable {
 					String name = extensionHandler.extractExtensionName(theLine);
 					if (name != null) {
 						if (mExtensionMap == null)
-							mExtensionMap = new TreeMap<String,Object>();
+							mExtensionMap = new TreeMap<>();
 						mExtensionMap.put(name, extensionHandler.readData(name, theReader));
 						continue;
 						}
@@ -539,6 +564,14 @@ public class CompoundTableLoader implements CompoundTableConstants,Runnable {
 
 				if (theLine.equals(cDetailDataStart)) {
 					readDetailData(theReader);
+					continue;
+					}
+
+				if (ViewConfiguration.isStartTag(theLine, cViewConfigTagName)) {
+					if ((mAction & APPEND_DATA) == 0
+					 && (mAction & MERGE_DATA) == 0
+					 && mRuntimeProperties != null)
+						mRuntimeProperties.readViewConfiguration(theReader, theLine);
 					continue;
 					}
 
@@ -575,12 +608,16 @@ public class CompoundTableLoader implements CompoundTableConstants,Runnable {
 					break;
 					}
 
+				if (theLine.length() == 0 && (mDataType != FileHelper.cFileTypeDataWarrior || header != null))
+					continue;
+
 				if (mDataType != FileHelper.cFileTypeDataWarriorTemplate) {
 					if (mWithHeaderLine && header == null) {
-						header = buildLine(theLine, lineBuilder, theReader);
+						evaluateSeparatorSymbol(theLine);
+						header = convertCSVLine(theLine, lineBuilder, theReader);
 						}
 					else {
-						lineList.add(buildLine(theLine, lineBuilder, theReader).getBytes());
+						lineList.add(convertCSVLine(theLine, lineBuilder, theReader).getBytes());
 						if (rowCount > PROGRESS_LIMIT && lineList.size()%PROGRESS_STEP == 0)
 							mProgressController.updateProgress(lineList.size());
 						}
@@ -591,18 +628,128 @@ public class CompoundTableLoader implements CompoundTableConstants,Runnable {
 		catch (IOException e) {}
 
 		if (mWithHeaderLine && header == null) {
-			SwingUtilities.invokeLater(new Runnable() {
-				public void run() {
-					JOptionPane.showMessageDialog(mParentFrame, "No header line found.");
-					}
-				} );
+			SwingUtilities.invokeLater(() -> JOptionPane.showMessageDialog(mParentFrame, "No header line found.") );
 			return false;
+			}
+
+		if (mColumnProperties != null) {
+			for (String key:mColumnProperties.keySet()) {
+				if (key.endsWith("\tspecialType") && mColumnProperties.get(key).equals("Catalysts")
+				 || key.endsWith("\treactionPart") && mColumnProperties.get(key).equals("catalysts")) {
+					SwingUtilities.invokeLater(() -> JOptionPane.showMessageDialog(mParentFrame, "Outdated reaction file format. Please download update from 'openmolecules.org'.") );
+					return false;
+					}
+				}
 			}
 
 		if (mDataType != FileHelper.cFileTypeDataWarriorTemplate)
 			processLines(header, lineList);
 
 		return true;
+		}
+
+	private boolean isGooglePatentsFile(String firstLine) {
+		if (firstLine.startsWith("search URL:")) {
+			int index = firstLine.indexOf("https://patents.google.com");
+			if (index != -1) {
+				mTableModel.setExtensionData(cExtensionNameFileExplanation,
+						"Google Patent Search\nURL: ".concat(firstLine.substring(index)));
+				return true;
+				}
+			}
+
+		return false;
+		}
+
+	private void prepareGooglePatentsFile() {
+		mIsGooglePatentsFile = true;
+		mWithHeaderLine = true;
+		}
+
+	private void postProcessGooglePatentsFile() {
+		boolean linkFound = false;
+		for (int column=0; column<mFieldNames.length; column++) {
+			// sections column contains categories separated by '|'.
+			if ("sections".equals(mFieldNames[column]))
+				for (int row=0; row<mFieldData.length; row++)
+					if (mFieldData[row][column] != null)
+						mFieldData[row][column] = new String((byte[])mFieldData[row][column]).replace("|", "; ").getBytes();
+			if (mFieldNames[column].endsWith(" link")) {
+				linkFound = true;
+				String url = getCommonURL(column);
+				if (url != null) {
+					int length = url.length();
+					for (int row=0; row<mFieldData.length; row++)
+						if (mFieldData[row][column] != null)
+							mFieldData[row][column] = Arrays.copyOfRange((byte[])mFieldData[row][column], length, ((byte[])mFieldData[row][column]).length);
+					addColumnProperty(mFieldNames[column], cColumnPropertyLookupCount, "1");
+					addColumnProperty(mFieldNames[column], cColumnPropertyLookupURL+"0", url+"%s");
+					addColumnProperty(mFieldNames[column], cColumnPropertyLookupName+"0", mFieldNames[column].substring(0, mFieldNames[column].length() - 5));
+					}
+				}
+			}
+		// if we have no link column, we create one from the 'id' column
+		if (!linkFound) {
+			for (int column=0; column<mFieldNames.length; column++) {
+				if (mFieldNames[column].equals("id")) {
+					addColumnProperty(mFieldNames[column], cColumnPropertyLookupCount, "1");
+					addColumnProperty(mFieldNames[column], cColumnPropertyLookupURL+"0", "https://patents.google.com/patent/%s");
+					addColumnProperty(mFieldNames[column], cColumnPropertyLookupName+"0", "original patent");
+					addColumnProperty(mFieldNames[column], cColumnPropertyLookupFilter+"0", cColumnPropertyLookupFilterRemoveMinus);
+					}
+				}
+			}
+		}
+
+	private String getCommonURL(int column) {
+		int index = 0;
+		byte[] first = null;
+		for (int row=0; row<mFieldData.length; row++) {
+			if (mFieldData[row][column] != null) {
+				if (first == null) {
+					first = (byte[])mFieldData[row][column];
+					continue;
+					}
+				byte[] other = (byte[])mFieldData[row][column];
+				int max = Math.min(other.length-1, index == 0 ? first.length-1 : index);
+				index = 0;
+				while (index<max && first[index]==other[index])
+					index++;
+				while (index > 0 && first[index] != '/')
+					index--;
+				}
+			}
+		return index == 0 ? null : new String(first, 0, index+1);
+		}
+
+	private void evaluateSeparatorSymbol(String line) {
+		if (mDataType != FileHelper.cFileTypeTextCommaSeparated || line == null)
+			return;
+
+		mComma = ',';
+
+		int commaCount = 0;
+		int vlineCount = 0;
+		for (int i=0; i<line.length(); i++) {
+			char c = line.charAt(i);
+			if (c == ',')
+				commaCount++;
+			else if (c == '|')
+				vlineCount++;
+			}
+
+		if (vlineCount != 0 && commaCount == 0) {
+			try {
+				SwingUtilities.invokeAndWait(() -> {
+					int answer = JOptionPane.showConfirmDialog(mParentFrame,
+							"Your file seems to contain '|' separators instead of commas.\nDo you want to separate content using '|' characters?", "Warning",
+							JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+					if (answer == JOptionPane.YES_OPTION)
+						mComma = '|';
+					});
+				}
+			catch (Exception e) {}
+			}
 		}
 
 	/**
@@ -613,7 +760,7 @@ public class CompoundTableLoader implements CompoundTableConstants,Runnable {
 	 * @return
 	 * @throws IOException
 	 */
-	private String buildLine(String line, StringBuilder lineBuilder, BufferedReader theReader) throws IOException {
+	private String convertCSVLine(String line, StringBuilder lineBuilder, BufferedReader theReader) throws IOException {
 		if (mDataType != FileHelper.cFileTypeTextCommaSeparated)
 			return line;
 
@@ -636,7 +783,7 @@ public class CompoundTableLoader implements CompoundTableConstants,Runnable {
 					if (theChar == ' ' && !isQuotedSection)
 						continue;
 
-					if (theChar != ',')
+					if (theChar != mComma)
 						isFirstColumnChar = false;
 
 					if (theChar == '\"') {
@@ -650,18 +797,20 @@ public class CompoundTableLoader implements CompoundTableConstants,Runnable {
 						continue;
 						}
 
-					if (!isQuotedSection && theChar == ',')
+					if (!isQuotedSection && theChar == mComma)
 						isFirstColumnChar = true;
 
-					if (theChar == '\"') {
-						if (lineBuilder.charAt(lineBuilder.length() - 1) != '\\') {
-							isQuotedSection = false;
-							continue;
-							}
+					if ((theChar == '\\' || theChar == '\"') && i+1 < line.length() && line.charAt(i+1) == '\"') {
+						theChar = '\"';
+						i++;
+						}
+					else if (theChar == '\"') {
+						isQuotedSection = false;
+						continue;
 						}
 					}
 
-				if (!isQuotedSection && theChar == ',')
+				if (!isQuotedSection && theChar == mComma)
 					theChar = '\t';
 
 				lineBuilder.append(theChar);
@@ -681,6 +830,11 @@ public class CompoundTableLoader implements CompoundTableConstants,Runnable {
 		ArrayList<String> columnNameList = new ArrayList<String>();
 		byte columnSeparator = (byte)'\t';
 
+		// In case we have an old style idcode column 'name [idcode]', which may also be a modern
+		// clipboard transfer, then we may have space delimited atom coordinates and potentially
+		// need insert a new column for the detached coordinates.
+		ArrayList<Integer> oldStyleIDCodeColumnList = null;
+
 		if (mWithHeaderLine) {
 			int fromIndex = 0;
 			int toIndex = 0;
@@ -698,10 +852,13 @@ public class CompoundTableLoader implements CompoundTableConstants,Runnable {
 				String[] type = cParentSpecialColumnTypes;
 				for (int i=0; i<type.length; i++) {
 					if (columnName.endsWith("["+type[i]+"]")) {
-						columnName = columnName.substring(0, columnName.length()-type[i].length()-2);
-						if (mColumnProperties == null)
-							mColumnProperties = new TreeMap<String,String>();
-						mColumnProperties.put(columnName+"\t"+cColumnPropertySpecialType, type[i]);
+						columnName = columnName.substring(0, columnName.length()-type[i].length()-2).trim();
+						addColumnProperty(columnName, cColumnPropertySpecialType, type[i]);
+						if (type[i].equals(cColumnTypeIDCode)) {
+							if (oldStyleIDCodeColumnList == null)
+								oldStyleIDCodeColumnList = new ArrayList<>();
+							oldStyleIDCodeColumnList.add(columnNameList.size());
+							}
 						}
 					}
 
@@ -779,13 +936,91 @@ public class CompoundTableLoader implements CompoundTableConstants,Runnable {
 		if (!mWithHeaderLine)
 			deduceColumnTitles();
 
+		if (oldStyleIDCodeColumnList != null)
+			handleOldStyleIDCodes(oldStyleIDCodeColumnList.toArray(new Integer[0]));
+
 		if (mDataType != FileHelper.cFileTypeDataWarrior)
 			handleSmiles();
+
+		if (mIsGooglePatentsFile)
+			postProcessGooglePatentsFile();
 
 		addDefaultLookupColumnProperties();
 
 		if (mVersion == null) // a version entry exists since V3.0
 			handlePotentially3DCoordinates();
+		}
+
+	private void addColumnProperty(String columnName, String key, String value) {
+		if (mColumnProperties == null)
+			mColumnProperties = new TreeMap<>();
+		mColumnProperties.put(columnName+"\t"+key, value);
+		}
+
+	private void handleOldStyleIDCodes(Integer[] idcodeColumn) {
+		boolean[] hasCoords = new boolean[idcodeColumn.length];
+		boolean[] is3D = new boolean[idcodeColumn.length];
+		int oldColumnCount = mFieldNames.length;
+		int newColumnCount = 0;
+		for (int i=0; i<idcodeColumn.length; i++) {
+			for (int row=0; !hasCoords[i] && row<mFieldData.length; row++) {
+				byte[] bytes = (byte[])mFieldData[row][idcodeColumn[i]];
+				for (int j=0; j<bytes.length; j++) {
+					if (bytes[j] == ' ' && bytes.length > j+1) {
+						hasCoords[i] = true;
+						newColumnCount++;
+						is3D[i] = new IDCodeParser().coordinatesAre3D(bytes, bytes, 0, j+1);
+						break;
+						}
+					}
+				}
+			}
+
+		// coordinate columns are inserted right after the respective idcode columns
+		if (newColumnCount != 0) {
+			String[] newFieldNames = new String[oldColumnCount+newColumnCount];
+			int[] oldToAllColumn = new int[oldColumnCount];
+			newColumnCount = 0;
+			for (int i=0; i<oldColumnCount; i++) {
+				oldToAllColumn[i] = i + newColumnCount;
+				newFieldNames[i + newColumnCount] = mFieldNames[i];
+				if (hasCoords[i])
+					newColumnCount++;
+				}
+			for (int i=0; i<oldColumnCount; i++) {
+				if (hasCoords[i]) {
+					int coordsColumn = oldToAllColumn[i] + 1;
+					String type = is3D[i] ? cColumnType3DCoordinates : cColumnType2DCoordinates;
+					newFieldNames[coordsColumn] = ensureUniqueness(type, newFieldNames);
+					addColumnProperty(newFieldNames[coordsColumn], cColumnPropertySpecialType, type);
+					addColumnProperty(newFieldNames[coordsColumn], cColumnPropertyParentColumn, newFieldNames[coordsColumn-1]);
+					}
+				}
+			mFieldNames = newFieldNames;
+
+			for (int row=0; row<mFieldData.length; row++) {
+				Object[] newFieldData = new Object[oldColumnCount+newColumnCount];
+				for (int i=0; i<oldColumnCount; i++) {
+					int newColumnIndex = oldToAllColumn[i];
+					newFieldData[newColumnIndex] = mFieldData[row][i];
+					if (hasCoords[i]) {
+						byte[] bytes = (byte[])newFieldData[newColumnIndex];
+						int index = -1;
+						for (int j=0; j<bytes.length; j++) {
+							if (bytes[j] == ' ' && bytes.length > j+1) {
+								index = j;
+								break;
+								}
+							}
+						if (index != -1) {
+							newFieldData[newColumnIndex+1] = Arrays.copyOfRange(bytes, index+1, bytes.length);
+							newFieldData[newColumnIndex] = Arrays.copyOf(bytes, index);
+							}
+						}
+					}
+				mFieldData[row] = newFieldData;
+				}
+			}
 		}
 
 	private void handleSmiles() {
@@ -801,31 +1036,100 @@ public class CompoundTableLoader implements CompoundTableConstants,Runnable {
 	private void insertChemistryFromSmiles(StereoMolecule mol, int smilesColumn, boolean isReaction) {
 		int columnCount = mFieldNames.length;
 
-		String newColumnName = isReaction ? "Reaction" : "Structure of "+mFieldNames[smilesColumn];
+		final String[] reactionColumnName = { "Reaction", "RxnMapping", "RxnCoords", "Catalysts", "ReactionFP", "ReactantFFP", "ProductFFP", "RxnCatFragFp", "RxnCatOrgFunc" };
+		final String[] moleculeColumnName = { "Structure of "+mFieldNames[smilesColumn], "SmilesFragFp" };
+		String[] newColumnName = isReaction ? reactionColumnName : moleculeColumnName;
 
-		String[] newFieldNames = new String[columnCount+1];
-		for (int i=0; i<columnCount; i++) {
-			newFieldNames[i < smilesColumn ? i : i+1] = mFieldNames[i];
-			}
-		newFieldNames[smilesColumn] = newColumnName;
+		String[] newFieldNames = new String[columnCount+newColumnName.length];
+		for (int i=0; i<columnCount; i++)
+			newFieldNames[i < smilesColumn ? i : i+newColumnName.length] = mFieldNames[i];
+		for (int i=0; i<newColumnName.length; i++)
+			newFieldNames[smilesColumn+i] = ensureUniqueness(newColumnName[i], mFieldNames);
+
 		mFieldNames = newFieldNames;
 
 		for (int row=0; row<mFieldData.length; row++) {
-			Object[] newFieldData = new Object[columnCount+1];
+			Object[] newFieldData = new Object[columnCount+newColumnName.length];
 			for (int i=0; i<columnCount; i++)
-				newFieldData[i < smilesColumn ? i : i+1] = mFieldData[row][i];
+				newFieldData[i < smilesColumn ? i : i+newColumnName.length] = mFieldData[row][i];
 			mFieldData[row] = newFieldData;
 			}
 
 		if (mFieldData.length > 500)
-			insertChemistryFromSmilesSMP(smilesColumn, smilesColumn+1, isReaction);
+			insertChemistryFromSmilesSMP(smilesColumn, smilesColumn+newColumnName.length, isReaction);
 		else
-			insertChemistryFromSmiles(mol, smilesColumn, smilesColumn+1, isReaction);
+			insertChemistryFromSmiles(mol, smilesColumn, smilesColumn+newColumnName.length, isReaction);
 
-		if (mColumnProperties == null)
-			mColumnProperties = new TreeMap<String,String>();
+		if (isReaction) {
+			String catalystColumnName = newFieldNames[smilesColumn+3];
+			addColumnProperty(newFieldNames[smilesColumn], cColumnPropertySpecialType, cColumnTypeRXNCode);
+			addColumnProperty(newFieldNames[smilesColumn], cColumnPropertyRelatedCatalystColumn, catalystColumnName);
+			addColumnProperty(newFieldNames[smilesColumn+1], cColumnPropertySpecialType, cColumnTypeReactionMapping);
+			addColumnProperty(newFieldNames[smilesColumn+1], cColumnPropertyParentColumn, newFieldNames[smilesColumn]);
+			addColumnProperty(newFieldNames[smilesColumn+2], cColumnPropertySpecialType, cColumnType2DCoordinates);
+			addColumnProperty(newFieldNames[smilesColumn+2], cColumnPropertyParentColumn, newFieldNames[smilesColumn]);
+			addColumnProperty(newFieldNames[smilesColumn+3], cColumnPropertySpecialType, cColumnTypeIDCode);
+			addColumnProperty(newFieldNames[smilesColumn+4], cColumnPropertySpecialType, DescriptorConstants.DESCRIPTOR_ReactionFP.shortName);
+			addColumnProperty(newFieldNames[smilesColumn+4], cColumnPropertyDescriptorVersion, DescriptorConstants.DESCRIPTOR_ReactionFP.version);
+			addColumnProperty(newFieldNames[smilesColumn+4], cColumnPropertyParentColumn, newFieldNames[smilesColumn]);
+			addColumnProperty(newFieldNames[smilesColumn+5], cColumnPropertySpecialType, DescriptorConstants.DESCRIPTOR_FFP512.shortName);
+			addColumnProperty(newFieldNames[smilesColumn+5], cColumnPropertyDescriptorVersion, DescriptorConstants.DESCRIPTOR_FFP512.version);
+			addColumnProperty(newFieldNames[smilesColumn+5], cColumnPropertyReactionPart, cReactionPartReactants);
+			addColumnProperty(newFieldNames[smilesColumn+5], cColumnPropertyParentColumn, newFieldNames[smilesColumn]);
+			addColumnProperty(newFieldNames[smilesColumn+6], cColumnPropertySpecialType, DescriptorConstants.DESCRIPTOR_FFP512.shortName);
+			addColumnProperty(newFieldNames[smilesColumn+6], cColumnPropertyDescriptorVersion, DescriptorConstants.DESCRIPTOR_FFP512.version);
+			addColumnProperty(newFieldNames[smilesColumn+6], cColumnPropertyReactionPart, cReactionPartProducts);
+			addColumnProperty(newFieldNames[smilesColumn+6], cColumnPropertyParentColumn, newFieldNames[smilesColumn]);
+			addColumnProperty(newFieldNames[smilesColumn+7], cColumnPropertySpecialType, DescriptorConstants.DESCRIPTOR_FFP512.shortName);
+			addColumnProperty(newFieldNames[smilesColumn+7], cColumnPropertyDescriptorVersion, DescriptorConstants.DESCRIPTOR_FFP512.version);
+			addColumnProperty(newFieldNames[smilesColumn+7], cColumnPropertyParentColumn, catalystColumnName);
+			addColumnProperty(newFieldNames[smilesColumn+8], cColumnPropertySpecialType, DescriptorConstants.DESCRIPTOR_OrganicFunctionalGroups.shortName);
+			addColumnProperty(newFieldNames[smilesColumn+8], cColumnPropertyDescriptorVersion, DescriptorConstants.DESCRIPTOR_OrganicFunctionalGroups.version);
+			addColumnProperty(newFieldNames[smilesColumn+8], cColumnPropertyParentColumn, catalystColumnName);
+			}
+		else {
+			addColumnProperty(newFieldNames[smilesColumn], cColumnPropertySpecialType, cColumnTypeIDCode);
+			addColumnProperty(newFieldNames[smilesColumn+1], cColumnPropertySpecialType, DescriptorConstants.DESCRIPTOR_FFP512.shortName);
+			addColumnProperty(newFieldNames[smilesColumn+1], cColumnPropertyDescriptorVersion, DescriptorConstants.DESCRIPTOR_FFP512.version);
+			addColumnProperty(newFieldNames[smilesColumn+1], cColumnPropertyParentColumn, newFieldNames[smilesColumn]);
+			}
+		}
 
-		mColumnProperties.put(newColumnName+"\t"+cColumnPropertySpecialType, isReaction ? cColumnTypeRXNCode : cColumnTypeIDCode);
+	/**
+	 * @param name name to be checked and potentially updated to be different from all non-null names
+	 * @param names may contain null entries
+	 * @return
+	 */
+	private String ensureUniqueness(String name, String[] names) {
+		while (true) {
+			boolean found = false;
+			for (String n:names) {
+				if (n != null && name.equalsIgnoreCase(n)) {
+					found = true;
+					break;
+					}
+				}
+			if (!found)
+				break;
+
+			int index = name.lastIndexOf(' ');
+			if (index == -1) {
+				name = name + " 2";
+				break;
+				}
+			else {
+				try {
+					int suffix = Integer.parseInt(name.substring(index + 1));
+					name = name.substring(0, index + 1) + (suffix + 1);
+					}
+				catch (NumberFormatException nfe) {
+					name = name + " 2";
+					break;
+					}
+				}
+			}
+
+		return name;
 		}
 
 	private void insertChemistryFromSmiles(StereoMolecule mol, int chemistryColumn, int smilesColumn, boolean isReaction) {
@@ -881,17 +1185,26 @@ public class CompoundTableLoader implements CompoundTableConstants,Runnable {
 		catch (InterruptedException ie) {}
 		}
 
-	private void insertIDCodeFromSmiles(StereoMolecule mol, int reactionColumn, int smilesColumn, int row) {
+	private void insertIDCodeFromSmiles(StereoMolecule mol, int structureColumn, int smilesColumn, int row) {
 		byte[] smiles = (byte[])mFieldData[row][smilesColumn];
 		if (smiles != null && isValidSmiles(mol, smiles))
-			mFieldData[row][reactionColumn] = getIDCodeFromMolecule(mol);
+			mFieldData[row][structureColumn] = getIDCodeFromMolecule(mol);
 		}
 
 	private void insertReactionCodeFromSmiles(int reactionColumn, int smilesColumn, int row) {
 		Reaction rxn = getReactionFromSmiles((byte[])mFieldData[row][smilesColumn]);
-		if (rxn != null)
-			mFieldData[row][reactionColumn] = ReactionEncoder.encode(rxn, false,
-					ReactionEncoder.INCLUDE_CATALYSTS | ReactionEncoder.INCLUDE_MAPPING).getBytes();
+		if (rxn != null) {
+			String[] rxnData = ReactionEncoder.encode(rxn, false);
+			if (rxnData != null && rxnData[0] != null) {
+				mFieldData[row][reactionColumn] = rxnData[0].getBytes();
+				if (rxnData[1] != null && rxnData[1].length() != 0)
+					mFieldData[row][reactionColumn+1] = rxnData[1].getBytes();
+				if (rxnData[2] != null && rxnData[2].length() != 0)
+					mFieldData[row][reactionColumn+2] = rxnData[2].getBytes();
+				if (rxnData[4] != null && rxnData[4].length() != 0)
+					mFieldData[row][reactionColumn+3] = rxnData[4].getBytes();
+				}
+			}
 		}
 
 	/**
@@ -1005,12 +1318,10 @@ public class CompoundTableLoader implements CompoundTableConstants,Runnable {
 			String columnName = columnNameList.get(i);
 			if (columnName.equals("idcode") && !columnHasProperty(columnName)) {
 				columnNameList.set(i, "Structure");
-				if (mColumnProperties == null)
-					mColumnProperties = new TreeMap<String,String>();
-				mColumnProperties.put("Structure\t"+cColumnPropertySpecialType, cColumnTypeIDCode);
+				addColumnProperty("Structure", cColumnPropertySpecialType, cColumnTypeIDCode);
 				for (int j=0; j<columnNameList.size(); j++) {
 					if (columnName.equals(sIdentifierHandler.getSubstanceIdentifierName())) {
-						mColumnProperties.put("Structure\t"+cColumnPropertyIdentifierColumn, sIdentifierHandler.getSubstanceIdentifierName());
+						addColumnProperty("Structure", cColumnPropertyRelatedIdentifierColumn, sIdentifierHandler.getSubstanceIdentifierName());
 						break;
 						}
 					}
@@ -1020,21 +1331,17 @@ public class CompoundTableLoader implements CompoundTableConstants,Runnable {
 			 && (columnName.equals("idcoordinates") || columnName.equals("idcoords"))
 			 && !columnHasProperty(columnName)) {
 				columnNameList.set(i, cColumnType2DCoordinates);
-				if (mColumnProperties == null)
-					mColumnProperties = new TreeMap<String,String>();
-				mColumnProperties.put(cColumnType2DCoordinates+"\t"+cColumnPropertySpecialType, cColumnType2DCoordinates);
-				mColumnProperties.put(cColumnType2DCoordinates+"\t"+cColumnPropertyParentColumn, "Structure");
+				addColumnProperty(cColumnType2DCoordinates, cColumnPropertySpecialType, cColumnType2DCoordinates);
+				addColumnProperty(cColumnType2DCoordinates, cColumnPropertyParentColumn, "Structure");
 				mOldVersionCoordinateColumn = i;
 				}
 			if (mOldVersionIDCodeColumn != -1
 			 && columnName.startsWith("fingerprint_")
 			 && !columnHasProperty(columnName)) {
 				columnNameList.set(i, DescriptorConstants.DESCRIPTOR_FFP512.shortName);
-				if (mColumnProperties == null)
-					mColumnProperties = new TreeMap<String,String>();
-				mColumnProperties.put(DescriptorConstants.DESCRIPTOR_FFP512.shortName+"\t"+cColumnPropertySpecialType, DescriptorConstants.DESCRIPTOR_FFP512.shortName);
-				mColumnProperties.put(DescriptorConstants.DESCRIPTOR_FFP512.shortName+"\t"+cColumnPropertyParentColumn, "Structure");
-				mColumnProperties.put(DescriptorConstants.DESCRIPTOR_FFP512.shortName+"\t"+cColumnPropertyDescriptorVersion, columnName.substring(12));
+				addColumnProperty(DescriptorConstants.DESCRIPTOR_FFP512.shortName, cColumnPropertySpecialType, DescriptorConstants.DESCRIPTOR_FFP512.shortName);
+				addColumnProperty(DescriptorConstants.DESCRIPTOR_FFP512.shortName, cColumnPropertyParentColumn, "Structure");
+				addColumnProperty(DescriptorConstants.DESCRIPTOR_FFP512.shortName, cColumnPropertyDescriptorVersion, columnName.substring(12));
 				}
 			}
 		if (mOldVersionCoordinateColumn != -1)
@@ -1079,7 +1386,6 @@ public class CompoundTableLoader implements CompoundTableConstants,Runnable {
 		}
 
 	private void readColumnProperties(BufferedReader theReader) {
-		mColumnProperties = new TreeMap<String,String>();
 		try {
 			String columnName = null;
 			while (true) {
@@ -1095,16 +1401,16 @@ public class CompoundTableLoader implements CompoundTableConstants,Runnable {
 					}
 
 				if (theLine.startsWith("<"+cColumnProperty)) {
-					String keyAndValue = extractValue(theLine);
+					String keyAndValue = extractOneValueLine(theLine);	// formulas may contain encoded double quotes
 
 					// to support deprecated property cColumnPropertyIsIDCode => "isIDCode"
 					if (keyAndValue.equals("isIDCode\ttrue")) {
-						mColumnProperties.put(columnName + "\t" + cColumnPropertySpecialType, cColumnTypeIDCode);
+						addColumnProperty(columnName, cColumnPropertySpecialType, cColumnTypeIDCode);
 						}
 					else {
 						int index = keyAndValue.indexOf('\t');
 						if (index != -1)
-							mColumnProperties.put(columnName + "\t" + keyAndValue.substring(0, index), keyAndValue.substring(index+1));
+							addColumnProperty(columnName, keyAndValue.substring(0, index), keyAndValue.substring(index+1));
 						}
 
 					continue;
@@ -1206,6 +1512,19 @@ public class CompoundTableLoader implements CompoundTableConstants,Runnable {
 	static public String extractValue(String theLine) {
 		int index1 = theLine.indexOf("=\"") + 2;
 		int index2 = theLine.indexOf("\"", index1);
+		return theLine.substring(index1, index2);
+		}
+
+	/**
+	 * extracts and returns the first double quoted value directly following an equal sign
+	 * and ending with the last occurence of a quote followed by a larger sign.
+	 * This method allows double quotes to occurr in the value.
+	 * @param theLine
+	 * @return
+	 */
+	static public String extractOneValueLine(String theLine) {
+		int index1 = theLine.indexOf("=\"") + 2;
+		int index2 = theLine.lastIndexOf("\">");
 		return theLine.substring(index1, index2);
 		}
 
@@ -1340,18 +1659,17 @@ public class CompoundTableLoader implements CompoundTableConstants,Runnable {
 			recordNo++;
 			}
 
-		mColumnProperties = new TreeMap<String,String>();
-		mColumnProperties.put("Structure"+"\t"+cColumnPropertySpecialType, cColumnTypeIDCode);
-		mColumnProperties.put(cColumnType2DCoordinates+"\t"+cColumnPropertySpecialType, cColumnType2DCoordinates);
-		mColumnProperties.put(cColumnType2DCoordinates+"\t"+cColumnPropertyParentColumn, "Structure");
+		addColumnProperty("Structure", cColumnPropertySpecialType, cColumnTypeIDCode);
+		addColumnProperty(cColumnType2DCoordinates, cColumnPropertySpecialType, cColumnType2DCoordinates);
+		addColumnProperty(cColumnType2DCoordinates, cColumnPropertyParentColumn, "Structure");
 
 		mFieldData = fieldDataList.toArray(new Object[0][]);
 
 		if (structureIDColumn != -1) {
-			mColumnProperties.put("Structure\t"+cColumnPropertyIdentifierColumn, mFieldNames[structureIDColumn]);
+			addColumnProperty("Structure", cColumnPropertyRelatedIdentifierColumn, mFieldNames[structureIDColumn]);
 			}
 		else if (molnameFound) {
-			mColumnProperties.put("Structure\t"+cColumnPropertyIdentifierColumn, mFieldNames[2]);
+			addColumnProperty("Structure", cColumnPropertyRelatedIdentifierColumn, mFieldNames[2]);
 			}
 		else {
 			mFieldNames[2] = "Structure No";
@@ -1374,11 +1692,7 @@ public class CompoundTableLoader implements CompoundTableConstants,Runnable {
 
 		if (errors > 0) {
 			final String message = ""+errors+" compound structures could not be generated because of molfile parsing errors.";
-			SwingUtilities.invokeLater(new Runnable() {
-				public void run() {
-					JOptionPane.showMessageDialog(mParentFrame, message);
-					}
-				} );
+			SwingUtilities.invokeLater(() -> JOptionPane.showMessageDialog(mParentFrame, message) );
 			}
 
 		handlePotentially3DCoordinates();
@@ -1387,6 +1701,143 @@ public class CompoundTableLoader implements CompoundTableConstants,Runnable {
 
 		return true;
 		}
+
+	private boolean readRDFile() {
+		mProgressController.startProgress("Examining Records...", 0, 0);
+
+		RDFileParser rdParser = new RDFileParser(mDataReader);
+		boolean isReactions = rdParser.isReactionNext();
+
+		String[] fieldNames = rdParser.getFieldNames();
+		int textFieldCount = fieldNames.length;
+		int chemFieldCount = isReactions ? 7 : 3;
+		int totalFieldCount = textFieldCount + chemFieldCount;
+
+		mFieldNames = new String[totalFieldCount];
+		String chemObjectName = isReactions ? "Reaction" : "Structure";
+		int index = 0;
+		mFieldNames[index++] = chemObjectName+" Name";   // use record no as default column
+		mFieldNames[index++] = chemObjectName;
+		mFieldNames[index++] = cColumnType2DCoordinates;
+
+		if (isReactions) {
+			mFieldNames[index++] = cColumnTypeReactionMapping;
+			mFieldNames[index++] = "reactionFP";
+			mFieldNames[index++] = "reactantFFP";
+			mFieldNames[index++] = "productFFP";
+			}
+
+		for (String fieldName:fieldNames)
+			mFieldNames[index++] = sIdentifierHandler.normalizeIdentifierName(fieldName);
+
+		ArrayList<Object[]> fieldDataList = new ArrayList<>();
+
+		mOldVersionIDCodeColumn = 0;
+		mOldVersionCoordinateColumn = 1;
+		mCoordsMayBe3D = !isReactions;
+
+		int structureIDColumn = (!isReactions && textFieldCount != 0
+				&& (fieldNames[0].equals("ID")
+				|| fieldNames[0].equals("IDNUMBER")
+				|| fieldNames[0].equals(sIdentifierHandler.getSubstanceIdentifierName())
+				|| fieldNames[0].equals("code"))) ? chemFieldCount : -1;
+
+		rdParser = new RDFileParser(mFile);
+		int errors = 0;
+		String name = null;
+		boolean nameFound = false;
+
+		mProgressController.startProgress("Processing Records...", 0, 0);
+
+		while (rdParser.hasNext()) {
+			if (mProgressController.threadMustDie())
+				break;
+
+			Object[] fieldData = new Object[mFieldNames.length];
+
+			try {
+				if (isReactions) {
+					Reaction rxn = rdParser.getNextReaction();
+					if (rxn != null) {
+						name = rxn.getName();
+						String[] encoded = ReactionEncoder.encode(rxn, false);
+						fieldData[1] = getBytes(encoded[0]);
+						fieldData[2] = getBytes(encoded[2]);    // coords
+						fieldData[3] = getBytes(encoded[1]);    // mapping
+						}
+					}
+				else {
+					StereoMolecule mol = rdParser.getNextMolecule();
+					name = mol.getName();
+					if (mol.getAllAtoms() != 0) {
+						mol.normalizeAmbiguousBonds();
+						mol.canonizeCharge(true);
+						Canonizer canonizer = new Canonizer(mol);
+						canonizer.setSingleUnknownAsRacemicParity();
+						byte[] idcode = getBytes(canonizer.getIDCode());
+						byte[] coords = getBytes(canonizer.getEncodedCoordinates());
+						fieldData[1] = idcode;
+						fieldData[2] = coords;
+						}
+					}
+				}
+			catch (Exception e) {
+				errors++;
+				}
+
+			if (name != null && name.length() != 0) {
+				nameFound = true;
+				fieldData[0] = getBytes(name);
+				}
+
+			for (int i=chemFieldCount; i<totalFieldCount; i++)
+				fieldData[i] = getBytes(removeTabs(rdParser.getFieldData(mFieldNames[i])));
+
+			fieldDataList.add(fieldData);
+			}
+
+		addColumnProperty(chemObjectName, cColumnPropertySpecialType, isReactions ? cColumnTypeRXNCode : cColumnTypeIDCode);
+		addColumnProperty(cColumnType2DCoordinates, cColumnPropertySpecialType, cColumnType2DCoordinates);
+		addColumnProperty(cColumnType2DCoordinates, cColumnPropertyParentColumn, chemObjectName);
+		if (isReactions) {
+			addColumnProperty(cColumnTypeReactionMapping, cColumnPropertySpecialType, cColumnTypeReactionMapping);
+			addColumnProperty(cColumnTypeReactionMapping, cColumnPropertyParentColumn, chemObjectName);
+			addColumnProperty("reactionFP", cColumnPropertySpecialType, DescriptorConstants.DESCRIPTOR_ReactionFP.shortName);
+			addColumnProperty("reactionFP", cColumnPropertyParentColumn, chemObjectName);
+			addColumnProperty("reactantFFP", cColumnPropertySpecialType, DescriptorConstants.DESCRIPTOR_FFP512.shortName);
+			addColumnProperty("reactantFFP", cColumnPropertyParentColumn, chemObjectName);
+			addColumnProperty("reactantFFP", cColumnPropertyReactionPart, cReactionPartReactants);
+			addColumnProperty("productFFP", cColumnPropertySpecialType, DescriptorConstants.DESCRIPTOR_FFP512.shortName);
+			addColumnProperty("productFFP", cColumnPropertyParentColumn, chemObjectName);
+			addColumnProperty("productFFP", cColumnPropertyReactionPart, cReactionPartProducts);
+			}
+
+		mFieldData = fieldDataList.toArray(new Object[0][]);
+
+		if (structureIDColumn != -1) {
+			addColumnProperty(chemObjectName, cColumnPropertyRelatedIdentifierColumn, mFieldNames[structureIDColumn]);
+			}
+		else if (nameFound) {
+			addColumnProperty(chemObjectName, cColumnPropertyRelatedIdentifierColumn, mFieldNames[0]);
+			}
+		else {
+			mFieldNames[0] = chemObjectName + " No";
+			for (int row=0; row<mFieldData.length; row++)
+				mFieldData[row][0] = (""+(row+1)).getBytes();
+			}
+
+		if (errors > 0) {
+			final String message = ""+errors+" compound structures could not be generated because of molfile parsing errors.";
+			SwingUtilities.invokeLater(() -> JOptionPane.showMessageDialog(mParentFrame, message) );
+			}
+
+		if (!isReactions) {
+			handlePotentially3DCoordinates();
+			addDefaultLookupColumnProperties();
+			}
+
+		return true;
+	}
 
 	private String removeTabs(String s) {
 		return (s == null) ? null : s.trim().replace('\t', ' ');
@@ -1433,8 +1884,8 @@ public class CompoundTableLoader implements CompoundTableConstants,Runnable {
 			mFieldNames[mOldVersionCoordinateColumn] = cColumnType3DCoordinates;
 			mColumnProperties.remove(cColumnType2DCoordinates+"\t"+cColumnPropertySpecialType);
 			mColumnProperties.remove(cColumnType2DCoordinates+"\t"+cColumnPropertyParentColumn);
-			mColumnProperties.put(cColumnType3DCoordinates+"\t"+cColumnPropertySpecialType, cColumnType3DCoordinates);
-			mColumnProperties.put(cColumnType3DCoordinates+"\t"+cColumnPropertyParentColumn, "Structure");
+			addColumnProperty(cColumnType3DCoordinates, cColumnPropertySpecialType, cColumnType3DCoordinates);
+			addColumnProperty(cColumnType3DCoordinates, cColumnPropertyParentColumn, "Structure");
 			return;
 			}
 
@@ -1458,8 +1909,8 @@ public class CompoundTableLoader implements CompoundTableConstants,Runnable {
 					}
 				}
 			}
-		mColumnProperties.put(cColumnType3DCoordinates+"\t"+cColumnPropertySpecialType, cColumnType3DCoordinates);
-		mColumnProperties.put(cColumnType3DCoordinates+"\t"+cColumnPropertyParentColumn, "Structure");
+		addColumnProperty(cColumnType3DCoordinates, cColumnPropertySpecialType, cColumnType3DCoordinates);
+		addColumnProperty(cColumnType3DCoordinates, cColumnPropertyParentColumn, "Structure");
 		}
 
 	private int populateTable() {
@@ -1566,7 +2017,7 @@ public class CompoundTableLoader implements CompoundTableConstants,Runnable {
 				mTableModel.invalidateSelectionModel();
 				}
 
-			if (mDataDependentPropertyReaderMap != null)
+			if (!error && mDataDependentPropertyReaderMap != null)
 				for (DataDependentPropertyReader ddpr:mDataDependentPropertyReaderMap.values())
 					ddpr.apply();
 
@@ -1591,16 +2042,15 @@ public class CompoundTableLoader implements CompoundTableConstants,Runnable {
 			case FileHelper.cFileTypeTextTabDelimited:
 			case FileHelper.cFileTypeTextCommaSeparated:
 				return readTextData();
+			case FileHelper.cFileTypeRD:
+				return readRDFile();
 			case FileHelper.cFileTypeSD:
 				return readSDFile();
 				}
 			}
 		catch (OutOfMemoryError err) {
-			SwingUtilities.invokeLater(new Runnable() {
-				public void run() {
-					JOptionPane.showMessageDialog(mParentFrame, "Out of memory. Launch this application with Java option -Xms???m or -Xmx???m.");
-					}
-				} );
+			SwingUtilities.invokeLater(() -> JOptionPane.showMessageDialog(mParentFrame,
+					"Out of memory. Launch this application with Java option -Xms???m or -Xmx???m.") );
 			clearBufferedData();
 			return false;
 			}
@@ -1624,7 +2074,9 @@ public class CompoundTableLoader implements CompoundTableConstants,Runnable {
 				mTableModel.finalizeTable(mRuntimeProperties != null
 						   && mRuntimeProperties.size() != 0 ?
 								   CompoundTableEvent.cSpecifierNoRuntimeProperties
-								 : CompoundTableEvent.cSpecifierDefaultRuntimeProperties,
+								 : mIsGooglePatentsFile || rowCount > 10000 ?
+								   CompoundTableEvent.cSpecifierDefaultFilters
+								 : CompoundTableEvent.cSpecifierDefaultFiltersAndViews,
 										  mProgressController);
 
 				if (mDataType == FileHelper.cFileTypeDataWarrior)
@@ -1680,7 +2132,7 @@ public class CompoundTableLoader implements CompoundTableConstants,Runnable {
 
 		int existingRowCount = mTableModel.getTotalRowCount();
 		int additionalRowCount = mFieldData.length;
-		mTableModel.addNewRows(additionalRowCount);
+		mTableModel.addNewRows(additionalRowCount, true);
 
 		mProgressController.startProgress("Appending rows...", 0, additionalRowCount);
 
@@ -1704,48 +2156,123 @@ public class CompoundTableLoader implements CompoundTableConstants,Runnable {
 		populateDetails();
 		}
 
-	private boolean mergeTable() {
-		mProgressController.startProgress("Sorting current keys...", 0, mTableModel.getTotalRowCount());
+	private void addSourceToDestRowEntry(int sourceRow, int destRow, TreeMap<Integer, int[]> sourceToDestRowMap) {
+		int[] destRowList = sourceToDestRowMap.get(sourceRow);
+		if (destRowList == null) {
+			destRowList = new int[1];
+			destRowList[0] = destRow;
+			}
+		else {
+			int[] newDestRowList = new int[destRowList.length+1];
+			for (int i=0; i<destRowList.length; i++)
+				newDestRowList[i] = destRowList[i];
+			newDestRowList[destRowList.length] = destRow;
+			destRowList = newDestRowList;
+			}
+		sourceToDestRowMap.put(sourceRow, destRowList);
+		}
 
-		TreeMap<String,int[]> currentKeyMap = new TreeMap<String,int[]>();
+	private boolean mergeTable() {
+		mProgressController.startProgress("Preparing merge...", 0, 0);
 
 		// construct key column array from mMergeMode
 		int keyColumns = 0;
-		for (int i=0; i<mMergeMode.length; i++)
-			if (mMergeMode[i] == MERGE_MODE_IS_KEY)
+		int wordSearchIndex = -1;
+		for (int sourceColumn=0; sourceColumn<mMergeMode.length; sourceColumn++) {
+			if (mMergeMode[sourceColumn] == MERGE_MODE_IS_KEY
+			 || mMergeMode[sourceColumn] == MERGE_MODE_IS_KEY_NO_CASE
+			 || mMergeMode[sourceColumn] == MERGE_MODE_IS_KEY_WORD_SEARCH) {
+				if (mMergeMode[sourceColumn] == MERGE_MODE_IS_KEY_WORD_SEARCH)
+					wordSearchIndex = keyColumns;
 				keyColumns++;
-		int[] keyColumn = new int[keyColumns];
+				}
+			}
+
+		int[] keyColumn = null;
+		boolean[] isIgnoreCase = null;
+		keyColumn = new int[keyColumns];
+		isIgnoreCase = new boolean[keyColumns];
 		keyColumns = 0;
-		for (int i=0; i<mMergeMode.length; i++)
-			if (mMergeMode[i] == MERGE_MODE_IS_KEY)
-				keyColumn[keyColumns++] = i;
+		for (int sourceColumn=0; sourceColumn<mMergeMode.length; sourceColumn++) {
+			if (mMergeMode[sourceColumn] == MERGE_MODE_IS_KEY
+			 || mMergeMode[sourceColumn] == MERGE_MODE_IS_KEY_NO_CASE
+			 || mMergeMode[sourceColumn] == MERGE_MODE_IS_KEY_WORD_SEARCH) {
+				keyColumn[keyColumns] = sourceColumn;
+				isIgnoreCase[keyColumns] = (mMergeMode[sourceColumn] != MERGE_MODE_IS_KEY);
+				keyColumns++;
+				}
+			}
 
-		for (int row=0; row<mTableModel.getTotalRowCount(); row++) {
-			if (mProgressController.threadMustDie())
-				break;
-			if (row % PROGRESS_STEP == 0)
-				mProgressController.updateProgress(row);
-
-			// create combined key from all key columns
-			String key = mTableModel.getTotalValueAt(row, mMergeDestColumn[keyColumn[0]]);
-			for (int i=1; i<keyColumns; i++)
-				key = key.concat("\t").concat(mTableModel.getTotalValueAt(row, mMergeDestColumn[keyColumn[i]]));
-
-			if (key != null && key.length() != 0) {
-				int[] rowList = currentKeyMap.get(key);
-				if (rowList == null) {
-					rowList = new int[1];
-					rowList[0] = row;
+		TreeMap<byte[][],Integer> keyToSourceRowMap = new TreeMap<>(new ByteArrayArrayComparator());
+		for (int row=0; row<mFieldData.length; row++) {
+			byte[][] key = new byte[keyColumns][];
+			for (int i=0; i<keyColumns; i++) {
+				if (i == wordSearchIndex && mFieldData[row][keyColumn[i]] != null) {
+					key[i] = new String((byte[])mFieldData[row][keyColumn[i]]).trim().toLowerCase().getBytes();
+					}
+				else if (isIgnoreCase[i] && mFieldData[row][keyColumn[i]] != null) {
+					key[i] = new String((byte[])mFieldData[row][keyColumn[i]]).toLowerCase().getBytes();
 					}
 				else {
-					int[] oldRowList = rowList;
-					rowList = new int[oldRowList.length+1];
-					int i=0;
-					for (int oldRow:oldRowList)
-						rowList[i++] = oldRow;
-					rowList[i] = row;
+					key[i] = (byte[])mFieldData[row][keyColumn[i]];
 					}
-				currentKeyMap.put(key, rowList);
+				}
+			keyToSourceRowMap.put(key, row);
+			}
+
+		int maxWordCount = (wordSearchIndex == -1) ? -1 : determineMaxWordCount(keyToSourceRowMap.keySet());
+
+		TreeMap<Integer, int[]> sourceToDestRowMap = new TreeMap<>();
+
+		mProgressController.startProgress("Assigning new rows to current rows...", 0, mTableModel.getTotalRowCount());
+
+		for (int destRow=0; destRow<mTableModel.getTotalRowCount(); destRow++) {
+			if (mProgressController.threadMustDie())
+				break;
+			if (destRow % PROGRESS_STEP == 0)
+				mProgressController.updateProgress(destRow);
+
+			// create combined key array from all key columns and find
+			byte[][] key = new byte[keyColumns][];
+			for (int i=0; i<keyColumns; i++) {
+				key[i] = (byte[])mTableModel.getTotalRecord(destRow).getData(mMergeDestColumn[keyColumn[i]]);
+				if (key[i] != null && isIgnoreCase[i])
+					key[i] = new String(key[i]).toLowerCase().getBytes();
+				}
+
+			if (wordSearchIndex == -1 || key[wordSearchIndex] == null) {
+				Integer sourceRow = keyToSourceRowMap.get(key);
+				if (sourceRow != null)
+					addSourceToDestRowEntry(sourceRow, destRow, sourceToDestRowMap);
+				}
+			else {  // one of the key columns requires a sub-word search
+				byte[] targetCellText = key[wordSearchIndex];
+				int spaceCount = 0;
+				for (int i=0; i<targetCellText.length; i++)
+					if (targetCellText[i] == 32)
+						spaceCount++;
+				int[] wordIndex = new int[spaceCount+2];
+				spaceCount = 0;
+				for (int i=0; i<targetCellText.length; i++)
+					if (targetCellText[i] == 32)
+						wordIndex[++spaceCount] = i+1;
+				wordIndex[++spaceCount] = targetCellText.length+1;
+
+				boolean found = false;
+				for (int i1=0; !found && i1<wordIndex.length-1; i1++) {
+					if (wordIndex[i1+1]>wordIndex[i1]+1) {
+						for (int i2=Math.min(i1+maxWordCount, wordIndex.length-1); !found && i2>i1; i2--) {
+							if (wordIndex[i2-1]<wordIndex[i2]-1) {
+								key[wordSearchIndex] = Arrays.copyOfRange(targetCellText, wordIndex[i1], wordIndex[i2] - 1);
+								Integer sourceRow = keyToSourceRowMap.get(key);
+								if (sourceRow != null) {
+									addSourceToDestRowEntry(sourceRow, destRow, sourceToDestRowMap);
+									found = true;
+									}
+								}
+							}
+						}
+					}
 				}
 			}
 
@@ -1770,9 +2297,14 @@ public class CompoundTableLoader implements CompoundTableConstants,Runnable {
 			mRuntimeProperties.learn();
 
 		int newColumns = 0;
-		for (int i=0; i<mMergeDestColumn.length; i++)
+		for (int i=0; i<mMergeDestColumn.length; i++) {
+			if (mMergeMode[i] == MERGE_MODE_IS_KEY_WORD_SEARCH) {
+				mMergeMode[i] = MERGE_MODE_REPLACE;
+				mMergeDestColumn[i] = NEW_COLUMN;
+				}
 			if (mMergeDestColumn[i] == NEW_COLUMN)
 				newColumns++;
+			}
 
 		mFirstNewColumn = mTableModel.getTotalColumnCount();
 		if (newColumns != 0) {
@@ -1791,53 +2323,50 @@ public class CompoundTableLoader implements CompoundTableConstants,Runnable {
 			}
 
 		int mergedColumns = 0;
-		for (int row=0; row<mFieldData.length; row++) {
+		for (int sourceRow=0; sourceRow<mFieldData.length; sourceRow++) {
 			if (mProgressController.threadMustDie())
 				break;
-			if (row % PROGRESS_STEP == 0)
-				mProgressController.updateProgress(row);
+			if (sourceRow % PROGRESS_STEP == 0)
+				mProgressController.updateProgress(sourceRow);
 
-			byte[] key = constructMergeKey(mFieldData[row], keyColumn);
-			if (key != null) {
-				int[] rowList = currentKeyMap.get(new String(key));
-				if (rowList != null) {
-					for (int destRow:rowList) {
-						// In case we have child columns with merge mode MERGE_MODE_AS_PARENT, we need to handle them first.
-						for (int column=0; column<mMergeDestColumn.length; column++) {
-							if (mMergeDestColumn[column] != NO_COLUMN) {
-								if (mMergeMode[column] == MERGE_MODE_AS_PARENT) {
-									int parentColumn = getSourceColumn(getParentColumnName(mFieldNames[column]));
-									if (mTableModel.getTotalRecord(destRow).getData(mMergeDestColumn[parentColumn]) == null)
-										mTableModel.setTotalDataAt(mFieldData[row][column], destRow, mMergeDestColumn[column]);
-									}
-								}
-							}
-						for (int column=0; column<mMergeDestColumn.length; column++) {
-							if (mMergeDestColumn[column] != NO_COLUMN) {
-								switch (mMergeMode[column]) {
-								case MERGE_MODE_APPEND:
-									mTableModel.appendTotalDataAt((byte[])mFieldData[row][column], destRow, mMergeDestColumn[column]);
-									break;
-								case MERGE_MODE_REPLACE:
-									mTableModel.setTotalDataAt(mFieldData[row][column], destRow, mMergeDestColumn[column]);
-									break;
-								case MERGE_MODE_USE_IF_EMPTY:
-									if (mTableModel.getTotalRecord(destRow).getData(mMergeDestColumn[column]) == null)
-										mTableModel.setTotalDataAt(mFieldData[row][column], destRow, mMergeDestColumn[column]);
-									break;
-								default:	// merge key don't require handling and child column merging was handled before
-									break;
-									}
+			int[] rowList = sourceToDestRowMap.get(sourceRow);
+			if (rowList != null) {
+				for (int destRow:rowList) {
+					// In case we have child columns with merge mode MERGE_MODE_AS_PARENT, we need to handle them first.
+					for (int column=0; column<mMergeDestColumn.length; column++) {
+						if (mMergeDestColumn[column] != NO_COLUMN) {
+							if (mMergeMode[column] == MERGE_MODE_AS_PARENT) {
+								int parentColumn = getSourceColumn(getParentColumnName(mFieldNames[column]));
+								if (mTableModel.getTotalRecord(destRow).getData(mMergeDestColumn[parentColumn]) == null)
+									mTableModel.setTotalDataAt(mFieldData[sourceRow][column], destRow, mMergeDestColumn[column]);
 								}
 							}
 						}
-
-					if (destRowMap != null)
-						destRowMap[row] = rowList;
-	
-					mFieldData[row] = null;
-					mergedColumns++;
+					for (int column=0; column<mMergeDestColumn.length; column++) {
+						if (mMergeDestColumn[column] != NO_COLUMN) {
+							switch (mMergeMode[column]) {
+							case MERGE_MODE_APPEND:
+								mTableModel.appendTotalDataAt((byte[])mFieldData[sourceRow][column], destRow, mMergeDestColumn[column]);
+								break;
+							case MERGE_MODE_REPLACE:
+								mTableModel.setTotalDataAt(mFieldData[sourceRow][column], destRow, mMergeDestColumn[column]);
+								break;
+							case MERGE_MODE_USE_IF_EMPTY:
+								if (mTableModel.getTotalRecord(destRow).getData(mMergeDestColumn[column]) == null)
+									mTableModel.setTotalDataAt(mFieldData[sourceRow][column], destRow, mMergeDestColumn[column]);
+								break;
+							default:	// merge key don't require handling and child column merging was handled before
+								break;
+								}
+							}
+						}
 					}
+
+				if (destRowMap != null)
+					destRowMap[sourceRow] = rowList;
+
+				mFieldData[sourceRow] = null;
+				mergedColumns++;
 				}
 			}
 
@@ -1855,7 +2384,7 @@ public class CompoundTableLoader implements CompoundTableConstants,Runnable {
 		final int additionalRowCount = mFieldData.length - mergedColumns;
 		if (mAppendRest && additionalRowCount > 0) {
 
-			mTableModel.addNewRows(additionalRowCount);
+			mTableModel.addNewRows(additionalRowCount, true);
 
 			int destRow = existingRowCount;
 
@@ -1896,6 +2425,20 @@ public class CompoundTableLoader implements CompoundTableConstants,Runnable {
 		return false;
 		}
 
+	private int determineMaxWordCount(Set<byte[][]> keySet) {
+		int maxCount = 0;
+		for (byte[][] key:keySet) {
+			String s = new String(key[0]);
+			int count = (s.length() == 0) ? 0 : 1;
+			for (int i=0; i<s.length(); i++)
+				if (s.charAt(i) == ' ')
+					count++;
+			if (maxCount < count)
+				maxCount = count;
+			}
+		return maxCount;
+		}
+
 	/**
 	 * If we merge or append, for merged columns we cannot just add any new column properties
 	 * to the existing column. Redundant and incompatible column properties are identified
@@ -1920,27 +2463,30 @@ public class CompoundTableLoader implements CompoundTableConstants,Runnable {
 					if (value != null) {
 						int srcCount = Integer.parseInt(value);
 						int[] newDetailIndex = new int[srcCount];
-						boolean[] destIndexIsUsed = new boolean[srcCount+destCount];
 						for (int srcIndex=0; srcIndex<srcCount; srcIndex++) {
 							value = mColumnProperties.get(mFieldNames[srcColumn]+"\t"+cColumnPropertyDetailName+srcIndex);
 							newDetailIndex[srcIndex] = mTableModel.getColumnPropertyIndex(destColumn, cColumnPropertyDetailName, value);
 							}
-						for (int srcIndex=destCount; srcIndex<srcCount; srcIndex++) {
-							if (newDetailIndex[srcIndex] == -1) {
-								newDetailIndex[srcIndex] = srcIndex;
-								destIndexIsUsed[srcIndex] = true;
-								}
-							}
 
-						for (int srcIndex=0; srcIndex<destCount; srcIndex++) {
-							if (newDetailIndex[srcIndex] == -1) {
-								for (int i=destCount; srcIndex<srcCount; srcIndex++) {
-									if (!destIndexIsUsed[i]) {
-										newDetailIndex[srcIndex] = i;
-										destIndexIsUsed[i] = true;
+						// keep original source indexes if they are larger than highest dest index and detail name doesn't match a dest detail name
+						for (int srcIndex=destCount; srcIndex<srcCount; srcIndex++)
+							if (newDetailIndex[srcIndex] == -1)
+								newDetailIndex[srcIndex] = srcIndex;
+
+						int potentiallyFreeIndex = destCount;
+						for (int srcIndex=0; srcIndex<Math.min(srcCount, destCount); srcIndex++) {
+							while (newDetailIndex[srcIndex] == -1) {
+								boolean isFree = true;
+								for (int i=0; i<srcCount; i++) {
+									if (newDetailIndex[i] == potentiallyFreeIndex) {
+										isFree = false;
 										break;
 										}
 									}
+								if (isFree)
+									newDetailIndex[srcIndex] = potentiallyFreeIndex;
+
+								potentiallyFreeIndex++;
 								}
 							}
 
@@ -1964,7 +2510,7 @@ public class CompoundTableLoader implements CompoundTableConstants,Runnable {
 							}
 
 						if (removalCount != srcCount) {
-							mColumnProperties.put(mFieldNames[srcColumn]+"\t"+cColumnPropertyDetailCount, Integer.toString(srcCount+destCount));
+							addColumnProperty(mFieldNames[srcColumn], cColumnPropertyDetailCount, Integer.toString(srcCount+destCount-removalCount));
 							}
 						}
 					}
@@ -2084,7 +2630,7 @@ public class CompoundTableLoader implements CompoundTableConstants,Runnable {
 				for (int i=0; i<data.length; i++)
 					data[i] = (byte)(listString.charAt(++index) - 64);
 
-				boolean isSelection = CompoundTableListHandler.LISTNAME_SELECTION.equals(name);
+				boolean isSelection = CompoundTableListHandler.LIST_CODE_SELECTION.equals(name);
 
 				if (isSelection) {
 					mSelectionRowCount = rowCount;
@@ -2093,7 +2639,7 @@ public class CompoundTableLoader implements CompoundTableConstants,Runnable {
 					mSelectionData = data;
 					}
 				else {
-					String uniqueName = hitlistHandler.createList(name, -1, CompoundTableListHandler.EMPTY_LIST, -1, null);
+					String uniqueName = hitlistHandler.createList(name, -1, CompoundTableListHandler.EMPTY_LIST, -1, null, false);
 					int flagNo = hitlistHandler.getListFlagNo(uniqueName);
 					setListFlags(flagNo, data, rowCount, offset, destRowMap);
 					}
@@ -2108,7 +2654,7 @@ public class CompoundTableLoader implements CompoundTableConstants,Runnable {
 			if ((data[dataIndex] & dataBit) != 0) {
 				if (destRowMap == null)
 					mTableModel.getTotalRecord(row + offset).setFlag(flagNo);
-				else
+				else if (destRowMap[row] != null)
 					for (int destRow : destRowMap[row])
 						mTableModel.getTotalRecord(destRow).setFlag(flagNo);
 			}

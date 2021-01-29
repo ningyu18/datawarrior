@@ -54,7 +54,6 @@ public interface TaskUIDelegate {
     /**
      * Updates current dialog's UI items to a default configuration.
      * This may only be called after calling createDialogContent().
-     * @param configuration dialog settings to be shown
      */
     public void setDialogConfigurationToDefault();
 	}

@@ -32,17 +32,17 @@ import java.util.Properties;
 public abstract class DETaskAbstractSetTableColor extends DETaskAbstractSetColor {
 	private static final String PROPERTY_COLUMN = "column";
 
-    private int			mDefaultColumn,mColorType;
+    private int			mTableColumn,mColorType;
     private JComboBox	mComboBoxColumn;
 
 	public DETaskAbstractSetTableColor(Frame owner,
 									   DEMainPane mainPane,
 									   DETableView view,
-									   int defaultColumn,
+									   int tableColumn,
 									   int colorType) {
 		super(owner, mainPane, view,
 				(colorType == CompoundTableColorHandler.FOREGROUND) ? "Set Text/Structure Color" : "Set Table Cell Background Color");
-		mDefaultColumn = defaultColumn;
+		mTableColumn = tableColumn;
 		mColorType = colorType;
 
 		super.initialize();	// this is a hack to run initialize() after setting mVisualizationColor.
@@ -53,7 +53,7 @@ public abstract class DETaskAbstractSetTableColor extends DETaskAbstractSetColor
 
 	@Override
 	public VisualizationColor getVisualizationColor(CompoundTableView view) {
-		return ((DETableView)view).getColorHandler().getVisualizationColor(mDefaultColumn, mColorType);
+		return ((DETableView)view).getColorHandler().getVisualizationColor(mTableColumn, mColorType);
 		}
 
 	@Override
@@ -62,14 +62,14 @@ public abstract class DETaskAbstractSetTableColor extends DETaskAbstractSetColor
 		}
 
 	@Override
-	public JComponent createInnerDialogContent() {
-		JPanel p = (JPanel)super.createInnerDialogContent();
+	public JComponent createViewOptionContent() {
+		JPanel p = (JPanel)super.createViewOptionContent();
 
 		int selected = -1;
 		mComboBoxColumn = new JComboBox();
 		for (int column=0; column<getTableModel().getTotalColumnCount(); column++) {
 			if (getTableModel().isColumnDisplayable(column)) {
-				if (column == mDefaultColumn)
+				if (column == mTableColumn)
 					selected = mComboBoxColumn.getItemCount();
 				mComboBoxColumn.addItem(getTableModel().getColumnTitleExtended(column));
 				}
@@ -78,13 +78,19 @@ public abstract class DETaskAbstractSetTableColor extends DETaskAbstractSetColor
 			mComboBoxColumn.setSelectedIndex(selected);
 		else if (mComboBoxColumn.getItemCount() != 0)
 			mComboBoxColumn.setSelectedIndex(0);
-		mComboBoxColumn.setEditable(mDefaultColumn == -1);
-		mComboBoxColumn.setEnabled(mDefaultColumn == -1);
+		mComboBoxColumn.setEditable(mTableColumn == -1);
+		mComboBoxColumn.setEnabled(mTableColumn == -1);
 		
 		mComboBoxColumn.addItemListener(this);
 		p.add(new JLabel("Table column:"), "1,3");
 		p.add(mComboBoxColumn, "3,3");
 		return p;
+		}
+
+	@Override
+	public void applyConfiguration(CompoundTableView view, Properties configuration, boolean isAdjusting) {
+		if (view instanceof DETableView)
+			super.applyConfiguration(view, configuration, isAdjusting);
 		}
 
 	@Override
@@ -97,6 +103,12 @@ public abstract class DETaskAbstractSetTableColor extends DETaskAbstractSetColor
 			else
 				mComboBoxColumn.setSelectedItem(getTableModel().getColumnTitle(column));
 			}
+		else if (mTableColumn != -1) {
+			boolean isIgnoreEvents = isIgnoreEvents();
+			setIgnoreEvents(false);	// we want this combobox change to be applied to the view
+			setColorByColumn(mTableColumn);
+			setIgnoreEvents(isIgnoreEvents);
+			}
 		}
 
 	@Override
@@ -106,9 +118,9 @@ public abstract class DETaskAbstractSetTableColor extends DETaskAbstractSetColor
 		}
 
 	@Override
-	public void addViewConfiguration(Properties configuration) {
-		super.addViewConfiguration(configuration);
-		configuration.setProperty(PROPERTY_COLUMN, getTableModel().getColumnTitleNoAlias(mDefaultColumn));
+	public void addViewConfiguration(CompoundTableView view, Properties configuration) {
+		super.addViewConfiguration(view, configuration);
+		configuration.setProperty(PROPERTY_COLUMN, getTableModel().getColumnTitleNoAlias(mTableColumn));
 		}
 
 	@Override

@@ -28,6 +28,8 @@ import javax.swing.*;
 import java.awt.*;
 import java.util.Properties;
 
+import static com.actelion.research.chem.io.CompoundTableConstants.cAllowLogModeForNegativeOrZeroValues;
+
 
 public class DETaskSetLogarithmicMode extends AbstractMultiColumnTask {
 	public static final String TASK_NAME = "Set Logarithmic Column Mode";
@@ -95,7 +97,8 @@ public class DETaskSetLogarithmicMode extends AbstractMultiColumnTask {
 	public boolean isCompatibleColumn(int column) {
 		return getTableModel().isColumnTypeDouble(column)
 			&& !getTableModel().isColumnTypeDate(column)
-			&& (getTableModel().getMinimumValue(column) > 0
+			&& (cAllowLogModeForNegativeOrZeroValues
+			 || getTableModel().getMinimumValue(column) > 0
 			 || getTableModel().isLogarithmicViewMode(column));
 		}
 

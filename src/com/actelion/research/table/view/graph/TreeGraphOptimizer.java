@@ -21,7 +21,7 @@ package com.actelion.research.table.view.graph;
 import java.awt.Rectangle;
 
 public class TreeGraphOptimizer {
-	public static void optimizeCoordinates(Rectangle bounds, VisualizationNode[][] nodeList, boolean isVertical, int maxLayerDistance, int maxNeighborDistance) {
+	public static void optimizeCoordinates(Rectangle bounds, VisualizationNode[][] nodeList, boolean isVertical, boolean isInverted, int maxLayerDistance, int maxNeighborDistance) {
 		if (nodeList.length == 1) {
 			nodeList[0][0].setCoordinates(bounds.x + bounds.width/2, bounds.y + bounds.height/2);
 			return;
@@ -128,7 +128,7 @@ public class TreeGraphOptimizer {
 			int yMid = bounds.y + bounds.height / 2;
 			int levelWidth = Math.min(maxLayerDistance, bounds.width / (nodeList.length + 1));
 			int x = bounds.x + (bounds.width - (nodeList.length - 1) * levelWidth) / 2;
-	
+
 			double factor = Math.min(maxNeighborDistance, (int)((float)bounds.height / (relMax-relMin+2.0f)));
 			if (factor == 0.0)
 				factor = Math.min(maxNeighborDistance, (float)bounds.height / (relMax-relMin+2.0f));
@@ -141,8 +141,9 @@ public class TreeGraphOptimizer {
 					    dy += node.getRelativePos();
 						node = node.getParentNode();
 						}
-	
-					nodeList[l][n].setCoordinates(x+l*levelWidth, yMid+factor*dy);
+
+					int ll = isInverted ? nodeList.length-l-1 : l;
+					nodeList[l][n].setCoordinates(x+ll*levelWidth, yMid+factor*dy);
 					}
 				}
 			}
@@ -163,8 +164,9 @@ public class TreeGraphOptimizer {
 					    dx += node.getRelativePos();
 						node = node.getParentNode();
 						}
-	
-					nodeList[l][n].setCoordinates(xMid+factor*dx, y+l*levelHeight);
+
+					int ll = isInverted ? nodeList.length-l-1 : l;
+					nodeList[l][n].setCoordinates(xMid+factor*dx, y+ll*levelHeight);
 					}
 				}
 			}

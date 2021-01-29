@@ -1,24 +1,17 @@
 package org.jmol.api;
 
-import java.awt.Image;
-import java.util.BitSet;
-
-import javax.vecmath.Matrix3f;
-import javax.vecmath.Matrix4f;
-import javax.vecmath.Point3f;
-import javax.vecmath.Point3i;
-import javax.vecmath.Vector3f;
-
 import org.jmol.g3d.Font3D;
 import org.jmol.g3d.Graphics3D;
-import org.jmol.viewer.Viewer;
+
+import javax.vecmath.*;
+import java.awt.*;
+import java.util.BitSet;
 
 public interface JmolRendererInterface {
 
   // these methods are implmented in Export3D and Graphics3D
   
-  public abstract boolean initializeExporter(String type, Viewer viewer,
-                                             Graphics3D g3d, Object output);
+  public abstract boolean initializeExporter(String type, Graphics3D g3d, Object output);
 
   public abstract boolean isAntialiased();
   

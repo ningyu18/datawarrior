@@ -19,6 +19,7 @@
 package com.actelion.research.datawarrior;
 
 import com.actelion.research.chem.Molecule;
+import com.actelion.research.chem.name.StructureNameResolver;
 import com.actelion.research.datawarrior.plugin.PluginRegistry;
 import com.actelion.research.datawarrior.task.DEMacroRecorder;
 import com.actelion.research.datawarrior.task.DETaskSelectWindow;
@@ -26,7 +27,7 @@ import com.actelion.research.datawarrior.task.StandardTaskFactory;
 import com.actelion.research.datawarrior.task.file.DETaskOpenFile;
 import com.actelion.research.datawarrior.task.file.DETaskRunMacroFromFile;
 import com.actelion.research.gui.FileHelper;
-import com.actelion.research.gui.clipboard.ClipboardHandler;
+import com.actelion.research.gui.HeaderPaintHelper;
 import com.actelion.research.gui.hidpi.HiDPIHelper;
 import com.actelion.research.table.model.CompoundTableDetailHandler;
 import com.actelion.research.table.model.CompoundTableModel;
@@ -45,15 +46,43 @@ import java.util.prefs.Preferences;
 public abstract class DataWarrior implements WindowFocusListener {
 	public static final String PROGRAM_NAME = "DataWarrior";
 
-	public static final String PREFERENCES_ROOT = "org.openmolecules.datawarrior";
+	private static final String PREFERENCES_ROOT = "org.openmolecules.datawarrior";
 	public static final String PREFERENCES_KEY_FIRST_LAUNCH = "first_launch";
 	public static final String PREFERENCES_KEY_LAST_VERSION_ERROR = "last_version_error";
 	public static final String PREFERENCES_KEY_AUTO_UPDATE_CHECK = "automatic_update_check";
 	public static final String PREFERENCES_KEY_LAF_NAME = "laf_name";
+	public static final String PREFERENCES_KEY_SPAYA_SERVER = "spaya_server";
 
 	public static final String[] RESOURCE_DIR = { "Reference", "Example", "Tutorial" };
 	public static final String MACRO_DIR = "Macro";
 	public static final String PLUGIN_DIR = "Plugin";
+
+	public enum LookAndFeel {
+		GRAPHITE("Graphite", "org.pushingpixels.substance.api.skin.SubstanceGraphiteAquaLookAndFeel", new Color(0x3838C0), new Color(0x252560)),
+		GRAY("Gray", "org.pushingpixels.substance.api.skin.SubstanceOfficeBlack2007LookAndFeel", new Color(0xAEDBFF), new Color(0x0060FF)),
+		CREME("Creme Coffee", "org.pushingpixels.substance.api.skin.SubstanceCremeCoffeeLookAndFeel", new Color(0xDEC59D), new Color(0xAA784F)),
+		MODERATE("Moderate", "org.pushingpixels.substance.api.skin.SubstanceModerateLookAndFeel", new Color(0x6D96B3), new Color(0x1E4C6F)),
+		NEBULA("Nebula", "org.pushingpixels.substance.api.skin.SubstanceNebulaLookAndFeel", new Color(0xA7BBCD), new Color(0x55585E)),
+		SAHARA("Sahara", "org.pushingpixels.substance.api.skin.SubstanceSaharaLookAndFeel", new Color(0xA6B473), new Color(0x6E7841)),
+	//	CLASSIC("Classic", "org.jvnet.substance.SubstanceLookAndFeel"),	causes long delays when opening large files with many selected rows, because it draws the background of even invisible cells
+	//	VAQUA("VAqua", "org.violetlib.aqua.AquaLookAndFeel"),
+		AQUA("Aqua", "com.apple.laf.AquaLookAndFeel", new Color(0xAEDBFF), new Color(0x0060FF));
+
+		private final String displayName;
+		private String className;
+		private Color c1,c2;
+
+		LookAndFeel(String displayName, String className, Color c1, Color c2) {
+			this.displayName = displayName;
+			this.className = className;
+			this.c1 = c1;
+			this.c2 = c2;
+			}
+		public String displayName() { return displayName; }
+		public String className() { return className; }
+		public Color getColor1() { return c1; }
+		public Color getColor2() { return c2; }
+		}
 
 	private static DataWarrior	sApplication;
 
@@ -61,6 +90,10 @@ public abstract class DataWarrior implements WindowFocusListener {
 	private DEFrame				mFrameOnFocus;
 	private StandardTaskFactory	mTaskFactory;
 	private PluginRegistry mPluginRegistry;
+
+	public static DataWarrior getApplication() {
+		return sApplication;
+		}
 
 	/**
 	 * If the given path starts with a valid variable name, then this
@@ -70,7 +103,7 @@ public abstract class DataWarrior implements WindowFocusListener {
 	 * @param path possibly starting with variable, e.g. "$HOME/drugs.dwar"
 	 * @return untouched path or path with resolved variable, e.g. "/home/thomas/drugs.dwar"
 	 */
-	public static String resolveVariables(String path) {
+	public static String resolveOSPathVariables(String path) {
 		if (path != null) {
 			if (path.toLowerCase().startsWith("$home"))
 				return System.getProperty("user.home").concat(correctFileSeparators(path.substring(5)));
@@ -88,40 +121,20 @@ public abstract class DataWarrior implements WindowFocusListener {
 
 	/**
 	 * Tries to find the directory with the specified name in the DataWarrior installation directory.
-	 * resourceDir may contain capital letters, but is is converted to lower case before checked against
+	 * resourceDir may contain capital letters, but it is converted to lower case before checked against
 	 * installed resource directories, which are supposed to be lower case.
 	 * @param resourceDir as shown to the user, e.g. "Example"; "" to return datawarrior installation dir
 	 * @return null or full path to resource directory
 	 */
-	public static File resolveResourcePath(String resourceDir) {
-		String dirname = "C:\\Program Files\\DataWarrior\\"+resourceDir.toLowerCase();
-		File directory = new File(dirname);
-		if (!directory.exists()) {
-			dirname = "C:\\Program Files (x86)\\DataWarrior\\"+resourceDir.toLowerCase();
-			directory = new File(dirname);
+	public File resolveResourcePath(String resourceDir) {
+		File directory = Platform.isWindows() ?
+			  new File("C:\\Program Files\\DataWarrior\\" + resourceDir.toLowerCase())
+					   : Platform.isMacintosh() ?
+			  new File("/Applications/DataWarrior.app/"+resourceDir.toLowerCase())
+			: new File("/opt/datawarrior/"+resourceDir.toLowerCase());
+
+		return FileHelper.fileExists(directory) ? directory : null;
 		}
-		if (!directory.exists()) {
-			dirname = "/Applications/DataWarrior.app/"+resourceDir.toLowerCase();
-			directory = new File(dirname);
-		}
-		if (!directory.exists()) {
-			dirname = "/opt/datawarrior/"+resourceDir.toLowerCase();
-			directory = new File(dirname);
-		}
-		if (!directory.exists()) {	// up to version 4.2.2 the linux dirs started with a capital letter
-			dirname = "/opt/datawarrior/"+resourceDir;
-			directory = new File(dirname);
-		}
-		if (!directory.exists()) {
-			dirname = "\\\\actelch02\\pgm\\Datawarrior\\"+resourceDir.toLowerCase();
-			directory = new File(dirname);
-		}
-		if (!directory.exists()) {
-			dirname = "/mnt/rim/Datawarrior/"+resourceDir.toLowerCase();
-			directory = new File(dirname);
-		}
-		return directory.exists() ? directory : null;
-	}
 
 	/**
 	 * Creates a path variable name from a resource directory name.
@@ -140,8 +153,8 @@ public abstract class DataWarrior implements WindowFocusListener {
 	 * @param path possibly starting with variable, e.g. "$EXAMPLE/drugs.dwar"
 	 * @return untouched path or path with resolved variable, e.g. "/opt/datawarrior/example/drugs.dwar"
 	 */
-	public static String resolvePathVariables(String path) {
-		path = resolveVariables(path);
+	public String resolvePathVariables(String path) {
+		path = resolveOSPathVariables(path);
 		if (path != null && path.startsWith("$")) {
 			for (String dirName:RESOURCE_DIR) {
 				String varName = makePathVariable(dirName);
@@ -163,6 +176,18 @@ public abstract class DataWarrior implements WindowFocusListener {
 	}
 
 	/**
+	 * If the given path starts with a valid variable name, then this
+	 * is replaced by the corresponding path on the current system and all file separators
+	 * are converted to the correct ones for the current platform.
+	 * Valid variable names are $HOME, $TEMP, $PARENT.
+	 * @param url possibly starting with variable, e.g. "$TEMP/drugs.dwar"
+	 * @return untouched path or path with resolved variable
+	 */
+	public String resolveURLVariables(String url) {
+		return resolveOSPathVariables(url);
+		}
+
+	/**
 	 * Replaces all path separator of the given path with the correct ones for the current platform.
 	 * @param path
 	 * @return
@@ -172,7 +197,7 @@ public abstract class DataWarrior implements WindowFocusListener {
 		}
 
 	public DataWarrior() {
-		mPluginRegistry = new PluginRegistry();
+		mPluginRegistry = new PluginRegistry(this);
 		setInitialLookAndFeel();
 
 		mFrameList = new ArrayList<DEFrame>();
@@ -183,7 +208,7 @@ public abstract class DataWarrior implements WindowFocusListener {
 
 		if (!isIdorsia()) {
 			try {
-				Preferences prefs = Preferences.userRoot().node(PREFERENCES_ROOT);
+				Preferences prefs = getPreferences();
 
 				long firstLaunchMillis = prefs.getLong(PREFERENCES_KEY_FIRST_LAUNCH, 0L);
 				if (firstLaunchMillis == 0L) {
@@ -206,8 +231,8 @@ public abstract class DataWarrior implements WindowFocusListener {
 		return new StandardTaskFactory(this);
 		}
 
-	public DEDetailPane createDetailPane(CompoundTableModel tableModel) {
-		return new DEDetailPane(tableModel);
+	public DEDetailPane createDetailPane(DEFrame frame, CompoundTableModel tableModel) {
+		return new DEDetailPane(frame, tableModel);
 		}
 
 	public CompoundTableDetailHandler createDetailHandler(Frame parent, CompoundTableModel tableModel) {
@@ -215,8 +240,9 @@ public abstract class DataWarrior implements WindowFocusListener {
 		}
 
 	public void initialize() {
+		javafx.application.Platform.setImplicitExit(false);
 		Molecule.setDefaultAverageBondLength(HiDPIHelper.scale(24));
-		ClipboardHandler.setStructureNameResolver(new DEStructureNameResolver());
+		StructureNameResolver.setInstance(new DEStructureNameResolver());
 		}
 
 	public void checkVersion(boolean showUpToDateMessage) {
@@ -292,13 +318,9 @@ public abstract class DataWarrior implements WindowFocusListener {
 			createNewFrame(title, true);
 			}
 		else {
-				// if we are not in the event dispatcher thread we need to use invokeAndWait
+			// if we are not in the event dispatcher thread we need to use invokeAndWait
 			try {
-				SwingUtilities.invokeAndWait(new Runnable() {
-					public void run() {
-						createNewFrame(title,  true);
-						}
-					} );
+				SwingUtilities.invokeAndWait(() -> createNewFrame(title,  true) );
 				}
 			catch (Exception e) {}
 			}
@@ -405,19 +427,33 @@ public abstract class DataWarrior implements WindowFocusListener {
 	 */
 	public void setInitialLookAndFeel() {
 		Preferences prefs = Preferences.userRoot().node(PREFERENCES_ROOT);
-		String lafName = prefs.get(PREFERENCES_KEY_LAF_NAME, getDefaultLaFName());
-		setLookAndFeel(lafName);
+		String lafClass = prefs.get(PREFERENCES_KEY_LAF_NAME, "");
+
+		// we don't support the old substance LaF anymore. Use NEBULA instead
+		if ("org.jvnet.substance.SubstanceLookAndFeel".equals(lafClass))
+			lafClass = LookAndFeel.NEBULA.className();
+
+		LookAndFeel[] lafs = getAvailableLAFs();
+		LookAndFeel selectedLAF = getDefaultLAF();
+		for (LookAndFeel laf:lafs) {
+			if (laf.className().equals(lafClass)) {
+				selectedLAF = laf;
+				break;
+				}
+			}
+		setLookAndFeel(selectedLAF);
 		}
 
 	/**
 	 * Simple implementation that just set the look&feel without adapting issues like
 	 * font sizes to any platform. Override, if you need more.
-	 * @param lafName
+	 * @param laf
 	 * @return false, if the look&feel could not be found or activated
 	 */
-	public boolean setLookAndFeel(String lafName) {
+	public boolean setLookAndFeel(LookAndFeel laf) {
 		try {
-			UIManager.setLookAndFeel(lafName);
+			UIManager.setLookAndFeel(laf.className);
+			HeaderPaintHelper.setSpotColors(laf.getColor1(), laf.getColor2());
 			return true;
 			}
 		catch (Exception e) {
@@ -425,28 +461,39 @@ public abstract class DataWarrior implements WindowFocusListener {
 			}
 		}
 
+	public LookAndFeel getLookAndFeel(String displayName) {
+		LookAndFeel[] lafs = getAvailableLAFs();
+		for (LookAndFeel laf:lafs)
+			if (laf.displayName.equals(displayName))
+				return laf;
+
+		return getDefaultLAF();
+		}
+
 	/**
 	 * Changes the look&feel and, if successful, updates the component hierarchy
 	 * and stores the new look&feel name in the preferences.
-	 * @param lafName
+	 * @param laf
 	 * @return true if the LaF could be changed successfully
 	 */
-	public boolean updateLookAndFeel(String lafName) {
-		if (setLookAndFeel(lafName)) {
+	public boolean updateLookAndFeel(LookAndFeel laf) {
+		if (setLookAndFeel(laf)) {
 			for (DEFrame f : mFrameList)
 				SwingUtilities.updateComponentTreeUI(f);
 
-			Preferences prefs = Preferences.userRoot().node(PREFERENCES_ROOT);
-			prefs.put(PREFERENCES_KEY_LAF_NAME, lafName);
+			getPreferences().put(PREFERENCES_KEY_LAF_NAME, laf.className);
 			return true;
 			}
 		return false;
 		}
 
-	public abstract String getDefaultLaFName();
+	public static Preferences getPreferences() {
+		return Preferences.userRoot().node(PREFERENCES_ROOT);
+		}
+
 	public abstract boolean isMacintosh();
-	public abstract String[] getAvailableLAFNames();
-	public abstract String[] getAvailableLAFClassNames();
+	public abstract LookAndFeel getDefaultLAF();
+	public abstract LookAndFeel[] getAvailableLAFs();
 
 	/**
 	 * Opens the file, runs the query, starts the macro depending on the file type.
@@ -548,7 +595,7 @@ public abstract class DataWarrior implements WindowFocusListener {
 			return;
 
 		try {
-			Preferences prefs = Preferences.userRoot().node(DataWarrior.PREFERENCES_ROOT);
+			Preferences prefs = getPreferences();
 
 			String[] recentFileName = new String[StandardMenuBar.MAX_RECENT_FILE_COUNT+1];
 			for (int i=1; i<=StandardMenuBar.MAX_RECENT_FILE_COUNT; i++)
@@ -619,13 +666,18 @@ public abstract class DataWarrior implements WindowFocusListener {
 		}
 
 	private void createNewFrame(String title, boolean lockForImmediateUsage) {
+		GraphicsConfiguration gc = GraphicsEnvironment.getLocalGraphicsEnvironment().getDefaultScreenDevice().getDefaultConfiguration();
+
 		DEFrame f = new DEFrame(this, title, lockForImmediateUsage);
 		f.validate();
 
 		Dimension screenSize = Toolkit.getDefaultToolkit().getScreenSize();
 		Dimension frameSize = f.getSize();
-		int surplus = Math.min(screenSize.width-frameSize.width,
-							   screenSize.height-frameSize.height);
+		int borderX = HiDPIHelper.scale(64);
+		int borderY = HiDPIHelper.scale(24);
+		int blockShift = HiDPIHelper.scale(64);
+		int surplus = Math.min(screenSize.width-frameSize.width - borderX,
+							   screenSize.height-frameSize.height - borderY);
 		int offset = HiDPIHelper.scale(16);
 		int steps = (surplus < 16 * offset) ? 8 : surplus / 16;
 		int block = mFrameList.size() / steps;
@@ -634,7 +686,8 @@ public abstract class DataWarrior implements WindowFocusListener {
 		mFrameList.add(f);
 		mFrameOnFocus = f;
 
-		f.setLocation(offset * index + 64 * block, 22 + offset * index);
+		f.setLocation(borderX + gc.getBounds().x + offset * index + blockShift * block,
+					  borderY + gc.getBounds().y + offset * index);
 		f.setVisible(true);
 		f.toFront();
 		f.addWindowFocusListener(this);

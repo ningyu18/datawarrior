@@ -1,7 +1,26 @@
+/*
+ * Copyright 2017 Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland
+ *
+ * This file is part of DataWarrior.
+ *
+ * DataWarrior is free software: you can redistribute it and/or modify it under the terms of the
+ * GNU General Public License as published by the Free Software Foundation, either version 3 of
+ * the License, or (at your option) any later version.
+ *
+ * DataWarrior is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+ * without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ * See the GNU General Public License for more details.
+ * You should have received a copy of the GNU General Public License along with DataWarrior.
+ * If not, see http://www.gnu.org/licenses/.
+ *
+ * @author Thomas Sander
+ */
+
 package com.actelion.research.datawarrior.task.data;
 
 import com.actelion.research.chem.io.CompoundTableConstants;
 import com.actelion.research.datawarrior.task.AbstractMultiColumnTask;
+import com.actelion.research.gui.hidpi.HiDPIHelper;
 import com.actelion.research.table.model.CompoundTableModel;
 import info.clearthought.layout.TableLayout;
 
@@ -91,15 +110,16 @@ public class DETaskSetColumnDataType extends AbstractMultiColumnTask {
 
 	@Override
 	public JPanel createInnerDialogContent() {
-		double[][] size = { {TableLayout.PREFERRED, 8, TableLayout.PREFERRED},
-							{TableLayout.PREFERRED, 16} };
+		int gap = HiDPIHelper.scale(8);
+		double[][] size = { {gap, TableLayout.PREFERRED, gap, TableLayout.PREFERRED, gap},
+							{gap, TableLayout.PREFERRED, gap} };
 
 		mComboBoxDataType = new JComboBox(CompoundTableConstants.cDataTypeText);
 
 		JPanel ip = new JPanel();
 		ip.setLayout(new TableLayout(size));
-		ip.add(new JLabel("Data type:"), "0,0");
-		ip.add(mComboBoxDataType, "2,0");
+		ip.add(new JLabel("Data type:"), "1,1");
+		ip.add(mComboBoxDataType, "3,1");
 		return ip;
 		}
 

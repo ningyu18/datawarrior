@@ -18,12 +18,14 @@
 
 package com.actelion.research.table.view.data;
 
+import com.actelion.research.util.Base64;
+
+//import javax.xml.bind.DatatypeConverter;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
 import java.net.URLConnection;
-import javax.xml.bind.DatatypeConverter;
 
 public class DataConnection extends URLConnection {
 
@@ -39,7 +41,8 @@ public class DataConnection extends URLConnection {
 	@Override
 	public InputStream getInputStream() throws IOException {
 		String data = url.toString().replaceFirst("^.*;base64,", "");
-		byte[] bytes = DatatypeConverter.parseBase64Binary(data);
+		byte[] bytes = Base64.decode(data);
+//		byte[] bytes = DatatypeConverter.parseBase64Binary(data);
 		return new ByteArrayInputStream(bytes);
 		}
 	}

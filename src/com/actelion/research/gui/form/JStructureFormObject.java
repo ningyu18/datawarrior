@@ -72,7 +72,7 @@ public class JStructureFormObject extends AbstractFormObject implements Structur
         ((JStructureView)mComponent).addStructureListener(this);
 		}
 
-	public int getRelativeHeight() {
+	public int getDefaultRelativeHeight() {
 		return 4;
 		}
 

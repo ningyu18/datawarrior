@@ -188,11 +188,16 @@ public class CompoundTableFormModel implements FormModel {
             return null;
 
         String specialType =  mTableModel.getColumnSpecialType(column);
-        if (CompoundTableModel.cColumnTypeIDCode.equals(specialType)
-         || CompoundTableModel.cColumnType3DCoordinates.equals(specialType))
+        if (CompoundTableModel.cColumnTypeIDCode.equals(specialType))
             return mTableModel.getChemicalStructure(mRecord, column, CompoundTableModel.ATOM_COLOR_MODE_EXPLICIT, null);
         if (CompoundTableModel.cColumnTypeRXNCode.equals(specialType))
-            return mTableModel.getChemicalReaction(mRecord, column);
+            return mTableModel.getChemicalReaction(mRecord, column, CompoundTableModel.ATOM_COLOR_MODE_EXPLICIT);
+		if (CompoundTableModel.cColumnType3DCoordinates.equals(specialType)) {
+			// we cannot return a molecule, because in case we have multiple conformers, the viewer component needs to show them all
+			byte[] idcode = (byte[])mRecord.getData(mTableModel.getParentColumn(column));
+			byte[] coords = (byte[])mRecord.getData(column);
+			return (idcode == null || coords == null) ? null : new String(idcode).concat("\t").concat(new String(coords));
+			}
 
         // If the form is editable, we need to return the original value to be edited instead of the decorated or summary value.
 		return mIsEditable ? mTableModel.encodeData(mRecord, column) : mTableModel.getValue(mRecord, column);

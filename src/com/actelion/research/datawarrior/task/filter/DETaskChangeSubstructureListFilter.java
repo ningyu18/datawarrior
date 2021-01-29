@@ -45,7 +45,7 @@ public class DETaskChangeSubstructureListFilter extends DEAbstractFilterTask {
 
 	@Override
 	protected String getColumnQualificationError(int column) {
-		return CompoundTableConstants.cColumnTypeIDCode.equals(getTableModel().getColumnSpecialType(column)) ? null
+		return getTableModel().isColumnTypeStructure(column) ? null
 				: "Structure filters can be applied to structure columns only.";
 		}
 

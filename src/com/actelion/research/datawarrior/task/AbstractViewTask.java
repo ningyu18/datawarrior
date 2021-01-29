@@ -229,6 +229,14 @@ public abstract class AbstractViewTask extends ConfigurableTask {
 		}
 
 	/**
+	 * Assuming that this task was instantiated with a valid interactive view, its name is set in the configuration.
+	 * @param configuration
+	 */
+	public void setConfiguredView(Properties configuration) {
+		configuration.setProperty(PROPERTY_VIEW_NAME, getInteractiveViewName());
+		}
+
+	/**
 	 * @return the task's DEMainPane, i.e. DockingPanel
 	 */
 	public DEMainPane getMainPane() {

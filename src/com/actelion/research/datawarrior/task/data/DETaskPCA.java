@@ -18,6 +18,11 @@
 
 package com.actelion.research.datawarrior.task.data;
 
+import com.actelion.research.datawarrior.DataWarrior;
+import com.actelion.research.gui.hidpi.HiDPIHelper;
+import com.actelion.research.table.MarkerLabelConstants;
+import com.actelion.research.table.model.CompoundTableEvent;
+import com.actelion.research.util.DoubleFormat;
 import info.clearthought.layout.TableLayout;
 
 import java.awt.Color;
@@ -62,11 +67,12 @@ public class DETaskPCA extends ConfigurableTask {
 	private static final String PROPERTY_COLUMN_LIST = "columnList";
 	private static final String PROPERTY_COMPONENT_COUNT = "componentCount";
 	private static final String PROPERTY_CREATE_VIEWS = "createViews";
+	private static final String PROPERTY_NEW_EIGEN_VALUE_WINDOW = "newEigenValueWindow";
 
-    private DEFrame				mParentFrame;
+    private DEFrame				mParentFrame,mTargetFrame;
 	private CompoundTableModel  mTableModel;
 	private JComboBox			mComboBoxNoOfComponents;
-	private JCheckBox			mCheckBoxCreateViews;
+	private JCheckBox			mCheckBoxCreateViews,mCheckBoxNewEigenValueWindow;
 	private JList				mListColumns;
 	private JTextArea			mTextArea;
 	private boolean				mIsInteractive;
@@ -82,7 +88,7 @@ public class DETaskPCA extends ConfigurableTask {
 
 	@Override
 	public DEFrame getNewFrontFrame() {
-		return null;
+		return mTargetFrame;
 		}
 
 	@Override
@@ -132,13 +138,12 @@ public class DETaskPCA extends ConfigurableTask {
 	@Override
     public JPanel createDialogContent() {
         JPanel p1 = new JPanel();
-        double[][] size = { {8, TableLayout.PREFERRED, 4, TableLayout.PREFERRED, 4, TableLayout.PREFERRED, 8},
-                            {8, TableLayout.PREFERRED, 8, 128, 8, TableLayout.PREFERRED, 8} };
+		int space = HiDPIHelper.scale(8);
+		double[][] size = { {space, TableLayout.PREFERRED, space/2, TableLayout.PREFERRED, space/2, TableLayout.PREFERRED, space},
+				{space, TableLayout.PREFERRED, space, HiDPIHelper.scale(128), space, TableLayout.PREFERRED, space/2, TableLayout.PREFERRED, space} };
         p1.setLayout(new TableLayout(size));
 
-		String[] optionList = new String[8];
-		for (int i=0; i<8; i++)
-			optionList[i] = ""+(i+1);
+		final String[] optionList = {"1", "2", "3", "4", "5", "6", "7", "8"};
         mComboBoxNoOfComponents = new JComboBox(optionList);
 		mComboBoxNoOfComponents.setSelectedIndex(2);
         p1.add(new JLabel("No of principal components to calculate:"), "1,1,3,1");
@@ -174,12 +179,15 @@ public class DETaskPCA extends ConfigurableTask {
         mCheckBoxCreateViews = new JCheckBox("Automatically create 2D and 3D views");
         p1.add(mCheckBoxCreateViews, "1,5,5,5");
 
+		mCheckBoxNewEigenValueWindow = new JCheckBox("Open new window with eigenvalues");
+		p1.add(mCheckBoxNewEigenValueWindow, "1,7,5,7");
+
         return p1;
 	    }
 
 	@Override
 	public String getHelpURL() {
-		return "/html/help/analysis.html#PCA";
+		return "/html/help/ml.html#PCA";
 		}
 
 	@Override
@@ -194,6 +202,7 @@ public class DETaskPCA extends ConfigurableTask {
 
 		configuration.put(PROPERTY_COMPONENT_COUNT, mComboBoxNoOfComponents.getSelectedItem());
 		configuration.put(PROPERTY_CREATE_VIEWS, mCheckBoxCreateViews.isSelected() ? "true" : "false");
+		configuration.put(PROPERTY_NEW_EIGEN_VALUE_WINDOW, mCheckBoxNewEigenValueWindow.isSelected() ? "true" : "false");
 
 		return configuration;
 		}
@@ -211,6 +220,7 @@ public class DETaskPCA extends ConfigurableTask {
 			mTextArea.setText(columnNames.replace('\t', '\n'));
 
 		mCheckBoxCreateViews.setSelected("true".equals(configuration.getProperty(PROPERTY_CREATE_VIEWS, "true")));
+		mCheckBoxNewEigenValueWindow.setSelected("true".equals(configuration.getProperty(PROPERTY_NEW_EIGEN_VALUE_WINDOW, "false")));
 		}
 
 	@Override
@@ -223,6 +233,7 @@ public class DETaskPCA extends ConfigurableTask {
 			mTextArea.setText("");
 
 		mCheckBoxCreateViews.setSelected(true);
+		mCheckBoxNewEigenValueWindow.setSelected(false);
 		}
 
 	@Override
@@ -310,7 +321,7 @@ public class DETaskPCA extends ConfigurableTask {
 
 	@Override
 	public void runTask(Properties configuration) {
-    	String[] columnName = configuration.getProperty(PROPERTY_COLUMN_LIST).split("\\t");
+    	final String[] columnName = configuration.getProperty(PROPERTY_COLUMN_LIST).split("\\t");
 
     	int descriptorCount = 0;
 	    int regularCount = 0;
@@ -327,8 +338,8 @@ public class DETaskPCA extends ConfigurableTask {
 				}
 			}
 
-		int[] descriptorColumn = new int[descriptorCount];
-		int[] regularColumn = new int[regularCount];
+		final int[] descriptorColumn = new int[descriptorCount];
+		final int[] regularColumn = new int[regularCount];
 	    descriptorCount = 0;
 	    regularCount = 0;
 		for (int i=0; i<columnName.length; i++) {
@@ -340,26 +351,35 @@ public class DETaskPCA extends ConfigurableTask {
 			}
 
 		int[] varyingBits = new int[descriptorCount];
-		int[][] varyingKey = new int[descriptorCount][];
+		Object[] varyingKey = new Object[descriptorCount];
 		for (int fp=0; fp<descriptorCount; fp++) {
 			startProgress("Analysing '"+mTableModel.getColumnTitle(descriptorColumn[fp])+"'...", 0, 0);
         	if (mTableModel.getDescriptorHandler(descriptorColumn[fp]).getInfo().isBinary) {
-				int[] firstIndex = (int[])mTableModel.getTotalRecord(mFullDataRow[0]).getData(descriptorColumn[fp]);
-				varyingKey[fp] = new int[firstIndex.length];
-				for (int r=1; r<mFullDataRowCount; r++) {
-					int[] currentIndex = (int[])mTableModel.getTotalRecord(mFullDataRow[r]).getData(descriptorColumn[fp]);
-					for (int i=0; i<firstIndex.length; i++)
-						varyingKey[fp][i] |= (firstIndex[i] ^ currentIndex[i]);
-					}
-	
-				for (int i=0; i<firstIndex.length; i++) {
-					int theBit = 1;
-					for (int j=0; j<32; j++) {
-						if ((varyingKey[fp][i] & theBit) != 0)
-							varyingBits[fp]++;
-						theBit <<= 1;
-						}
-					}
+        		if (mTableModel.getTotalRecord(mFullDataRow[0]).getData(descriptorColumn[fp]) instanceof long[]) {
+			        long[] firstIndex = (long[])mTableModel.getTotalRecord(mFullDataRow[0]).getData(descriptorColumn[fp]);
+			        varyingKey[fp] = new long[firstIndex.length];
+			        for (int r=1; r<mFullDataRowCount; r++) {
+				        long[] currentIndex = (long[])mTableModel.getTotalRecord(mFullDataRow[r]).getData(descriptorColumn[fp]);
+				        for (int i=0; i<firstIndex.length; i++)
+					        ((long[]) varyingKey[fp])[i] |= (firstIndex[i] ^ currentIndex[i]);
+			            }
+
+			        for (int i=0; i<firstIndex.length; i++)
+				        varyingBits[fp] += Long.bitCount(((long[]) varyingKey[fp])[i]);
+		            }
+		        else {
+			        int[] firstIndex = (int[])mTableModel.getTotalRecord(mFullDataRow[0]).getData(descriptorColumn[fp]);
+			        varyingKey[fp] = new int[firstIndex.length];
+			        for (int r=1; r<mFullDataRowCount; r++) {
+				        int[] currentIndex = (int[])mTableModel.getTotalRecord(mFullDataRow[r]).getData(descriptorColumn[fp]);
+				        for (int i = 0; i < firstIndex.length; i++)
+					        ((int[]) varyingKey[fp])[i] |= (firstIndex[i] ^ currentIndex[i]);
+			            }
+
+			        for (int i=0; i<firstIndex.length; i++)
+				        varyingBits[fp] += Integer.bitCount(((int[])varyingKey[fp])[i]);
+		            }
+
 				regularCount += varyingBits[fp];
         		}
         	else {
@@ -380,7 +400,7 @@ public class DETaskPCA extends ConfigurableTask {
 				int index = 0;
 				for (int i=0; i<isVarying.length; i++)
 					if (isVarying[i])
-						varyingKey[fp][index++] = i;
+						((int[])varyingKey[fp])[index++] = i;
 
 				regularCount += varyingKeyCount;
         		}
@@ -508,7 +528,7 @@ public class DETaskPCA extends ConfigurableTask {
 	                    VisualizationPanel2D vpanel1 = mainPane.add2DView("2D-PCA", null);
 	                    vpanel1.setAxisColumnName(0, mTableModel.getColumnTitle(firstNewColumn));
 	                    vpanel1.setAxisColumnName(1, mTableModel.getColumnTitle(firstNewColumn+1));
-	                    ((JVisualization2D)vpanel1.getVisualization()).setPreferredChartType(JVisualization.cChartTypeScatterPlot, -1, -1);
+	                    vpanel1.getVisualization().setPreferredChartType(JVisualization.cChartTypeScatterPlot, -1, -1);
 	                    int colorListMode = VisualizationColor.cColorListModeHSBLong;
 	                    Color[] colorList = VisualizationColor.createColorWedge(Color.red, Color.blue, colorListMode, null);
 	                    vpanel1.getVisualization().getMarkerColor().setColor(bestCorrelatingColumn2D, colorList, colorListMode);
@@ -519,12 +539,68 @@ public class DETaskPCA extends ConfigurableTask {
 		                    vpanel2.setAxisColumnName(0, mTableModel.getColumnTitle(firstNewColumn));
 		                    vpanel2.setAxisColumnName(1, mTableModel.getColumnTitle(firstNewColumn+1));
 		                    vpanel2.setAxisColumnName(2, mTableModel.getColumnTitle(firstNewColumn+2));
-		                    ((JVisualization3D)vpanel2.getVisualization()).setPreferredChartType(JVisualization.cChartTypeScatterPlot, -1, -1);
+		                    vpanel2.getVisualization().setPreferredChartType(JVisualization.cChartTypeScatterPlot, -1, -1);
 		                    vpanel2.getVisualization().getMarkerColor().setColor(bestCorrelatingColumn3D, colorList, colorListMode);
 	                    	}
 						}
 					} );
 				}
+			}
+
+		mTargetFrame = null;
+
+		if (!threadMustDie() && configuration.getProperty(PROPERTY_NEW_EIGEN_VALUE_WINDOW, "false").equals("true")) {
+			final double[][] eigenValues = eigenVectorsLeft;
+			final int _pcaCount = pcaCount;
+			final int _paramCount = regularCount;
+			mTargetFrame = mParentFrame.getApplication().getEmptyFrame("Eigenvalues of " + mParentFrame.getTitle());
+			SwingUtilities.invokeLater(new Runnable() {
+				public void run() {
+					CompoundTableModel targetTableModel = mTargetFrame.getTableModel();
+					targetTableModel.initializeTable(_paramCount, 1 + _pcaCount);
+					targetTableModel.setColumnName("Variable Name", 0);
+					for (int column = 1; column <= _pcaCount; column++)
+						targetTableModel.setColumnName("pc" + column, column);
+
+					int row = 0;
+					for (int d = 0; d < descriptorColumn.length; d++)
+						for (int i = 0; i < varyingBits[d]; i++)
+							targetTableModel.setTotalValueAt(mTableModel.getColumnTitle(descriptorColumn[d]) + " bit " + i, row++, 0);
+					for (int i = 0; i < regularColumn.length; i++)
+						targetTableModel.setTotalValueAt(mTableModel.getColumnTitle(regularColumn[i]), row++, 0);
+
+					for (row = 0; row < _paramCount; row++)
+						for (int i = 0; i < _pcaCount; i++)
+							targetTableModel.setTotalValueAt(DoubleFormat.toString(eigenValues[row][i], 8), row, i + 1);
+
+					targetTableModel.finalizeTable(CompoundTableEvent.cSpecifierNoRuntimeProperties, getProgressController());
+
+//					SwingUtilities.invokeLater(new Runnable() {
+//						public void run() {
+							DEMainPane mainPane = mTargetFrame.getMainFrame().getMainPane();
+							VisualizationPanel2D vpanel1 = mainPane.add2DView("Eigenvalues 2D", "Table\tbottom");
+							vpanel1.setAxisColumnName(0, targetTableModel.getColumnTitle(1));
+							vpanel1.setAxisColumnName(1, targetTableModel.getColumnTitle(2));
+							vpanel1.getVisualization().setPreferredChartType(JVisualization.cChartTypeScatterPlot, -1, -1);
+							vpanel1.getVisualization().addMarkerLabel(MarkerLabelConstants.cTopRight, 0);
+							vpanel1.getVisualization().setMarkerLabelSize(2f, false);
+							vpanel1.getVisualization().getMarkerColor().setDefaultDataColor(Color.BLUE);
+
+							if (_pcaCount >= 3) {
+								String title = mainPane.getDockable(vpanel1).getTitle();
+								VisualizationPanel3D vpanel2 = mainPane.add3DView("Eigenvalues 3D", title+"\tright");
+								vpanel2.setAxisColumnName(0, targetTableModel.getColumnTitle(1));
+								vpanel2.setAxisColumnName(1, targetTableModel.getColumnTitle(2));
+								vpanel2.setAxisColumnName(2, targetTableModel.getColumnTitle(3));
+								vpanel2.getVisualization().setPreferredChartType(JVisualization.cChartTypeScatterPlot, -1, -1);
+								vpanel1.getVisualization().addMarkerLabel(MarkerLabelConstants.cTopRight, 0);
+								vpanel2.getVisualization().setMarkerLabelSize(2f, false);
+								vpanel2.getVisualization().getMarkerColor().setDefaultDataColor(Color.BLUE);
+								}
+//							}
+//						} );
+					}
+				} );
 			}
 
 		if (!threadMustDie()) {
@@ -538,7 +614,8 @@ public class DETaskPCA extends ConfigurableTask {
 			for (int i=0; i<maxIndex; i++)
 				sb.append("Explained variance percentage of PC"+(i+1)+": "+((double)((int)(100000*singularValue[i]/sum))/1000)+"<BR>");
 
-			SwingUtilities.invokeLater(new PCADetailDialog(sb.toString()));
+			// we need to wait until dialog is closed before continueing and moving target frame to front
+			try { SwingUtilities.invokeAndWait(new PCADetailDialog(sb.toString())); } catch (Exception ie) {}
 			}
 		}
 
@@ -560,26 +637,40 @@ public class DETaskPCA extends ConfigurableTask {
 		return bestCorrelatingColumn;
 		}
 
-	private void calculateParameterRow(int[] descriptorColumn, int[] regularColumn, int row, int[][] varyingKey, double[] rowParameter) {
+	private void calculateParameterRow(int[] descriptorColumn, int[] regularColumn, int row, Object[] varyingKey, double[] rowParameter) {
 		int paramIndex = 0;
 
         for (int fp=0; fp<descriptorColumn.length; fp++) {
         	if (mTableModel.getDescriptorHandler(descriptorColumn[fp]).getInfo().isBinary) {
-				int[] currentIndex = (int[])mTableModel.getTotalRecord(row).getData(descriptorColumn[fp]);
-				for (int i=0; i<currentIndex.length; i++) {
-					int theBit = 1;
-					for (int j=0; j<32; j++) {
-						if ((varyingKey[fp][i] & theBit) != 0) {
-							rowParameter[paramIndex++] = ((currentIndex[i] & theBit) != 0) ? 1.0 : 0.0;
+		        if (mTableModel.getTotalRecord(row).getData(descriptorColumn[fp]) instanceof long[]) {
+					long[] currentIndex = (long[])mTableModel.getTotalRecord(row).getData(descriptorColumn[fp]);
+					for (int i=0; i<currentIndex.length; i++) {
+						long theBit = 1L;
+						for (int j=0; j<64; j++) {
+							if ((((long[])varyingKey[fp])[i] & theBit) != 0) {
+								rowParameter[paramIndex++] = ((currentIndex[i] & theBit) != 0) ? 1.0 : 0.0;
+								}
+							theBit <<= 1;
 							}
-						theBit <<= 1;
 						}
-					}
+		            }
+				else {
+			        int[] currentIndex = (int[])mTableModel.getTotalRecord(row).getData(descriptorColumn[fp]);
+			        for (int i=0; i<currentIndex.length; i++) {
+				        int theBit = 1;
+				        for (int j=0; j<32; j++) {
+					        if ((((int[])varyingKey[fp])[i] & theBit) != 0) {
+						        rowParameter[paramIndex++] = ((currentIndex[i] & theBit) != 0) ? 1.0 : 0.0;
+						        }
+					        theBit <<= 1;
+					        }
+				        }
+			        }
         		}
         	else {
 				byte[] currentIndex = (byte[])mTableModel.getTotalRecord(row).getData(descriptorColumn[fp]);
-				for (int i=0; i<varyingKey[fp].length; i++)
-					rowParameter[paramIndex++] = currentIndex[varyingKey[fp][i]];
+				for (int i=0; i<((int[])varyingKey[fp]).length; i++)
+					rowParameter[paramIndex++] = currentIndex[((int[])varyingKey[fp])[i]];
         		}
 			}
 

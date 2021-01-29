@@ -18,31 +18,8 @@
 
 package com.actelion.research.datawarrior.task.data;
 
-import info.clearthought.layout.TableLayout;
-
-import java.awt.Color;
-import java.awt.Dimension;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
-import java.util.ArrayList;
-import java.util.Properties;
-
-import javax.swing.BorderFactory;
-import javax.swing.JCheckBox;
-import javax.swing.JComboBox;
-import javax.swing.JLabel;
-import javax.swing.JOptionPane;
-import javax.swing.JPanel;
-import javax.swing.JTextField;
-import javax.swing.SwingConstants;
-
-import com.actelion.research.chem.Canonizer;
+import com.actelion.research.chem.*;
 import com.actelion.research.chem.coords.CoordinateInventor;
-import com.actelion.research.chem.IDCodeParser;
-import com.actelion.research.chem.Molecule;
-import com.actelion.research.chem.SSSearcher;
-import com.actelion.research.chem.SSSearcherWithIndex;
-import com.actelion.research.chem.StereoMolecule;
 import com.actelion.research.chem.descriptor.DescriptorConstants;
 import com.actelion.research.chem.io.CompoundTableConstants;
 import com.actelion.research.datawarrior.DEFrame;
@@ -50,6 +27,14 @@ import com.actelion.research.datawarrior.task.ConfigurableTask;
 import com.actelion.research.gui.JEditableStructureView;
 import com.actelion.research.table.model.CompoundRecord;
 import com.actelion.research.table.model.CompoundTableModel;
+import info.clearthought.layout.TableLayout;
+
+import javax.swing.*;
+import java.awt.*;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.util.ArrayList;
+import java.util.Properties;
 
 
 public class DETaskFindAndReplace extends ConfigurableTask implements ActionListener,Runnable {
@@ -60,6 +45,7 @@ public class DETaskFindAndReplace extends ConfigurableTask implements ActionList
 	private static final String PROPERTY_COLUMN = "column";
 	private static final String PROPERTY_WHAT = "what";
 	private static final String PROPERTY_WITH = "with";
+	private static final String PROPERTY_IS_REGEX = "isRegex";
 	private static final String PROPERTY_IS_STRUCTURE = "isStructure";
 	private static final String PROPERTY_CASE_SENSITIVE = "caseSensitive";
 	private static final String PROPERTY_ALLOW_SUBSTITUENTS = "allowSubstituents";
@@ -72,10 +58,11 @@ public class DETaskFindAndReplace extends ConfigurableTask implements ActionList
 	private static final int cModeSelectedOnly = 1;
 	private static final int cModeVisibleOnly = 2;
 
-	private static final String[] WHAT_NAME = { "Find this:", "Find empty", "Find any" };
+	private static final String[] WHAT_NAME = { "Find this:", "Find regex:", "Find empty", "Find any" };
 	private static final int WHAT_THIS = 0;
-	private static final int WHAT_EMPTY = 1;
-	private static final int WHAT_ANY = 2;
+	private static final int WHAT_REGEX = 1;
+	private static final int WHAT_EMPTY = 2;
+	private static final int WHAT_ANY = 3;
 	private static final String CODE_WHAT_EMPTY = "<empty>";
 	private static final String CODE_WHAT_ANY = "<any>";
 
@@ -175,7 +162,7 @@ public class DETaskFindAndReplace extends ConfigurableTask implements ActionList
 		if (isInteractive() && e.getSource() == mComboBoxColumn) {
 			int column = mTableModel.findColumn((String)mComboBoxColumn.getSelectedItem());
 			boolean isStructure = (column == -1) ?
-					false : CompoundTableConstants.cColumnTypeIDCode.equals(mTableModel.getColumnSpecialType(column));
+					false : mTableModel.isColumnTypeStructure(column);
 			updateInputFields(isStructure);
 			}
 		if (e.getSource() == mComboBoxWhat) {
@@ -184,11 +171,13 @@ public class DETaskFindAndReplace extends ConfigurableTask implements ActionList
 		}
 
 	private void enableWhatFields() {
-		boolean enabled = (mComboBoxWhat.getSelectedIndex() == WHAT_THIS);
+		boolean enabled = (mComboBoxWhat.getSelectedIndex() == WHAT_THIS || mComboBoxWhat.getSelectedIndex() == WHAT_REGEX);
 		if (mTextFieldWhat != null)
 			mTextFieldWhat.setEnabled(enabled);
 		if (mStructureFieldWhat != null)
 			mStructureFieldWhat.setEnabled(enabled);
+		if (mCheckBoxCaseSensitive != null)
+			mCheckBoxCaseSensitive.setEnabled(mComboBoxWhat.getSelectedIndex() == WHAT_THIS);
 		}
 
 	private void updateInputFields(boolean isStructure) {
@@ -296,8 +285,11 @@ public class DETaskFindAndReplace extends ConfigurableTask implements ActionList
 			String what = (mComboBoxWhat.getSelectedIndex() == WHAT_ANY) ? CODE_WHAT_ANY
 					    : (mComboBoxWhat.getSelectedIndex() == WHAT_EMPTY) ? CODE_WHAT_EMPTY
 						: mTextFieldWhat.getText();
-			if (what.length() != 0)
+			if (what.length() != 0) {
+				if (mComboBoxWhat.getSelectedIndex() == WHAT_REGEX)
+					configuration.setProperty(PROPERTY_IS_REGEX, "true");
 				configuration.setProperty(PROPERTY_WHAT, what);
+				}
 
 			configuration.setProperty(PROPERTY_WITH, mTextFieldWith.getText());
 			}
@@ -328,7 +320,7 @@ public class DETaskFindAndReplace extends ConfigurableTask implements ActionList
 		if ("true".equals(configuration.getProperty(PROPERTY_IS_STRUCTURE))) {
 			updateInputFields(true);
 			if (what.length() == 0) {
-				mStructureFieldWhat.getMolecule().deleteMolecule();
+				mStructureFieldWhat.getMolecule().clear();
 				}
 			else {
 				if (what.equals(CODE_WHAT_ANY))
@@ -344,7 +336,7 @@ public class DETaskFindAndReplace extends ConfigurableTask implements ActionList
 					}
 				}
 			if (with.length() == 0) {
-				mStructureFieldWith.getMolecule().deleteMolecule();
+				mStructureFieldWith.getMolecule().clear();
 				}
 			else {
 				try {
@@ -361,8 +353,11 @@ public class DETaskFindAndReplace extends ConfigurableTask implements ActionList
 				mComboBoxWhat.setSelectedIndex(WHAT_ANY);
 			else if (what.equals(CODE_WHAT_EMPTY))
 				mComboBoxWhat.setSelectedIndex(WHAT_EMPTY);
-			else
+			else {
+				mComboBoxWhat.setSelectedIndex("true".equals(configuration.getProperty(PROPERTY_IS_REGEX)) ?
+						WHAT_REGEX : WHAT_EMPTY);
 				mTextFieldWhat.setText(what);
+				}
 			mTextFieldWith.setText(with);
 			}
 
@@ -474,7 +469,7 @@ public class DETaskFindAndReplace extends ConfigurableTask implements ActionList
 					showErrorMessage("Column '"+columnName+"' is not alphanumerical.");
 					return false;
 					}
-				if (CompoundTableConstants.cColumnTypeIDCode.equals(mTableModel.getColumnSpecialType(column))) {
+				if (mTableModel.isColumnTypeStructure(column)) {
 					if (!isStructureMode) {
 						showErrorMessage("Text replacement cannot be done on '"+columnName+"', which is a structure column.");
 						return false;
@@ -517,7 +512,7 @@ public class DETaskFindAndReplace extends ConfigurableTask implements ActionList
 		}
 
 	private boolean qualifiesAsColumn(int column) {
-		return (CompoundTableConstants.cColumnTypeIDCode.equals(mTableModel.getColumnSpecialType(column))
+		return (mTableModel.isColumnTypeStructure(column)
 			 || (mTableModel.getColumnSpecialType(column) == null
 			  && (mTableModel.isColumnTypeString(column)
 			   || mTableModel.isColumnTypeDouble(column)
@@ -542,8 +537,9 @@ public class DETaskFindAndReplace extends ConfigurableTask implements ActionList
 				}
 			}
 		else {
+			boolean isRegex = "true".equals(configuration.getProperty(PROPERTY_IS_REGEX));
 			boolean isCaseSensitive = "true".equals(configuration.getProperty(PROPERTY_CASE_SENSITIVE));
-			replaceText(what, with, targetColumn, isCaseSensitive, mode);
+			replaceText(what, with, targetColumn, isRegex, isCaseSensitive, mode);
 			}
 		}
 
@@ -627,7 +623,7 @@ public class DETaskFindAndReplace extends ConfigurableTask implements ActionList
 			}
 		else {
 			searcherWithIndex = new SSSearcherWithIndex();
-			searcherWithIndex.setFragment(whatMol, searcherWithIndex.createIndex(whatMol));
+			searcherWithIndex.setFragment(whatMol, searcherWithIndex.createLongIndex(whatMol));
 			}
 
 		boolean found = false;
@@ -652,7 +648,7 @@ public class DETaskFindAndReplace extends ConfigurableTask implements ActionList
 					matchList = searcher.getMatchList();
 				}
 			else {
-				searcherWithIndex.setMolecule(mol, (int[])mTableModel.getTotalRecord(row).getData(fragFpColumn));
+				searcherWithIndex.setMolecule(mol, (long[])mTableModel.getTotalRecord(row).getData(fragFpColumn));
 				if (searcherWithIndex.findFragmentInMolecule() != 0)
 					matchList = searcherWithIndex.getMatchList();
 				}
@@ -767,7 +763,7 @@ public class DETaskFindAndReplace extends ConfigurableTask implements ActionList
 				mol.deleteMarkedAtomsAndBonds();
 				mol.setParitiesValid(0);
 				new CoordinateInventor().invent(mol);
-				mol.setStereoBondsFromParity();
+//				mol.setStereoBondsFromParity(); not needed anymore
 				Canonizer canonizer = new Canonizer(mol);
 				mTableModel.setTotalValueAt(canonizer.getIDCode(), row, column);
 				mTableModel.removeChildDescriptorsAndCoordinates(row, column);
@@ -872,21 +868,23 @@ public class DETaskFindAndReplace extends ConfigurableTask implements ActionList
 				+ "structure was replaced "+replacements+" times.", JOptionPane.INFORMATION_MESSAGE);
 		}
 
-	private void replaceText(String what, String with, int targetColumn, boolean isCaseSensitive, int mode) {
-		if (!isCaseSensitive)
+	private void replaceText(String what, String with, int targetColumn, boolean isRegex, boolean isCaseSensitive, int mode) {
+		if (!isCaseSensitive && !isRegex)
 			what = what.toLowerCase();
 
 		int maxProgress = (targetColumn != -1) ? mTableModel.getTotalRowCount() / 64 : mTableModel.getColumnCount();
 		startProgress("Replacing '"+what+"'...", 0, maxProgress);
 
 		int replacements = 0;
-		boolean[] found = new boolean[mTableModel.getTotalColumnCount()];
+		int columns = 0;
 
 		for (int column=0; column<mTableModel.getTotalColumnCount(); column++) {
 			if (targetColumn == -1 && column != 0)
 				updateProgress(-1);
 
 			if (column == targetColumn || (targetColumn == -1 && mTableModel.getColumnSpecialType(column) == null)) {
+				boolean found = false;
+
 				for (int row=0; row<mTableModel.getTotalRowCount(); row++) {
 					if (targetColumn != -1 && (row & 63) == 63)
 						updateProgress(-1);
@@ -901,19 +899,27 @@ public class DETaskFindAndReplace extends ConfigurableTask implements ActionList
 						if (value.length() == 0) {
 							mTableModel.setTotalValueAt(with, row, column);
 							replacements++;
-							found[column] = true;
+							found = true;
 							}
 						}
 					else if (what.equals(CODE_WHAT_ANY)) {
 						mTableModel.setTotalValueAt(with, row, column);
 						replacements++;
-						found[column] = true;
+						found = true;
+						}
+					else if (isRegex) {
+						String newValue = value.replaceAll(what, with);
+						if (!newValue.equals(value)) {
+							mTableModel.setTotalValueAt(newValue, row, column);
+							replacements++;
+							found = true;
+							}
 						}
 					else if (isCaseSensitive) {
 						if (value.contains(what)) {
 							mTableModel.setTotalValueAt(value.replace(what, with), row, column);
 							replacements++;
-							found[column] = true;
+							found = true;
 							}
 						}
 					else {
@@ -937,18 +943,15 @@ public class DETaskFindAndReplace extends ConfigurableTask implements ActionList
 		
 							mTableModel.setTotalValueAt(newValue.toString(), row, column);
 							replacements++;
-							found[column] = true;
+							found = true;
 							}
 						}
 					}
-				}
-			}
 
-		int columns = 0;
-		for (int column=0; column<mTableModel.getTotalColumnCount(); column++) {
-			if (found[column]) {
-				mTableModel.finalizeChangeAlphaNumericalColumn(column, 0, mTableModel.getTotalRowCount());
-				columns++;
+				if (found) {
+					mTableModel.finalizeChangeAlphaNumericalColumn(column, 0, mTableModel.getTotalRowCount());
+					columns++;
+					}
 				}
 			}
 

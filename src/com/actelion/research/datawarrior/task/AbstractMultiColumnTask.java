@@ -19,6 +19,7 @@
 package com.actelion.research.datawarrior.task;
 
 import com.actelion.research.datawarrior.DEFrame;
+import com.actelion.research.gui.hidpi.HiDPIHelper;
 import com.actelion.research.table.model.CompoundTableModel;
 import com.actelion.research.util.ArrayUtils;
 import info.clearthought.layout.TableLayout;
@@ -29,7 +30,6 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Comparator;
 import java.util.Properties;
 
 public abstract class AbstractMultiColumnTask extends ConfigurableTask implements ActionListener {
@@ -75,6 +75,10 @@ public abstract class AbstractMultiColumnTask extends ConfigurableTask implement
 		return mTableModel;
 		}
 
+	public int[] getColumnList() {
+		return mColumnList;
+	}
+
 	/**
 	 * @param column total column index
 	 * @return true if the column should appear in list for selection or shall be matched with condition
@@ -83,9 +87,10 @@ public abstract class AbstractMultiColumnTask extends ConfigurableTask implement
 
 	@Override
 	public Properties getPredefinedConfiguration() {
-		if (mColumnList == null)
-			return null;
+		return mColumnList == null ? null : createConfigurationFromColumnList();
+		}
 
+	public Properties createConfigurationFromColumnList() {
 		Properties configuration = new Properties();
 		StringBuilder sb = new StringBuilder(mTableModel.getColumnTitleNoAlias(mColumnList[0]));
 		for (int i=1; i<mColumnList.length; i++)
@@ -97,14 +102,15 @@ public abstract class AbstractMultiColumnTask extends ConfigurableTask implement
 
 	@Override
 	public JPanel createDialogContent() {
-		double[][] size = { {8, TableLayout.PREFERRED, 4, TableLayout.PREFERRED, 4, TableLayout.FILL, 8},
-							{8, TableLayout.PREFERRED, TableLayout.PREFERRED, 8, TableLayout.PREFERRED, 4, TableLayout.FILL, 8} };
+		int gap = HiDPIHelper.scale(8);
+		double[][] size = { {gap, TableLayout.PREFERRED, gap/2, TableLayout.PREFERRED, gap/2, TableLayout.FILL, gap},
+							{TableLayout.PREFERRED, gap, TableLayout.PREFERRED, gap, TableLayout.PREFERRED, gap/2, TableLayout.FILL, gap} };
 		JPanel content = new JPanel();
 		content.setLayout(new TableLayout(size));
 
 		JPanel innerPanel = createInnerDialogContent();
 		if (innerPanel != null)
-			content.add(innerPanel, "1,1,5,1");
+			content.add(innerPanel, "0,0,6,0");
 
 		content.add(new JLabel("Column name"), "1,2");
 		mComboBoxMode = new JComboBox(MODE_OPTIONS);
@@ -115,7 +121,7 @@ public abstract class AbstractMultiColumnTask extends ConfigurableTask implement
 		mTextFieldCriterion = new JTextField(8);
 		content.add(mTextFieldCriterion, "5,2");
 
-		JScrollPane scrollPane = null;
+		JScrollPane scrollPane;
 
 		if (isInteractive()) {
 			mLabelMessage = new JLabel("Select one or multiple column names!");
@@ -124,20 +130,17 @@ public abstract class AbstractMultiColumnTask extends ConfigurableTask implement
 				if (isCompatibleColumn(column))
 					columnList.add(mTableModel.getColumnTitle(column));
 			String[] itemList = columnList.toArray(new String[0]);
-			Arrays.sort(itemList, new Comparator<String>() {
-						public int compare(String s1, String s2) {
-							return s1.compareToIgnoreCase(s2);
-							}
-						} );
+			Arrays.sort(itemList, (s1, s2) -> s1.compareToIgnoreCase(s2) );
 			mListColumns = new JList(itemList);
 			scrollPane = new JScrollPane(mListColumns);
 	//		scrollPane.setPreferredSize(new Dimension(240,240));	de-facto limits width when long column names need more space
 			}
 		else {
+			int wh = HiDPIHelper.scale(240);
 			mLabelMessage = new JLabel("Type one or multiple column names!");
 			mTextArea = new JTextArea();
 			scrollPane = new JScrollPane(mTextArea);
-			scrollPane.setPreferredSize(new Dimension(240,240));
+			scrollPane.setPreferredSize(new Dimension(wh,wh));
 			}
 
 		content.add(mLabelMessage, "1,4,5,4");

@@ -18,29 +18,20 @@
 
 package com.actelion.research.datawarrior.task.view;
 
+import com.actelion.research.datawarrior.DEMainPane;
 import com.actelion.research.gui.hidpi.HiDPIHelper;
 import com.actelion.research.table.model.CompoundTableListHandler;
-import info.clearthought.layout.TableLayout;
-
-import java.awt.Dimension;
-import java.awt.Frame;
-import java.util.Properties;
-
-import javax.swing.JCheckBox;
-import javax.swing.JComboBox;
-import javax.swing.JComponent;
-import javax.swing.JLabel;
-import javax.swing.JOptionPane;
-import javax.swing.JPanel;
-import javax.swing.JSlider;
-
-import com.actelion.research.datawarrior.DEMainPane;
 import com.actelion.research.table.model.CompoundTableModel;
 import com.actelion.research.table.view.CompoundTableView;
 import com.actelion.research.table.view.JVisualization;
 import com.actelion.research.table.view.VisualizationPanel;
 import com.actelion.research.table.view.VisualizationPanel2D;
 import com.actelion.research.util.DoubleFormat;
+import info.clearthought.layout.TableLayout;
+
+import javax.swing.*;
+import java.awt.*;
+import java.util.Properties;
 
 
 public class DETaskSplitView extends DETaskAbstractSetViewOptions {
@@ -76,9 +67,15 @@ public class DETaskSplitView extends DETaskAbstractSetViewOptions {
 		}
 
 	@Override
-	public JComponent createInnerDialogContent() {
-		double[][] size = { {8, TableLayout.PREFERRED, 4, TableLayout.PREFERRED, 8},
-							{8, TableLayout.PREFERRED, 8, TableLayout.PREFERRED, 8, TableLayout.PREFERRED, 4, TableLayout.PREFERRED, 8} };
+	public OTHER_VIEWS getOtherViewMode() {
+		return OTHER_VIEWS.GRAPHICAL2D;
+		}
+
+	@Override
+	public JComponent createViewOptionContent() {
+		int gap = HiDPIHelper.scale(8);
+		double[][] size = { {gap, TableLayout.PREFERRED, gap/2, TableLayout.PREFERRED, gap},
+							{gap, TableLayout.PREFERRED, gap, TableLayout.PREFERRED, gap, TableLayout.PREFERRED, gap/2, TableLayout.PREFERRED, gap} };
 		JPanel p = new JPanel();
 		p.setLayout(new TableLayout(size));
 
@@ -92,6 +89,8 @@ public class DETaskSplitView extends DETaskAbstractSetViewOptions {
 				mComboBoxColumn2.addItem(getTableModel().getColumnTitle(column));
 				}
 			}
+		mComboBoxColumn1.addItem(CompoundTableListHandler.LIST_NAME_SELECTION);
+		mComboBoxColumn2.addItem(CompoundTableListHandler.LIST_NAME_SELECTION);
 		for (int i = 0; i<getTableModel().getListHandler().getListCount(); i++) {
 			mComboBoxColumn1.addItem(getTableModel().getColumnTitleExtended(CompoundTableListHandler.getColumnFromList(i)));
 			mComboBoxColumn2.addItem(getTableModel().getColumnTitleExtended(CompoundTableListHandler.getColumnFromList(i)));
@@ -165,12 +164,13 @@ public class DETaskSplitView extends DETaskAbstractSetViewOptions {
 		}
 
 	@Override
-	public void addViewConfiguration(Properties configuration) {
+	public void addViewConfiguration(CompoundTableView view, Properties configuration) {
+		JVisualization visualization = ((VisualizationPanel)view).getVisualization();
 		int[] column = getInteractiveVisualization().getSplittingColumns();
 		configuration.setProperty(PROPERTY_COLUMN1, ""+getTableModel().getColumnTitleNoAlias(column[0]));
 		configuration.setProperty(PROPERTY_COLUMN2, ""+getTableModel().getColumnTitleNoAlias(column[1]));
-		configuration.setProperty(PROPERTY_ASPECT, ""+ getInteractiveVisualization().getSplittingAspectRatio());
-		configuration.setProperty(PROPERTY_SHOW_EMPTY_VIEWS, getInteractiveVisualization().isShowEmptyInSplitView() ? "true" : "false");
+		configuration.setProperty(PROPERTY_ASPECT, ""+ visualization.getSplittingAspectRatio());
+		configuration.setProperty(PROPERTY_SHOW_EMPTY_VIEWS, visualization.isShowEmptyInSplitView() ? "true" : "false");
 
 		// if an interactive view is configured to exceed split view limit, then we don't show a warning later
 		mHighMultiplicityAccepted = (getMultiplicity(configuration) > JVisualization.cMaxSplitViewCount);
@@ -220,11 +220,11 @@ public class DETaskSplitView extends DETaskAbstractSetViewOptions {
 				showErrorMessage("Column '"+columnName+"' not found.");
 				return 0;
 				}
-			if (!columnQualifies(column)) {
+			if (!CompoundTableListHandler.isListOrSelectionColumn(column) && !columnQualifies(column)) {
 				showErrorMessage("Column '"+columnName+"' does not contain categories.");
 				return 0;
 				}
-			return CompoundTableListHandler.isListColumn(column) ? 2 : getTableModel().getCategoryCount(column);
+			return CompoundTableListHandler.isListOrSelectionColumn(column) ? 2 : getTableModel().getCategoryCount(column);
 			}
 		return 1;
 		}
@@ -236,14 +236,16 @@ public class DETaskSplitView extends DETaskAbstractSetViewOptions {
 
 	@Override
 	public void applyConfiguration(CompoundTableView view, Properties configuration, boolean isAdjusting) {
-		int column1 = getTableModel().findColumn(configuration.getProperty(PROPERTY_COLUMN1, CompoundTableModel.cColumnUnassignedCode));
-		int column2 = getTableModel().findColumn(configuration.getProperty(PROPERTY_COLUMN2, CompoundTableModel.cColumnUnassignedCode));
-		float aspect = 1.0f;
-		try {
-			aspect = Float.parseFloat(configuration.getProperty(PROPERTY_ASPECT, "1.0"));
+		if (view instanceof VisualizationPanel) {
+			int column1 = getTableModel().findColumn(configuration.getProperty(PROPERTY_COLUMN1, CompoundTableModel.cColumnUnassignedCode));
+			int column2 = getTableModel().findColumn(configuration.getProperty(PROPERTY_COLUMN2, CompoundTableModel.cColumnUnassignedCode));
+			float aspect = 1.0f;
+			try {
+				aspect = Float.parseFloat(configuration.getProperty(PROPERTY_ASPECT, "1.0"));
+				}
+			catch (NumberFormatException nfe) {}
+			boolean showEmptyViews = "true".equals(configuration.getProperty(PROPERTY_SHOW_EMPTY_VIEWS, "true"));
+			((VisualizationPanel)view).getVisualization().setSplittingColumns(column1, column2, aspect, showEmptyViews);
 			}
-		catch (NumberFormatException nfe) {}
-		boolean showEmptyViews = "true".equals(configuration.getProperty(PROPERTY_SHOW_EMPTY_VIEWS, "true"));
-		((VisualizationPanel)view).getVisualization().setSplittingColumns(column1, column2, aspect, showEmptyViews);
 		}
 	}

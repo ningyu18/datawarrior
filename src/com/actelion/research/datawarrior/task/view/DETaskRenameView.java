@@ -102,8 +102,14 @@ public class DETaskRenameView extends AbstractViewTask {
 
 	@Override
 	public boolean isConfigurationValid(Properties configuration, boolean isLive) {
-		if (configuration.getProperty(PROPERTY_NEW_NAME, "").length() == 0) {
+		String newTitle = configuration.getProperty(PROPERTY_NEW_NAME, "");
+		if (newTitle.length() == 0) {
 			showErrorMessage("New view name is not defined.");
+			return false;
+			}
+
+		if (isLive && mMainPane.getDockableTitles().contains(newTitle)) {
+			showErrorMessage("New view name is already used.");
 			return false;
 			}
 

@@ -45,8 +45,6 @@ package org.jmol.g3d;
 import java.util.BitSet;
 import java.util.Hashtable;
 
-import org.jmol.util.Logger;
-
 final class Line3D {
 
   Graphics3D g3d;
@@ -101,10 +99,6 @@ final class Line3D {
       return false;
     lineBits = (BitSet) lineCache.get(slopeKey);
     nFound++;
-    if (nFound == 1000000)
-      if (Logger.debugging) {
-        Logger.debug("nCached/nFound lines: " + nCached + " " + nFound);
-      }
     return true;
   }
   

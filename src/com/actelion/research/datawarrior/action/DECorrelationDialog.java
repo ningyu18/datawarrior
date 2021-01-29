@@ -18,6 +18,8 @@
 
 package com.actelion.research.datawarrior.action;
 
+import com.actelion.research.datawarrior.DEFrame;
+import com.actelion.research.datawarrior.task.file.DETaskNewFileFromCorrelationCoefficients;
 import com.actelion.research.gui.hidpi.HiDPIHelper;
 import com.actelion.research.table.model.CompoundTableModel;
 import com.actelion.research.table.model.NumericalCompoundTableColumn;
@@ -26,6 +28,7 @@ import info.clearthought.layout.TableLayout;
 import java.awt.*;
 import java.awt.datatransfer.StringSelection;
 import java.awt.event.*;
+import java.util.Arrays;
 import javax.swing.*;
 
 import com.actelion.research.calc.*;
@@ -38,12 +41,12 @@ public class DECorrelationDialog extends JDialog implements ActionListener {
 	private static final int FONT_SIZE = 14;
 
 	private JComboBox			mComboBoxCorrelationType;
-	private Frame				mParentFrame;
+	private DEFrame				mParentFrame;
 	private CompoundTableModel mTableModel;
 	private int[]				mNumericalColumn;
 	private double[][][]		mMatrix;
 
-    public DECorrelationDialog(Frame parent, CompoundTableModel tableModel) {
+    public DECorrelationDialog(DEFrame parent, CompoundTableModel tableModel) {
 		super(parent, "Correlation Matrix", true);
 		mParentFrame = parent;
 		mTableModel = tableModel;
@@ -58,9 +61,8 @@ public class DECorrelationDialog extends JDialog implements ActionListener {
 
 		int gap1 = HiDPIHelper.scale(8);
 		int gap2 = HiDPIHelper.scale(12);
-		int width = HiDPIHelper.scale(80);
 		JPanel p = new JPanel();
-        double[][] size = { {gap1, width, TableLayout.FILL, width, gap1},
+        double[][] size = { {gap1, TableLayout.FILL, TableLayout.PREFERRED, TableLayout.FILL, gap1},
                             {gap1, TableLayout.PREFERRED, gap1, TableLayout.FILL, gap2, TableLayout.PREFERRED, gap1 } };
         p.setLayout(new TableLayout(size));
 
@@ -127,7 +129,7 @@ public class DECorrelationDialog extends JDialog implements ActionListener {
                 	NumericalCompoundTableColumn[] nc = new NumericalCompoundTableColumn[mNumericalColumn.length];
             		for (int i=0; i<mNumericalColumn.length; i++)
             			nc[i] = new NumericalCompoundTableColumn(mTableModel, mNumericalColumn[i]);
-                    mMatrix[type] = CorrelationCalculator.calculateMatrix(nc, type);
+                    mMatrix[type] = new CorrelationCalculator().calculateMatrix(nc, type);
                 	}
 
                 int xOffset = NUM_CELL_WIDTH+2*SPACING+titleWidth;
@@ -154,12 +156,26 @@ public class DECorrelationDialog extends JDialog implements ActionListener {
             p.add(matrixPanel, "1,3,3,3");
             }
 
-        JButton bcopy = new JButton("Copy");
+        int bw = HiDPIHelper.scale(100);
+		JPanel p2 = new JPanel();
+		double[][] size2 = { {bw, gap1, bw, TableLayout.FILL, bw}, {TableLayout.PREFERRED} };
+		p2.setLayout(new TableLayout(size2));
+
+		JButton bnew = new JButton("New File");
+		bnew.setActionCommand("new");
+		bnew.addActionListener(this);
+		p2.add(bnew, "0,0");
+
+        JButton bcopy = new JButton("Copy Matrix");
+		bcopy.setActionCommand("copy");
         bcopy.addActionListener(this);
-        p.add(bcopy, "1,5");
+        p2.add(bcopy, "2,0");
+
 		JButton bok = new JButton("OK");
 		bok.addActionListener(this);
-		p.add(bok, "3,5");
+		p2.add(bok, "4,0");
+
+		p.add(p2, "1,5,3,5");
 
 		getContentPane().setLayout(new BorderLayout());
 		getContentPane().add(p, BorderLayout.CENTER);
@@ -176,11 +192,17 @@ public class DECorrelationDialog extends JDialog implements ActionListener {
             if (tableModel.isColumnTypeDouble(column))
                 count++;
 
+		String[] columnName = new String[count];
+		count = 0;
+		for (int column=0; column<tableModel.getTotalColumnCount(); column++)
+			if (tableModel.isColumnTypeDouble(column))
+				columnName[count++] = tableModel.getColumnTitle(column);
+
+		Arrays.sort(columnName);
+
         int[] numericalColumn = new int[count];
-        count = 0;
-        for (int column=0; column<tableModel.getTotalColumnCount(); column++)
-            if (tableModel.isColumnTypeDouble(column))
-                numericalColumn[count++] = column;
+        for (int i=0; i<columnName.length; i++)
+            numericalColumn[i] = tableModel.findColumn(columnName[i]);
 
         return numericalColumn;
         }
@@ -191,7 +213,7 @@ public class DECorrelationDialog extends JDialog implements ActionListener {
 			return;
 	    	}
 
-	    if (e.getActionCommand().equals("Copy")) {
+	    if (e.getActionCommand().equals("copy")) {
             int type = mComboBoxCorrelationType.getSelectedIndex();
 
             StringBuilder buf = new StringBuilder("r ("+CorrelationCalculator.TYPE_LONG_NAME[type]+")\t");
@@ -217,7 +239,17 @@ public class DECorrelationDialog extends JDialog implements ActionListener {
 	        return;
 	        }
 
-	    setVisible(false);
+		if (e.getActionCommand().equals("new")) {
+			int type = mComboBoxCorrelationType.getSelectedIndex();
+
+			setVisible(false);
+			dispose();
+
+			new DETaskNewFileFromCorrelationCoefficients(mParentFrame, type).defineAndRun();
+			return;
+			}
+
+		setVisible(false);
 	    dispose();
 		return;
 		}

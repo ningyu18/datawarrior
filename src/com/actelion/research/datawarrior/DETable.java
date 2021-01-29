@@ -18,12 +18,22 @@
 
 package com.actelion.research.datawarrior;
 
-import com.actelion.research.datawarrior.task.table.DETaskJumpToCurrentRow;
+import com.actelion.research.chem.StereoMolecule;
+import com.actelion.research.chem.io.CompoundTableConstants;
+import com.actelion.research.chem.reaction.Reaction;
+import com.actelion.research.datawarrior.task.table.DETaskJumpToReferenceRow;
+import com.actelion.research.gui.JDrawDialog;
+import com.actelion.research.gui.dnd.MoleculeTransferable;
+import com.actelion.research.gui.dnd.ReactionTransferable;
 import com.actelion.research.gui.hidpi.HiDPIHelper;
 import com.actelion.research.gui.hidpi.HiDPIIconButton;
 import com.actelion.research.gui.table.JTableWithRowNumbers;
-import com.actelion.research.table.*;
+import com.actelion.research.table.CompoundTableChemistryCellRenderer;
+import com.actelion.research.table.MultiLineCellRenderer;
 import com.actelion.research.table.model.*;
+import com.actelion.research.table.view.VisualizationColor;
+import com.actelion.research.util.BrowserControl;
+import com.actelion.research.util.CursorHelper;
 import info.clearthought.layout.TableLayout;
 
 import javax.swing.*;
@@ -31,37 +41,47 @@ import javax.swing.event.TableModelEvent;
 import javax.swing.table.JTableHeader;
 import javax.swing.table.TableCellRenderer;
 import javax.swing.table.TableColumn;
-import javax.swing.table.TableColumnModel;
 import java.awt.*;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
-import java.awt.event.KeyEvent;
-import java.awt.event.MouseEvent;
+import java.awt.datatransfer.StringSelection;
+import java.awt.datatransfer.Transferable;
+import java.awt.event.*;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.TreeMap;
+import java.util.regex.PatternSyntaxException;
 
-public class DETable extends JTableWithRowNumbers implements ActionListener,CompoundTableListener {
+public class DETable extends JTableWithRowNumbers implements ActionListener,ComponentListener,CompoundTableListener {
 	private static final long serialVersionUID = 0x20060904;
 
-	public static final int DEFAULT_FONT_SIZE = 13;
+	public static final int DEFAULT_FONT_SIZE = 12;
 	private static final Color LOOKUP_COLOR = new Color(99, 99, 156);
 	private static final Color EMBEDDED_DETAIL_COLOR = new Color(108, 156, 99);
 	private static final Color REFERENCED_DETAIL_COLOR = new Color(156, 99, 99);
 
-	private Frame           mParentFrame;
-	private DEMainPane      mMainPane;
-	private JScrollPane		mScrollPane;
+	private Frame mParentFrame;
+	private DEMainPane mMainPane;
+	private JScrollPane mScrollPane;
 	private CompoundRecord mCurrentRecord;
-	private TreeMap<String,Integer> mNonExpandedColumnSizes,mHiddenColumnSizes;
-	private TreeMap<String,TableCellRenderer> mHiddenCellRendererMap;
-	private JButton mJumpButton,mExpandButton;
+	private TreeMap<String,Integer> mNonExpandedColumnSizes/*,mHiddenColumnSizes*/;
+	private TreeMap<String,DEHiddenColumn> mHiddenColumnMap;
+	private TreeMap<String,Color> mColumnGroupToColorMap;
+	private JButton mJumpButton, mExpandButton, mSearchButton;
+	private Object mDraggedObject;
+	private JTextField mTextFieldSearch;
+	private JWindow mSearchControls;
+	private Point mSearchPopupLocation;
+	private DEColumnOrder mIntendedColumnOrder;
+	private int mPreviousClickableCellCol,mPreviousClickableCellRow;
 
-	public DETable(Frame parentFrame, DEMainPane mainPane, TableColumnModel cm, ListSelectionModel sm) {
-		super(mainPane.getTableModel(), cm, sm);
+	public DETable(Frame parentFrame, DEMainPane mainPane, ListSelectionModel sm) {
+		super(mainPane.getTableModel(), null, sm);
+
 		mParentFrame = parentFrame;
 		mMainPane = mainPane;
 		mainPane.getTableModel().addCompoundTableListener(this);
+
+		mPreviousClickableCellRow = -1;
+		mPreviousClickableCellCol = -1;
 
 		// to eliminate the disabled default action of the JTable when typing menu-V
 		getInputMap(JTable.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT).put(KeyStroke.getKeyStroke(KeyEvent.VK_V, Toolkit.getDefaultToolkit().getMenuShortcutKeyMask()), "none");
@@ -69,50 +89,298 @@ public class DETable extends JTableWithRowNumbers implements ActionListener,Comp
 		// to eliminate the default action of the JTable when typing menu-C that the higher level DataWarrior menu can take over (and include the header line when copying)
 		getInputMap(JTable.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT).put(KeyStroke.getKeyStroke(KeyEvent.VK_C, Toolkit.getDefaultToolkit().getMenuShortcutKeyMask()), "none");
 
-		putClientProperty("Quaqua.Table.style", "striped");
-		putClientProperty(org.jvnet.lafwidget.LafWidget.ANIMATION_KIND, org.jvnet.lafwidget.utils.LafConstants.AnimationKind.NONE);
+		getInputMap(JTable.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT).put(KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, 0), "editCell");
+		getActionMap().put("editCell", new AbstractAction() {
+			@Override
+			public void actionPerformed(ActionEvent e) {
+				if (getSelectedRowCount() == 1
+						&& getSelectedColumnCount() == 1) {
+					int selectedRow = getSelectedRow();
+					final CompoundRecord record = mainPane.getTableModel().getRecord(selectedRow);
+					int column = convertTotalColumnIndexFromView(getSelectedColumn());
+					editCell(record, column);
+					SwingUtilities.invokeLater(() -> {
+						if (mainPane.getTableModel().isVisible(record))
+							getSelectionModel().setSelectionInterval(selectedRow, selectedRow);
+					});
+				}
+			}
+		});
+
 		mCurrentRecord = mainPane.getTableModel().getActiveRow();
 
-		mHiddenCellRendererMap = new TreeMap<String,TableCellRenderer>();
-		mHiddenColumnSizes = new TreeMap<String,Integer>();
+		mIntendedColumnOrder = new DEColumnOrder(mainPane.getTableModel(), getColumnModel());
+		mHiddenColumnMap = new TreeMap<>();
+
 		setFontSize(DEFAULT_FONT_SIZE);
 
 		// JTable() calls setModel() causing updating table renderers, which sets the correct row height.
 		// Then it calls initializeLocalVars() to set the row height back to 16. Thus, we need to correct again...
 		updateRowHeight();
 
-		SwingUtilities.invokeLater(new Runnable() { @Override public void run() { createTopLeftButtons(); } } );
+		setDragEnabled(true);
+		setDropMode(DropMode.ON);   // change drag cell selection behaviour to drag cell content
+		setTransferHandler(new TransferHandler(null) {
+			@Override
+			public int getSourceActions(JComponent c) {
+				return COPY_OR_MOVE;
+			}
+
+			@Override
+			public Transferable createTransferable(JComponent c) {
+				if (mDraggedObject instanceof Reaction)
+					return new ReactionTransferable(new Reaction((Reaction)mDraggedObject));
+				if (mDraggedObject instanceof StereoMolecule)
+					return new MoleculeTransferable(((StereoMolecule)mDraggedObject).getCompactCopy());
+				else
+					return new StringSelection((String)mDraggedObject);
+			}
+
+			@Override
+			public void exportDone(JComponent c, Transferable t, int action) {
+				mDraggedObject = null;
+//				if (action == MOVE)
+//					removeCellContent();
+			}
+		});
+
+		addMouseMotionListener(new MouseMotionAdapter() {
+			@Override
+			public void mouseMoved(MouseEvent e) {
+				updateClickableCellsAfterMouseMotion(e.getPoint());
+				setCursor(CursorHelper.getCursor(
+						isClickableCell(e.getPoint()) && getClickableCellEntry(e.getPoint()) != null ?
+								CursorHelper.cPointedHandCursor
+						: isSelectedFilledCell(e.getPoint()) ? CursorHelper.cHandCursor
+						: CursorHelper.cPointerCursor));
+			}
+		});
+
+		addMouseListener(new MouseAdapter() {
+			@Override
+			public void mousePressed(MouseEvent e) {
+				if (!isClickableCell(e.getPoint()) || getClickableCellEntry(e.getPoint()) == null)
+					setCursor(CursorHelper.getCursor(e.getButton() == MouseEvent.BUTTON1 ?
+							CursorHelper.cFistCursor : CursorHelper.cPointerCursor));
+				}
+
+			@Override
+			public void mouseClicked(MouseEvent e) {
+				Point p = e.getPoint();
+				if (isClickableCell(p) && getClickableCellEntry(p) != null) {
+					int column = convertTotalColumnIndexFromView(columnAtPoint(p));
+					String entry = getClickableCellEntry(p);
+					if (entry != null) {
+						CompoundTableModel tableModel = (CompoundTableModel)getModel();
+						String url = tableModel.getColumnProperty(column, CompoundTableConstants.cColumnPropertyLookupURL+"0");
+						if (CompoundTableConstants.cColumnPropertyLookupFilterRemoveMinus.equals(
+								tableModel.getColumnProperty(column, CompoundTableConstants.cColumnPropertyLookupFilter+"0")))
+							entry = entry.replace("-", "");
+						BrowserControl.displayURL(url.replace("%s", entry));
+						}
+					}
+				else if (isSelectedFilledCell(e.getPoint())) {
+					setCursor(CursorHelper.getCursor(CursorHelper.cHandCursor));
+					}
+				}
+
+			@Override
+			public void mouseExited(MouseEvent e) {
+				setCursor(CursorHelper.getCursor(CursorHelper.cPointerCursor));
+				}
+			});
+
+		mTextFieldSearch = new JTextField(6);
+		int gap = HiDPIHelper.scale(2);
+		double[][] size = {{gap, TableLayout.PREFERRED, gap}, {gap, TableLayout.PREFERRED, gap}};
+		mSearchControls = new JWindow(mParentFrame);
+		mSearchControls.getContentPane().setLayout(new TableLayout(size));
+		mSearchControls.getContentPane().add(mTextFieldSearch, "1,1");
+
+		mTextFieldSearch.addKeyListener(new KeyAdapter() {
+			@Override
+			public void keyTyped(KeyEvent e) {
+				if (e.getKeyChar() == KeyEvent.VK_ESCAPE) {
+					mTextFieldSearch.setText("");
+					filterColumnVisibility("");
+					hideSearchControls();
+				}
+				super.keyTyped(e);
+				SwingUtilities.invokeLater(() -> {
+					String s = mTextFieldSearch.getText();
+					filterColumnVisibility(s);
+					} );
+				}
+			} );
+
+		SwingUtilities.invokeLater(() -> createTopLeftButtons());
+		SwingUtilities.invokeLater(() -> createTopRightButton());
 		}
+
+	public void editCell(CompoundRecord record, int valueColumn) {
+		CompoundTableModel tableModel = (CompoundTableModel)getModel();
+		String columnType = tableModel.getColumnSpecialType(valueColumn);
+		if (columnType == null) {
+			byte[] bytes = (byte[])record.getData(valueColumn);
+			String oldValue = (bytes == null) ? "" : new String(bytes);
+			DETableDialog dialog = new DETableDialog(mParentFrame, "Edit '" + tableModel.getColumnTitle(valueColumn) + "'", oldValue);
+			String newValue = dialog.getNewValue();
+			if (newValue != null) {
+				if (tableModel.isColumnTypeRangeCategory(valueColumn)
+						&& !tableModel.getNativeCategoryList(valueColumn).containsString(newValue)) {
+					JOptionPane.showMessageDialog(mParentFrame, "For columns that contain range categories, you need to type an existing range.");
+				} else {
+					record.setData(newValue.length() == 0 ? null : newValue.getBytes(), valueColumn, true);
+					tableModel.finalizeChangeCell(record, valueColumn);
+				}
+			}
+		} else if (columnType.equals(CompoundTableModel.cColumnTypeIDCode)) {
+			StereoMolecule oldMol = tableModel.getChemicalStructure(record, valueColumn, CompoundTableModel.ATOM_COLOR_MODE_EXPLICIT, null);
+			JDrawDialog dialog = new JDrawDialog(mParentFrame, oldMol, "Edit '" + tableModel.getColumnTitle(valueColumn) + "'");
+			if (tableModel.getChildColumn(valueColumn, CompoundTableConstants.cColumnTypeAtomColorInfo) != -1)
+				dialog.getDrawArea().setAtomColorSupported(true);
+			dialog.setVisible(true);
+			if (!dialog.isCancelled()) {
+				if (tableModel.setChemicalStructure(record, dialog.getStructure(), valueColumn))
+					tableModel.finalizeChangeCell(record, valueColumn);
+			}
+		} else if (columnType.equals(CompoundTableModel.cColumnTypeRXNCode)) {
+			Reaction oldRxn = tableModel.getChemicalReaction(record, valueColumn, CompoundTableModel.ATOM_COLOR_MODE_EXPLICIT);
+			JDrawDialog dialog = new JDrawDialog(mParentFrame, oldRxn, "Edit '" + tableModel.getColumnTitle(valueColumn) + "'");
+			dialog.setVisible(true);
+			if (!dialog.isCancelled()) {
+				Reaction newRxn = dialog.getReactionAndDrawings();
+
+				// rescue catalysts, because the editor doesn't handle them
+				if (newRxn != null)
+					for (int i = 0; i<oldRxn.getCatalysts(); i++)
+						newRxn.addCatalyst(oldRxn.getCatalyst(i));
+				if (tableModel.setChemicalReaction(record, newRxn, valueColumn))
+					tableModel.finalizeChangeCell(record, valueColumn);
+			}
+		}
+	}
+
+	@Override
+	public void processMouseEvent(MouseEvent e) {
+		if (e.getID() == MouseEvent.MOUSE_PRESSED)
+			mDraggedObject = getDraggedObject(e.getPoint());
+
+		super.processMouseEvent(e);
+	}
+
+	private Object getDraggedObject(Point p) {
+		int row = rowAtPoint(p);
+		int col = columnAtPoint(p);
+
+		if (!isCellSelected(row, col))
+			return null;
+
+		CompoundTableModel tableModel = (CompoundTableModel)getModel();
+		int column = convertTotalColumnIndexFromView(col);
+		CompoundRecord record = tableModel.getRecord(row);
+		if (tableModel.isColumnTypeReaction(column))
+			return tableModel.getChemicalReaction(record, column, CompoundTableModel.ATOM_COLOR_MODE_NONE);
+		if (tableModel.isColumnTypeStructure(column))
+			return tableModel.getChemicalStructure(record, column, CompoundTableModel.ATOM_COLOR_MODE_NONE, null);
+		else if (tableModel.getColumnSpecialType(column) == null)
+			return tableModel.encodeData(record, column);
+
+		return null;
+		}
+
+	private boolean isClickableCell(Point p) {
+		int row = rowAtPoint(p);
+		int col = columnAtPoint(p);
+		return isClickableCell(row, col);
+		}
+
+	private void updateClickableCellsAfterMouseMotion(Point p) {
+		int row = rowAtPoint(p);
+		int col = columnAtPoint(p);
+		boolean isClickableCell = isClickableCell(row, col);
+
+		if (mPreviousClickableCellRow != -1
+		 && (mPreviousClickableCellRow != row || mPreviousClickableCellCol != col)) {
+			((MultiLineCellRenderer)getColumnModel().getColumn(mPreviousClickableCellCol).getCellRenderer()).setMouseLocation(10000, 10000, mPreviousClickableCellRow);
+			repaint(getCellRect(mPreviousClickableCellRow, mPreviousClickableCellCol, false));
+			mPreviousClickableCellRow = -1;
+			mPreviousClickableCellCol = -1;
+			}
+
+		if (isClickableCell) {
+			Rectangle cellRect = getCellRect(row, col, false);
+			((MultiLineCellRenderer)getColumnModel().getColumn(col).getCellRenderer()).setMouseLocation(p.x - cellRect.x, p.y - cellRect.y, row);
+			repaint(cellRect);
+			mPreviousClickableCellRow = row;
+			mPreviousClickableCellCol = col;
+			}
+		}
+
+	private boolean isClickableCell(int row, int col) {
+		CompoundTableModel tableModel = (CompoundTableModel)getModel();
+		int column = convertTotalColumnIndexFromView(col);
+		return tableModel.getColumnProperty(column, CompoundTableConstants.cColumnPropertyLookupCount) != null
+			&& tableModel.getRecord(row).getData(column) != null;
+		}
+
+	private String getClickableCellEntry(Point p) {
+		int row = rowAtPoint(p);
+		int col = columnAtPoint(p);
+		TableColumn tc = getColumnModel().getColumn(col);
+		return ((MultiLineCellRenderer)tc.getCellRenderer()).getClickableEntry(row);
+		}
+
+	private boolean isSelectedFilledCell(Point p) {
+		int row = rowAtPoint(p);
+		int col = columnAtPoint(p);
+		if (!isCellSelected(row, col))
+			return false;
+
+		CompoundTableModel tableModel = (CompoundTableModel)getModel();
+		int column = convertTotalColumnIndexFromView(col);
+		CompoundRecord record = tableModel.getRecord(row);
+		return record.getData(column) != null;
+	}
 
 	private void updateRowHeight() {
 		int rowHeight = 16;
-		for (int viewColumn=0; viewColumn<getColumnCount(); viewColumn++)
+		for (int viewColumn = 0; viewColumn<getColumnCount(); viewColumn++)
 			rowHeight = Math.max(rowHeight, getPreferredRowHeight(viewColumn));
 		setRowHeight(HiDPIHelper.scale(rowHeight));
-		}
+	}
 
 	private int getPreferredRowHeight(int viewColumn) {
 		int column = convertTotalColumnIndexFromView(viewColumn);
 		if (((CompoundTableModel)getModel()).getColumnSpecialType(column) != null)
 			return 80;
 		return ((CompoundTableModel)getModel()).isMultiLineColumn(column) ? 40 : 16;
-		}
+	}
 
+	/**
+	 * @return font size of parent table devided by UI scaling factor
+	 */
 	@Override
 	public int getFontSize() {
 		return Math.round(super.getFontSize() / HiDPIHelper.getUIScaleFactor());
-		}
+	}
 
+	/**
+	 * @param fontSize font size not including UI scaling factor
+	 */
 	@Override
 	public void setFontSize(int fontSize) {
 		super.setFontSize(HiDPIHelper.scale(fontSize));
-		getTableHeader().resizeAndRepaint();
 		}
 
 	@Override
 	public void updateUI() {
 		super.updateUI();
-		SwingUtilities.invokeLater(new Runnable() { @Override public void run() { updateRowHeaderMinWidth(); } } );
+
+		if (mSearchControls != null)
+			SwingUtilities.updateComponentTreeUI(mSearchControls);
+
+		SwingUtilities.invokeLater(() -> updateRowHeaderMinWidth() );
 		}
 
 	public void updateTableRenderers(boolean initializeColumnWidths) {
@@ -130,30 +398,111 @@ public class DETable extends JTableWithRowNumbers implements ActionListener,Comp
 	private void createTopLeftButtons() {
 		JPanel bp = new JPanel();
 		bp.setBackground(UIManager.getColor("TableHeader.background"));
-		double[][] size = {{2, TableLayout.PREFERRED, 4, TableLayout.PREFERRED, 2},{TableLayout.FILL,TableLayout.PREFERRED,TableLayout.FILL}};
+		double[][] size = {{TableLayout.PREFERRED, TableLayout.FILL, TableLayout.PREFERRED},{TableLayout.FILL}};
 		bp.setLayout(new TableLayout(size));
 
-		mJumpButton = new HiDPIIconButton("jumpTo.png", "Jump to current row", "jump");
+		mJumpButton = new HiDPIIconButton("jumpTo.png", "Jump to reference row", "jump");
 		mJumpButton.addActionListener(this);
-		bp.add(mJumpButton, "1,1");
+		bp.add(mJumpButton, "0,0");
 
 		mExpandButton = new HiDPIIconButton("expand.png", "Expand all columns", "expand");
 		mExpandButton.addActionListener(this);
-		bp.add(mExpandButton, "3,1");
+		bp.add(mExpandButton, "2,0");
 
 		updateRowHeaderMinWidth();
 
 		((JScrollPane)getParent().getParent()).setCorner(JScrollPane.UPPER_LEFT_CORNER, bp);
 		}
 
+	private void createTopRightButton() {
+		JPanel bp = new JPanel();
+		bp.setBackground(UIManager.getColor("TableHeader.background"));
+		double[][] size = {{TableLayout.FILL},{TableLayout.FILL}};
+		bp.setLayout(new TableLayout(size));
+
+		mSearchButton = new HiDPIIconButton("search.png", "Filter table columns", "search");
+		mSearchButton.addActionListener(this);
+		bp.add(mSearchButton, "0,0");
+
+		((JScrollPane)getParent().getParent()).setCorner(JScrollPane.UPPER_RIGHT_CORNER, bp);
+		}
+
+	/**
+	 * Shows or hides a popup at the top left corner containing
+	 * comboboxes for column selection and pruning bars.
+	 */
+	public void showSearchControls() {
+		if (mSearchButton == null) {
+			// If the table view is set to front with a filled column search field from
+			// DERuntimeProperties when opening a file, then it may happen that mSearchButton
+			// is not existing yet, because adding the buttons is delayed in the DETable
+			// constructor, because the parent JScollpane is not yet accessible.
+			SwingUtilities.invokeLater(() -> showSearchControls());
+			}
+		else {
+			mSearchPopupLocation = mSearchButton.getLocationOnScreen();
+			mSearchPopupLocation.translate(mSearchButton.getWidth(), 0);
+			mSearchControls.pack();
+			mSearchControls.setLocation(mSearchPopupLocation);
+			mSearchControls.setVisible(true);
+			mSearchControls.toFront();
+
+			mParentFrame.addComponentListener(this);
+			getParent().getParent().addComponentListener(this);	// this is the parent scrollpane
+			}
+		}
+
+	public void hideSearchControls() {
+		if (mSearchControls.isVisible()) {
+			mSearchControls.setVisible(false);
+			mParentFrame.removeComponentListener(this);
+			removeComponentListener(this);
+			return;
+			}
+		}
+
+	@Override
+	public void componentHidden(ComponentEvent e) {
+		if (mSearchControls.isVisible())
+			hideSearchControls();
+		}
+
+	@Override
+	public void componentMoved(ComponentEvent e) {
+		relocateSearchPopup();
+		}
+
+	@Override
+	public void componentResized(ComponentEvent e) {
+		relocateSearchPopup();
+		}
+
+	private void relocateSearchPopup() {
+		if (!mSearchButton.isShowing()) {
+			hideSearchControls();
+			}
+		else {
+			mSearchPopupLocation = mSearchButton.getLocationOnScreen();
+			mSearchPopupLocation.translate(mSearchButton.getWidth(), 0);
+			mSearchControls.setLocation(mSearchPopupLocation);
+			}
+		}
+
+	@Override
+	public void componentShown(ComponentEvent e) {}
+
 	private void updateRowHeaderMinWidth() {
 		if (mJumpButton != null)
-			setRowHeaderMinWidth(mJumpButton.getPreferredSize().width + mExpandButton.getPreferredSize().width + 8);
+			setRowHeaderMinWidth(mJumpButton.getPreferredSize().width + mExpandButton.getPreferredSize().width);
+		}
+
+	public void scrollToRow(int row) {
+		scrollRectToVisible(new Rectangle(0, row * getRowHeight(), getWidth(), getRowHeight()));
 		}
 
 	public void actionPerformed(ActionEvent e) {
 		if (e.getActionCommand().equals("jump")) {
-			new DETaskJumpToCurrentRow(mParentFrame, mMainPane).defineAndRun();
+			new DETaskJumpToReferenceRow(mParentFrame, mMainPane).defineAndRun();
 			return;
 			}
 		if (e.getActionCommand().equals("expand")) {
@@ -181,6 +530,12 @@ public class DETable extends JTableWithRowNumbers implements ActionListener,Comp
 				mNonExpandedColumnSizes = null;
 				}
 			return;
+			}
+		if (e.getActionCommand().equals("search")) {
+			if (mSearchControls.isVisible())
+				hideSearchControls();
+			else
+				showSearchControls();
 			}
 		}
 
@@ -210,37 +565,14 @@ public class DETable extends JTableWithRowNumbers implements ActionListener,Comp
 			return 80;
 			}
 
-	 // use one of the following to test the original Substance renderers
-	 /*
-	 if (((CompoundTableModel)getModel()).isColumnTypeDouble(column)) {
-		 SubstanceDefaultTableCellRenderer.DoubleRenderer renderer = new SubstanceDefaultTableCellRenderer.DoubleRenderer() {
-			 public Component getTableCellRendererComponent(JTable table, Object value,
-	 				boolean isSelected, boolean hasFocus, int row, int column) {
-			 	double d = Double.NaN;
-			 	try { d = Double.parseDouble((String)value); }
-			 	catch (NumberFormatException nfe) {}
-			 	return super.getTableCellRendererComponent(table, new Double(d), isSelected, hasFocus, row, column);
-			 	}
-		 	};
-	 	getColumnModel().getColumn(viewColumn).setCellRenderer(renderer);
-	 	return 40;
-	 }*/
-	 /*if (((CompoundTableModel)getModel()).isColumnTypeDouble(column)) {
-		 SubstanceDefaultTableCellRenderer renderer = new SubstanceDefaultTableCellRenderer();
-	 	getColumnModel().getColumn(viewColumn).setCellRenderer(renderer);
-	 	return 40;
-	 }*/
-	 /*if (((CompoundTableModel)getModel()).isColumnTypeDouble(column)) {
-	 	TableCellRenderer renderer = mTable.getDefaultRenderer(mTable.getColumnClass(viewColumn));
-	 	getColumnModel().getColumn(viewColumn).setCellRenderer(renderer);
-	 	return 40;
-	 }*/
+		boolean isURL = ((CompoundTableModel)getModel()).getColumnProperty(column,
+				CompoundTableConstants.cColumnPropertyLookupCount) != null;
 
 		if (((CompoundTableModel)getModel()).isMultiLineColumn(column)) {
-//				 SubstanceMultiLineCellRenderer.MultiLineRenderer renderer = new SubstanceMultiLineCellRenderer.MultiLineRenderer();
 			if (!(tc.getCellRenderer() instanceof MultiLineCellRenderer)) {
 				MultiLineCellRenderer renderer = new MultiLineCellRenderer();
 				renderer.setAlternateRowBackground(true);
+				renderer.setIsURL(isURL);
 				tc.setCellRenderer(renderer);
 				}
 
@@ -250,15 +582,11 @@ public class DETable extends JTableWithRowNumbers implements ActionListener,Comp
 			return 40;
 			}
 
-//	 		getColumnModel().getColumn(viewColumn).setCellRenderer(null);
-
-	 		// use a MultiLineCellRenderer to allow text wrapping
-//			 SubstanceMultiLineCellRenderer.MultiLineRenderer renderer = new SubstanceMultiLineCellRenderer.MultiLineRenderer();
-
 		if (!(tc.getCellRenderer() instanceof MultiLineCellRenderer)) {
 			MultiLineCellRenderer renderer = new MultiLineCellRenderer();
 			renderer.setLineWrap(false);
 			renderer.setAlternateRowBackground(true);
+			renderer.setIsURL(isURL);
 			tc.setCellRenderer(renderer);
 			}
 
@@ -269,12 +597,13 @@ public class DETable extends JTableWithRowNumbers implements ActionListener,Comp
 		}
 
 	public void cleanup() {
-		mHiddenCellRendererMap.clear();
+		mHiddenColumnMap.clear();
 		getModel().removeTableModelListener(this);
 		((CompoundTableModel)getModel()).removeCompoundTableListener(this);
 		}
 
-	public void paint(Graphics g) {
+	@Override
+	public void paintComponent(Graphics g) {
 			// Deleting large numbers of records at the end of an even larger table
 			// causes sometimes paint() calls from which g.getClipBounds() and this.getBounds()
 			// reflect the situation before the actual deletion while rowAtPoint() accesses the
@@ -289,14 +618,14 @@ public class DETable extends JTableWithRowNumbers implements ActionListener,Comp
 		int rMax = rowAtPoint(lowerRight);
 		if (rMin == -1 && rMax == -1)
 			return;
-		
-		super.paint(g);
+
+		CompoundTableModel tableModel = (CompoundTableModel)getModel();
+
+		super.paintComponent(g);
 
 		if (getColumnCount() != 0 && getRowCount() != 0) {
 			int firstRow = 0;
 			int lastRow = getRowCount()-1;
-			int firstColumn = 0;
-			int lastColumn = getColumnCount()-1;
 
 			if (mScrollPane != null) {
 				Rectangle viewRect = mScrollPane.getViewport().getViewRect();
@@ -304,10 +633,6 @@ public class DETable extends JTableWithRowNumbers implements ActionListener,Comp
 				int rowAtBottom = rowAtPoint(new Point(0, viewRect.y + viewRect.height));
 				firstRow = Math.max(firstRow, rowAtTop);
 				lastRow = (rowAtBottom == -1) ? lastRow : Math.min(lastRow, rowAtBottom);
-				int columnAtLeft = columnAtPoint(new Point(viewRect.x, 0));
-				int columnAtRight = columnAtPoint(new Point(viewRect.x + viewRect.width, 0));
-				firstColumn = Math.max(firstColumn, columnAtLeft);
-				lastColumn = (columnAtRight == -1) ? lastColumn : Math.min(lastColumn, columnAtRight);
 				}
 
 					// draw red frame of current record
@@ -324,8 +649,9 @@ public class DETable extends JTableWithRowNumbers implements ActionListener,Comp
 					}
 				}
 
-			for (int column=firstColumn; column<=lastColumn; column++) {
-				CompoundTableModel tableModel = (CompoundTableModel)getModel();
+			int[] firstAndLastColumn = getFirstAndLastColumn();
+
+			for (int column=firstAndLastColumn[0]; column<=firstAndLastColumn[1]; column++) {
 				int modelColumn = convertTotalColumnIndexFromView(column);
 				int detailCount = tableModel.getColumnDetailCount(modelColumn);
 				int lookupCount = tableModel.getColumnLookupCount(modelColumn);
@@ -370,6 +696,23 @@ public class DETable extends JTableWithRowNumbers implements ActionListener,Comp
 			}
 		}
 
+	private int[] getFirstAndLastColumn() {
+		int[] firstAndLastColumn = new int[2];
+		firstAndLastColumn[1] = getColumnCount()-1;
+
+		Rectangle viewRect = mScrollPane != null ?
+				mScrollPane.getViewport().getViewRect() : new Rectangle(0, 0, getWidth(), getHeight());
+
+		int columnAtLeft = columnAtPoint(new Point(viewRect.x, 0));
+		int columnAtRight = columnAtPoint(new Point(viewRect.x + viewRect.width, 0));
+		if (firstAndLastColumn[0] < columnAtLeft)
+			firstAndLastColumn[0] = columnAtLeft;
+		if (firstAndLastColumn[1] > columnAtRight && columnAtRight != -1)
+			firstAndLastColumn[1] = columnAtRight;
+
+		return firstAndLastColumn;
+		}
+
 	public void addNotify() {
 		super.addNotify();
 
@@ -377,9 +720,48 @@ public class DETable extends JTableWithRowNumbers implements ActionListener,Comp
 			mScrollPane = (JScrollPane) getParent().getParent();
 		}
 
+	@Override
 	protected JTableHeader createDefaultTableHeader() {
 		return new JTableHeader(this.getColumnModel()) {
 			private static final long serialVersionUID = 0x20110105;
+
+			@Override
+			public void paintComponent(Graphics g) {
+				// This shouldn't be necessary, but without clearing the background we sometimes
+				// have double buffering artefacts and see pixel conten t from other views in the background!
+				// TODO Check with >JRE8 and updated Substance LaF, whether this is still necessary:
+				// Open worldfactbock and click a few table cells and see, whether table header shows artefacts!
+				g.setColor(getBackground());
+				g.fillRect(0,0, getWidth(), getHeight());
+
+				super.paintComponent(g);
+
+				buildColumnGroupToColorMap();
+				int[] firstAndLastColumn = getFirstAndLastColumn();
+
+				// Draw colored lines on visible headers to indicate column groups!
+				// (Using a custom header renderer to indicate column groups IS NOT AN OPTION,
+				//  because the Substance LaF uses its own SubstanceDefaultTableCellHeaderRenderer.)
+				for (int visColumn=firstAndLastColumn[0]; visColumn<=firstAndLastColumn[1]; visColumn++) {
+					int column = convertTotalColumnIndexFromView(visColumn);
+					String groupNames = ((CompoundTableModel)getModel()).getColumnProperty(column, CompoundTableConstants.cColumnPropertyDisplayGroup);
+					if (groupNames != null) {
+						Rectangle rect = getTableHeader().getHeaderRect(visColumn);
+						String[] groupName = groupNames.split(";");
+						int gap = HiDPIHelper.scale(2);
+						int x = rect.x+gap;
+						int w = rect.width-2*gap;
+						int count = groupName.length;
+						int l = (w+count-1) / count;
+						for (int i=0; i<groupName.length; i++) {
+							Color color = mColumnGroupToColorMap.get(groupName[i]);
+							g.setColor(color == null ? Color.GRAY : color);
+							g.fillRect(x + w*i/count, rect.y+gap, l, gap);
+							}
+						}
+					}
+				}
+
 			public String getToolTipText(MouseEvent e) {
 				int visColumn = getTableHeader().columnAtPoint(e.getPoint());
 				if (visColumn != -1) {
@@ -389,13 +771,21 @@ public class DETable extends JTableWithRowNumbers implements ActionListener,Comp
 					String alias = model.getColumnAlias(column);
 					if (alias != null)
 						html.append("<br><i>alias:</i> "+alias);
+					String group = model.getColumnProperty(column, CompoundTableConstants.cColumnPropertyDisplayGroup);
+					if (group != null) {
+						String pluralS = group.indexOf(';') == -1 ? "" : "s";
+						html.append("<br><i>column group"+pluralS+":</i> " + group);
+						}
 					String description = model.getColumnDescription(column);
 					if (description != null)
 						html.append("<br><i>description:</i> "+description);
+					String formula = model.getColumnProperty(column, CompoundTableConstants.cColumnPropertyFormula);
+					if (formula != null)
+						html.append("<br><i>Formula used:</i> "+formula);
 					html.append("<br><i>perceived data type:</i> ");
-					if (CompoundTableModel.cColumnTypeIDCode.equals(model.getColumnSpecialType(column)))
+					if (model.isColumnTypeStructure(column))
 						html.append("chemical structure");
-					else if (CompoundTableModel.cColumnTypeRXNCode.equals(model.getColumnSpecialType(column)))
+					else if (model.isColumnTypeReaction(column))
 						html.append("chemical reaction");
 					else if (model.isColumnTypeDouble(column))
 						html.append("numerical");
@@ -437,6 +827,13 @@ public class DETable extends JTableWithRowNumbers implements ActionListener,Comp
 						}
 					if (model.getColumnSignificantDigits(column) != 0)
 						html.append("<br>Numerical values are rounded to "+model.getColumnSignificantDigits(column)+" significant digits.");
+					String refColumn = model.getColumnProperty(column, CompoundTableConstants.cColumnPropertyReferencedColumn);
+					if (refColumn != null) {
+						String refColumnTitle = model.getColumnTitle(model.findColumn(refColumn));
+						String monoOrBi = CompoundTableConstants.cColumnPropertyReferenceTypeRedundant.equals(
+								model.getColumnProperty(column, CompoundTableConstants.cColumnPropertyReferenceType)) ? "Bi" : "Mono";
+						html.append("<br>"+monoOrBi+"-directionally references '" + refColumnTitle + "'.");
+						}
 
 					html.append("</html>");
 					return html.toString();
@@ -446,15 +843,46 @@ public class DETable extends JTableWithRowNumbers implements ActionListener,Comp
 			};
 		}
 
+	private void buildColumnGroupToColorMap() {
+		if (mColumnGroupToColorMap == null)
+			mColumnGroupToColorMap = new TreeMap<>();
+		else
+			mColumnGroupToColorMap.clear();
+
+		CompoundTableModel tableModel = (CompoundTableModel)getModel();
+		for (int column=0; column<tableModel.getTotalColumnCount(); column++) {
+			String groups = tableModel.getColumnProperty(column, CompoundTableConstants.cColumnPropertyDisplayGroup);
+			if (groups != null)
+				for (String group:groups.split(";"))
+					mColumnGroupToColorMap.put(group, Color.GRAY); // place holder
+		}
+		int colorCount = mColumnGroupToColorMap.keySet().size();
+		if (colorCount != 0) {
+			Color[] color = VisualizationColor.createDiverseColorList(colorCount);
+			String[] groups = mColumnGroupToColorMap.keySet().toArray(new String[0]);
+			for (int i=0; i<groups.length; i++)
+				mColumnGroupToColorMap.put(groups[i], color[i]);
+			}
+		}
+
 	public void compoundTableChanged(CompoundTableEvent e) {
 		if (e.getType() == CompoundTableEvent.cNewTable) {
-			mHiddenCellRendererMap.clear();
+			mHiddenColumnMap.clear();
 			}
 		else if (e.getType() == CompoundTableEvent.cRemoveColumns) {
-			Iterator<String> iterator = mHiddenCellRendererMap.keySet().iterator();
+			// remove from mHiddenColumnMap all columns that cannot be found anymore
+			Iterator<String> iterator = mHiddenColumnMap.keySet().iterator();
 			while (iterator.hasNext())
 				if (((CompoundTableModel)getModel()).findColumn(iterator.next()) == -1)
 					iterator.remove();
+
+			// also remove all visible columns from columnModel, which are not in the tableModel anymore
+			for (int i=getColumnModel().getColumnCount()-1; i>=0; i--) {
+				TableColumn column = getColumnModel().getColumn(i);
+				if (((CompoundTableModel) getModel()).findColumn((String)column.getHeaderValue()) == -1) {
+					getColumnModel().removeColumn(column);
+					}
+				}
 			}
 		else if (e.getType() == CompoundTableEvent.cChangeActiveRow) {
 			mCurrentRecord = ((CompoundTableModel)getModel()).getActiveRow();
@@ -466,12 +894,13 @@ public class DETable extends JTableWithRowNumbers implements ActionListener,Comp
 		}
 
 	public void tableChanged(TableModelEvent e) {
+		// the first call to this is by the JTable constructor, i.e. before the DETable initialization!!!
+
 		ArrayList<DEColumnProperty> columnPropertyList = null;
 		int[] rowSelection = null;
 
 		// insertion, deletion or renaming of a column
-		if (e.getFirstRow() == TableModelEvent.HEADER_ROW
-				&& e.getColumn() != TableModelEvent.ALL_COLUMNS) {
+		if (e.getFirstRow() == TableModelEvent.HEADER_ROW && e.getColumn() != TableModelEvent.ALL_COLUMNS) {
 			columnPropertyList = getColumnPropertyList(e.getType() != TableModelEvent.UPDATE);
 			rowSelection = getRowSelection();
 			}
@@ -479,12 +908,11 @@ public class DETable extends JTableWithRowNumbers implements ActionListener,Comp
 		super.tableChanged(e);
 
 		// re-apply column visibility
-		if (e.getFirstRow() == TableModelEvent.HEADER_ROW
-				&& e.getColumn() != TableModelEvent.ALL_COLUMNS) {
+		if (mHiddenColumnMap != null
+		 && e.getFirstRow() == TableModelEvent.HEADER_ROW && e.getColumn() != TableModelEvent.ALL_COLUMNS)
 			for (int column = 0; column < ((CompoundTableModel) getModel()).getTotalColumnCount(); column++)
-				if (mHiddenCellRendererMap.keySet().contains(((CompoundTableModel) getModel()).getColumnTitleNoAlias(column)))
+				if (mHiddenColumnMap.keySet().contains(((CompoundTableModel) getModel()).getColumnTitleNoAlias(column)))
 					setColumnVisibility(column, false);
-			}
 
 		if (e.getFirstRow() == TableModelEvent.HEADER_ROW)
 			updateTableRenderers(true);
@@ -503,34 +931,160 @@ public class DETable extends JTableWithRowNumbers implements ActionListener,Comp
 			}
 		}
 
-	public void setColumnVisibility(int column, boolean b) {
+	/**
+	 * @param column total column index of visible or hidden column
+	 * @return column width in pixel independent of UI scaling
+	 */
+	public int getColumnWidth(int column) {
+		int viewColumn = convertTotalColumnIndexToView(column);
+		if (viewColumn != -1)
+			return (int)(getColumnModel().getColumn(viewColumn).getPreferredWidth()/HiDPIHelper.getUIScaleFactor());
+
+		DEHiddenColumn hiddenColumnSpec = mHiddenColumnMap.get(((CompoundTableModel)getModel()).getColumnTitleNoAlias(column));
+		return (hiddenColumnSpec == null) ? 80 : (int)(hiddenColumnSpec.columnWidth / HiDPIHelper.getUIScaleFactor());
+		}
+
+	/**
+	 * @param column total column index of visible or hidden column
+	 * @return true, if column has a MultiLineCellRenderer set to wrap text
+	 */
+	public boolean isTextWrapped(int column) {
+		TableCellRenderer renderer = null;
+		int viewColumn = convertTotalColumnIndexToView(column);
+		if (viewColumn != -1) {
+			renderer = getColumnModel().getColumn(viewColumn).getCellRenderer();
+			}
+		else {
+			DEHiddenColumn hiddenColumnSpec = mHiddenColumnMap.get(((CompoundTableModel)getModel()).getColumnTitleNoAlias(column));
+			if (hiddenColumnSpec != null)
+				renderer = hiddenColumnSpec.cellRenderer;
+			}
+
+		return (renderer != null && renderer instanceof MultiLineCellRenderer) ? ((MultiLineCellRenderer)renderer).getLineWrap() : false;
+		}
+
+	/**
+	 * Returns true, if the column is visible despite the visibility filter would hide it;
+	 * return false, if the column was explicitly declared hidden; returns null otherwise.
+	 * @return null or "true" or "false"
+	 */
+	public String getExplicitColumnVisibilityString(int column) {
 		int displayableColumn = ((CompoundTableModel)getModel()).convertToDisplayableColumnIndex(column);
+		if (displayableColumn == -1)
+			return null;
+
 		int viewColumn = convertColumnIndexToView(displayableColumn);
-		if (b && viewColumn == -1) {
-			int targetColumn = 0;
-			for (int i=0; i<getColumnCount(); i++)
-				if (convertColumnIndexToModel(i) < displayableColumn)
-					targetColumn++;
+
+		if (viewColumn != -1) {	// is visible
+			if (mTextFieldSearch.getText().length() != 0
+			 && !((CompoundTableModel)getModel()).getColumnTitle(column).contains(mTextFieldSearch.getText())) {
+				return "true";
+				}
+			}
+		else {
+			String columnName = ((CompoundTableModel)getModel()).getColumnTitleNoAlias(column);
+			DEHiddenColumn hiddenColumnSpec = mHiddenColumnMap.get(columnName);
+			if (hiddenColumnSpec.isManuallyHidden)
+				return "false";
+			}
+
+		return null;
+		}
+
+	public void setColumnVisibility(int column, boolean b) {
+		setColumnVisibility(column, b, false);
+		}
+
+	private void setColumnVisibility(int column, boolean b, boolean isFilterAction) {
+		int displayableColumn = ((CompoundTableModel)getModel()).convertToDisplayableColumnIndex(column);
+		if (displayableColumn == -1)
+			return;
+
+		int viewColumn = convertColumnIndexToView(displayableColumn);
+		boolean isVisible = (viewColumn != -1);
+		String columnName = ((CompoundTableModel)getModel()).getColumnTitleNoAlias(column);
+
+		if (isVisible) {
+			if (b)
+				return;
+
+			TableColumn tc = getColumnModel().getColumn(viewColumn);
+			mHiddenColumnMap.put(columnName, new DEHiddenColumn(tc.getCellRenderer(), tc.getPreferredWidth(),
+					viewColumn, isColumnSelected(viewColumn), !isFilterAction, isFilterAction));
+			removeColumn(tc);
+			return;
+			}
+
+		DEHiddenColumn hiddenColumnSpec = mHiddenColumnMap.get(columnName);
+		if (isFilterAction) {
+			hiddenColumnSpec.isHiddenByFilter = !b;
+			}
+		else {
+			if (b)	// if filtered out but manually selected to show, then override filter
+				hiddenColumnSpec.isHiddenByFilter = false;
+
+			hiddenColumnSpec.isManuallyHidden = !b;
+			}
+
+		if (!hiddenColumnSpec.isHiddenByFilter && !hiddenColumnSpec.isManuallyHidden) {
+			int targetColumn = mIntendedColumnOrder.getColumnIndexForInsertion(column);
 
 			addColumn(new TableColumn(displayableColumn));
 			viewColumn = convertColumnIndexToView(displayableColumn);
 			if (viewColumn != targetColumn) {
+				mIntendedColumnOrder.setNeglectMoveColumnEvents(true);
 				moveColumn(viewColumn, targetColumn);
+				mIntendedColumnOrder.setNeglectMoveColumnEvents(false);
 				viewColumn = targetColumn;
 				}
 
-			String columnName = ((CompoundTableModel)getModel()).getColumnTitleNoAlias(column);
-			getColumnModel().getColumn(viewColumn).setPreferredWidth(mHiddenColumnSizes.get(columnName));
-			getColumnModel().getColumn(viewColumn).setCellRenderer(mHiddenCellRendererMap.get(columnName));
-			mHiddenCellRendererMap.remove(columnName);
+			getColumnModel().getColumn(viewColumn).setPreferredWidth(hiddenColumnSpec.columnWidth);
+			getColumnModel().getColumn(viewColumn).setCellRenderer(hiddenColumnSpec.cellRenderer);
+			getColumnModel().getSelectionModel().addSelectionInterval(viewColumn, viewColumn);
+			mHiddenColumnMap.remove(columnName);
 			}
-		if (!b && viewColumn != -1) {
-			String columnName = ((CompoundTableModel)getModel()).getColumnTitleNoAlias(column);
-			TableColumn tc = getColumnModel().getColumn(viewColumn);
-			mHiddenColumnSizes.put(columnName, new Integer(tc.getPreferredWidth()));
-			mHiddenCellRendererMap.put(columnName, tc.getCellRenderer());
-			removeColumn(tc);
+		}
+
+/*	private void printHiddenStatus(String pos, boolean b, int column) {
+		System.out.print(pos+": visCount:"+getColumnModel().getColumnCount()+" totalCount:"+((CompoundTableModel)getModel()).getTotalColumnCount());
+		System.out.print((b?", show '":", hide '")+((CompoundTableModel)getModel()).getColumnTitle(column)+"'");
+		System.out.print(", hidden:"); for (String key:mHiddenColumnMap.keySet()) System.out.print(" "+key); System.out.println();
+		}*/
+
+	private void filterColumnVisibility(String s) {
+		for (int column=0; column<((CompoundTableModel)getModel()).getTotalColumnCount(); column++) {
+			int displayableColumn = ((CompoundTableModel)getModel()).convertToDisplayableColumnIndex(column);
+			if (displayableColumn != -1) {
+				boolean isVisible = true;
+				if (s != null && s.length() != 0) {
+					String title = ((CompoundTableModel)getModel()).getColumnTitle(column);
+					if (s.startsWith("regex:"))
+						try { isVisible = title.matches(s.substring(6)); } catch (PatternSyntaxException pse) {}
+					else if (s.indexOf(',') == -1)
+						isVisible = title.contains(s);
+					else {
+						String[] ss = s.split(",");
+						isVisible = false;
+						for (String sss:ss) {
+							if (title.contains(sss)) {
+								isVisible = true;
+								break;
+								}
+							}
+						}
+					}
+				setColumnVisibility(column, isVisible);
+				}
 			}
+		}
+
+	public void setColumnFilterText(String s) {
+		mTextFieldSearch.setText(s);
+		filterColumnVisibility(s);
+		}
+
+	public String getColumnFilterText() {
+		return mTextFieldSearch.getText();
 		}
 
 	public ArrayList<DEColumnProperty> getColumnPropertyList(boolean columnIndicesDirty) {
@@ -538,7 +1092,7 @@ public class DETable extends JTableWithRowNumbers implements ActionListener,Comp
 		ArrayList<DEColumnProperty> columnPropertyList = new ArrayList<DEColumnProperty>();
 		if (columnIndicesDirty) {
 			// If INSERT or DELETE, visible column titles are kept,
-			// but column order and count is may change.
+			// but column order and count may change.
 			for (int column=0; column<getColumnCount(); column++) {
 				String visName = (String)getColumnModel().getColumn(column).getHeaderValue();
 				String name = tableModel.getColumnTitleNoAlias(tableModel.findColumn(visName));
@@ -561,12 +1115,30 @@ public class DETable extends JTableWithRowNumbers implements ActionListener,Comp
 		}
 
 	/**
-	 * Determines whether visible columns are in native order, i.e. in
-	 * the same order as in the underlying CompoundTableModel.
-	 * @return TAB delimited String of column names or null if native order
+	 * Using a DEColumnOrderHelper, this class tracks the desired order of displayable columns.
+	 * If a hidden column is shown, then it should appear, where is was before hiding it.
+	 * If visible columns were repositioned in-between, then the DEColumnOrderHelper does its
+	 * best to find a suitable position.
+	 * This method returnes a TAB-delimited list of all displayable columns in the desired
+	 * display order. If this order exactly matches the order of the native column order in
+	 * the underlying CompoundTableModel, the null is returned.
+	 * @return TAB delimited String of visible column names or null if in native order
 	 */
-	public String getColumnOrder() {
-		int previousColumn = -1;
+	public String getColumnOrderString() {
+		if (mIntendedColumnOrder.isNative())
+			return null;
+
+		CompoundTableModel tableModel = (CompoundTableModel)getModel();
+		StringBuffer buf = new StringBuffer();
+		for (int column: mIntendedColumnOrder) {
+			if (buf.length() != 0)
+				buf.append('\t');
+			buf.append(tableModel.getColumnTitleNoAlias(column));
+			}
+
+		return buf.toString();
+
+/*		int previousColumn = -1;
 		boolean inNativeOrder = true;
 		for (int viewColumn=0; viewColumn<getColumnCount(); viewColumn++) {
 			int column = convertTotalColumnIndexFromView(viewColumn);
@@ -587,25 +1159,44 @@ public class DETable extends JTableWithRowNumbers implements ActionListener,Comp
 				buf.append('\t');
 			buf.append(tableModel.getColumnTitleNoAlias(column));
 			}
-		return buf.toString();
+		return buf.toString();  */
+		}
+
+	public DEColumnOrder getIntendedColumnOrder() {
+		return mIntendedColumnOrder;
 		}
 
 	/**
 	 * Rearranges visible columns to match given column order.
 	 * @param columnOrder TAB delimited String of column names
 	 */
-	public void setColumnOrder(String columnOrder) {
+	public void setColumnOrderString(String columnOrder) {
 		setColumnOrder(columnOrder.split("\\t"));
 		}
-		
+
 	private void setColumnOrder(String[] columnTitle) {
+		mIntendedColumnOrder.setNeglectMoveColumnEvents(true);
+
 		CompoundTableModel tableModel = (CompoundTableModel)getModel();
-		int newIndex = 0;
+		int dispIndex = 0;
+		int visIndex = 0;
 		for (String title:columnTitle) {
-			int viewColumn = convertTotalColumnIndexToView(tableModel.findColumn(title));
-			if (viewColumn != -1)
-				getColumnModel().moveColumn(viewColumn, newIndex++);
+			int column = tableModel.findColumn(title);
+			if (column != -1) {
+				int displayableColumn = tableModel.convertToDisplayableColumnIndex(column);
+				if (displayableColumn != -1) {
+					Integer object = new Integer(column);
+					mIntendedColumnOrder.remove(object);
+					mIntendedColumnOrder.add(dispIndex++, object);
+
+					int viewColumn = convertColumnIndexToView(displayableColumn);
+					if (viewColumn != -1)
+						getColumnModel().moveColumn(viewColumn, visIndex++);
+					}
+				}
 			}
+
+		mIntendedColumnOrder.setNeglectMoveColumnEvents(false);
 		}
 
 	/**
@@ -665,6 +1256,102 @@ public class DETable extends JTableWithRowNumbers implements ActionListener,Comp
 		for (int row=0; row<rowCount; row++)
 			if ((selection[row >> 5] & (1 << (row % 32))) != 0)
 				tableModel.getTotalRecord(row).setSelection(true);
+		}
+	}
+
+class DETableDialog extends JDialog implements ActionListener {
+	private JTextArea mTextArea;
+	private String mOldValue,mNewValue;
+
+	public DETableDialog(Frame owner, String title, String oldValue) {
+		super(owner, title, true);
+
+		mOldValue = oldValue;
+		mTextArea = new JTextArea(oldValue);
+
+		// Change font to allow displaying rare unicode characters
+		mTextArea.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, mTextArea.getFont().getSize()));
+		mTextArea.transferFocus();
+		JScrollPane scrollPane = new JScrollPane(mTextArea, JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED, JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
+		scrollPane.setPreferredSize(new Dimension(HiDPIHelper.scale(320), HiDPIHelper.scale(100)));
+
+//		mTextArea.getInputMap(JTextArea.WHEN_FOCUSED).put(KeyStroke.getKeyStroke(KeyEvent.VK_ENTER,0),"dialogOK");
+//		mTextArea.getActionMap().put("dialogOK", new AbstractAction() {
+//			@Override
+//			public void actionPerformed(ActionEvent e) {
+//				done(true);
+//				}
+//			});
+//		mTextArea.getInputMap(JTextArea.WHEN_FOCUSED).put(KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, KeyEvent.SHIFT_DOWN_MASK),"fakeEnter");
+//		mTextArea.getActionMap().put("fakeEnter", new AbstractAction() {
+//			@Override
+//			public void actionPerformed(ActionEvent e) {
+//				int pos = mTextArea.getCaretPosition();
+//				mTextArea.insert("\n", pos);
+//				mTextArea.setCaretPosition(pos + 1);
+//				}
+//			});
+		mTextArea.getInputMap(JTextArea.WHEN_FOCUSED).put(KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE,0),"dialogCancel");
+		mTextArea.getActionMap().put("dialogCancel", new AbstractAction() {
+			@Override
+			public void actionPerformed(ActionEvent e) {
+				done(false);
+			}
+		});
+
+		JLabel message = new JLabel("Press ESC (Cancel) or Ctrl-ENTER (OK) to close dialog!", JLabel.RIGHT);
+		message.setFont(message.getFont().deriveFont(0,HiDPIHelper.scale(11)));
+
+		JButton bcancel = new JButton("Cancel");
+		bcancel.addActionListener(this);
+		JButton bok = new JButton("OK");
+		bok.addActionListener(this);
+		getRootPane().setDefaultButton(bok);
+
+		int gap = HiDPIHelper.scale(8);
+		double[][] size = { {gap, TableLayout.PREFERRED, gap, TableLayout.PREFERRED, gap, TableLayout.PREFERRED, gap },
+							{gap, TableLayout.PREFERRED, gap, TableLayout.PREFERRED, gap, TableLayout.PREFERRED, gap} };
+		getContentPane().setLayout(new TableLayout(size));
+		getContentPane().add(scrollPane, "1,1,5,1");
+		getContentPane().add(message, "1,3,5,3");
+		getContentPane().add(bcancel, "3,5");
+		getContentPane().add(bok, "5,5");
+
+		pack();
+		setLocationRelativeTo(owner);
+		setVisible(true);
+		}
+
+	public String getNewValue() {
+		return mNewValue;
+		}
+
+	@Override
+	public void actionPerformed(ActionEvent e) {
+		done("OK".equals(e.getActionCommand()));
+		}
+
+	private void done(boolean isOK) {
+		if (isOK && !mTextArea.getText().equals(mOldValue))
+			mNewValue = mTextArea.getText();
+
+		setVisible(false);
+		}
+	}
+
+class DEHiddenColumn {
+	boolean isManuallyHidden,isHiddenByFilter;
+	TableCellRenderer cellRenderer;
+	int columnWidth, viewIndex;
+	boolean isSelected;
+
+	public DEHiddenColumn(TableCellRenderer cellRenderer, int columnWidth, int viewIndex, boolean isSelected, boolean isManuallyHidden, boolean isHiddenByFilter) {
+		this.cellRenderer = cellRenderer;
+		this.columnWidth = columnWidth;
+		this.viewIndex = viewIndex;
+		this.isSelected = isSelected;
+		this.isManuallyHidden = isManuallyHidden;
+		this.isHiddenByFilter = isHiddenByFilter;
 		}
 	}
 

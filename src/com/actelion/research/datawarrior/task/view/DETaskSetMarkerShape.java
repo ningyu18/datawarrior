@@ -18,23 +18,16 @@
 
 package com.actelion.research.datawarrior.task.view;
 
+import com.actelion.research.datawarrior.DEMainPane;
+import com.actelion.research.gui.hidpi.HiDPIHelper;
 import com.actelion.research.table.model.CompoundTableListHandler;
+import com.actelion.research.table.model.CompoundTableModel;
+import com.actelion.research.table.view.*;
 import info.clearthought.layout.TableLayout;
 
-import java.awt.Frame;
+import javax.swing.*;
+import java.awt.*;
 import java.util.Properties;
-
-import javax.swing.JComboBox;
-import javax.swing.JComponent;
-import javax.swing.JLabel;
-import javax.swing.JPanel;
-
-import com.actelion.research.datawarrior.DEMainPane;
-import com.actelion.research.table.model.CompoundTableModel;
-import com.actelion.research.table.view.CompoundTableView;
-import com.actelion.research.table.view.JVisualization2D;
-import com.actelion.research.table.view.JVisualization3D;
-import com.actelion.research.table.view.VisualizationPanel;
 
 
 public class DETaskSetMarkerShape extends DETaskAbstractSetViewOptions {
@@ -64,9 +57,15 @@ public class DETaskSetMarkerShape extends DETaskAbstractSetViewOptions {
 		}
 
 	@Override
-	public JComponent createInnerDialogContent() {
-		double[][] size = { {8, TableLayout.PREFERRED, 4, TableLayout.PREFERRED, 8},
-							{8, TableLayout.PREFERRED, 8} };
+	public OTHER_VIEWS getOtherViewMode() {
+		return OTHER_VIEWS.GRAPHICAL2D;
+		}
+
+	@Override
+	public JComponent createViewOptionContent() {
+		int gap = HiDPIHelper.scale(8);
+		double[][] size = { {gap, TableLayout.PREFERRED, gap/2, TableLayout.PREFERRED, gap},
+							{gap, TableLayout.PREFERRED, gap} };
 		JPanel cp = new JPanel();
 		cp.setLayout(new TableLayout(size));
 
@@ -105,8 +104,9 @@ public class DETaskSetMarkerShape extends DETaskAbstractSetViewOptions {
 		}
 
 	@Override
-	public void addViewConfiguration(Properties configuration) {
-		configuration.setProperty(PROPERTY_COLUMN, getTableModel().getColumnTitleNoAlias(getInteractiveVisualization().getMarkerShapeColumn()));
+	public void addViewConfiguration(CompoundTableView view, Properties configuration) {
+		JVisualization visualization = ((VisualizationPanel)view).getVisualization();
+		configuration.setProperty(PROPERTY_COLUMN, getTableModel().getColumnTitleNoAlias(visualization.getMarkerShapeColumn()));
 		}
 
 	@Override
@@ -138,7 +138,9 @@ public class DETaskSetMarkerShape extends DETaskAbstractSetViewOptions {
 
 	@Override
 	public void applyConfiguration(CompoundTableView view, Properties configuration, boolean isAdjusting) {
-		int column = getTableModel().findColumn(configuration.getProperty(PROPERTY_COLUMN, CompoundTableModel.cColumnUnassignedCode));
-		((VisualizationPanel)view).getVisualization().setMarkerShapeColumn(column);
+		if (view instanceof VisualizationPanel) {
+			int column = getTableModel().findColumn(configuration.getProperty(PROPERTY_COLUMN, CompoundTableModel.cColumnUnassignedCode));
+			((VisualizationPanel)view).getVisualization().setMarkerShapeColumn(column);
+			}
 		}
 	}

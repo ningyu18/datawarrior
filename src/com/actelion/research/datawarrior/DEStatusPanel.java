@@ -19,6 +19,7 @@
 package com.actelion.research.datawarrior;
 
 import com.actelion.research.calc.ProgressListener;
+import com.actelion.research.gui.JProgressPanel;
 import com.actelion.research.gui.hidpi.HiDPIHelper;
 import com.actelion.research.table.model.CompoundListSelectionModel;
 import com.actelion.research.table.model.CompoundTableModel;
@@ -28,6 +29,8 @@ import javax.swing.*;
 import javax.swing.event.ListSelectionEvent;
 import javax.swing.event.ListSelectionListener;
 import java.awt.*;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
 
 /**
  * Title:		DEStatusPanel.java
@@ -50,11 +53,16 @@ public class DEStatusPanel extends JPanel
 	private CompoundTableModel  mTableModel;
 	private int mRecords,mVisible,mSelected;
 	private JProgressBar mProgressBar = new JProgressBar();
+	private JLabel mMemoryLabel = new JLabel();
 	private JLabel mSelectedLabel = new JLabel();
 	private JLabel mVisibleLabel = new JLabel();
 	private JLabel mRecordsLabel = new JLabel();
 	private JLabel mProgressLabel = new JLabel();
-	private DEProgressPanel mMacroProgressPanel = new DEProgressPanel(true);
+	private JProgressPanel mMacroProgressPanel = new JProgressPanel(true);
+	private volatile float mUpdateFactor;
+	private volatile boolean mUpdateActionPending;
+	private volatile int mUpdateStatus;
+	private volatile boolean mProgressVisible;
 
 	public DEStatusPanel(CompoundTableModel tableModel, DEMainPane mainPane) {
 		mTableModel = tableModel;
@@ -73,6 +81,7 @@ public class DEStatusPanel extends JPanel
 		LabelVisible.setForeground(Color.GRAY);
 		LabelRecords.setForeground(Color.GRAY);
 
+		mMemoryLabel.setFont(font);
 		mProgressLabel.setFont(font);
 		mSelectedLabel.setFont(font);
 		mVisibleLabel.setFont(font);
@@ -85,14 +94,15 @@ public class DEStatusPanel extends JPanel
 		mProgressBar.setMinimumSize(pbSize);
 		mProgressBar.setSize(pbSize);
 
+		startMemoryLabelTimer();
+
 		int w = HiDPIHelper.scale(68);
 		int scaled4 = HiDPIHelper.scale(4);
 		double[][] size = { {2*scaled4, TableLayout.PREFERRED, scaled4, TableLayout.FILL, w, w, w, w, w, w, TableLayout.FILL},
 							{scaled4, TableLayout.FILL, TableLayout.PREFERRED, TableLayout.FILL, scaled4/2} };
 
 		setLayout(new TableLayout(size));
-		add(mProgressBar, "1,2");
-		add(mProgressLabel, "3,1,3,3");
+		add(mMemoryLabel, "1,1,3,3");
 		add(LabelSelected, "4,1,4,3");
 		add(mSelectedLabel, "5,1,5,3");
 		add(LabelVisible, "6,1,6,3");
@@ -102,7 +112,39 @@ public class DEStatusPanel extends JPanel
 		add(mMacroProgressPanel, "10,1,10,3");
 		}
 
-	public DEProgressPanel getMacroProgressPanel() {
+	private void updateMemoryLabel() {
+		long total = Runtime.getRuntime().totalMemory();
+		long max = Runtime.getRuntime().maxMemory();
+		long used = total - Runtime.getRuntime().freeMemory();
+		mMemoryLabel.setText(toMegabyte(used).concat(" of ").concat(toMegabyte(total).concat(" MB")));
+		}
+
+	private void startMemoryLabelTimer() {
+		new Timer(5000, l -> updateMemoryLabel() ).start();
+		}
+
+	private String toMegabyte(long l) {
+		return Long.toString((l + 524288L) / 1048574L);
+		}
+
+	private void setProgressVisible(boolean b) {
+		if (mProgressVisible != b) {
+			if (b) {
+				remove(mMemoryLabel);
+				add(mProgressBar, "1,2");
+				add(mProgressLabel, "3,1,3,3");
+				}
+			else {
+				add(mMemoryLabel, "1,1,3,3");
+				remove(mProgressBar);
+				remove(mProgressLabel);
+				}
+			mProgressVisible = b;
+			validate();
+			}
+		}
+
+	public JProgressPanel getMacroProgressPanel() {
 		return mMacroProgressPanel;
 		}
 
@@ -158,18 +200,35 @@ public class DEStatusPanel extends JPanel
 		}		
 
 	private void doActionThreadSafe(final int action, final String text, final int v1, final int v2) {
+		if (action == START_PROGRESS) {
+			mUpdateFactor = (v2 - v1 <= 10000) ? 1.0f : 10000.0f / (v2 - v1);
+			mUpdateStatus = v1;
+			}
+		if (action == UPDATE_PROGRESS)
+			mUpdateStatus = (v1 >= 0) ? v1 : mUpdateStatus - v1;
+
 		if (SwingUtilities.isEventDispatchThread()) {
 			doAction(action, text, v1, v2);
 			}
 		else {
-			try {
-				SwingUtilities.invokeAndWait(new Runnable() {
-					public void run() {
-						doAction(action, text, v1, v2);
+			if (action == UPDATE_PROGRESS) {
+				if (!mUpdateActionPending) {
+					mUpdateActionPending = true;
+					try {
+						SwingUtilities.invokeLater(() -> {
+							doAction(action, text, v1, v2);
+							mUpdateActionPending = false;
+							} );
 						}
-					});
+					catch (Exception e) {}
+					}
 				}
-			catch (Exception e) {}
+			else {
+				try {
+					SwingUtilities.invokeLater(() -> doAction(action, text, v1, v2) );
+					}
+				catch (Exception e) {}
+				}
 			}
 		}
 
@@ -183,14 +242,14 @@ public class DEStatusPanel extends JPanel
 			break;
 		case START_PROGRESS:
 			mProgressBar.setVisible(true);
-			mProgressBar.setMinimum(v1);
-			mProgressBar.setMaximum(v2);
-			mProgressBar.setValue(v1);
+			mProgressBar.setMinimum(Math.round(mUpdateFactor*v1));
+			mProgressBar.setMaximum(Math.round(mUpdateFactor*v2));
+			mProgressBar.setValue(Math.round(mUpdateFactor*v1));
 			mProgressLabel.setText(text);
+			setProgressVisible(true);
 			break;
 		case UPDATE_PROGRESS:
-			int value = (v1 >= 0) ? v1 : mProgressBar.getValue()-v1;
-			mProgressBar.setValue(value);
+			mProgressBar.setValue(Math.round(mUpdateFactor*mUpdateStatus));
 			if (text != null)
 				mProgressLabel.setText(text);
 			break;
@@ -198,6 +257,7 @@ public class DEStatusPanel extends JPanel
 			mProgressLabel.setText("");
 			mProgressBar.setValue(mProgressBar.getMinimum());
 			mProgressBar.setVisible(false);
+			setProgressVisible(false);
 			break;
 			}
 		}

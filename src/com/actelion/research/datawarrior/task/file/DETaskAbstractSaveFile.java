@@ -18,21 +18,19 @@
 
 package com.actelion.research.datawarrior.task.file;
 
+import com.actelion.research.chem.io.CompoundFileHelper;
+import com.actelion.research.datawarrior.DEFrame;
 import com.actelion.research.datawarrior.DataWarrior;
+import com.actelion.research.datawarrior.task.ConfigurableTask;
+import com.actelion.research.gui.FileHelper;
+import com.actelion.research.table.model.CompoundTableModel;
 import info.clearthought.layout.TableLayout;
 
+import javax.swing.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.io.File;
 import java.util.Properties;
-
-import javax.swing.*;
-
-import com.actelion.research.chem.io.CompoundFileHelper;
-import com.actelion.research.datawarrior.DEFrame;
-import com.actelion.research.datawarrior.task.ConfigurableTask;
-import com.actelion.research.gui.FileHelper;
-import com.actelion.research.table.model.CompoundTableModel;
 
 
 public abstract class DETaskAbstractSaveFile extends ConfigurableTask implements ActionListener {
@@ -93,6 +91,7 @@ public abstract class DETaskAbstractSaveFile extends ConfigurableTask implements
 		content.setLayout(new TableLayout(size));
 
 		mFilePathLabel = new JFilePathLabel(!isInteractive());
+		mFilePathLabel.setListener(this);
 		content.add(mFilePathLabel, "1,1,2,1");
 
 		mButtonEdit = new JButton(JFilePathLabel.BUTTON_TEXT);
@@ -170,6 +169,9 @@ public abstract class DETaskAbstractSaveFile extends ConfigurableTask implements
 				enableItems();
 				}
 			return;
+			}
+		if (e.getSource() == mFilePathLabel) {
+			enableItems();
 			}
 		if (e.getSource() == mCheckBoxInteractive) {
 			enableItems();

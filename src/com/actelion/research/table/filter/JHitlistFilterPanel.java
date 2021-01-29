@@ -44,7 +44,7 @@ public class JHitlistFilterPanel extends JFilterPanel implements ActionListener,
 		}
 
 	public JHitlistFilterPanel(CompoundTableModel tableModel, int exclusionFlag) {
-		super(tableModel, PSEUDO_COLUMN_ROW_LIST, exclusionFlag, false);
+		super(tableModel, PSEUDO_COLUMN_ROW_LIST, exclusionFlag, false, false);
 
 		JPanel p1 = new JPanel();
 		p1.setOpaque(false);

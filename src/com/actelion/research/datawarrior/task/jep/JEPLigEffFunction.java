@@ -59,7 +59,7 @@ public class JEPLigEffFunction extends PostfixMathCommand {
 		if (param1 instanceof Double
 		 && param2 instanceof JEPParameter) {
             JEPParameter jepParam2 = (JEPParameter)param2;
-            if (!CompoundTableModel.cColumnTypeIDCode.equals(mTableModel.getColumnSpecialType(jepParam2.column))) {
+            if (!mTableModel.isColumnTypeStructure(jepParam2.column)) {
                 throw new ParseException("2nd parameter of ligeff2() is not a chemical structure.");
                 }
 

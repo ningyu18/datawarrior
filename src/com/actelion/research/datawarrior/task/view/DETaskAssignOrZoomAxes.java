@@ -62,7 +62,7 @@ public class DETaskAssignOrZoomAxes extends DETaskAbstractSetViewOptions {
 		}
 
 	@Override
-	public JComponent createInnerDialogContent() {
+	public JComponent createViewOptionContent() {
 		mPruningBar = new JPruningBar[3];
 		for (int axis=0; axis<3; axis++) {
 			mPruningBar[axis] = new JPruningBar(true, axis);
@@ -112,13 +112,13 @@ public class DETaskAssignOrZoomAxes extends DETaskAbstractSetViewOptions {
 		}
 
 	@Override
-	public void addViewConfiguration(Properties configuration) {
-		VisualizationPanel vp = (VisualizationPanel)getInteractiveView();
+	public void addViewConfiguration(CompoundTableView view, Properties configuration) {
+		VisualizationPanel vp = (VisualizationPanel)view;
 		for (int i=0; i<vp.getDimensionCount(); i++) {
 			if (vp.getSelectedColumn(i) != JVisualization.cColumnUnassigned) {
 				configuration.setProperty(PROPERTY_COLUMN+i, vp.getAxisColumnName(i));
-				configuration.setProperty(PROPERTY_LOW+i, ""+ getInteractiveVisualization().getPruningBarLow(i));
-				configuration.setProperty(PROPERTY_HIGH+i, ""+ getInteractiveVisualization().getPruningBarHigh(i));
+				configuration.setProperty(PROPERTY_LOW+i, ""+ vp.getVisualization().getPruningBarLow(i));
+				configuration.setProperty(PROPERTY_HIGH+i, ""+ vp.getVisualization().getPruningBarHigh(i));
 				}
 			}
 		configuration.setProperty(PROPERTY_MILLIS, "1000");

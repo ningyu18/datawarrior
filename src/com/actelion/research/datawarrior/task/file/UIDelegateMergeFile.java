@@ -18,10 +18,19 @@
 
 package com.actelion.research.datawarrior.task.file;
 
+import com.actelion.research.datawarrior.DEFrame;
+import com.actelion.research.datawarrior.DERuntimeProperties;
+import com.actelion.research.datawarrior.task.AbstractTask;
+import com.actelion.research.datawarrior.task.TaskUIDelegate;
+import com.actelion.research.gui.FileHelper;
+import com.actelion.research.gui.JPopupButton;
+import com.actelion.research.gui.hidpi.HiDPIHelper;
+import com.actelion.research.table.CompoundTableLoader;
+import com.actelion.research.table.model.CompoundTableModel;
 import info.clearthought.layout.TableLayout;
 
-import java.awt.Component;
-import java.awt.Dimension;
+import javax.swing.*;
+import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.ItemEvent;
@@ -30,31 +39,15 @@ import java.io.File;
 import java.util.ArrayList;
 import java.util.Properties;
 
-import javax.swing.JButton;
-import javax.swing.JCheckBox;
-import javax.swing.JComboBox;
-import javax.swing.JComponent;
-import javax.swing.JDialog;
-import javax.swing.JLabel;
-import javax.swing.JOptionPane;
-import javax.swing.JPanel;
-import javax.swing.JScrollPane;
-
-import com.actelion.research.datawarrior.DEFrame;
-import com.actelion.research.datawarrior.DERuntimeProperties;
-import com.actelion.research.datawarrior.task.AbstractTask;
-import com.actelion.research.datawarrior.task.TaskUIDelegate;
-import com.actelion.research.gui.FileHelper;
-import com.actelion.research.table.CompoundTableLoader;
-import com.actelion.research.table.model.CompoundTableModel;
-
 public class UIDelegateMergeFile implements ActionListener,ItemListener,TaskUIDelegate,TaskConstantsMergeFile {
 	private static final int IS_NOT_DISPLAYABLE = -1;
 	private static final int IS_NORMAL_DISPLAYABLE = 0;
-	private static final int COLUMN_LINE_SPACING = 4;
+	private static final int COLUMN_LINE_SPACING = HiDPIHelper.scale(4);
 	private static final int DESTINATION_ITEM_TRASH = 1;
-	private static final String[] DESTINATION_ITEMS = { "<new column>", "<trash it>" };
+	private static final String[] DESTINATION_ITEMS = { "<new column>", "<don't use it>" };
 	private static final String[] DESTINATION_CODES = { DEST_COLUMN_ADD, DEST_COLUMN_TRASH };
+	private static final String COMMAND_DESTINATION = "dest:";
+	private static final String COMMAND_TYPE = "type:";
 
 	private DEFrame				mParentFrame;
 	private DETaskMergeFile		mParentTask;
@@ -85,8 +78,9 @@ public class UIDelegateMergeFile implements ActionListener,ItemListener,TaskUIDe
 				return null;
 			}
 
-		double[][] size1 = { {8, TableLayout.PREFERRED, 4, TableLayout.PREFERRED, TableLayout.FILL, TableLayout.PREFERRED, 8},
-							 {8, TableLayout.PREFERRED, 8, TableLayout.PREFERRED, 8, TableLayout.PREFERRED, 8, TableLayout.PREFERRED, 8} };
+		int gap = HiDPIHelper.scale(8);
+		double[][] size1 = { {gap, TableLayout.PREFERRED, gap/2, TableLayout.PREFERRED, TableLayout.FILL, TableLayout.PREFERRED, gap},
+							 {gap, TableLayout.PREFERRED, gap, TableLayout.PREFERRED, gap, TableLayout.PREFERRED, gap, TableLayout.PREFERRED, gap/2, TableLayout.PREFERRED, 8} };
 		mDialogPanel = new JPanel();
 		mDialogPanel.setLayout(new TableLayout(size1));
 
@@ -104,11 +98,11 @@ public class UIDelegateMergeFile implements ActionListener,ItemListener,TaskUIDe
 		if (mIsInteractive)
 			updateUIFromFile(file);
 
-		mDialogPanel.add(mCheckBoxAppendRows, "1,5,5,5");
+		mDialogPanel.add(mCheckBoxAppendRows, "1,7,5,7");
 
 		if (!mIsInteractive) {
 			mCheckBoxAppendColumns = new JCheckBox("Append all columns not defined here", true);
-			mDialogPanel.add(mCheckBoxAppendColumns, "1,7,5,7");
+			mDialogPanel.add(mCheckBoxAppendColumns, "1,9,5,9");
 			}
 
 		return mDialogPanel;
@@ -158,16 +152,20 @@ public class UIDelegateMergeFile implements ActionListener,ItemListener,TaskUIDe
 				} catch (NumberFormatException e) {}
 			}
 
+		int gap = HiDPIHelper.scale(8);
+
 		// From here: create the panel with all field matching options
 		double[] verticalSize = new double[2*mFieldName.length+3];
-		verticalSize[0] = 8;
-		verticalSize[1] = TableLayout.PREFERRED;
-		verticalSize[2] = 8;
-		for (int i=3; i<verticalSize.length; i+=2) {
-			verticalSize[i] = TableLayout.PREFERRED;
-			verticalSize[i+1] = COLUMN_LINE_SPACING;
+		int index = 0;
+		verticalSize[index++] = gap;
+		verticalSize[index++] = TableLayout.PREFERRED;
+		verticalSize[index++] = gap;
+		for (int i=0; i<mFieldName.length; i++) {
+			verticalSize[index++] = TableLayout.PREFERRED;
+			verticalSize[index++] = COLUMN_LINE_SPACING;
 			}
-		double[][] size2 = { { 8, TableLayout.PREFERRED, TableLayout.PREFERRED, TableLayout.PREFERRED, TableLayout.PREFERRED, 8, TableLayout.PREFERRED, 8 }, verticalSize };
+		double[][] size2 = { { gap, TableLayout.PREFERRED, TableLayout.PREFERRED, TableLayout.PREFERRED, TableLayout.PREFERRED,
+				TableLayout.FILL, TableLayout.PREFERRED, gap, TableLayout.PREFERRED, TableLayout.FILL, TableLayout.PREFERRED, gap }, verticalSize };
 
 			// create lists of potential mapping columns for these column types:
 			// non-special and all parent special types (idcode, rxncode, <more?>)
@@ -187,11 +185,20 @@ public class UIDelegateMergeFile implements ActionListener,ItemListener,TaskUIDe
 		mComboBoxOldColumn = new JComboBox[mFieldName.length];
 		mComboBoxUsage = new JComboBox[mFieldName.length];
 
+		JPopupButton popup1 = new JPopupButton(this);
+		for (String option:DESTINATION_ITEMS)
+			popup1.addItem("Set all to: "+option, COMMAND_DESTINATION+option);
+		JPopupButton popup2 = new JPopupButton(this);
+		for (int i=2; i<OPTION_TEXT.length; i++)
+			popup2.addItem("Set all to: "+OPTION_TEXT[i], COMMAND_TYPE+OPTION_TEXT[i]);
+
 		JPanel mp0 = new JPanel();
 		mp0.setLayout(new TableLayout(size2));
-		mp0.add(new JLabel("New Column"), "1,1,3,1");
-		mp0.add(new JLabel("Current Column"), "4,1");
-		mp0.add(new JLabel("Merge Option"), "6,1");
+		mp0.add(new JLabel("Incoming Columns"), "1,1,3,1");
+		mp0.add(new JLabel("Existing Columns"), "4,1");
+		mp0.add(popup1, "6,1");
+		mp0.add(new JLabel("Merge Option"), "8,1");
+		mp0.add(popup2, "10,1");
 		int layoutPosition = 3;
 		boolean selectedFound = false;
 		for (int i=0; i<mFieldName.length; i++) {
@@ -226,26 +233,27 @@ public class UIDelegateMergeFile implements ActionListener,ItemListener,TaskUIDe
 			mp0.add(new JLabel("Assign "), "1,"+layoutPosition);
 			mp0.add(new JLabel(mFieldAlias[i] != null ? mFieldAlias[i] : mFieldName[i]), "2,"+layoutPosition);
 			mp0.add(new JLabel(" to"), "3,"+layoutPosition);
-			mp0.add(mComboBoxOldColumn[i], "4,"+layoutPosition);
-			mp0.add(mComboBoxUsage[i], "6,"+layoutPosition);
+			mp0.add(mComboBoxOldColumn[i], "4,"+layoutPosition+",6,"+layoutPosition);
+			mp0.add(mComboBoxUsage[i], "8,"+layoutPosition+",10,"+layoutPosition);
 			layoutPosition += 2;
 			}
 
 		if (mMatchingPanel != null)
 			mDialogPanel.remove(mMatchingPanel);
 
-		if (mFieldName.length <= 8) {
+		if (mFieldName.length <= 16) {
 			mMatchingPanel = mp0;
 			}
 		else {
-			JScrollPane mps = new JScrollPane(mp0, JScrollPane.VERTICAL_SCROLLBAR_ALWAYS, JScrollPane.HORIZONTAL_SCROLLBAR_NEVER) {
+			JScrollPane mps = new JScrollPane(mp0, JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED, JScrollPane.HORIZONTAL_SCROLLBAR_NEVER) {
 				private static final long serialVersionUID = 0x20060904;
 				@Override
 				public Dimension getPreferredSize() {
-					return new Dimension(getViewport().getView().getPreferredSize().width+16,
+					return new Dimension(getViewport().getView().getPreferredSize().width+HiDPIHelper.scale(16),
 							16*(COLUMN_LINE_SPACING+mComboBoxUsage[0].getPreferredSize().height));
 					}
 				};
+			mps.getVerticalScrollBar().setUnitIncrement(HiDPIHelper.scale(16));
 			mMatchingPanel = mps;
 			}
 
@@ -284,6 +292,18 @@ public class UIDelegateMergeFile implements ActionListener,ItemListener,TaskUIDe
 			updateUIFromFile(new File(mParentTask.resolvePathVariables(mFilePathLabel.getPath())));
 			return;
 			}
+		if (e.getActionCommand().startsWith(COMMAND_DESTINATION)) {
+			String dest = e.getActionCommand().substring(COMMAND_DESTINATION.length());
+			for (JComboBox<String> cb : mComboBoxOldColumn)
+				cb.setSelectedItem(dest);
+			return;
+			}
+		if (e.getActionCommand().startsWith(COMMAND_TYPE)) {
+			String type = e.getActionCommand().substring(COMMAND_TYPE.length());
+			for (JComboBox<String> cb : mComboBoxUsage)
+				cb.setSelectedItem(type);
+			return;
+			}
 		}
 
 	private File askForFile(String selectedFile) {
@@ -318,14 +338,14 @@ public class UIDelegateMergeFile implements ActionListener,ItemListener,TaskUIDe
 					}
 				JComboBox cbUsage = mComboBoxUsage[index];
 				if (isDestinationItem
-				 && OPTION_TEXT[CompoundTableLoader.MERGE_MODE_IS_KEY].equals(cbUsage.getSelectedItem())) {
-					if (cbUsage.getSelectedIndex() == CompoundTableLoader.MERGE_MODE_IS_KEY) {
-						String newColumnName = mFieldName[index];
-						int displayableType = getDisplayableType(mLoader.getColumnSpecialType(newColumnName));
-						cbUsage.removeItemListener(this);
-						cbUsage.setSelectedIndex((displayableType != IS_NORMAL_DISPLAYABLE) ? CompoundTableLoader.MERGE_MODE_USE_IF_EMPTY : CompoundTableLoader.MERGE_MODE_APPEND);
-						cbUsage.addItemListener(this);
-						}
+				 && (cbUsage.getSelectedIndex() == CompoundTableLoader.MERGE_MODE_IS_KEY
+				  || cbUsage.getSelectedIndex() == CompoundTableLoader.MERGE_MODE_IS_KEY_NO_CASE
+				  || cbUsage.getSelectedIndex() == CompoundTableLoader.MERGE_MODE_IS_KEY_WORD_SEARCH)) {
+					String newColumnName = mFieldName[index];
+					int displayableType = getDisplayableType(mLoader.getColumnSpecialType(newColumnName));
+					cbUsage.removeItemListener(this);
+					cbUsage.setSelectedIndex((displayableType != IS_NORMAL_DISPLAYABLE) ? CompoundTableLoader.MERGE_MODE_USE_IF_EMPTY : CompoundTableLoader.MERGE_MODE_APPEND);
+					cbUsage.addItemListener(this);
 					}
 				cbUsage.setEnabled(mComboBoxOldColumn[index].getSelectedIndex() > 1);
 				}
@@ -392,7 +412,7 @@ public class UIDelegateMergeFile implements ActionListener,ItemListener,TaskUIDe
 	public void setDialogConfiguration(Properties configuration) {
 		if (!mIsInteractive) {
 			String fileName = configuration.getProperty(PROPERTY_FILENAME);
-			File file = (fileName == null) ? null : new File(fileName);
+			File file = (fileName == null) ? null : new File(mParentTask.resolvePathVariables(fileName));
 			if (file.exists())
 				updateUIFromFile(file);
 			}

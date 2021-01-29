@@ -23,6 +23,7 @@ import java.awt.datatransfer.StringSelection;
 import java.awt.datatransfer.Transferable;
 import java.awt.datatransfer.UnsupportedFlavorException;
 import java.io.IOException;
+import java.util.List;
 
 import javax.swing.DefaultListModel;
 import javax.swing.JComponent;
@@ -52,14 +53,14 @@ public class ListTransferHandler extends StringTransferHandler {
 	@Override
 	protected String exportString(JList list) {
 		mSourceIndex = list.getSelectedIndices();
-		Object[] values = list.getSelectedValues();
+		List<String> values = list.getSelectedValuesList();
 
 		StringBuilder buff = new StringBuilder();
 
-		for (int i = 0; i < values.length; i++) {
-			Object val = values[i];
-			buff.append(val == null ? "" : val.toString());
-			if (i != values.length - 1) {
+		for (int i = 0; i < values.size(); i++) {
+			String val = values.get(i);
+			buff.append(val == null ? "" : val);
+			if (i != values.size() - 1) {
 				buff.append("\n");
 				}
 			}

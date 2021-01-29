@@ -32,17 +32,17 @@ import java.util.ArrayList;
 public class PluginRegistry {
 	private ArrayList<IPluginTask> mPluginList;
 
-	public PluginRegistry() {
-		loadPlugins();
+	public PluginRegistry(DataWarrior application) {
+		loadPlugins(application);
 	}
 
 	public ArrayList<IPluginTask> getPluginTasks() {
 		return mPluginList;
 	}
 
-	private void loadPlugins() {
-		mPluginList = new ArrayList<IPluginTask>();
-		File directory = DataWarrior.resolveResourcePath(DataWarrior.PLUGIN_DIR);
+	private void loadPlugins(DataWarrior application) {
+		mPluginList = new ArrayList<>();
+		File directory = application.resolveResourcePath(DataWarrior.PLUGIN_DIR);
 		if (directory != null) {
 			FileFilter filter = new FileFilter() {
 				public boolean accept(File file) {

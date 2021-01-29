@@ -69,6 +69,11 @@ public class DETaskCombineTwoRowLists extends ConfigurableTask {
 		}
 
 	@Override
+	public String getHelpURL() {
+		return "/html/help/lists.html#Creation";
+		}
+
+	@Override
 	public JComponent createDialogContent() {
 		JPanel mp = new JPanel();
 		double[][] size = { {8, TableLayout.PREFERRED, 8, TableLayout.PREFERRED, 8},
@@ -178,7 +183,7 @@ public class DETaskCombineTwoRowLists extends ConfigurableTask {
 		int hitlist2 = mHitlistHandler.getListIndex(configuration.getProperty(PROPERTY_HITLIST_2));
 		int operation = findListIndex(configuration.getProperty(PROPERTY_OPERATION), HitlistOptionRenderer.OPERATION_CODE, 0);
 
-		if (mHitlistHandler.createList(mTextFieldName.getText(), hitlist1, hitlist2, operation) == null)
+		if (mHitlistHandler.createList(configuration.getProperty(PROPERTY_NEW_HITLIST), hitlist1, hitlist2, operation) == null)
 			showErrorMessage("The maximum number of filters/lists is reached.");
 		}
 

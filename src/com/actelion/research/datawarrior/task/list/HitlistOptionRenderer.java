@@ -32,10 +32,10 @@ public class HitlistOptionRenderer extends JPanel implements /*ImageObserver,*/L
 													"logical NOT"};
 	public static final String[] OPERATION_CODE = { "and", "or", "xor", "not" };
 
-	private static final int cItemWidth = 120;
-	private static final int cItemHeight = 18;
-	private static final int cImageWidth = 24;
-	private static final int cImageHeight = 16;
+	private static final int cItemWidth = HiDPIHelper.scale(120);
+	private static final int cItemHeight = HiDPIHelper.scale(18);
+	private static final int cImageWidth = HiDPIHelper.scale(24);
+	private static final int cImageHeight = HiDPIHelper.scale(16);
 	private static final String IMAGE_NAME = "booleanOperations.png";
 
 	private static Image	sImage;
@@ -45,26 +45,29 @@ public class HitlistOptionRenderer extends JPanel implements /*ImageObserver,*/L
 	private boolean			mIsSelected,mIsActiveItem;
 
 	public HitlistOptionRenderer() {
-		sImage = HiDPIHelper.createImage(IMAGE_NAME);
+		sImage = HiDPIHelper.scale(HiDPIHelper.createLaFCompatibleImage(IMAGE_NAME));
+
 		setPreferredSize(new Dimension(cItemWidth, cItemHeight));
 		}
 
 	public void paintComponent(Graphics g) {
 		if (mParameterIndex != -1) {
 			Dimension theSize = getSize();
+			int verticalBorder = (cItemHeight - cImageHeight) / 2;
+
 			if (mIsSelected) {
 				g.setColor(UIManager.getColor("TextArea.selectionBackground"));
 				g.fillRect(0, 0, theSize.width, theSize.height);
 				}
+			int gap = HiDPIHelper.scale(4);
 			g.setColor(UIManager.getColor("Label.foreground"));
-			g.drawString((String)mParameterValue, cImageWidth+8, cItemHeight-4);
+			g.drawString((String)mParameterValue, cImageWidth+2*gap, cItemHeight-HiDPIHelper.scale(1)-verticalBorder-g.getFontMetrics().getDescent());
 
-			int verticalBorder = (cItemHeight - cImageHeight) / 2;
-			g.setClip(4, verticalBorder, cImageWidth, cImageHeight);
+			g.setClip(gap, verticalBorder, cImageWidth, cImageHeight);
 			if (HiDPIHelper.getRetinaScaleFactor() == 2)
-				g.drawImage(sImage, 4 - mParameterIndex * cImageWidth, verticalBorder, 4*cImageWidth, cImageHeight, null);
+				g.drawImage(sImage, gap - mParameterIndex * cImageWidth, verticalBorder, cImageWidth, cImageHeight, null);
 			else
-				g.drawImage(sImage, 4 - mParameterIndex * cImageWidth, verticalBorder, null);
+				g.drawImage(sImage, gap - mParameterIndex * cImageWidth, verticalBorder, null);
 			}
 		}
 

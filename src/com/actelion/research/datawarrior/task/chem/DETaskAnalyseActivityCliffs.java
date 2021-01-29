@@ -18,47 +18,30 @@
 
 package com.actelion.research.datawarrior.task.chem;
 
-import info.clearthought.layout.TableLayout;
-
-import java.awt.Color;
-import java.awt.event.ItemEvent;
-import java.awt.event.ItemListener;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Comparator;
-import java.util.Hashtable;
-import java.util.Properties;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicIntegerArray;
-
-import javax.swing.JCheckBox;
-import javax.swing.JComboBox;
-import javax.swing.JComponent;
-import javax.swing.JLabel;
-import javax.swing.JPanel;
-import javax.swing.JSlider;
-import javax.swing.SwingUtilities;
-
 import com.actelion.research.chem.descriptor.DescriptorConstants;
 import com.actelion.research.chem.io.CompoundTableConstants;
 import com.actelion.research.datawarrior.DEFrame;
 import com.actelion.research.datawarrior.DEMainPane;
 import com.actelion.research.datawarrior.DataWarrior;
 import com.actelion.research.datawarrior.task.ConfigurableTask;
+import com.actelion.research.table.MarkerLabelDisplayer;
 import com.actelion.research.table.model.CompoundRecord;
 import com.actelion.research.table.model.CompoundTableEvent;
 import com.actelion.research.table.model.CompoundTableModel;
-import com.actelion.research.table.MarkerLabelDisplayer;
-import com.actelion.research.table.view.FocusableView;
-import com.actelion.research.table.view.JStructureGrid;
-import com.actelion.research.table.view.JVisualization;
-import com.actelion.research.table.view.JVisualization2D;
-import com.actelion.research.table.view.VisualizationColor;
-import com.actelion.research.table.view.VisualizationPanel2D;
+import com.actelion.research.table.view.*;
 import com.actelion.research.util.DoubleFormat;
+import info.clearthought.layout.TableLayout;
+
+import javax.swing.*;
+import java.awt.*;
+import java.awt.event.ItemEvent;
+import java.awt.event.ItemListener;
+import java.util.*;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicIntegerArray;
 
 
 public class DETaskAnalyseActivityCliffs extends ConfigurableTask implements ItemListener,Runnable {
@@ -806,64 +789,62 @@ public class DETaskAnalyseActivityCliffs extends ConfigurableTask implements Ite
 			if (addCoords || activityColumn != -1) {
 				final float similarityColorMin = 1f-2f*(1f-optSimilarityLimit);
 				try {
-					SwingUtilities.invokeAndWait(new Runnable() {
-						public void run() {
-							DEMainPane mainPane = mParentFrame.getMainFrame().getMainPane();
-							VisualizationPanel2D vpanel1 = mainPane.add2DView(activityColumn != -1 ? "SALI Plot" : "Similarity Chart", null);
-							if (addCoords) {
-								vpanel1.setAxisColumnName(0, mSourceTableModel.getColumnTitle(xColumn));
-								vpanel1.setAxisColumnName(1, mSourceTableModel.getColumnTitle(yColumn));
-								}
-							else {
-								vpanel1.setAxisColumnName(0, mSourceTableModel.getColumnTitle(similarityColumn));
-								vpanel1.setAxisColumnName(1, configuration.getProperty(PROPERTY_ACTIVITY_COLUMN));
-								}
-							if (activityColumn != -1)
-								vpanel1.getVisualization().setMarkerSizeColumn(saliColumn);
-							vpanel1.getVisualization().setMarkerSize(20f/(float)Math.sqrt(rowCount), false);
-							vpanel1.getVisualization().setScaleMode(JVisualization.cScaleModeHidden);
-							vpanel1.getVisualization().setGridMode(JVisualization.cGridModeHidden);
-							vpanel1.getVisualization().setPreferredChartType(JVisualization.cChartTypeScatterPlot, -1, -1);
-	
-							int colorColumn,colorListMode;
-							Color[] colorList = null;
-							if (activityColumn != -1) {
-								colorColumn = activityColumn;
-								colorListMode = VisualizationColor.cColorListModeHSBLong;
-								colorList = VisualizationColor.createColorWedge(Color.green, Color.blue, colorListMode, null);
-								}
-							else {
-								colorColumn = descriptorColumn;
-								colorListMode = VisualizationColor.cColorListModeHSBShort;
-								colorList = VisualizationColor.createColorWedge(Color.red, Color.green, colorListMode, null);
-								}
-							vpanel1.getVisualization().getMarkerColor().setColor(colorColumn, colorList, colorListMode);
-		/*
-							int colorListMode2 = VisualizationColor.cColorListModeHSBLong;
-							Color[] colorList2 = VisualizationColor.createColorWedge(new Color(255,166,166), new Color(166,166,255), colorListMode2, null);
-							((JVisualization2D)vpanel1.getVisualization()).getBackgroundColor().setColor(activityColumn, colorList2, colorListMode2);
-							((JVisualization2D)vpanel1.getVisualization()).setBackgroundColorFading(4);
-							((JVisualization2D)vpanel1.getVisualization()).setBackgroundColorRadius(10);
-		*/
-							if (rowCount > 10000)
-								vpanel1.getVisualization().setFastRendering(true);
-			
-							if (referencingColumn != -1) {
-								vpanel1.getVisualization().setConnectionColumns(referencingColumn, -1);
-								vpanel1.getVisualization().setConnectionLineWidth(Math.min(50f/(float)Math.sqrt(rowCount),
-																				  Math.max(5f/(float)Math.sqrt(rowCount),
-																						  2500f/rowCount)), false);
-								}
-	
-							int idcodeColumn = mSourceTableModel.getParentColumn(descriptorColumn);
+					SwingUtilities.invokeAndWait(() -> {
+						DEMainPane mainPane = mParentFrame.getMainFrame().getMainPane();
+						VisualizationPanel2D vpanel1 = mainPane.add2DView(activityColumn != -1 ? "SALI Plot" : "Similarity Chart", null);
+						if (addCoords) {
+							vpanel1.setAxisColumnName(0, mSourceTableModel.getColumnTitle(xColumn));
+							vpanel1.setAxisColumnName(1, mSourceTableModel.getColumnTitle(yColumn));
+							}
+						else {
+							vpanel1.setAxisColumnName(0, mSourceTableModel.getColumnTitle(similarityColumn));
+							vpanel1.setAxisColumnName(1, configuration.getProperty(PROPERTY_ACTIVITY_COLUMN));
+							}
+						if (activityColumn != -1)
+							vpanel1.getVisualization().setMarkerSizeColumn(saliColumn, Float.NaN, Float.NaN);
+						vpanel1.getVisualization().setMarkerSize(12f/(float)Math.sqrt(rowCount), false);
+						vpanel1.getVisualization().setScaleMode(JVisualization.cScaleModeHidden);
+						vpanel1.getVisualization().setGridMode(JVisualization.cGridModeHidden);
+						vpanel1.getVisualization().setPreferredChartType(JVisualization.cChartTypeScatterPlot, -1, -1);
+
+						int colorColumn,colorListMode;
+						Color[] colorList = null;
+						if (activityColumn != -1) {
+							colorColumn = activityColumn;
+							colorListMode = VisualizationColor.cColorListModeHSBLong;
+							colorList = VisualizationColor.createColorWedge(Color.green, Color.blue, colorListMode, null);
+							}
+						else {
+							colorColumn = descriptorColumn;
+							colorListMode = VisualizationColor.cColorListModeHSBShort;
+							colorList = VisualizationColor.createColorWedge(Color.red, Color.green, colorListMode, null);
+							}
+						vpanel1.getVisualization().getMarkerColor().setColor(colorColumn, colorList, colorListMode);
+	/*
+						int colorListMode2 = VisualizationColor.cColorListModeHSBLong;
+						Color[] colorList2 = VisualizationColor.createColorWedge(new Color(255,166,166), new Color(166,166,255), colorListMode2, null);
+						((JVisualization2D)vpanel1.getVisualization()).getBackgroundColor().setColor(activityColumn, colorList2, colorListMode2);
+						((JVisualization2D)vpanel1.getVisualization()).setBackgroundColorFading(4);
+						((JVisualization2D)vpanel1.getVisualization()).setBackgroundColorRadius(10);
+	*/
+						if (rowCount > 10000)
+							vpanel1.getVisualization().setFastRendering(true);
+
+						if (referencingColumn != -1) {
+							vpanel1.getVisualization().setConnectionColumns(referencingColumn, -1);
+							vpanel1.getVisualization().setConnectionLineWidth(Math.max(0.5f, 10f/(float)Math.sqrt(rowCount)), false);
+							}
+
+						int idcodeColumn = mSourceTableModel.getParentColumn(descriptorColumn);
+						if (mSourceTableModel.isColumnTypeStructure(idcodeColumn)) {
 							if (mSourceTableModel.getDescriptorHandler(descriptorColumn).getInfo().isGraphSimilarity)
-								mSourceTableModel.setStructureHiliteMode(idcodeColumn, CompoundTableModel.cStructureHiliteModeCurrentRow);
+								mSourceTableModel.setHiliteMode(idcodeColumn, CompoundTableModel.cStructureHiliteModeCurrentRow);
 							String title = mainPane.validateTitle("Structure".equals(mSourceTableModel.getColumnTitle(idcodeColumn)) ?
 									"Structure" : "Structure of " + mSourceTableModel.getColumnTitle(idcodeColumn));
 							String dockInfo = mainPane.getViewTitle(vpanel1) + "\tbottom\t0.7";
 							JStructureGrid structureView = mainPane.addStructureView(title, dockInfo, idcodeColumn);
 							structureView.setColumnCount(5);
-							structureView.setFocusHitlist(FocusableView.cFocusOnSelection);
+							structureView.setFocusList(FocusableView.cFocusOnSelection);
 							int[] columnAtPosition = new int[MarkerLabelDisplayer.cPositionCode.length];
 							for (int i=0; i<columnAtPosition.length; i++)
 								columnAtPosition[i] = -1;
@@ -874,12 +855,12 @@ public class DETaskAnalyseActivityCliffs extends ConfigurableTask implements Ite
 								columnAtPosition[position++] = activityColumn;
 							columnAtPosition[position++] = similarityColumn;
 							structureView.setMarkerLabels(columnAtPosition);
-	
+
 							if (referencingColumn != -1) {
 								// create a tree view panel
 								VisualizationPanel2D vpanel2 = mainPane.add2DView("Neighbor Tree", title+"\tleft\t0.25");
-								((JVisualization2D)vpanel2.getVisualization()).setPreferredChartType(JVisualization.cChartTypeScatterPlot, -1, -1);
-	
+								vpanel2.getVisualization().setPreferredChartType(JVisualization.cChartTypeScatterPlot, -1, -1);
+
 								vpanel2.getVisualization().getMarkerColor().setColor(colorColumn, colorList, colorListMode);
 								if (activityColumn == -1)
 									vpanel2.getVisualization().getMarkerColor().setColorRange(similarityColorMin, 1f);
@@ -952,7 +933,7 @@ public class DETaskAnalyseActivityCliffs extends ConfigurableTask implements Ite
 					targetTableModel.setTotalValueAt(mSourceTableModel.getTotalValueAt(sp.row1, groupByColumn), row, column++);
 				}
 
-			targetTableModel.finalizeTable(CompoundTableEvent.cSpecifierDefaultRuntimeProperties, this);
+			targetTableModel.finalizeTable(CompoundTableEvent.cSpecifierDefaultFiltersAndViews, this);
 
 		   	if (activityColumn != -1) {
 		   		try {
@@ -968,7 +949,7 @@ public class DETaskAnalyseActivityCliffs extends ConfigurableTask implements Ite
 							vpanel1.setAxisColumnName(0, "Activity 1");
 							vpanel1.setAxisColumnName(1, "Activity 2");
 		
-							vpanel1.getVisualization().setMarkerSizeColumn(2 * structureColumnCount + 6);
+							vpanel1.getVisualization().setMarkerSizeColumn(2 * structureColumnCount + 6, Float.NaN, Float.NaN);
 							vpanel1.getVisualization().setMarkerSize(0.64f, false);
 		
 							int colorListMode1 = VisualizationColor.cColorListModeHSBLong;

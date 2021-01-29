@@ -32,8 +32,8 @@ import com.actelion.research.util.ByteArrayComparator;
  */
 public class JEPFrequencyFunction extends PostfixMathCommand {
 	private CompoundTableModel mTableModel;
-    private TreeMap<byte[],Integer> mByteArrayMap;
-    private TreeMap<Double,Integer> mDoubleMap;
+    private TreeMap<Integer,TreeMap<byte[],Integer>> mByteArrayMaps;
+    private TreeMap<Integer,TreeMap<Double,Integer>> mDoubleMaps;
 
 	/**
 	 * Constructor
@@ -44,37 +44,49 @@ public class JEPFrequencyFunction extends PostfixMathCommand {
 		numberOfParameters = 2;
 		}
 
-	private void createByteArrayMap(int column) {
-		if (mByteArrayMap == null) {
-			mByteArrayMap = new TreeMap<byte[],Integer>(new ByteArrayComparator());
+	private TreeMap<byte[],Integer> createByteArrayMap(int column) {
+		if (mByteArrayMaps == null)
+			mByteArrayMaps = new TreeMap<>();
+
+		TreeMap<byte[],Integer> byteArrayMap = mByteArrayMaps.get(column);
+		if (byteArrayMap == null) {
+			byteArrayMap = new TreeMap<byte[],Integer>(new ByteArrayComparator());
 			for (int row=0; row<mTableModel.getTotalRowCount(); row++) {
 				byte[] key = (byte[])mTableModel.getTotalRecord(row).getData(column);
 				if (key != null) {
-					Integer count = mByteArrayMap.get(key);
+					Integer count = byteArrayMap.get(key);
 					if (count == null)
-						mByteArrayMap.put(key, new Integer(1));
+						byteArrayMap.put(key, new Integer(1));
 					else
-						mByteArrayMap.put(key, new Integer(count.intValue()+1));
+						byteArrayMap.put(key, new Integer(count.intValue()+1));
 					}
 				}
+			mByteArrayMaps.put(column, byteArrayMap);
 			}
+		return byteArrayMap;
 		}
 
-	private void createDoubleMap(int column) {
-		if (mDoubleMap == null) {
-			mDoubleMap = new TreeMap<Double,Integer>();
+	private TreeMap<Double,Integer> createDoubleMap(int column) {
+		if (mDoubleMaps == null)
+			mDoubleMaps = new TreeMap<>();
+
+		TreeMap<Double,Integer> doubleMap = mDoubleMaps.get(column);
+		if (doubleMap == null) {
+			doubleMap = new TreeMap<>();
 			for (int row=0; row<mTableModel.getTotalRowCount(); row++) {
 				Double key = new Double(mTableModel.getTotalRecord(row).getDouble(column));
 //				if (!Double.isNaN(key)) {
-					Integer count = mDoubleMap.get(key);
+					Integer count = doubleMap.get(key);
 					if (count == null)
-						mDoubleMap.put(key, new Integer(1));
+						doubleMap.put(key, new Integer(1));
 					else
 						//count++;
-						mDoubleMap.put(key, new Integer(count.intValue()+1));
+						doubleMap.put(key, new Integer(count.intValue()+1));
 //					}
 				}
+			mDoubleMaps.put(column, doubleMap);
 			}
+		return doubleMap;
 		}
 
 	/**
@@ -100,8 +112,7 @@ public class JEPFrequencyFunction extends PostfixMathCommand {
 			if (param1 instanceof String || param1 instanceof Double || param1 instanceof JEPParameter) {
 				if (mTableModel.isColumnTypeDouble(column)) {
 					if (param1 instanceof Double) {
-						createDoubleMap(column);
-						Integer co = mDoubleMap.get((Double)param1);
+						Integer co = createDoubleMap(column).get((Double)param1);
 						int count = (co == null) ? 0 : co.intValue();
 						inStack.push(new Double(count));
 						}
@@ -111,7 +122,6 @@ public class JEPFrequencyFunction extends PostfixMathCommand {
 					}
 				else {
 					if (param1 instanceof String || param1 instanceof JEPParameter) {
-						createByteArrayMap(column);
 						byte[] bytes = null;
 						if (param1 instanceof String) {
 							bytes = ((String)param1).getBytes();
@@ -121,7 +131,7 @@ public class JEPFrequencyFunction extends PostfixMathCommand {
 							if (jepp.record != null)
 								bytes = (byte[])jepp.record.getData(jepp.column);
 							}
-						Integer co = mByteArrayMap.get(bytes);
+						Integer co = createByteArrayMap(column).get(bytes);
 						int count = (co == null) ? 0 : co.intValue();
 						inStack.push(new Double(count));
 						}

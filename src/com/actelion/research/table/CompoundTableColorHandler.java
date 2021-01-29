@@ -111,7 +111,7 @@ public class CompoundTableColorHandler implements VisualizationColorListener {
 		if (colorHelper == null) {
 			colorHelper = new VisualizationColor(mTableModel, this);
 			colorMap.put(columnName, colorHelper);
-			colorHelper.setColor(column);
+//			colorHelper.setColor(column);
 			}
 		return colorHelper;
 		}

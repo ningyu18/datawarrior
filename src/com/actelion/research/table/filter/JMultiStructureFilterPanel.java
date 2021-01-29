@@ -47,11 +47,11 @@ public class JMultiStructureFilterPanel extends JStructureFilterPanel
 	 * @param isSSS
 	 */
 	public JMultiStructureFilterPanel(Frame parent, CompoundTableModel tableModel, boolean isSSS) {
-		this(parent, tableModel, -1, -1, isSSS);
+		this(parent, tableModel, -1, null, -1, isSSS);
 		}
 
-	public JMultiStructureFilterPanel(Frame parent, CompoundTableModel tableModel, int column, int exclusionFlag, boolean isSSS) {
-		super(parent, tableModel, column, exclusionFlag);
+	public JMultiStructureFilterPanel(Frame parent, CompoundTableModel tableModel, int column, String reactionPart, int exclusionFlag, boolean isSSS) {
+		super(parent, tableModel, column, reactionPart, exclusionFlag);
 		mIsSSS = isSSS;
 
 		JPanel contentPanel = new JPanel();
@@ -181,7 +181,7 @@ public class JMultiStructureFilterPanel extends JStructureFilterPanel
 			String settings = mIsSSS ? null : itemToDescriptor(item)+"\t"+getSimilaritySlider().getValue();
 
 			for (int i=0; i<model.getSize(); i++)
-				settings = attachSetting(settings, model.getCompound(i));
+				settings = attachTABDelimited(settings, model.getCompound(i));
 
 			return settings;
 			}

@@ -18,22 +18,23 @@
 
 package com.actelion.research.datawarrior.task.data;
 
+import com.actelion.research.chem.io.CompoundTableConstants;
 import com.actelion.research.datawarrior.DEFrame;
 import com.actelion.research.datawarrior.task.ConfigurableTask;
 import com.actelion.research.datawarrior.task.jep.*;
+import com.actelion.research.gui.hidpi.HiDPIHelper;
 import com.actelion.research.table.model.CompoundRecord;
 import com.actelion.research.table.model.CompoundTableListHandler;
 import com.actelion.research.table.model.CompoundTableModel;
+import com.actelion.research.util.DoubleFormat;
 import info.clearthought.layout.TableLayout;
 import org.nfunk.jep.JEP;
 
 import javax.swing.*;
+import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
-import java.util.Iterator;
-import java.util.Properties;
-import java.util.TreeMap;
-import java.util.TreeSet;
+import java.util.*;
 
 public class DETaskAddCalculatedValues extends ConfigurableTask
 			implements ActionListener,Runnable {
@@ -42,83 +43,209 @@ public class DETaskAddCalculatedValues extends ConfigurableTask
 	public static final String TASK_NAME = "Add Calculated Values";
 
 	private static final String PROPERTY_FORMULA = "formula";
+	private static final String PROPERTY_OVERWRITE_COLUMN = "isOverwrite";
 	private static final String PROPERTY_COLUMN_NAME = "columnName";
 
 	private static final String PSEUDO_FUNCTION_ASK_COLUMN_VAR = "askColumnVar(";
 	private static final String PSEUDO_FUNCTION_ASK_COLUMN_TITLE = "askColumnTitle(";
 	private static final String PSEUDO_FUNCTION_ASK_STRING = "askString(";
 	private static final String PSEUDO_FUNCTION_ASK_NUMBER = "askNumber(";
-	
+
+	private static final String PREPROCESS_FUNCTION_VALUE_COUNT = "valueCount";
+
 	private static final String IS_VISIBLE_ROW = "isVisibleRow";
 	private static final String IS_SELECTED_ROW = "isSelectedRow";
 	private static final String IS_MEMBER_OF = "isMemberOf_";
 
 	private volatile CompoundTableModel	mTableModel;
 	private volatile String		mResolvedValue;
+	private volatile String		mFormula;
+	private volatile int		mColumn;
+	private boolean mAllowEditing;
+	private volatile JEP mParser;    // the parser used for function name checking and for final execution
 	private int					mCurrentRow;
-	private JComboBox			mComboBoxColumnName;
-	private JTextField		    mTextFieldFormula,mTextFieldColumnName;
+	private JPanel				mDialogPanel;
+	private JComboBox			mComboBoxVariableName,mComboBoxColumnName;
+	private JCheckBox			mCheckBoxOverwriteExisting;
+	private JTextArea		    mTextAreaFormula;
+	private JTextField          mTextFieldColumnName;
+	private JLabel				mLabelColumnName;
 	private volatile TreeMap<String,Integer> mRunTimeColumnMap;
+	private volatile ArrayList<String> mPreprocessVariables;
 
-	public DETaskAddCalculatedValues(DEFrame parent) {
+	public DETaskAddCalculatedValues(Frame parent, CompoundTableModel tableModel, int column, String formula, boolean allowEditing) {
 		super(parent, true);
-		mTableModel = parent.getTableModel();
+		mTableModel = tableModel;
+		mFormula = formula;
+		mColumn = column;
+		mParser = createParser();
+		mAllowEditing = allowEditing;
+		}
+
+	private JEP createParser() {
+		JEP parser = new JEP();
+		parser.addStandardFunctions();
+		parser.addStandardConstants();
+		parser.addFunction(JEPChemSimilarityFunction.FUNCTION_NAME, new JEPChemSimilarityFunction(mTableModel));
+		parser.addFunction("row", new JEPRowFunction(this));
+		parser.addFunction("numvalue", new JEPNumValueFunction(this, mTableModel));
+		parser.addFunction("entry", new JEPEntryFunction());
+		parser.addFunction("indexof", new JEPIndexOfFunction());
+		parser.addFunction("substring", new JEPSubstringFunction());
+		parser.addFunction("round", new JEPRoundFunction());
+		parser.addFunction("int", new JEPIntFunction());
+		parser.addFunction("len", new JEPLenFunction());
+		parser.addFunction("max", new JEPMaxFunction());
+		parser.addFunction("min", new JEPMinFunction());
+		parser.addFunction("str", new JEPMyStrFunction());
+		parser.addFunction("isempty", new JEPEmptyFunction());
+		parser.addFunction("replaceempty", new JEPReplaceEmptyFunction());
+		parser.addFunction("replace", new JEPReplaceFunction());
+		parser.addFunction("contains", new JEPContainsFunction());
+		parser.addFunction("matchregex", new JEPMatchesRegexFunction());
+		parser.addFunction("ligeff1", new JEPRateHTSFunction(mTableModel));
+		parser.addFunction("ligeff2", new JEPLigEffFunction(mTableModel));
+		parser.addFunction("normalize", new JEPNormalizeFunction(mTableModel, this));
+		parser.addFunction("maxsim", new JEPMaxChemSimilarityFunction(mTableModel));
+		parser.addFunction("increase", new JEPOrderDependentFunction(mTableModel, JEPOrderDependentFunction.TYPE_INCREASE, this));
+		parser.addFunction("increaseInCategory", new JEPOrderDependentInCategoryFunction(mTableModel, JEPOrderDependentInCategoryFunction.TYPE_INCREASE, this));
+		parser.addFunction("percentIncrease", new JEPOrderDependentFunction(mTableModel, JEPOrderDependentFunction.TYPE_PERCENT_INCREASE, this));
+		parser.addFunction("percentIncreaseInCategory", new JEPOrderDependentInCategoryFunction(mTableModel, JEPOrderDependentInCategoryFunction.TYPE_PERCENT_INCREASE, this));
+		parser.addFunction("cumulativeSum", new JEPOrderDependentFunction(mTableModel, JEPOrderDependentFunction.TYPE_CUMULATIVE_SUM, this));
+		parser.addFunction("cumulativeSumInCategory", new JEPOrderDependentInCategoryFunction(mTableModel, JEPOrderDependentInCategoryFunction.TYPE_CUMULATIVE_SUM, this));
+		parser.addFunction("frequency", new JEPFrequencyFunction(mTableModel));
+		parser.addFunction("frequencyInCategory", new JEPFrequencyInCategoryFunction(mTableModel, this));
+		parser.addFunction("categoryFirst", new JEPValueInCategoryFunction(mTableModel, JEPValueInCategoryFunction.TYPE_FIRST, this));
+		parser.addFunction("categoryMin", new JEPValueInCategoryFunction(mTableModel, JEPValueInCategoryFunction.TYPE_MIN, this));
+		parser.addFunction("categoryMax", new JEPValueInCategoryFunction(mTableModel, JEPValueInCategoryFunction.TYPE_MAX, this));
+		parser.addFunction("categorySum", new JEPValueInCategoryFunction(mTableModel, JEPValueInCategoryFunction.TYPE_SUM, this));
+		parser.addFunction("categoryMean", new JEPValueInCategoryFunction(mTableModel, JEPValueInCategoryFunction.TYPE_MEAN, this));
+		parser.addFunction("categoryMedian", new JEPValueInCategoryFunction(mTableModel, JEPValueInCategoryFunction.TYPE_MEDIAN, this));
+		parser.addFunction("movingAverageInCategory", new JEPMovingAverageInCategoryFunction(mTableModel, this));
+		parser.addFunction("refvalue", new JEPRefValueOfCategoryFunction(this, mTableModel));
+		parser.addFunction("year", new JEPValueOfDateFunction(Calendar.YEAR, -1));  // no correction
+		parser.addFunction("yearISO", new JEPValueOfDateFunction(Calendar.YEAR, 0));
+		parser.addFunction("yearEU", new JEPValueOfDateFunction(Calendar.YEAR, 1));
+		parser.addFunction("yearUS", new JEPValueOfDateFunction(Calendar.YEAR, 2));
+		parser.addFunction("yearME", new JEPValueOfDateFunction(Calendar.YEAR, 3));
+		parser.addFunction("month", new JEPValueOfDateFunction(Calendar.MONTH, 0));
+		parser.addFunction("weekISO", new JEPValueOfDateFunction(Calendar.WEEK_OF_YEAR, 0));
+		parser.addFunction("weekEU", new JEPValueOfDateFunction(Calendar.WEEK_OF_YEAR, 1));
+		parser.addFunction("weekUS", new JEPValueOfDateFunction(Calendar.WEEK_OF_YEAR, 2));
+		parser.addFunction("weekME", new JEPValueOfDateFunction(Calendar.WEEK_OF_YEAR, 3));
+		parser.addFunction("dayOfWeekEU", new JEPValueOfDateFunction(Calendar.DAY_OF_WEEK, -1));
+		parser.addFunction("dayOfWeekUS", new JEPValueOfDateFunction(Calendar.DAY_OF_WEEK, 0));
+		parser.addFunction("dayOfWeekME", new JEPValueOfDateFunction(Calendar.DAY_OF_WEEK, 1));
+		parser.addFunction("dayOfMonth", new JEPValueOfDateFunction(Calendar.DAY_OF_MONTH, 0));
+		parser.addFunction("dayOfYear", new JEPValueOfDateFunction(Calendar.DAY_OF_YEAR, 0));
+		parser.addFunction("today", new JEPTodayFunction());
+		return parser;
+		}
+
+	@Override
+	public Properties getPredefinedConfiguration() {
+		if (mAllowEditing == true)
+			return null;
+
+		Properties configuration = new Properties();
+		configuration.put(PROPERTY_FORMULA, mFormula.replace("\n", "<NL>"));
+		configuration.put(PROPERTY_OVERWRITE_COLUMN, "true");
+		configuration.put(PROPERTY_COLUMN_NAME, mTableModel.getColumnTitleNoAlias(mColumn));
+		return configuration;
 		}
 
 	@Override
 	public JComponent createDialogContent() {
-		JPanel mp = new JPanel();
-		double[][] size = { {8, TableLayout.FILL, 8, TableLayout.PREFERRED, 8, TableLayout.PREFERRED, 8, TableLayout.FILL, 8},
-							{8, TableLayout.PREFERRED, 4, TableLayout.PREFERRED, 8, TableLayout.PREFERRED, 24, TableLayout.PREFERRED, 8} };
-		mp.setLayout(new TableLayout(size));
+		mDialogPanel = new JPanel();
+		int gap = HiDPIHelper.scale(8);
+		double[][] size = { {gap, TableLayout.FILL, gap, TableLayout.PREFERRED, gap, TableLayout.PREFERRED, gap, TableLayout.FILL, gap},
+							{gap, TableLayout.PREFERRED, gap/2, TableLayout.PREFERRED, gap, TableLayout.PREFERRED, 3*gap, TableLayout.PREFERRED, gap/2, TableLayout.PREFERRED, gap} };
+		mDialogPanel.setLayout(new TableLayout(size));
 
-		mp.add(new JLabel("Please enter a formula:"), "1,1,7,1");
+		mDialogPanel.add(new JLabel("Please enter a formula:"), "1,1,7,1");
 
-		mTextFieldFormula = new JTextField(32);
-		mp.add(mTextFieldFormula, "1,3,7,3");
+		mTextAreaFormula = new JTextArea(6,32);
+		mTextAreaFormula.setLineWrap(true);
+		mTextAreaFormula.setWrapStyleWord(true);
+		mDialogPanel.add(mTextAreaFormula, "1,3,7,3");
 		
 		JButton buttonAdd = new JButton("Add Variable");
 		buttonAdd.addActionListener(this);
-		mp.add(buttonAdd, "3,5");
+		mDialogPanel.add(buttonAdd, "3,5");
 
 		TreeMap<String,Integer> columnMap = createColumnMap();
 
-		mComboBoxColumnName = new JComboBox();
+		mComboBoxVariableName = new JComboBox();
 		for (String varName:columnMap.keySet())
 			if (!mTableModel.isDescriptorColumn(columnMap.get(varName).intValue()))
-				mComboBoxColumnName.addItem(varName);
+				mComboBoxVariableName.addItem(varName);
 		for (String varName:columnMap.keySet())
 			if (mTableModel.isDescriptorColumn(columnMap.get(varName).intValue()))
-				mComboBoxColumnName.addItem(varName);
+				mComboBoxVariableName.addItem(varName);
 
-		mComboBoxColumnName.addItem(IS_VISIBLE_ROW);
-		mComboBoxColumnName.addItem(IS_SELECTED_ROW);
+		mComboBoxVariableName.addItem(IS_VISIBLE_ROW);
+		mComboBoxVariableName.addItem(IS_SELECTED_ROW);
 
-		mp.add(mComboBoxColumnName, "5,5");
+		mDialogPanel.add(mComboBoxVariableName, "5,5");
 
-		mp.add(new JLabel("New column name:", JLabel.RIGHT), "1,7,3,7");
+		mCheckBoxOverwriteExisting = new JCheckBox("Overwrite existing column");
+		mCheckBoxOverwriteExisting.addActionListener(this);
+		mDialogPanel.add(mCheckBoxOverwriteExisting, "1,7,7,7");
+
+		mLabelColumnName = new JLabel("New column name:", JLabel.RIGHT);
+		mDialogPanel.add(mLabelColumnName, "1,9,3,9");
+
+		mComboBoxColumnName = new JComboBox();
+		for (int column=0; column<mTableModel.getTotalColumnCount(); column++)
+			if (mTableModel.getColumnSpecialType(column) == null)
+				mComboBoxColumnName.addItem(mTableModel.getColumnTitle(column));
+		mComboBoxColumnName.setEditable(!isInteractive());
 
 		mTextFieldColumnName = new JTextField();
-		mp.add(mTextFieldColumnName, "5,7,7,7");
+		mDialogPanel.add(mTextFieldColumnName, "5,9,7,9");
 
-		return mp;
+		return mDialogPanel;
 		}
 
 	@Override
 	public String getHelpURL() {
-		return "/html/help/analysis.html#JEP";
+		return "/html/help/data.html#JEP";
 		}
 
 	public void actionPerformed(ActionEvent e) {
-		if (e.getActionCommand().equals("Add Variable")) {
-			int index = mTextFieldFormula.getCaretPosition();
-			String text = mTextFieldFormula.getText();
-			String name = (String)mComboBoxColumnName.getSelectedItem();
-			if (index == -1)
-				mTextFieldFormula.setText(text+name);
-			else
-				mTextFieldFormula.setText(text.substring(0, index)+name+text.substring(index));
+		if (e.getSource() == mCheckBoxOverwriteExisting) {
+			updateColumnNameComponent(mCheckBoxOverwriteExisting.isSelected());
 			return;
+			}
+
+		if (e.getActionCommand().equals("Add Variable")) {
+			int index = mTextAreaFormula.getCaretPosition();
+			String text = mTextAreaFormula.getText();
+			String name = (String) mComboBoxVariableName.getSelectedItem();
+			if (index == -1)
+				mTextAreaFormula.setText(text+name);
+			else
+				mTextAreaFormula.setText(text.substring(0, index)+name+text.substring(index));
+			return;
+			}
+		}
+
+	private void updateColumnNameComponent(boolean isOverwrite) {
+		if (isOverwrite) {
+			mLabelColumnName.setText("Column to overwrite:");
+			String item = mTextFieldColumnName.getText();
+			mDialogPanel.remove(mTextFieldColumnName);
+			mDialogPanel.add(mComboBoxColumnName, "5,9,7,9");
+			mComboBoxColumnName.setSelectedItem(item == null ? "" : item);
+			mComboBoxColumnName.repaint();
+			}
+		else {
+			mLabelColumnName.setText("New column name:");
+			String item = (String)mComboBoxColumnName.getSelectedItem();
+			mDialogPanel.remove(mComboBoxColumnName);
+			mDialogPanel.add(mTextFieldColumnName, "5,9,7,9");
+			mTextFieldColumnName.setText(item == null ? "" : item);
+			mTextFieldColumnName.repaint();
 			}
 		}
 
@@ -163,6 +290,9 @@ public class DETaskAddCalculatedValues extends ConfigurableTask
 		formula = resolvePseudoFunctions(formula, PSEUDO_FUNCTION_ASK_COLUMN_VAR, isValidation);
 		formula = resolvePseudoFunctions(formula, PSEUDO_FUNCTION_ASK_STRING, isValidation);
 		formula = resolvePseudoFunctions(formula, PSEUDO_FUNCTION_ASK_NUMBER, isValidation);
+
+		mPreprocessVariables = null;
+		formula = resolvePreprocessFunctions(formula, PREPROCESS_FUNCTION_VALUE_COUNT, isValidation);
 		return formula;
 		}
 
@@ -194,6 +324,47 @@ public class DETaskAddCalculatedValues extends ConfigurableTask
 				formula = replacePseudoFunction(formula, index, index2, substring.replace("\\", "\\\\"));
 
 			index = index2;
+			}
+
+		return formula;
+		}
+
+	/**
+	 * Converts preprocess functions (currently only valueCount()) into variable name.
+	 * @param formula
+	 * @param functionName
+	 * @param isValidation if true, then don't ask, but return just something reasonable for formula validation
+	 * @return formula with pseudo functions replaced by variables or null, if the user cancelled a dialog
+	 */
+	private String resolvePreprocessFunctions(String formula, String functionName, boolean isValidation) {
+		if (formula == null)
+			return null;
+
+		int index = -1;
+		while (true) {
+			index = formula.indexOf(functionName+"(", index+1);
+			if (index == -1)
+				break;
+
+			int index2 = index+functionName.length()+1;
+			int index3 = formula.indexOf(')', index2);
+			if (index3 == -1)
+				return formula;	// we have a syntax error; let the parser deal with it
+
+			String resolvedValue = "1";	// default for validation: number or string
+			if (!isValidation) {
+				Integer column = mRunTimeColumnMap.get(formula.substring(index2, index3).trim());
+				if (column == null)
+					return formula;    // we didn't find the column; let the parser create a syntax error
+
+				resolvedValue = functionName.concat(column.toString());
+
+				if (mPreprocessVariables == null)
+					mPreprocessVariables = new ArrayList<String>();
+				mPreprocessVariables.add(resolvedValue);
+				}
+
+			formula = replacePseudoFunction(formula, index, index3+1, resolvedValue);
 			}
 
 		return formula;
@@ -329,28 +500,11 @@ public class DETaskAddCalculatedValues extends ConfigurableTask
 		return null;	// shouldn't happen
 		}
 
-	private JEP parseFormula(String formula) {
-		JEP parser = new JEP();
-		parser.addStandardFunctions();
-		parser.addStandardConstants();
-		parser.addFunction(JEPChemSimilarityFunction.FUNCTION_NAME, new JEPChemSimilarityFunction(mTableModel));
-		parser.addFunction("entry", new JEPEntryFunction());
-		parser.addFunction("indexof", new JEPIndexOfFunction());
-		parser.addFunction("substring", new JEPSubstringFunction());
-		parser.addFunction("round", new JEPRoundFunction());
-		parser.addFunction("int", new JEPIntFunction());
-		parser.addFunction("len", new JEPLenFunction());
-		parser.addFunction("max", new JEPMaxFunction());
-		parser.addFunction("min", new JEPMinFunction());
-		parser.addFunction("isempty", new JEPEmptyFunction());
-		parser.addFunction("replaceempty", new JEPReplaceEmptyFunction());
-		parser.addFunction("contains", new JEPContainsFunction());
-		parser.addFunction("ligeff1", new JEPRateHTSFunction(mTableModel));
-		parser.addFunction("ligeff2", new JEPLigEffFunction(mTableModel));
-		parser.addFunction("normalize", new JEPNormalizeFunction(mTableModel));
-		parser.addFunction("maxsim", new JEPMaxChemSimilarityFunction(mTableModel));
-		parser.addFunction("frequency", new JEPFrequencyFunction(mTableModel));
-		parser.addFunction("refvalue", new JEPRefValueOfCategoryFunction(this, mTableModel));
+	private boolean parseFormula(JEP parser, String formula) {
+		if (mPreprocessVariables != null)
+			for (String varName:mPreprocessVariables)
+				if (varName.startsWith(PREPROCESS_FUNCTION_VALUE_COUNT))
+					parser.addVariable(varName, 1);
 		Iterator<String> keyIterator = mRunTimeColumnMap.keySet().iterator();
 		while (keyIterator.hasNext()) {
 			String varName = keyIterator.next();
@@ -374,23 +528,27 @@ public class DETaskAddCalculatedValues extends ConfigurableTask
 		parser.parseExpression(formula);
 		if (parser.hasError()) {
 			showErrorMessage(parser.getErrorInfo());
-			return null;
+			return false;
 			}
 
-		return parser;
+		return true;
 		}
 
 	@Override
 	public void runTask(Properties configuration) {
 		startProgress("Calculating values...", 0, mTableModel.getTotalRowCount());
 
-		String formula = resolveVariables(configuration.getProperty(PROPERTY_FORMULA));
-		JEP parser = parseFormula(preprocessFormula(formula, false));
+		// before 28Jul2020 '\n' were not encoded as '<NL>'
+		String formula = resolveVariables(configuration.getProperty(PROPERTY_FORMULA,"").replace("\n", "").replace("<NL>", ""));
+		if (!parseFormula(mParser, preprocessFormula(formula, false)))
+			return;
+
+		boolean isOverwrite = "true".equals(configuration.getProperty(PROPERTY_OVERWRITE_COLUMN));
 
 		String[] columnName = new String[1];
 		columnName[0] = configuration.getProperty(PROPERTY_COLUMN_NAME);
-		int firstNewColumn = mTableModel.addNewColumns(columnName);
-		mTableModel.setColumnDescription(formula, firstNewColumn);
+		int targetColumn = isOverwrite ? mTableModel.findColumn(configuration.getProperty(PROPERTY_COLUMN_NAME)) : mTableModel.addNewColumns(columnName);
+		mTableModel.setColumnProperty(targetColumn, CompoundTableConstants.cColumnPropertyFormula, formula);
 
 		CompoundTableListHandler hitlistHandler = mTableModel.getListHandler();
 
@@ -401,33 +559,53 @@ public class DETaskAddCalculatedValues extends ConfigurableTask
 				updateProgress(mCurrentRow);
 
 			CompoundRecord record = mTableModel.getTotalRecord(mCurrentRow);
+			if (mPreprocessVariables != null) {
+				for (String varName:mPreprocessVariables) {
+					if (varName.startsWith(PREPROCESS_FUNCTION_VALUE_COUNT)) {
+						int column = Integer.parseInt(varName.substring(PREPROCESS_FUNCTION_VALUE_COUNT.length()));
+						int count = record.getData(column) == null ? 0
+							: mTableModel.separateEntries(mTableModel.encodeData(record, column)).length;
+						mParser.addVariable(varName, count);
+						}
+					}
+				}
 			for (String varName:mRunTimeColumnMap.keySet()) {
 				int column = mRunTimeColumnMap.get(varName).intValue();
 				if (CompoundTableListHandler.isListColumn(column)) {
-					long hitlistMask = hitlistHandler.getListMask(CompoundTableListHandler.getListFromColumn(column));
-					parser.addVariable(varName, (record.getFlags() & hitlistMask) != 0 ? 1.0 : 0.0 );
+					long hitlistMask = hitlistHandler.getListMask(CompoundTableListHandler.convertToListIndex(column));
+					mParser.addVariable(varName, (record.getFlags() & hitlistMask) != 0 ? 1.0 : 0.0 );
 					}
 				else {
 					if (mTableModel.getColumnSpecialType(column) != null)
-						parser.addVariable(varName, new JEPParameter(record, column));
-					else if (mTableModel.isColumnTypeDouble(column)
-					 && !mTableModel.isColumnTypeDate(column)) {
+						mParser.addVariable(varName, new JEPParameter(record, column));
+					else if (mTableModel.isColumnTypeDouble(column)) {  // this includes date for the date functions
 						double value = mTableModel.getTotalOriginalDoubleAt(mCurrentRow, column);
-						parser.addVariable(varName, value);
+						mParser.addVariable(varName, value);
 						}
 					else
-						parser.addVariable(varName, mTableModel.getValue(record, column));
+						mParser.addVariable(varName, mTableModel.getValue(record, column));
 					}
 				}
-			parser.addVariable(IS_VISIBLE_ROW, mTableModel.isVisible(record) ? 1.0 : 0.0);
-			parser.addVariable(IS_SELECTED_ROW, mTableModel.isVisibleAndSelected(record) ? 1.0 : 0.0);
+			mParser.addVariable(IS_VISIBLE_ROW, mTableModel.isVisible(record) ? 1.0 : 0.0);
+			mParser.addVariable(IS_SELECTED_ROW, mTableModel.isVisibleAndSelected(record) ? 1.0 : 0.0);
 
-			Object o = parser.getValueAsObject();
-			String value = (o == null) ? "NaN" : o.toString();
-			mTableModel.setTotalValueAt(value, mCurrentRow, firstNewColumn);
+			Object o = mParser.getValueAsObject();
+
+//			String value = (o == null) ? "NaN" : o.toString();
+//			if (o instanceof Double && value.endsWith(".0"))
+//  			value = value.substring(0, value.length()-2);
+
+			String value = (o == null) ? "NaN"
+					: !(o instanceof Double) ? o.toString()
+					: DoubleFormat.toString((Double)o, 7, true);
+
+			mTableModel.setTotalValueAt(value, mCurrentRow, targetColumn);
 			}
 
-		mTableModel.finalizeNewColumns(firstNewColumn, this);
+		if (isOverwrite)
+			mTableModel.finalizeChangeAlphaNumericalColumn(targetColumn, 0, mTableModel.getTotalRowCount());
+		else
+			mTableModel.finalizeNewColumns(targetColumn, this);
 		}
 
 	/**
@@ -442,18 +620,24 @@ public class DETaskAddCalculatedValues extends ConfigurableTask
 		StringBuffer buf = new StringBuffer(1+s.length());
 
 		// don't start with a digit to avoid implicit multiplication errors
-		if (Character.isDigit(s.charAt(0)))
+		if (s.length() != 0 && Character.isDigit(s.charAt(0)))
 			buf.append('_');
 
 		for (int i=0; i<s.length(); i++) {
 			char theChar = s.charAt(i);
-			if (theChar < 128 && (Character.isLetterOrDigit(theChar) || theChar=='_'))
+			if (theChar == 'u')	// special handling, because JEP produces syntax errors with this char
+				theChar = 'u';
+			if (Character.isLetterOrDigit(theChar) || theChar=='_')
 				buf.append(theChar);
 			}
 		return buf.toString();
 		}
 
 	private String ensureUniqueness(String varName, TreeSet<String> varNameList) {
+		// where variable names collide with a function name, we enforce upper case first letters
+		if (mParser.getFunctionTable().containsKey(varName) && Character.isLowerCase(varName.charAt(0)))
+			varName = varName.substring(0, 1).toUpperCase().concat(varName.substring(1));
+
 		if (varNameList.contains(varName)) {
 			for (int suffix = 2; true; suffix++) {
 				String suggestedName = varName.concat("_").concat(Integer.toString(suffix));
@@ -484,43 +668,90 @@ public class DETaskAddCalculatedValues extends ConfigurableTask
 
 	@Override
 	public Properties getDialogConfiguration() {
+		boolean isOverwrite = mCheckBoxOverwriteExisting.isSelected();
 		Properties configuration = new Properties();
-		configuration.put(PROPERTY_FORMULA, mTextFieldFormula.getText());
-		configuration.put(PROPERTY_COLUMN_NAME, mTextFieldColumnName.getText());
+		configuration.put(PROPERTY_FORMULA, mTextAreaFormula.getText().replace("\n", "<NL>"));
+		configuration.put(PROPERTY_OVERWRITE_COLUMN, isOverwrite ? "true" : "false");
+		configuration.put(PROPERTY_COLUMN_NAME, mTableModel.getColumnTitleNoAlias(
+				isOverwrite ? (String)mComboBoxColumnName.getSelectedItem() : mTextFieldColumnName.getText()));
 		return configuration;
 		}
 
 	@Override
 	public void setDialogConfiguration(Properties configuration) {
-		mTextFieldFormula.setText(configuration.getProperty(PROPERTY_FORMULA, ""));
-		mTextFieldColumnName.setText(configuration.getProperty(PROPERTY_COLUMN_NAME, ""));
+		if (mFormula != null) {
+			mTextAreaFormula.setText(mFormula);
+			mCheckBoxOverwriteExisting.setSelected(true);
+			mComboBoxColumnName.setSelectedItem(mTableModel.getColumnTitle(mColumn));
+			updateColumnNameComponent(true);
+			}
+		else {
+			boolean isOverwrite = "true".equals(configuration.getProperty(PROPERTY_OVERWRITE_COLUMN));
+			mTextAreaFormula.setText(configuration.getProperty(PROPERTY_FORMULA, "").replace("<NL>", "\n"));
+			mCheckBoxOverwriteExisting.setSelected(isOverwrite);
+			String columnName = configuration.getProperty(PROPERTY_COLUMN_NAME, "");
+			if (isOverwrite) {
+				int column = mTableModel.findColumn(columnName);
+				if (column != -1)
+					columnName = mTableModel.getColumnTitle(column);
+				mComboBoxColumnName.setSelectedItem(columnName);
+				updateColumnNameComponent(true);
+				}
+			else {
+				mTextFieldColumnName.setText(columnName);
+				}
+			}
 		}
 
 	@Override
 	public void setDialogConfigurationToDefault() {
-		mTextFieldFormula.setText("");
-		mTextFieldColumnName.setText("Calculated Column");
+		if (mFormula == null) {
+			mTextAreaFormula.setText("");
+			mCheckBoxOverwriteExisting.setSelected(false);
+			mTextFieldColumnName.setText("Calculated Column");
+			}
+		else {
+			mTextAreaFormula.setText(mFormula);
+			mCheckBoxOverwriteExisting.setSelected(true);
+			mComboBoxColumnName.setSelectedItem(mTableModel.getColumnTitle(mColumn));
+			updateColumnNameComponent(true);
+			}
 		}
 
 	@Override
 	public boolean isConfigurationValid(Properties configuration, boolean isLive) {
-		if (configuration.getProperty(PROPERTY_COLUMN_NAME, "").length() == 0) {
-			showErrorMessage("No new column name specified.");
+		String columnName = configuration.getProperty(PROPERTY_COLUMN_NAME, "");
+		if (columnName.length() == 0) {
+			showErrorMessage("No column name specified.");
 			return false;
 			}
-		String formula = resolveVariables(configuration.getProperty(PROPERTY_FORMULA, ""));
+
+		String formula = resolveVariables(configuration.getProperty(PROPERTY_FORMULA, "").replace("\n", "").replace("<NL>", ""));
 		if (formula.length() == 0) {
 			showErrorMessage("No formula specified.");
 			return false;
 			}
+
 		if (isLive) {
+			boolean isOverwrite = "true".equals(configuration.getProperty(PROPERTY_OVERWRITE_COLUMN));
+			if (isOverwrite) {
+				int column = mTableModel.findColumn(columnName);
+				if (column == -1) {
+					showErrorMessage("Target column not found.");
+					return false;
+					}
+				if (mTableModel.getColumnSpecialType(column) != null) {
+					showErrorMessage("Target column is not alpha-numerical.");
+					return false;
+					}
+				}
+
 			mRunTimeColumnMap = createColumnMap();
 			formula = preprocessFormula(formula, true);
 			if (formula == null)
 				return false;	// no error message because the user cancelled
 
-			JEP parser = parseFormula(formula);
-			if (parser == null)
+			if (!parseFormula(createParser(), formula))
 				return false;	// parseFormula shows error message
 			}
 		return true;
@@ -531,3 +762,4 @@ public class DETaskAddCalculatedValues extends ConfigurableTask
 		return null;
 		}
 	}
+

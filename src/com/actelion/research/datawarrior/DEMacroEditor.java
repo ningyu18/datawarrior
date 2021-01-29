@@ -29,6 +29,7 @@ import com.actelion.research.table.model.CompoundTableEvent;
 import com.actelion.research.table.model.CompoundTableListEvent;
 import com.actelion.research.table.model.CompoundTableModel;
 import com.actelion.research.table.view.CompoundTableView;
+import com.actelion.research.table.view.ViewSelectionHelper;
 import com.actelion.research.util.ColorHelper;
 import info.clearthought.layout.TableLayout;
 
@@ -39,6 +40,8 @@ import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.TreeSelectionModel;
 import java.awt.*;
 import java.awt.event.*;
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
 import java.util.ArrayList;
 import java.util.Properties;
 import java.util.TreeSet;
@@ -49,7 +52,9 @@ public class DEMacroEditor extends JSplitPane implements ActionListener,Compound
 
     private static final String COMMAND_DELETE_SELECTED = "delsel";
     private static final String COMMAND_DELETE = "delete";
+	private static final String COMMAND_DUPLICATE = "duplicate";
     private static final String COMMAND_EDIT = "edit";
+	private static final String COMMAND_RUN = "run";
 
  //   private static ImageIcon sPopupIcon;
 
@@ -62,8 +67,8 @@ public class DEMacroEditor extends JSplitPane implements ActionListener,Compound
     private StandardTaskFactory	mTaskFactory;
     private DEMacro				mCurrentMacro;
 	private JPopupMenu			mMacroPopup;
-	private JButton				mMacroPopupButton;
 	private JCheckBoxMenuItem	mItemAutoStart;
+	private ViewSelectionHelper	mViewSelectionHelper;
 
 	@SuppressWarnings("unchecked")
 	public DEMacroEditor(DEFrame parentFrame) {
@@ -108,6 +113,7 @@ public class DEMacroEditor extends JSplitPane implements ActionListener,Compound
 		if (mComboBoxMacro.getItemCount() != 0)
 			mComboBoxMacro.setSelectedIndex(0);
 		mComboBoxMacro.addItemListener(this);
+		JButton popupButton = createPopupButton();
 
 		int scaled4 = HiDPIHelper.scale(4);
 		int scaled8 = HiDPIHelper.scale(8);
@@ -126,7 +132,7 @@ public class DEMacroEditor extends JSplitPane implements ActionListener,Compound
 		bp.setLayout(new TableLayout(size));
 		bp.add(new JLabel("Current Macro:", JLabel.RIGHT), "1,1,1,3");
 		bp.add(mComboBoxMacro, "3,1,3,3");
-		bp.add(createPopupButton(), "5,2");
+		bp.add(popupButton, "5,2");
 
 		mList = new JList(new DefaultListModel()) {
 			private static final long serialVersionUID = 20131206L;
@@ -217,6 +223,19 @@ public class DEMacroEditor extends JSplitPane implements ActionListener,Compound
 		macroPanel.add(sp, BorderLayout.CENTER);
 		setRightComponent(macroPanel);
 
+		final CompoundTableView _this = this;
+		MouseAdapter viewSelectionMouseAdapter = new MouseAdapter() {
+			@Override
+			public void mousePressed(MouseEvent e) {
+				mViewSelectionHelper.setSelectedView(_this);
+			}
+		};
+		bp.addMouseListener(viewSelectionMouseAdapter);
+		mTree.addMouseListener(viewSelectionMouseAdapter);
+		mList.addMouseListener(viewSelectionMouseAdapter);
+		mComboBoxMacro.addMouseListener(viewSelectionMouseAdapter);
+		popupButton.addMouseListener(viewSelectionMouseAdapter);
+
 		setDividerSize(8);
 		setDividerLocation(0.4);
 		setResizeWeight(0.4);
@@ -225,18 +244,23 @@ public class DEMacroEditor extends JSplitPane implements ActionListener,Compound
 		enableItems();
 		}
 
+	@Override
+	public boolean copyViewContent() {
+		return false;
+		}
+
 	private JButton createPopupButton() {
-		mMacroPopupButton = new HiDPIIconButton("popup14.png", null, "showPopup");
-		mMacroPopupButton.addActionListener(this);
-		mMacroPopupButton.addMouseListener(new MouseAdapter() {
+		JButton button = new HiDPIIconButton("popup14.png", null, "showPopup");
+		button.addActionListener(this);
+		button.addMouseListener(new MouseAdapter() {
 			@Override
 			public void mousePressed(MouseEvent e) {
 			if (mMacroPopup == null)
 				showMacroPopup(e);
-			}
-		});
-		return mMacroPopupButton;
-	}
+				}
+			});
+		return button;
+		}
 
 	private void showMacroPopup(MouseEvent e) {
 		JButton button = (JButton)e.getSource();
@@ -276,6 +300,11 @@ public class DEMacroEditor extends JSplitPane implements ActionListener,Compound
 	@Override
 	public void cleanup() {
 		mList.getModel().removeListDataListener(this);
+		}
+
+	@Override
+	public void setViewSelectionHelper(ViewSelectionHelper l) {
+		mViewSelectionHelper = l;
 		}
 
 	@Override
@@ -385,19 +414,41 @@ public class DEMacroEditor extends JSplitPane implements ActionListener,Compound
 		        popup.addSeparator();
 				}
 
-			JMenuItem item2 = new JMenuItem("Delete Task");
-	        item2.addActionListener(this);
-	        item2.setActionCommand(COMMAND_DELETE+taskIndex);
-	        popup.add(item2);
+			JMenuItem item2 = new JMenuItem("Duplicate Task");
+			item2.addActionListener(this);
+			item2.setActionCommand(COMMAND_DUPLICATE+taskIndex);
+			popup.add(item2);
 
-	        if (mList.getSelectedValues().length > 1) {
-				JMenuItem item3 = new JMenuItem("Delete Selected Tasks");
-		        item3.addActionListener(this);
-		        item3.setActionCommand(COMMAND_DELETE_SELECTED);
-		        popup.add(item3);
+			popup.addSeparator();
+
+			JMenuItem item3 = new JMenuItem("Delete Task");
+	        item3.addActionListener(this);
+	        item3.setActionCommand(COMMAND_DELETE+taskIndex);
+	        popup.add(item3);
+
+	        if (mList.getSelectedValuesList().size() > 1) {
+				JMenuItem item4 = new JMenuItem("Delete Selected Tasks");
+		        item4.addActionListener(this);
+		        item4.setActionCommand(COMMAND_DELETE_SELECTED);
+		        popup.add(item4);
 	        	}
 
-	        popup.show(mList, x, y);
+			popup.addSeparator();
+
+			JMenu runMenu = new JMenu("Run Task In");
+			popup.add(runMenu);
+			ArrayList<DEFrame> frameList = mParentFrame.getApplication().getFrameList();
+			for (int i=0; i<frameList.size(); i++) {
+				DEFrame frame = frameList.get(i);
+				JMenuItem runItem = new JMenuItem((frame == mParentFrame) ? "This Window" : frame.getTitle());
+				runItem.addActionListener(this);
+				runItem.setActionCommand(COMMAND_RUN+i+'_'+taskIndex);
+				runMenu.add(runItem);
+				}
+
+			mParentFrame.getApplication().getFrameList();
+
+			popup.show(mList, x, y);
 			}
 		}
 
@@ -455,8 +506,16 @@ public class DEMacroEditor extends JSplitPane implements ActionListener,Compound
 			editTask(Integer.parseInt(e.getActionCommand().substring(COMMAND_EDIT.length())));
 			return;
 			}
+		if (e.getActionCommand().startsWith(COMMAND_DUPLICATE)) {
+			duplicateTask(Integer.parseInt(e.getActionCommand().substring(COMMAND_DUPLICATE.length())));
+			return;
+			}
 		if (e.getActionCommand().startsWith(COMMAND_DELETE)) {
 			deleteTask(Integer.parseInt(e.getActionCommand().substring(COMMAND_DELETE.length())));
+			return;
+			}
+		if (e.getActionCommand().startsWith(COMMAND_RUN)) {
+			runTask(e.getActionCommand().substring(COMMAND_RUN.length()));
 			return;
 			}
 		}
@@ -548,6 +607,14 @@ public class DEMacroEditor extends JSplitPane implements ActionListener,Compound
 		mCurrentMacro.removeTask(taskIndex);
 		}
 
+	private void duplicateTask(int taskIndex) {
+		if (taskIndex != -1) {
+			DEMacro macro = mMacroList.get(mComboBoxMacro.getSelectedIndex());
+			macro.duplicateTask(taskIndex);
+			mParentFrame.setDirty(true);
+			}
+		}
+
 	private void editTask(int taskIndex) {
 		if (taskIndex != -1) {
 			DEMacro macro = mMacroList.get(mComboBoxMacro.getSelectedIndex());
@@ -561,6 +628,19 @@ public class DEMacroEditor extends JSplitPane implements ActionListener,Compound
 					}
 				}
 			}
+		}
+
+	private void runTask(String encoding) {
+		int index = encoding.indexOf('_');
+		int frameIndex = Integer.parseInt(encoding.substring(0, index));
+		int taskIndex = Integer.parseInt(encoding.substring(index+1));
+		DEMacro macro = mMacroList.get(mComboBoxMacro.getSelectedIndex());
+		DEMacro.Task macroTask = macro.getTask(taskIndex);
+		AbstractTask task = mTaskFactory.createTaskFromCode(mParentFrame, macroTask.getCode());
+		DEMacro singleTaskMacro = new DEMacro("Single-Task Macro", new ArrayList<DEMacro>());
+		singleTaskMacro.addTask(macroTask.getCode(), macroTask.getConfiguration());
+		ArrayList<DEFrame> frameList = mParentFrame.getApplication().getFrameList();
+		DEMacroRecorder.getInstance().runMacro(singleTaskMacro, frameList.get(frameIndex));
 		}
 
 	@Override

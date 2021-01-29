@@ -25,22 +25,44 @@ import org.openmolecules.comm.ClientCommunicator;
 import java.util.TreeMap;
 
 public class CODCommunicator extends ClientCommunicator implements CODServerConstants {
-	private ProgressController mProgressController;
-	private static String sServerURL = SERVER_URL;
+//	private static final String SERVER_URL = "http://localhost:8086";
+	private static final String sURL_1 = "http://cod.openmolecules.org";
+	private static final String sURL_2 = "http://46.4.119.202:8086";
+	private static String sPrimaryURL = sURL_1;
+	private static String sSecondaryURL = sURL_2;
+	private static boolean sUseSecondaryServer = false;
 
-	public CODCommunicator(ProgressController task) {
-		super(false);
+	private ProgressController mProgressController;
+
+	public CODCommunicator(ProgressController task, String applicationName) {
+		super(false, applicationName);
 		mProgressController = task;
 		}
 
 	@Override
-	public String getServerURL() {
-		return sServerURL;
+	public String getPrimaryServerURL() {
+		return sPrimaryURL;
 		}
 
-	public static void setServerURL(String serverURL) {
-		sServerURL = serverURL;
+	@Override
+	public String getSecondaryServerURL() {
+		return sSecondaryURL;
 	}
+
+	public static void setServerURL(String serverURL) {
+		sPrimaryURL = serverURL;
+		sSecondaryURL = sURL_1;
+		}
+
+	@Override
+	public boolean isUseSecondaryServer() {
+		return sUseSecondaryServer;
+		}
+
+	@Override
+	public void setUseSecondaryServer() {
+		sUseSecondaryServer = true;
+		}
 
 	public byte[][][] search(TreeMap<String,Object> query) {
 		return (byte[][][])getResponse(REQUEST_RUN_QUERY, KEY_QUERY, encode(query));
@@ -56,7 +78,7 @@ public class CODCommunicator extends ClientCommunicator implements CODServerCons
 			System.out.println("Done");
 		else
 			System.out.println("Busy: "+message);
-	}
+		}
 
 	@Override
 	public void showErrorMessage(String message) {

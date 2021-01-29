@@ -1,7 +1,7 @@
 <!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN">
 <html>
 <head>
-  <title>DataWarrior Manual</title>
+  <title>DataWarrior Basics</title>
   <base href="../">
   <link type="text/css" href="styles.css" rel="stylesheet">
 </head>
@@ -75,9 +75,9 @@ header area opens a popup with controls for assigning data columns and to dynami
 <h3>3D-View</h3>
 <p> The <b>3D-View</b> is similar to the 2D-View, however, it displays markers or bars
 in a three dimensional cartesian coordinate system. The left mouse button can be
-used to select row markers or to change the <span class="keyword">Current Row</span>. Pressing and dragging
-the right mouse button over empty space rotates the view. Pressing the same mouse button over a marker
-opens a popup menu for changing view specific settings.
+used to select row markers or to change the <span class="keyword">Reference Row</span>. Pressing and dragging
+the right mouse button rotates the view. Clicking the right mouse button over a marker opens a popup menu
+for changing view specific settings.
 <a href="help/views.html#2DAnd3DViews">More...</a></p>
 <br>
 <h3>Form View</h3>
@@ -102,10 +102,10 @@ Filters always apply to all views, i.e. hide the same rows from all views at the
 If a row is excluded by one or more filters, then it is not visible in any view.
 Usually, a filter is associated with one column of the data and the kind of data within a
 column determines, which filter types can be created and used for this column.
-The effect of a filter can be inverted by selecting the <span class="menu">Invert</span> button.
+The effect of a filter can be inverted by selecting its <span class="menu">Invert</span> button.
 A <span class="menu">Disable</span> button allows to temporarily switch off the filtering effect
 without removing the filter's settings.
-The status panel displays the number of visible rows, of the selected rows, and of all rows.
+The status panel always displays the number of visible rows, of the selected rows, and of all rows.
 </p>
 <p>Available filter types are:</p>
 <table class="wspace">
@@ -114,9 +114,10 @@ The status panel displays the number of visible rows, of the selected rows, and 
       <td class="wspace"><p><img src="help/img/basics/sliders.png"></p></td>
       <td class="wspace"><span class="keyword">Sliders</span> filter rows based on numerical 
       or date values. They define an allowed or forbidden data range by defining 
-      minimum and maximum values. Pressing the <span class="menu">Ctrl</span> 
-      key while dragging the slider caps reduces sensitivity by a factor of 20 
-      to allow fine-tuning.</td>
+      minimum and maximum values. Pressing <span class="menu">Ctrl</span> while dragging
+      allows fine-tuning. After clicking a numerical value it can be edited with the keyboard.
+      Red bars indicate that the corresponding column contains empty values, which
+      the slider's numerical range cannot include.</td>
     </tr>
     <tr>
       <td class="wspace"><p><img src="help/img/basics/textFilter.png"></p></td>
@@ -172,6 +173,26 @@ The status panel displays the number of visible rows, of the selected rows, and 
       </td>
     </tr>
     <tr>
+      <td class="wspace"><p><img src="help/img/basics/reactionFilter.png"></p></td>
+      <td class="wspace">Similar to the structure filter, the reaction filter offers
+        similarity and sub-structure based reaction filtering. Once a query reaction
+        is drawn, rows may independently be filtered on similarities of the reaction center
+        and on the periphery. Both modes, reaction substructure and reaction similarity filtering
+        require reactions to be mapped, which means that all reactant atoms, which also exist on the
+        product side, must be mapped to the respective product atoms.
+        <a href="help/chemistry.html#ReactionFilter">More...</a>
+      </td>
+    </tr>
+    <tr>
+      <td class="wspace"><p><img src="help/img/basics/retronFilter.png"></p></td>
+      <td class="wspace">A <span class="keyword">retron</span> is a structural pattern, i.e. a
+        substructure on the product side, that is created within the reaction. This filter offers an
+        easy way to quickly search a reaction collection. It does not need any atom mapping,
+        neither in the query nor in searched reaction collection.
+        <a href="help/chemistry.html#RetronSearch">More...</a>
+      </td>
+    </tr>
+    <tr>
       <td class="wspace"><p><img src="help/img/basics/implicitViewFilter.jpeg"></p></td>
       <td class="wspace">Per default any visible graphical view also serves as implicit filter.
       When the <span class="menu">xyz</span> button is clicked, then a popup appears
@@ -185,23 +206,22 @@ The status panel displays the number of visible rows, of the selected rows, and 
     </tr>
     <tr>
       <td class="wspace"><p><img src="help/img/basics/explicitViewFilter.jpeg"></p></td>
-      <td class="wspace">One graphical view may also be defined to serve as an
-      explicit filter, which changes its row selection behaviour. If rows are chosen
-      in an explicitly filtering view, the global row selection is not changed.
-      Instead, all rows not chosen are hidden from all other views. This way one
-      may quickly restrict the row visibility in other views to a chosen custom set.
-      The chosen rows are drawn in <b><font color="#660066">purple</font></b>, while globally selected rows are still
-      drawn in the usual <b><font color="#006666">grayish blue</font></b>.
+      <td class="wspace">One of the graphical views may be defined to serve as an
+      explicit filter. This view then behaves differently, when rows are lasso-surrounded with the mouse.
+      Instead of globally selecting rows, the local view shows these rows in <b><font color="#660066">purple</font></b>
+      color. This causes all <b>non-<font color="#660066">purple</font></b> rows to disappear from all other views.
+      This offers a quick way to flexibly show selectable data subsets in all other views.
       </td>
     </tr>
   </tbody>
 </table>
 
-<p>Depending on the data, <span class="keyword">DataWarrior</span> shows 
-a reasonable set of default filters. One can always add more filters or remove 
-filters from the filter panel. Multiple active filters accumulate their affects, which 
-means that rows are hidden if they don't match the filter condition of at least 
-one filter.</p>
+<p>Depending on the data, <span class="keyword">DataWarrior</span> shows a reasonable set of
+default filters. One can always add more filters with <span class="menu">Edit->New Filter...</span>
+or remove filters by clicking the close button. Filters can be re-arranged by grabbing its name and
+dragging it to a new position.</p>
+<p>Multiple active filters accumulate their affects, which means that rows are hidden if they don't
+match the filter condition of at least one filter.</p>
 
 <br>
 <h3><a name="VisibleRows"></a>Visible Rows</h3>
@@ -223,39 +243,28 @@ when you change the row selection in one view, the selection in all other views 
 updated simultaniously. The number of (visible) selected rows is always displayed in the status area.</p>
 
 <br>
-<h3><a name="CurrentRow"></a>Current Row</h3>
-<p>With a mouse click one row can be defined as the <span class="keyword">Current Row</span>.
-As with the <span class="keyword">Selected Rows</span>, the <span class="keyword">Current Row</span>
-is shared among all views. Most views mark the <span class="keyword">Current Row</span> with a
+<h3><a name="ReferenceRow"></a>Reference Row</h3>
+<p>With a mouse click one row can be defined as the <span class="keyword">Reference Row</span>.
+As with the <span class="keyword">Selected Rows</span>, the <span class="keyword">Reference Row</span>
+is shared among all views. Most views mark the <span class="keyword">Reference Row</span> with a
 <b> <font color="#FF0000">red frame</font></b> or show it in <b><font color="#FF0000">red color</font></b>. 
-The <span class="keyword">Form View</span> always shows the <span class="keyword">Current Row</span>.
-Various display modes use the <span class="keyword">Current Row</span> as a reference to compare to
+The <span class="keyword">Form View</span> always shows the <span class="keyword">Reference Row</span>.
+Various display modes use the <span class="keyword">Reference Row</span> as a reference to compare to
 when using color to show similarities or when constructing neighbourship graphs, etc.</p>
 
 <br>
 <h3><a name="RowLists"></a>Row Lists</h3>
-<p> A <span class="keyword">Row List</span> is a named subset of all rows.
-<span class="keyword">Row Lists</span> may be used for various purposes in DataWarrior,
-e.g. as subject of a filter, to affect marker sizes, shapes or colors, to highlight a group of rows,
+<p>A <span class="keyword">Row List</span> is a named subset of all rows. In <span class="keyword">DataWarrior</span>
+<span class="keyword">Row Lists</span> may be used for various purposes,
+e.g. to filter rows, to affect marker sizes, shapes or colors, to highlight a group of rows,
 to permanently store a current selection, to define data subset for a data analysis method, etc.
 Defined <span class="keyword">Row Lists</span> are automatically saved within DataWarrior files.
 The <span class="menu">List</span> menu contains functionality to create and
-manipulate <span class="keyword">Row Lists</span>. You may for instance create a few
-<span class="keyword">Row Lists</span> from different sets of selected rows and afterwards
-add more rows to some of those lists with the <span class="menu">Add Selected To</span> item
-from the <span class="menu">List</span> menu. This way one may manually assign rows to self
-defined categories. Alternatively, one may add individual rows to a list by pressing the right mouse
-button on any row in any view and selecting the respective list name from the
-<span class="menu">Add Row To List</span> popup menu item.
-<br>
-The <span class="menu">Add Column From Row Lists...</span> menu creates a new table column
-that contains for every row the names of all lists, which it is a member of. This
-way list membership can be materialized and used for filtering, view customization, or
-other purposes.</p>
-<br>
+manipulate <span class="keyword">Row Lists</span>. <a href="help/lists.html">More...</a></p>
 
+<br>
 <h3><a name="Templates"></a>Templates</h3>
-<p> A <span class="keyword">Template</span> comprises all <span class="keyword">DataWarrior</span>
+<p>A <span class="keyword">Template</span> comprises all <span class="keyword">DataWarrior</span>
 display settings. It includes the information about existing views and their orientation,
 all view specific settings like marker colors, font sizes, shown labels etc. It contains information about active
 filters and their settings, column aliases and about the layout of existing form views.
@@ -263,8 +272,20 @@ filters and their settings, column aliases and about the layout of existing form
 file and may also be stored as a stand-alone file to be later re-applied to another similar or updated data set.
 Templates may also be associated with a database query, such that query results are immediately shown
 in a predefined way.</p>
-
 <br>
+
+<h3><a name="Macros"></a>Tasks and Macros</h3>
+<p><span class="keyword">DataWarrior</span> is primarily a program to interactively work with data. Every
+single interactively performed action is called a <span class="keyword">task</span>. <span class="keyword">Tasks</span>
+may be simple ones like opening a file and changing a filter setting or they may be more complicated and require
+defining various parameters e.g. to launch a 2-dimensional scaling algorithm. By sequentially performing multiple
+<span class="keyword">tasks</span> in a row one may solve rather complex data analysis problems.</p>
+<p>To support automation and reproducibility <span class="keyword">DataWarrior</span> allows recording
+interactive <span class="keyword">task</span> sequences as <span class="keyword">macros</span>, which can be
+saved to file, edited, and executed at a later time on different or updated data. <a href="help/macros.html">More...</a>
+</p>
+<br>
+
 <p align="center">Continue with <a href="help/import.html">Loading Data</a>...</p>
 </body>
 </html>

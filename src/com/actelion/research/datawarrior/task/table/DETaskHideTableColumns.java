@@ -20,6 +20,7 @@ package com.actelion.research.datawarrior.task.table;
 
 import com.actelion.research.datawarrior.DETableView;
 import com.actelion.research.datawarrior.task.AbstractMultiColumnTask;
+import com.actelion.research.table.model.CompoundTableModel;
 
 import java.awt.*;
 import java.util.Properties;
@@ -29,8 +30,8 @@ public class DETaskHideTableColumns extends AbstractMultiColumnTask {
 
 	private DETableView mTableView;
 
-	public DETaskHideTableColumns(Frame owner, DETableView tableView) {
-		super(owner, tableView == null ? null : tableView.getTableModel(), false);
+	public DETaskHideTableColumns(Frame owner, DETableView tableView, CompoundTableModel tableModel) {
+		super(owner, tableModel, false);
 		mTableView = tableView;
 		}
 
@@ -40,8 +41,8 @@ public class DETaskHideTableColumns extends AbstractMultiColumnTask {
      * @param tableView
      * @param columnList
      */
-	public DETaskHideTableColumns(Frame owner, DETableView tableView, int[] columnList) {
-		super(owner, tableView == null ? null : tableView.getTableModel(), false, columnList);
+	public DETaskHideTableColumns(Frame owner, DETableView tableView, CompoundTableModel tableModel, int[] columnList) {
+		super(owner, tableModel, false, columnList);
 		mTableView = tableView;
 		}
 

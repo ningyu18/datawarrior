@@ -98,16 +98,16 @@ public class JEPChemSimilarityFunction extends PostfixMathCommand {
 	                    throw new ParseException("1st and 2nd parameters of chemsim() are incompatible descriptors.");
 	                value2 = (jepParam2 == null) ? null : jepParam2.record.getData(jepParam2.column);
 	                }
-	            else if (CompoundTableModel.cColumnTypeIDCode.equals(mTableModel.getColumnSpecialType(jepParam2.column))) {
-	            	if (!CompoundTableModel.cColumnTypeIDCode.equals(mTableModel.getColumnSpecialType(mTableModel.getParentColumn(jepParam1.column))))
+	            else if (mTableModel.isColumnTypeStructure(jepParam2.column)) {
+	            	if (!mTableModel.isColumnTypeStructure(mTableModel.getParentColumn(jepParam1.column)))
 		                throw new ParseException("2st parameter of chemsim() refers to reactions while the 1st doesn't.");
                     Object chemObject = mTableModel.getChemicalStructure(jepParam2.record, jepParam2.column, CompoundTableModel.ATOM_COLOR_MODE_NONE, null);
                     value2 = handler1.createDescriptor(chemObject);
 	            	}
-	            else if (CompoundTableModel.cColumnTypeRXNCode.equals(mTableModel.getColumnSpecialType(jepParam2.column))) {
-	            	if (!CompoundTableModel.cColumnTypeRXNCode.equals(mTableModel.getColumnSpecialType(mTableModel.getParentColumn(jepParam1.column))))
+	            else if (mTableModel.isColumnTypeReaction(jepParam2.column)) {
+	            	if (!mTableModel.isColumnTypeReaction(mTableModel.getParentColumn(jepParam1.column)))
 		                throw new ParseException("2st parameter of chemsim() refers to molecules while the 1st doesn't.");
-                    Object chemObject = mTableModel.getChemicalReaction(jepParam2.record, jepParam2.column);
+                    Object chemObject = mTableModel.getChemicalReaction(jepParam2.record, jepParam2.column, CompoundTableModel.ATOM_COLOR_MODE_NONE);
                     value2 = handler1.createDescriptor(chemObject);
 	            	}
 	            else {
@@ -118,12 +118,12 @@ public class JEPChemSimilarityFunction extends PostfixMathCommand {
             if (param2 instanceof String) {
                 if (!param2.equals(mPreviousChemCode)) {
                     try {
-    	            	if (CompoundTableModel.cColumnTypeIDCode.equals(mTableModel.getColumnSpecialType(mTableModel.getParentColumn(jepParam1.column)))) {
+    	            	if (mTableModel.isColumnTypeStructure(mTableModel.getParentColumn(jepParam1.column))) {
     	            		mPreviousChemCode = (String)param2;
     	            		StereoMolecule mol = new IDCodeParser(handler1.getInfo().needsCoordinates).getCompactMolecule(mPreviousChemCode);
                             mDescriptor = handler1.createDescriptor(mol);
     	            		}
-    	            	else if (CompoundTableModel.cColumnTypeRXNCode.equals(mTableModel.getColumnSpecialType(mTableModel.getParentColumn(jepParam1.column)))) {
+    	            	else if (mTableModel.isColumnTypeReaction(mTableModel.getParentColumn(jepParam1.column))) {
     	            		mPreviousChemCode = (String)param2;
     	            		Reaction rxn = ReactionEncoder.decode(mPreviousChemCode, handler1.getInfo().needsCoordinates);
                             mDescriptor = handler1.createDescriptor(rxn);

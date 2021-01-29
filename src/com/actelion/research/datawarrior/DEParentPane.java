@@ -32,7 +32,7 @@ import java.util.ArrayList;
 public class DEParentPane extends JComponent implements DetailPopupProvider  {
     private static final long serialVersionUID = 0x20060904;
 
-    private Frame mParentFrame;
+    private DEFrame mParentFrame;
     private DatabaseActions mDatabaseActions;
 	private DECompoundTableModel mTableModel;
 	private JSplitPane mMainSplitPane;
@@ -42,7 +42,7 @@ public class DEParentPane extends JComponent implements DetailPopupProvider  {
 	private DEDetailPane mTabbedDetailViews;
 	private ArrayList<RuntimePropertyListener> mRPListener;
 
-	public DEParentPane(Frame parent, DECompoundTableModel tableModel, DEDetailPane detailPane, DatabaseActions databaseActions) {
+	public DEParentPane(DEFrame parent, DECompoundTableModel tableModel, DEDetailPane detailPane, DatabaseActions databaseActions) {
 	    mParentFrame = parent;
 	    mTableModel = tableModel;
 	    mDatabaseActions = databaseActions;
@@ -82,17 +82,17 @@ public class DEParentPane extends JComponent implements DetailPopupProvider  {
 	    mRightSplitPane.add(mPruningPanel, JSplitPane.TOP);
 	    mRightSplitPane.add(mTabbedDetailViews, JSplitPane.BOTTOM);
 
-		mRPListener = new ArrayList<RuntimePropertyListener>();
+		mRPListener = new ArrayList<>();
 		}
 
 	@Override
 	public void updateUI() {
 		super.updateUI();
-		SwingUtilities.invokeLater(new Runnable() { @Override public void run() {
+		SwingUtilities.invokeLater(() -> {
             mRightSplitPane.setBorder(null);
 			if (mTabbedMainViews.getComponentCount() != 0)
 	            recursivelyRemoveSplitPaneBorders(mTabbedMainViews.getComponent(0));
-			} } );
+			} );
 		}
 
 	/**
@@ -141,8 +141,8 @@ public class DEParentPane extends JComponent implements DetailPopupProvider  {
 		return mTableModel;
 		}
 
-	public JPopupMenu createPopupMenu(CompoundRecord record, CompoundTableView source, int selectedColumn) {
-        JPopupMenu popup = new DEDetailPopupMenu(mTabbedMainViews, record, mPruningPanel, source, mDatabaseActions, selectedColumn);
+	public JPopupMenu createPopupMenu(CompoundRecord record, CompoundTableView source, int selectedColumn, boolean isCtrlDown) {
+        JPopupMenu popup = new DEDetailPopupMenu(mTabbedMainViews, record, mPruningPanel, source, mDatabaseActions, selectedColumn, isCtrlDown);
         return (popup.getComponentCount() == 0) ? null : popup;
         }
 
@@ -155,10 +155,10 @@ public class DEParentPane extends JComponent implements DetailPopupProvider  {
 		}
 
 	public void setMainSplitting(double l) {
-		mMainSplitPane.setDividerLocation(l);
+		mMainSplitPane.setDividerLocation(Math.max(0.0, Math.min(1.0, l)));
 		}
 
 	public void setRightSplitting(double l) {
-		mRightSplitPane.setDividerLocation(l);
+		mRightSplitPane.setDividerLocation(Math.max(0.0, Math.min(1.0, l)));
 		}
 	}

@@ -19,6 +19,7 @@
 package com.actelion.research.datawarrior.task.filter;
 
 import com.actelion.research.chem.io.CompoundTableConstants;
+import com.actelion.research.gui.hidpi.HiDPIHelper;
 import com.actelion.research.table.filter.*;
 import info.clearthought.layout.TableLayout;
 
@@ -71,6 +72,7 @@ public class DETaskAddNewFilter extends ConfigurableTask implements ActionListen
     	"[Structure List,SSS]",
     	"[Structure List,Similarity]",
     	"[Reaction]",
+		"[Retron]",
     	"[Row List]",
     	"[Category Browser]"
     	};
@@ -84,6 +86,7 @@ public class DETaskAddNewFilter extends ConfigurableTask implements ActionListen
     	"sssList",
     	"simList",
     	"reaction",
+		"retron",
     	"list",
     	"browser"
     	};
@@ -94,9 +97,10 @@ public class DETaskAddNewFilter extends ConfigurableTask implements ActionListen
     	true,
     	true,
     	true,
-    	true,
-    	true,
-    	true,
+		true,
+		true,
+		true,
+		true,
     	false,
     	false
     	};
@@ -111,6 +115,7 @@ public class DETaskAddNewFilter extends ConfigurableTask implements ActionListen
 	private JCheckBox			mCheckBox;
 	private JTextArea			mTextArea;
 	private int					mColumn,mFilterType;
+	private String				mReactionPart;
 
     public DETaskAddNewFilter(DEFrame parent, DEPruningPanel pruningPanel) {
 		super(parent, false);
@@ -126,13 +131,14 @@ public class DETaskAddNewFilter extends ConfigurableTask implements ActionListen
      * @param column
      * @param filterType
      */
-    public DETaskAddNewFilter(Frame parent, DEPruningPanel pruningPanel, int column, int filterType) {
+    public DETaskAddNewFilter(Frame parent, DEPruningPanel pruningPanel, int column, int filterType, String reactionPart) {
 		super(parent, false);
     	
 		mPruningPanel = pruningPanel;
 		mTableModel = pruningPanel.getTableModel();
 		mFilterType = filterType;
 		mColumn = column;
+		mReactionPart = reactionPart;
     	}
 
 	public void actionPerformed(ActionEvent e) {
@@ -152,6 +158,8 @@ public class DETaskAddNewFilter extends ConfigurableTask implements ActionListen
 		String columnName = !FILTER_NEEDS_COLUMN[mFilterType] ? null
 						  : mColumn == JFilterPanel.PSEUDO_COLUMN_ALL_COLUMNS ? JFilterPanel.ALL_COLUMN_CODE
 						  : mTableModel.getColumnTitleNoAlias(mColumn);
+		if (columnName != null && mReactionPart != null)
+			columnName = columnName.concat(":").concat(mReactionPart);
 		configuration.setProperty(PROPERTY_FILTER+"0", (columnName == null) ? FILTER_CODE[mFilterType] : FILTER_CODE[mFilterType]+":"+columnName);
 		return configuration;
 		}
@@ -176,16 +184,20 @@ public class DETaskAddNewFilter extends ConfigurableTask implements ActionListen
 		for (int i=0; i<mTableModel.getTotalColumnCount(); i++) {
             String specialType = mTableModel.getColumnSpecialType(i);
             if (specialType != null) {
-                if (specialType.equals(CompoundTableModel.cColumnTypeIDCode)) {
+                if (mTableModel.isColumnTypeStructure(i)) {
                     addItem(itemList, i, JFilterPanel.FILTER_TYPE_STRUCTURE, allowDuplicates);
                     addItem(itemList, i, JFilterPanel.FILTER_TYPE_SSS_LIST, allowDuplicates);
                     addItem(itemList, i, JFilterPanel.FILTER_TYPE_SIM_LIST, allowDuplicates);
                 	}
-                if (specialType.equals(CompoundTableModel.cColumnTypeRXNCode)) {
-					addItem(itemList, i, JFilterPanel.FILTER_TYPE_STRUCTURE, allowDuplicates);
-					addItem(itemList, i, JFilterPanel.FILTER_TYPE_SSS_LIST, allowDuplicates);
-					addItem(itemList, i, JFilterPanel.FILTER_TYPE_SIM_LIST, allowDuplicates);
-					addItem(itemList, i, JFilterPanel.FILTER_TYPE_REACTION, allowDuplicates);
+                if (mTableModel.isColumnTypeReaction(i)) {
+					addItem(itemList, i, JFilterPanel.FILTER_TYPE_REACTION, null, allowDuplicates);
+					addItem(itemList, i, JFilterPanel.FILTER_TYPE_RETRON, null, allowDuplicates);
+					addItem(itemList, i, JFilterPanel.FILTER_TYPE_STRUCTURE, CompoundTableConstants.cReactionPartReactants, allowDuplicates);
+					addItem(itemList, i, JFilterPanel.FILTER_TYPE_SSS_LIST, CompoundTableConstants.cReactionPartReactants, allowDuplicates);
+					addItem(itemList, i, JFilterPanel.FILTER_TYPE_SIM_LIST, CompoundTableConstants.cReactionPartReactants, allowDuplicates);
+					addItem(itemList, i, JFilterPanel.FILTER_TYPE_STRUCTURE, CompoundTableConstants.cReactionPartProducts, allowDuplicates);
+					addItem(itemList, i, JFilterPanel.FILTER_TYPE_SSS_LIST, CompoundTableConstants.cReactionPartProducts, allowDuplicates);
+					addItem(itemList, i, JFilterPanel.FILTER_TYPE_SIM_LIST, CompoundTableConstants.cReactionPartProducts, allowDuplicates);
 					}
                 }
             else {
@@ -212,6 +224,10 @@ public class DETaskAddNewFilter extends ConfigurableTask implements ActionListen
 		}
 
 	private void addItem(ArrayList<String> itemList, int column, int type, boolean allowDuplicates) {
+    	addItem(itemList, column, type, null, allowDuplicates);
+		}
+
+	private void addItem(ArrayList<String> itemList, int column, int type, String reactionPart, boolean allowDuplicates) {
 		if (!allowDuplicates) {
 			for (int i=0; i<mPruningPanel.getFilterCount(); i++) {
 				JFilterPanel filter = mPruningPanel.getFilter(i);
@@ -226,23 +242,30 @@ public class DETaskAddNewFilter extends ConfigurableTask implements ActionListen
 				else if (filter.getColumnIndex() == column) {
 					switch (type) {
                         case JFilterPanel.FILTER_TYPE_STRUCTURE:
-                            if (filter instanceof JSingleStructureFilterPanel)
+                            if (filter instanceof JSingleStructureFilterPanel
+							 && matchesReactionPart((JStructureFilterPanel)filter, reactionPart))
                                 return;
                             break;
                         case JFilterPanel.FILTER_TYPE_SSS_LIST:
                             if (filter instanceof JMultiStructureFilterPanel
-                       		 && ((JMultiStructureFilterPanel)filter).supportsSSS())
+                       		 && ((JMultiStructureFilterPanel)filter).supportsSSS()
+							 && matchesReactionPart((JStructureFilterPanel)filter, reactionPart))
                                 return;
                             break;
                         case JFilterPanel.FILTER_TYPE_SIM_LIST:
                             if (filter instanceof JMultiStructureFilterPanel
-                      		 && ((JMultiStructureFilterPanel)filter).supportsSim())
+                      		 && ((JMultiStructureFilterPanel)filter).supportsSim()
+							 && matchesReactionPart((JStructureFilterPanel)filter, reactionPart))
                                 return;
                             break;
                         case JFilterPanel.FILTER_TYPE_REACTION:
                             if (filter instanceof JReactionFilterPanel)
                                 return;
                             break;
+						case JFilterPanel.FILTER_TYPE_RETRON:
+							if (filter instanceof JRetronFilterPanel)
+								return;
+							break;
                         case JFilterPanel.FILTER_TYPE_TEXT:
 							if (filter instanceof JTextFilterPanel)
 								return;
@@ -260,10 +283,18 @@ public class DETaskAddNewFilter extends ConfigurableTask implements ActionListen
 				}
 			}
 
-		itemList.add(getFilterDisplayName(type, column));
+		itemList.add(getFilterDisplayName(type, column, reactionPart));
 		}
 
-	private String getFilterDisplayName(int type, int column) {
+	private boolean matchesReactionPart(JStructureFilterPanel filter, String reactionPart) {
+    	String frp = filter.getReactionPart();
+    	if (reactionPart == null)
+    		return (frp == null);
+
+    	return reactionPart.equals(frp);
+		}
+
+	private String getFilterDisplayName(int type, int column, String reactionPart) {
 		if (!FILTER_NEEDS_COLUMN[type])
 			return FILTER_NAME[type];
 
@@ -277,27 +308,10 @@ public class DETaskAddNewFilter extends ConfigurableTask implements ActionListen
 		if (column == JFilterPanel.PSEUDO_COLUMN_ALL_COLUMNS)
 			columnName = JFilterPanel.ALL_COLUMN_TEXT;
 
-		if (column >= 0
-		 && CompoundTableConstants.cColumnTypeRXNCode.equals(mTableModel.getColumnSpecialType(column))
-		 && (type == JFilterPanel.FILTER_TYPE_STRUCTURE
-		  || type == JFilterPanel.FILTER_TYPE_SSS_LIST
-		  || type == JFilterPanel.FILTER_TYPE_SIM_LIST))
-			columnName = JStructureFilterPanel.RXN_PRODUCT_TEXT.concat(columnName);
+		String reactionPartText = (reactionPart == null) ? "" : reactionPart+" ";
 
-		return columnName+" "+FILTER_NAME[type];
+		return columnName+" "+reactionPartText+FILTER_NAME[type];
 		}
-
-	private void addDefaultDescriptor(int column) {
-        for (int i=0; i<mTableModel.getTotalColumnCount(); i++)
-            if (mTableModel.getParentColumn(i) == column
-             && mTableModel.isDescriptorColumn(i))
-                return;
-
-        if (CompoundTableModel.cColumnTypeIDCode.equals(mTableModel.getColumnSpecialType(column)))
-            mTableModel.addDescriptorColumn(column, DescriptorConstants.DESCRIPTOR_FFP512.shortName);
-        else if (CompoundTableModel.cColumnTypeRXNCode.equals(mTableModel.getColumnSpecialType(column)))
-            mTableModel.addDescriptorColumn(column, DescriptorConstants.DESCRIPTOR_FFP512.shortName);
-        }
 
 	@Override
 	public boolean isConfigurable() {
@@ -328,7 +342,7 @@ public class DETaskAddNewFilter extends ConfigurableTask implements ActionListen
 	            	}
 	        	});
 	        scrollPane = new JScrollPane(mFilterList);
-	        scrollPane.setPreferredSize(new Dimension(320,240));
+	        scrollPane.setPreferredSize(new Dimension(HiDPIHelper.scale(320) ,HiDPIHelper.scale(240)));
 	
 			mCheckBox = new JCheckBox("Show duplicate filters");
 			mCheckBox.addActionListener(this);
@@ -336,19 +350,20 @@ public class DETaskAddNewFilter extends ConfigurableTask implements ActionListen
 		else {
 			mTextArea = new JTextArea();
 			scrollPane = new JScrollPane(mTextArea);
-			scrollPane.setPreferredSize(new Dimension(320, 128));
+			scrollPane.setPreferredSize(new Dimension(HiDPIHelper.scale(320), HiDPIHelper.scale(128)));
 			}
 
 		JPanel content = new JPanel();
-		double[][] size = { {8, TableLayout.PREFERRED, 8},
-							{8, TableLayout.PREFERRED, 4, TableLayout.PREFERRED, 8, TableLayout.PREFERRED, 8} };
+		int gap = HiDPIHelper.scale(8);
+		double[][] size = { {gap, TableLayout.PREFERRED, gap},
+							{gap, TableLayout.PREFERRED, gap/2, TableLayout.PREFERRED, gap, TableLayout.PREFERRED, gap} };
 		content.setLayout(new TableLayout(size));
-		String syntax = isInteractive() ? "Column Name [Type]" : "type:column name";
-		content.add(new JLabel("New Filters (as '"+syntax+"'):"), "1,1");
-		content.add(scrollPane, "1, 3");
+		String message = isInteractive() ? "Select New Filter(s)" : "Type new filter(s) as 'type:column name'";
+		content.add(new JLabel(message), "1,1");
+		content.add(scrollPane, "1,3");
 
 		if (isInteractive())
-			content.add(mCheckBox, "1, 5");
+			content.add(mCheckBox, "1,5");
 
 		return content;
 		}
@@ -371,19 +386,27 @@ public class DETaskAddNewFilter extends ConfigurableTask implements ActionListen
 				int type = getFilterTypeFromName(selected);
 	
 				String columnName = null;
+				String reactionPart = "";
 				if (FILTER_NEEDS_COLUMN[type]) {
 					columnName = selected.substring(0, selected.length() - FILTER_NAME[type].length() - 1);
 					if (JFilterPanel.ALL_COLUMN_TEXT.equals(columnName))
 						columnName = JFilterPanel.ALL_COLUMN_CODE;
-					else if (columnName.startsWith(JStructureFilterPanel.RXN_PRODUCT_TEXT)
-						&& mTableModel.findColumn(columnName.substring(JStructureFilterPanel.RXN_PRODUCT_TEXT.length())) != -1
-						&& CompoundTableConstants.cColumnTypeRXNCode.equals(mTableModel.getColumnSpecialType(mTableModel.findColumn(columnName.substring(JStructureFilterPanel.RXN_PRODUCT_TEXT.length())))))
-						columnName = mTableModel.getColumnTitleNoAlias(columnName.substring(JStructureFilterPanel.RXN_PRODUCT_TEXT.length()));
-					else
+					else {
+						// We check, if we have added the reaction part to the column name. If so, then remove it.
+						if (columnName.endsWith(" "+CompoundTableConstants.cReactionPartReactants)
+						 || columnName.endsWith(" "+CompoundTableConstants.cReactionPartProducts)) {
+						 	int index = columnName.lastIndexOf(' ');
+						 	int column = mTableModel.findColumn(columnName.substring(0, index));
+						 	if (column != -1 && mTableModel.isColumnTypeReaction(column)) {
+								reactionPart = ":"+columnName.substring(index+1);
+								columnName = columnName.substring(0, index);
+						 		}
+							}
 						columnName = mTableModel.getColumnTitleNoAlias(columnName);
+						}
 					}
 
-				configuration.setProperty(PROPERTY_FILTER+filter, (columnName == null) ? FILTER_CODE[type] : FILTER_CODE[type]+":"+columnName);
+				configuration.setProperty(PROPERTY_FILTER+filter, (columnName == null) ? FILTER_CODE[type] : FILTER_CODE[type]+":"+columnName+reactionPart);
 				}
     		}
     	else {
@@ -418,8 +441,9 @@ public class DETaskAddNewFilter extends ConfigurableTask implements ActionListen
 				String filterDef = configuration.getProperty(PROPERTY_FILTER+filter);
 				int type = getFilterTypeFromCode(filterDef);
 				if (type != -1) {
-					int column = getFilterColumn(type, filterDef);
-					String displayName = getFilterDisplayName(type, column);
+					int column = getColumnFromCode(type, filterDef);
+					String reactionPart = getReactionPartFromCode(filterDef);
+					String displayName = getFilterDisplayName(type, column, reactionPart);
 					for (int i=0; i<mFilterList.getModel().getSize(); i++) {
 						if (mFilterList.getModel().getElementAt(i).equals(displayName)) {
 							mFilterList.addSelectionInterval(i, i);
@@ -461,15 +485,36 @@ public class DETaskAddNewFilter extends ConfigurableTask implements ActionListen
 	 * @param def
 	 * @return valid column or negative result code
 	 */
-	private int getFilterColumn(int type, String def) {
+	private int getColumnFromCode(int type, String def) {
 		if (FILTER_NEEDS_COLUMN[type]) {
 			if (def.length() < FILTER_CODE[type].length()+2)
 				return -2;
-			String columnName = def.substring(FILTER_CODE[type].length()+1);
-			return JFilterPanel.ALL_COLUMN_CODE.equals(columnName) ?
-					JFilterPanel.PSEUDO_COLUMN_ALL_COLUMNS : mTableModel.findColumn(columnName);
+			int index1 = FILTER_CODE[type].length();
+			String columnName = def.substring(index1+1);
+			if (JFilterPanel.ALL_COLUMN_CODE.equals(columnName))
+				return JFilterPanel.PSEUDO_COLUMN_ALL_COLUMNS;
+
+			String reactionPart = getReactionPartFromCode(def);
+			if (reactionPart != null)
+				columnName = columnName.substring(0, columnName.length() - reactionPart.length() -1);
+
+			return mTableModel.findColumn(columnName);
 			}
 		return (def.length() < FILTER_CODE[type].length()+2) ? -4 : -3;
+		}
+
+	private String getReactionPartFromCode(String def) {
+		int index1 = def.indexOf(':');
+		if (index1 != -1) {
+			int index2 = def.lastIndexOf(':');
+			if (index2 != -1 && index2 != index1) {
+				String reactionPart = def.substring(index2+1);
+				if (reactionPart.equals(CompoundTableConstants.cReactionPartReactants)
+				 || reactionPart.equals(CompoundTableConstants.cReactionPartProducts))
+					return reactionPart;
+				}
+			}
+		return null;
 		}
 
 	@Override
@@ -500,7 +545,7 @@ public class DETaskAddNewFilter extends ConfigurableTask implements ActionListen
 				showErrorMessage("No valid filter type found in '"+def+"'.\nValid filter types are: "+sb.toString()+".");
 				return false;
 				}
-			int column = getFilterColumn(type, def);
+			int column = getColumnFromCode(type, def);
 			if (column == JFilterPanel.PSEUDO_COLUMN_ALL_COLUMNS && type != JFilterPanel.FILTER_TYPE_TEXT) {
 				showErrorMessage("Option '<All Columns>' is only supported by text filters.");
 				return false;
@@ -513,10 +558,36 @@ public class DETaskAddNewFilter extends ConfigurableTask implements ActionListen
 				showErrorMessage("Superflous column name specified. "+FILTER_NAME[type]+" filters must be specified as '"+FILTER_CODE[type]+"'.");
 				return false;
 				}
+			boolean isStructureFilter = (type == JFilterPanel.FILTER_TYPE_STRUCTURE
+					|| type == JFilterPanel.FILTER_TYPE_SSS_LIST
+					|| type == JFilterPanel.FILTER_TYPE_SIM_LIST);
+			String reactionPart = getReactionPartFromCode(def);
+			if (reactionPart != null && !isStructureFilter) {
+				showErrorMessage("Specifying a reaction part is valid for structure filters only.");
+				return false;
+				}
 			if (isLive) {
-				if (column == -1) {
-					showErrorMessage("Column '"+def.substring(FILTER_CODE[type].length()+1)+"' not found.");
-					return false;
+				if (FILTER_NEEDS_COLUMN[type]) {
+					String columnName = def.substring(FILTER_CODE[type].length()+1);
+					if (column == -1) {
+						showErrorMessage("Column '"+columnName+"' not found.");
+						return false;
+						}
+					if (mTableModel.isColumnTypeStructure(column) && !(isStructureFilter
+					 || (mTableModel.isColumnTypeCategory(column) && (type == JFilterPanel.FILTER_TYPE_CATEGORY || type == JFilterPanel.FILTER_TYPE_CATEGORY_BROWSER)))) {
+						showErrorMessage("Column '"+columnName+"' is a structure column and is compatible with structure filters only.");
+						return false;
+						}
+					if (mTableModel.isColumnTypeReaction(column)) {
+						if (!isStructureFilter && type != JFilterPanel.FILTER_TYPE_REACTION && type != JFilterPanel.FILTER_TYPE_RETRON) {
+							showErrorMessage("Column '"+columnName+"' is compatible with reaction, retron, or structure filters only.");
+							return false;
+							}
+						if (isStructureFilter && reactionPart == null) {
+							showErrorMessage("Structure filters on a reaction column need the reaction part to be defined.");
+							return false;
+							}
+						}
 					}
 				}
 			}
@@ -532,9 +603,11 @@ public class DETaskAddNewFilter extends ConfigurableTask implements ActionListen
 			String filterDef = configuration.getProperty(PROPERTY_FILTER+filter);
 			int type = getFilterTypeFromCode(filterDef);
 			if (type != -1) {
-				int column = getFilterColumn(type, filterDef);
+				int column = getColumnFromCode(type, filterDef);
 				if (!FILTER_NEEDS_COLUMN[type] || column >= 0 || column == JFilterPanel.PSEUDO_COLUMN_ALL_COLUMNS) {
 					try {
+						boolean isReactionColumn = (column >= 0) && mTableModel.isColumnTypeReaction(column);
+						String reactionPart = isReactionColumn ? getReactionPartFromCode(filterDef) : null;
 						switch (type) {
 						case JFilterPanel.FILTER_TYPE_TEXT:
 							mPruningPanel.addTextFilter(mTableModel, column);
@@ -546,20 +619,25 @@ public class DETaskAddNewFilter extends ConfigurableTask implements ActionListen
 							mPruningPanel.addCategoryFilter(mTableModel, column);
 							break;
 						case JFilterPanel.FILTER_TYPE_STRUCTURE:
-		                    addDefaultDescriptor(column);
-		                    mPruningPanel.addStructureFilter(mTableModel, column, null);
+							ensureDescriptor(column, DescriptorConstants.DESCRIPTOR_FFP512.shortName, reactionPart);
+		                    mPruningPanel.addStructureFilter(mTableModel, column, reactionPart, null);
 							break;
 						case JFilterPanel.FILTER_TYPE_SSS_LIST:
-		                    addDefaultDescriptor(column);
-		                    mPruningPanel.addStructureListFilter(mTableModel, column, true);
+							ensureDescriptor(column, DescriptorConstants.DESCRIPTOR_FFP512.shortName, reactionPart);
+		                    mPruningPanel.addStructureListFilter(mTableModel, column, reactionPart, true);
 							break;
 						case JFilterPanel.FILTER_TYPE_SIM_LIST:
-		                    addDefaultDescriptor(column);
-		                    mPruningPanel.addStructureListFilter(mTableModel, column, false);
+							ensureDescriptor(column, DescriptorConstants.DESCRIPTOR_FFP512.shortName, reactionPart);
+		                    mPruningPanel.addStructureListFilter(mTableModel, column, reactionPart, false);
 							break;
 						case JFilterPanel.FILTER_TYPE_REACTION:
-		                    addDefaultDescriptor(column);
+							ensureDescriptor(column, DescriptorConstants.DESCRIPTOR_ReactionFP.shortName, null);
 		                    mPruningPanel.addReactionFilter(mTableModel, column, null);
+							break;
+						case JFilterPanel.FILTER_TYPE_RETRON:
+							ensureDescriptor(column, DescriptorConstants.DESCRIPTOR_FFP512.shortName, CompoundTableConstants.cReactionPartReactants);
+							ensureDescriptor(column, DescriptorConstants.DESCRIPTOR_FFP512.shortName, CompoundTableConstants.cReactionPartProducts);
+							mPruningPanel.addRetronFilter(mTableModel, column, null);
 							break;
 						case JFilterPanel.FILTER_TYPE_ROWLIST:
 							mPruningPanel.addHitlistFilter(mTableModel);
@@ -582,6 +660,11 @@ public class DETaskAddNewFilter extends ConfigurableTask implements ActionListen
 			mPruningPanel.getParentPane().fireRuntimePropertyChanged(
 					new RuntimePropertyEvent(mPruningPanel, RuntimePropertyEvent.TYPE_ADD_FILTER, -1));
 			}
+		}
+
+	private void ensureDescriptor(int column, String shortName, String reactionPart) {
+		if (!mTableModel.hasDescriptorColumn(column, shortName, reactionPart))
+			mTableModel.addDescriptorColumn(column, shortName, reactionPart);
 		}
 
 	@Override

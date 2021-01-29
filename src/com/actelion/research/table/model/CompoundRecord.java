@@ -58,13 +58,42 @@ public class CompoundRecord {
             }
 		}
 
-	/**
-	 * Returns a uniquely identifying integer of this record, which is immune to sorting.
-	 * IDs are reassigned whenever some records are deleted. The CompoundTableEvent sent
-	 * after deletion contains the mapping from old to new IDs. It is guaranteed that all
-	 * integers from 0 to the totalRecordCount-1 are used exactly once.
-	 * @return
-	 */
+	protected CompoundRecord(CompoundRecord record, int index) {
+		mOriginalIndex = index;
+		mFlags = record.mFlags;
+		int columns = record.mData == null ? 0 : record.mData.length;
+		if (columns != 0) {
+			mData = new Object[columns];
+			if (record.mDetailReference != null)
+				mDetailReference = new String[record.mDetailReference.length][][];
+			for (int c=0; c<columns; c++) {
+				mData[c] = (record.mData[c] instanceof byte[]) ? ((byte[]) record.mData[c]).clone()
+						: (record.mData[c] instanceof int[]) ? ((int[]) record.mData[c]).clone()
+						: (record.mData[c] instanceof long[]) ? ((long[]) record.mData[c]).clone() : null;
+
+				if (record.mDetailReference != null && record.mDetailReference[c] != null) {
+					mDetailReference[c] = new String[record.mDetailReference[c].length][];
+					for (int i=0; i<record.mDetailReference[c].length; i++) {
+						if (record.mDetailReference[c][i] != null) {
+							mDetailReference[c][i] = new String[record.mDetailReference[c][i].length];
+							for (int j=0; j<record.mDetailReference[c][i].length; j++)
+								mDetailReference[c][i][j] = record.mDetailReference[c][i][j];
+							}
+						}
+					}
+				}
+
+			mFloat = new float[columns];
+			}
+		}
+
+		/**
+		 * Returns a uniquely identifying integer of this record, which is immune to sorting.
+		 * IDs are reassigned whenever some records are deleted. The CompoundTableEvent sent
+		 * after deletion contains the mapping from old to new IDs. It is guaranteed that all
+		 * integers from 0 to the totalRecordCount-1 are used exactly once.
+		 * @return
+		 */
 	public int getID() {
 		return mOriginalIndex;
 		}

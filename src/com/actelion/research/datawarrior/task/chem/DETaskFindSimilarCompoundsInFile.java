@@ -18,41 +18,32 @@
 
 package com.actelion.research.datawarrior.task.chem;
 
-import com.actelion.research.chem.io.*;
-import com.actelion.research.util.DoubleFormat;
-import info.clearthought.layout.TableLayout;
-
-import java.awt.BorderLayout;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
-import java.io.BufferedWriter;
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.OutputStreamWriter;
-import java.util.*;
-import java.util.concurrent.atomic.AtomicInteger;
-
-import javax.swing.JButton;
-import javax.swing.JCheckBox;
-import javax.swing.JComboBox;
-import javax.swing.JComponent;
-import javax.swing.JLabel;
-import javax.swing.JList;
-import javax.swing.JPanel;
-import javax.swing.JScrollPane;
-import javax.swing.JSlider;
-import javax.swing.SwingConstants;
-
+import com.actelion.research.chem.CanonizerUtil;
+import com.actelion.research.chem.StereoMolecule;
 import com.actelion.research.chem.descriptor.DescriptorConstants;
 import com.actelion.research.chem.descriptor.DescriptorHandler;
 import com.actelion.research.chem.descriptor.DescriptorHelper;
+import com.actelion.research.chem.io.*;
 import com.actelion.research.datawarrior.DEFrame;
 import com.actelion.research.datawarrior.task.ConfigurableTask;
 import com.actelion.research.datawarrior.task.file.JFilePathLabel;
 import com.actelion.research.gui.FileHelper;
+import com.actelion.research.gui.VerticalFlowLayout;
+import com.actelion.research.table.CompoundTableSaver;
 import com.actelion.research.table.model.CompoundRecord;
 import com.actelion.research.table.model.CompoundTableModel;
+import com.actelion.research.util.ByteArrayComparator;
+import com.actelion.research.util.DoubleFormat;
+import info.clearthought.layout.TableLayout;
+
+import javax.swing.*;
+import java.awt.*;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.io.*;
+import java.util.List;
+import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class DETaskFindSimilarCompoundsInFile extends ConfigurableTask implements ActionListener,Runnable {
 	static final long serialVersionUID = 0x20140205;
@@ -67,8 +58,13 @@ public class DETaskFindSimilarCompoundsInFile extends ConfigurableTask implement
 	private static final String PROPERTY_PAIR_ID1 = "pairID1";
 	private static final String PROPERTY_PAIR_ID2 = "pairID2";
 	private static final String PROPERTY_HALF_MATRIX = "halfMatrix";
+	private static final String PROPERTY_ANY_STEREO = "anyStereo";
+	private static final String PROPERTY_ANY_TAUTOMER = "anyTautomer";
+	private static final String PROPERTY_ANY_SALT = "anySalt";
 
-	private static final String STRUCTURE_COLUMN_NAME = "Most Similar Structure";
+	private static final String EXACT_STRUCTURE_COLUMN_NAME = "First Matching Structure";
+	private static final String EXACT_MATCHES_COLUMN_NAME = "Structure Matches";
+	private static final String SIMILAR_STRUCTURE_COLUMN_NAME = "Most Similar Structure";
 	private static final String SIMILARITY_COLUMN_NAME = "Similarity";
 
 	private static final String[] COMPOUND_ID_OPTIONS = { "<Use row number>", "<Automatic>" };
@@ -82,15 +78,18 @@ public class DETaskFindSimilarCompoundsInFile extends ConfigurableTask implement
 
 	public static final String TASK_NAME = "Find Similar Compounds In Other File";
 
+	private static final String EXACT_TEXT = " [Exact]";
+
 	private DEFrame				mSourceFrame;
 	private CompoundTableModel	mTableModel;
+	private JPanel				mCardPanel;
 	private JComboBox			mComboBoxDescriptorColumn,mComboBoxPairID1,mComboBoxPairID2;
 	private JSlider				mSimilaritySlider;
 	private JList				mListColumns;
-	private JCheckBox			mCheckBoxSimilarFile,mCheckBoxDissimilarFile,mCheckBoxPairFile,mCheckBoxHalfMatrix;
+	private JCheckBox			mCheckBoxSimilarFile,mCheckBoxDissimilarFile,mCheckBoxPairFile,mCheckBoxHalfMatrix,
+			mCheckBoxAnyStereo,mCheckBoxAnyTautomer,mCheckBoxAnySalt;
 	private JFilePathLabel		mLabelInFileName,mLabelSimilarFileName,mLabelDissimilarFileName,mLabelPairFileName;
 	private boolean				mCheckOverwriteSim,mCheckOverwriteDissim,mCheckOverwritePairs,mBothFilesAreTheSame;
-	private ArrayList<String>	mDescriptorList;
 
 	public DETaskFindSimilarCompoundsInFile(DEFrame parent) {
 		super(parent, true);
@@ -145,18 +144,36 @@ public class DETaskFindSimilarCompoundsInFile extends ConfigurableTask implement
 		buttonEdit.addActionListener(this);
 		content.add(buttonEdit, "5,1");
 
-		content.add(new JLabel("Descriptor:", JLabel.RIGHT), "1,3");
+		content.add(new JLabel("Structure column [comparison method]:", JLabel.RIGHT), "1,3");
 		mComboBoxDescriptorColumn = new JComboBox();
 		for (int column=0; column<mTableModel.getTotalColumnCount(); column++)
 			if (qualifiesAsDescriptorColumn(column))
 				mComboBoxDescriptorColumn.addItem(mTableModel.getColumnTitle(column));
+		for (int column=0; column<mTableModel.getTotalColumnCount(); column++)
+			if (mTableModel.isColumnTypeStructure(column))
+				mComboBoxDescriptorColumn.addItem(mTableModel.getColumnTitle(column)+EXACT_TEXT);
 		mComboBoxDescriptorColumn.setEditable(!isInteractive());
+		mComboBoxDescriptorColumn.addActionListener(this);
 		content.add(mComboBoxDescriptorColumn, "3,3,5,3");
 
-		content.add(new JLabel("Similarity limit:", JLabel.RIGHT), "1,5");
-		content.add(createSimilaritySlider(), "3,5,5,5");
+//		content.add(new JLabel("Similarity limit:", JLabel.RIGHT), "1,5");
+//		content.add(createSimilaritySlider(), "3,5,5,5");
 
-		JLabel listLabel = new JLabel("<html>Select columns of other file<br>to be copied into this file<br>when structures match:<br><br>(Press Ctrl for multiple selection)</html>");
+		mCheckBoxAnyStereo = new JCheckBox("Neglect stereo features");
+		mCheckBoxAnyTautomer = new JCheckBox("Consider tautomers equal");
+		mCheckBoxAnySalt = new JCheckBox("Consider largest fragment only");
+		double[][] size1 = { {TableLayout.PREFERRED}, {TableLayout.PREFERRED, TableLayout.PREFERRED, TableLayout.PREFERRED} };
+		JPanel optionPanel = new JPanel(new TableLayout(size1));
+		optionPanel.add(mCheckBoxAnyStereo, "0,0");
+		optionPanel.add(mCheckBoxAnyTautomer, "0,1");
+		optionPanel.add(mCheckBoxAnySalt, "0,2");
+
+		mCardPanel = new JPanel(new CardLayout());
+		mCardPanel.add(optionPanel, "options");
+		mCardPanel.add(createSimilaritySlider(), "slider");
+		content.add(mCardPanel, "3,5,5,5");
+
+		JLabel listLabel = new JLabel("<html>Select columns of other file<br>to be copied into this file<br>when structures are similar:<br><br>(Press Ctrl for multiple selection)</html>");
 		listLabel.setVerticalAlignment(SwingConstants.TOP);
 		content.add(listLabel, "1,7");
 
@@ -217,7 +234,8 @@ public class DETaskFindSimilarCompoundsInFile extends ConfigurableTask implement
 		mSimilaritySlider.setPaintLabels(true);
 		mSimilaritySlider.setPaintTicks(true);
 //		mSimilaritySlider.setPreferredSize(new Dimension(120, mSimilaritySlider.getPreferredSize().height));
-		JPanel spanel = new JPanel();
+		JPanel spanel = new JPanel(new VerticalFlowLayout());
+		spanel.add(new JLabel("Similarity limit:"));
 		spanel.add(mSimilaritySlider);
 		return spanel;
 		}
@@ -283,10 +301,19 @@ public class DETaskFindSimilarCompoundsInFile extends ConfigurableTask implement
 			if (pairFileName != null && !isFileAndPathValid(pairFileName, true, mCheckOverwritePairs))
 				return false;
 
-			int descriptorColumn = mTableModel.findColumn(descriptorName);
-			if (descriptorColumn == -1) {
-				showErrorMessage("Descriptor column '"+descriptorName+"' not found.");
-				return false;
+			if (descriptorName.endsWith(EXACT_TEXT)) {
+				int structureColumn = mTableModel.findColumn(descriptorName.substring(0, descriptorName.length() - EXACT_TEXT.length()));
+				if (structureColumn == -1) {
+					showErrorMessage("Structure column '"+descriptorName+"' not found.");
+					return false;
+					}
+				}
+			else {
+				int descriptorColumn = mTableModel.findColumn(descriptorName);
+				if (descriptorColumn == -1) {
+					showErrorMessage("Descriptor column '"+descriptorName+"' not found.");
+					return false;
+					}
 				}
 			}
 
@@ -313,11 +340,22 @@ public class DETaskFindSimilarCompoundsInFile extends ConfigurableTask implement
 			mComboBoxDescriptorColumn.setSelectedItem("Structure [FragFp]");
 			}
 
-		int similarity = DEFAULT_SIMILARITY;
-		value = configuration.getProperty(PROPERTY_SIMILARITY);
-		if (value != null)
-			try { similarity = Math.min(100, Math.max(MIN_SIMILARITY, Integer.parseInt(value))); } catch (NumberFormatException nfe) {}
-		mSimilaritySlider.setValue(similarity);
+		if (value != null && value.endsWith(EXACT_TEXT)) {
+			mCheckBoxAnyStereo.setSelected(configuration.getProperty(PROPERTY_ANY_STEREO, "false").equals("true"));
+			mCheckBoxAnyTautomer.setSelected(configuration.getProperty(PROPERTY_ANY_TAUTOMER, "false").equals("true"));
+			mCheckBoxAnySalt.setSelected(configuration.getProperty(PROPERTY_ANY_SALT, "false").equals("true"));
+			mSimilaritySlider.setValue(80);
+			}
+		else {
+			mCheckBoxAnyStereo.setSelected(false);
+			mCheckBoxAnyTautomer.setSelected(false);
+			mCheckBoxAnySalt.setSelected(false);
+			int similarity = DEFAULT_SIMILARITY;
+			value = configuration.getProperty(PROPERTY_SIMILARITY);
+			if (value != null)
+				try { similarity = Math.min(100, Math.max(MIN_SIMILARITY, Integer.parseInt(value))); } catch (NumberFormatException nfe) {}
+			mSimilaritySlider.setValue(similarity);
+			}
 
 		selectColumnsInList(mListColumns, configuration.getProperty(PROPERTY_COLUMN_LIST), mTableModel);
 		mListColumns.clearSelection();
@@ -365,6 +403,8 @@ public class DETaskFindSimilarCompoundsInFile extends ConfigurableTask implement
 			mComboBoxPairID2.setSelectedIndex(index2);
 
 		mCheckBoxHalfMatrix.setSelected(configuration.getProperty(PROPERTY_HALF_MATRIX, "true").equals("true"));
+
+		showCardPanelItem();
 		}
 
 	@Override
@@ -378,6 +418,9 @@ public class DETaskFindSimilarCompoundsInFile extends ConfigurableTask implement
 		else if (!isInteractive())
 			mComboBoxDescriptorColumn.setSelectedItem("Structure [FragFp]");
 
+		mCheckBoxAnyStereo.setSelected(false);
+		mCheckBoxAnyTautomer.setSelected(false);
+		mCheckBoxAnySalt.setSelected(false);
 		mSimilaritySlider.setValue(DEFAULT_SIMILARITY);
 
 		mListColumns.clearSelection();
@@ -394,6 +437,8 @@ public class DETaskFindSimilarCompoundsInFile extends ConfigurableTask implement
 		mComboBoxPairID1.setEnabled(false);
 		mComboBoxPairID2.setEnabled(false);
 		mCheckBoxHalfMatrix.setSelected(false);
+
+		showCardPanelItem();
 		}
 
 	@Override
@@ -408,7 +453,14 @@ public class DETaskFindSimilarCompoundsInFile extends ConfigurableTask implement
 		if (descriptorColumn != null)
 			configuration.setProperty(PROPERTY_DESCRIPTOR_COLUMN, descriptorColumn);
 
-		configuration.setProperty(PROPERTY_SIMILARITY, ""+mSimilaritySlider.getValue());
+		if (descriptorColumn != null && descriptorColumn.endsWith(EXACT_TEXT)) {
+			configuration.setProperty(PROPERTY_ANY_STEREO, mCheckBoxAnyStereo.isSelected() ? "true" : "false");
+			configuration.setProperty(PROPERTY_ANY_TAUTOMER, mCheckBoxAnyTautomer.isSelected() ? "true" : "false");
+			configuration.setProperty(PROPERTY_ANY_SALT, mCheckBoxAnySalt.isSelected() ? "true" : "false");
+			}
+		else {
+			configuration.setProperty(PROPERTY_SIMILARITY, ""+mSimilaritySlider.getValue());
+			}
 
 		List selectedColumnList = mListColumns.getSelectedValuesList();
 		if (selectedColumnList.size() != 0) {
@@ -540,6 +592,11 @@ public class DETaskFindSimilarCompoundsInFile extends ConfigurableTask implement
 			return;
 			}
 
+		if (e.getSource() == mComboBoxDescriptorColumn) {
+			showCardPanelItem();
+			return;
+			}
+
 		if (e.getSource() == mCheckBoxSimilarFile) {
 			if (mCheckBoxSimilarFile.isSelected()) {
 				int filetype = FileHelper.getFileType(mLabelInFileName.getPath());
@@ -608,18 +665,66 @@ public class DETaskFindSimilarCompoundsInFile extends ConfigurableTask implement
 			}
 		}
 
+	private void showCardPanelItem() {
+		boolean isExact = ((String)mComboBoxDescriptorColumn.getSelectedItem()).endsWith(EXACT_TEXT);
+		CardLayout cl = (CardLayout)(mCardPanel.getLayout());
+		cl.show(mCardPanel, isExact ? "options" : "slider");
+		}
+
 	@Override
 	public void runTask(Properties configuration) {
 		String fileName = resolvePathVariables(configuration.getProperty(PROPERTY_IN_FILE_NAME));
-		final int descriptorColumn = mTableModel.findColumn(configuration.getProperty(PROPERTY_DESCRIPTOR_COLUMN));
-		waitForDescriptor(mTableModel, descriptorColumn);
+		String value = configuration.getProperty(PROPERTY_DESCRIPTOR_COLUMN);
+		final boolean isDescriptor = !value.endsWith(EXACT_TEXT);
+		final boolean anyStereo = configuration.getProperty(PROPERTY_ANY_STEREO, "false").equals("true");
+		final boolean anyTautomer = configuration.getProperty(PROPERTY_ANY_TAUTOMER, "false").equals("true");
+		final boolean anySalt = configuration.getProperty(PROPERTY_ANY_SALT, "false").equals("true");
+		final boolean needsHash = !isDescriptor && (anyStereo | anyTautomer | anySalt);
+		final CanonizerUtil.IDCODE_TYPE hashType = anyStereo ?
+				(anyTautomer ? CanonizerUtil.IDCODE_TYPE.NOSTEREO_TAUTOMER : CanonizerUtil.IDCODE_TYPE.NOSTEREO)
+			  : (anyTautomer ? CanonizerUtil.IDCODE_TYPE.TAUTOMER : CanonizerUtil.IDCODE_TYPE.NORMAL);
+
+		if (!isDescriptor)
+			value = value.substring(0, value.length() - EXACT_TEXT.length());
+		final int chemColumn = mTableModel.findColumn(value);
+		if (isDescriptor)
+			waitForDescriptor(mTableModel, chemColumn);
+
 		if (threadMustDie())
 			return;
 
+		final long[] hash = needsHash ? new long[mTableModel.getTotalRowCount()] : null;
+		if (needsHash) {
+			int threadCount = Runtime.getRuntime().availableProcessors();
+			final AtomicInteger smtIndex = new AtomicInteger(mTableModel.getTotalRowCount());
+
+			startProgress("Calculating structure hashes...", 0, mTableModel.getTotalRowCount());
+			Thread[] t = new Thread[threadCount];
+			for (int i=0; i<threadCount; i++) {
+				t[i] = new Thread("Structure hash calculator "+(i+1)) {
+					public void run() {
+						StereoMolecule mol = new StereoMolecule();
+						int index;
+						while ((index = smtIndex.decrementAndGet()) >= 0) {
+							if ((index & 255) == 255)
+								updateProgress(mTableModel.getTotalRowCount() - index);
+							CompoundRecord record = mTableModel.getTotalRecord(index);
+							hash[index] = CanonizerUtil.getHash(mTableModel.getChemicalStructure(record, chemColumn, 0, mol), hashType, anySalt);
+						}
+					}
+				};
+				t[i].start();
+			}
+			for (int i=0; i<threadCount; i++)
+				try { t[i].join(); } catch (InterruptedException ie) {}
+		}
+
 		int intSim = DEFAULT_SIMILARITY;
-		String value = configuration.getProperty(PROPERTY_SIMILARITY);
-		if (value != null)
-			try { intSim = Math.min(100, Math.max(MIN_SIMILARITY, Integer.parseInt(value))); } catch (NumberFormatException nfe) {}
+		if (isDescriptor) {
+			value = configuration.getProperty(PROPERTY_SIMILARITY);
+			if (value != null)
+				try { intSim = Math.min(100, Math.max(MIN_SIMILARITY, Integer.parseInt(value))); } catch (NumberFormatException nfe) {}
+			}
 		float similarityLimit = (float)intSim / 100f;
 
 		String simFileName = configuration.getProperty(PROPERTY_SIMILAR_FILE_NAME);
@@ -664,18 +769,18 @@ public class DETaskFindSimilarCompoundsInFile extends ConfigurableTask implement
 				writeHeadOrTail((DWARFileParser)parser, dissimWriter);
 			}
 
-		String descriptorType = mTableModel.getColumnSpecialType(descriptorColumn);
+		String descriptorType = mTableModel.getColumnSpecialType(chemColumn);
 		@SuppressWarnings("unchecked")
-		final DescriptorHandler<Object,Object> dh = mTableModel.getDescriptorHandler(descriptorColumn);
+		final DescriptorHandler<Object,Object> dh = isDescriptor ? mTableModel.getDescriptorHandler(chemColumn) : null;
 
 		DWARFileCreator dwarCreator = null;
 		ArrayList<PairMapEntry> pairMap = null;
 		boolean halfMatrix = configuration.getProperty(PROPERTY_HALF_MATRIX, "false").equals("true");
 		if (pairWriter != null) {
-			pairMap = new ArrayList<PairMapEntry>();
+			pairMap = new ArrayList<>();
 			dwarCreator = new DWARFileCreator(pairWriter);
 
-			int structure1SourceColumn = mTableModel.getParentColumn(descriptorColumn);
+			int structure1SourceColumn = isDescriptor ? mTableModel.getParentColumn(chemColumn) : chemColumn;
 			int structure1DestColumn = dwarCreator.addStructureColumn("Structure 1", "ID 1");
 			pairMap.add(new PairMapEntry(structure1SourceColumn, structure1DestColumn, false));
 
@@ -690,7 +795,7 @@ public class DETaskFindSimilarCompoundsInFile extends ConfigurableTask implement
 								dwarCreator.add3DCoordinatesColumn(mTableModel.getColumnTitle(column), structure1DestColumn), false));
 					else if (mTableModel.isDescriptorColumn(column))
 						pairMap.add(new PairMapEntry(column,
-								dwarCreator.addDescriptorColumn(type, dh.getVersion(), structure1DestColumn), false));
+								dwarCreator.addDescriptorColumn(type, mTableModel.getDescriptorHandler(column).getVersion(), structure1DestColumn), false));
 					}
 				}
 
@@ -698,7 +803,7 @@ public class DETaskFindSimilarCompoundsInFile extends ConfigurableTask implement
 			int index = findListIndex(id1ColumnName, COMPOUND_ID_CODE, -1);
 			int id1Column = (index == COMPOUND_ID_OPTION_ROW_NUMBER) ? -1
 						  : (index == COMPOUND_ID_OPTION_AUTOMATIC) ?
-					mTableModel.findColumn(mTableModel.getColumnProperty(structure1SourceColumn, CompoundTableModel.cColumnPropertyIdentifierColumn))
+					mTableModel.findColumn(mTableModel.getColumnProperty(structure1SourceColumn, CompoundTableModel.cColumnPropertyRelatedIdentifierColumn))
 						  : mTableModel.findColumn(id1ColumnName);
 			if (id1Column == -1)
 				id1Column = PairMapEntry.CONSTRUCT_ROW_NUMBER;
@@ -718,8 +823,9 @@ public class DETaskFindSimilarCompoundsInFile extends ConfigurableTask implement
 									structure2DestColumn), true));
 			}
 
-			pairMap.add(new PairMapEntry(PairMapEntry.DESCRIPTOR,
-					dwarCreator.addDescriptorColumn(descriptorType, dh.getVersion(), structure2DestColumn), true));
+			if (isDescriptor)
+				pairMap.add(new PairMapEntry(PairMapEntry.DESCRIPTOR,
+						dwarCreator.addDescriptorColumn(descriptorType, dh.getVersion(), structure2DestColumn), true));
 
 			String id2ColumnName = configuration.getProperty(PROPERTY_PAIR_ID2);
 			index = findListIndex(id2ColumnName, COMPOUND_ID_CODE, -1);
@@ -743,7 +849,8 @@ public class DETaskFindSimilarCompoundsInFile extends ConfigurableTask implement
 				}
 			pairMap.add(new PairMapEntry(id2Column, dwarCreator.addAlphanumericalColumn("ID 2"), true));
 
-			dwarCreator.addAlphanumericalColumn("Similarity ("+descriptorType+")");
+			if (isDescriptor)
+				dwarCreator.addAlphanumericalColumn("Similarity ("+descriptorType+")");
 
 			try {
 				dwarCreator.writeHeader(-1);
@@ -756,7 +863,9 @@ public class DETaskFindSimilarCompoundsInFile extends ConfigurableTask implement
 		int records = 0;
 		int errors = 0;
 
-		TreeMap<String,Object> descriptorCache = new TreeMap<String,Object>();
+		TreeMap<String,Object> descriptorCache = null;
+		if (isDescriptor || needsHash)
+			descriptorCache = new TreeMap<>();
 
 		int alphaNumColumnCount = 0;
 		int[] sourceColumn = null;
@@ -775,14 +884,24 @@ public class DETaskFindSimilarCompoundsInFile extends ConfigurableTask implement
 				}
 			}
 
+		int resultColumnCount = isDescriptor ? 2 : 1;
 		int structureColumnCount = coordsAvailable ? 2 : 1;
-		int firstNewColumn = mTableModel.addNewColumns(1+structureColumnCount+alphaNumColumnCount);
-		int firstNewAlphaNumColumn = firstNewColumn+1+structureColumnCount;
+		int firstNewColumn = mTableModel.addNewColumns(resultColumnCount+structureColumnCount+alphaNumColumnCount);
+		int matchCountColumn = firstNewColumn;
+		int maxSimilarityColumn = isDescriptor ? firstNewColumn + 1 : -1;
+		int structureColumn = firstNewColumn + resultColumnCount;
+		int firstNewAlphaNumColumn = structureColumn + structureColumnCount;
 
-		TreeSet<String> detailReferences = new TreeSet<String>();
+		TreeSet<String> detailReferences = new TreeSet<>();
 
-		mTableModel.setColumnName(SIMILARITY_COLUMN_NAME+" ["+descriptorType+"]", firstNewColumn);
-		mTableModel.prepareStructureColumns(firstNewColumn+1, STRUCTURE_COLUMN_NAME, coordsAvailable, false);
+		String matchCountColumnName = isDescriptor ? "Matches ["+intSim+"%; "+descriptorType+"]" : EXACT_MATCHES_COLUMN_NAME;
+		String maxSimilarityColumnName = "Highest Similarity ["+descriptorType+"]";
+		String structureColumnName = isDescriptor ? SIMILAR_STRUCTURE_COLUMN_NAME : EXACT_STRUCTURE_COLUMN_NAME
+				+" S"+(anyStereo?"n":"y")+" T:"+(anyTautomer?"n":"y")+" LF:"+(anySalt?"n":"y");
+		mTableModel.setColumnName(matchCountColumnName, matchCountColumn);
+		if (maxSimilarityColumn != -1)
+			mTableModel.setColumnName(maxSimilarityColumnName, maxSimilarityColumn);
+		mTableModel.prepareStructureColumns(structureColumn, structureColumnName, coordsAvailable, false);
 		for (int i=0; i<alphaNumColumnCount; i++) {
 			String columnName = parser.getFieldNames()[sourceColumn[i]];
 			mTableModel.setColumnName(columnName, firstNewAlphaNumColumn+i);
@@ -794,7 +913,10 @@ public class DETaskFindSimilarCompoundsInFile extends ConfigurableTask implement
 				}
 			}
 
-//try {
+		int[] matchCount = new int[mTableModel.getTotalRowCount()];
+		float[] maxSimilarity = isDescriptor ? new float[mTableModel.getTotalRowCount()] : null;
+
+	//try {
 		int rowCount = parser.getRowCount();
 		startProgress("Processing Compounds From File...", 0, (rowCount == -1) ? 0 : rowCount);
 		while (parser.next()) {
@@ -809,21 +931,26 @@ public class DETaskFindSimilarCompoundsInFile extends ConfigurableTask implement
 				continue;
 				}
 
-			Object descriptor = descriptorCache.get(idcode);
-			if (descriptor == null) {
-				descriptor = parser.getDescriptor(descriptorType);
-
+			Object descriptor = null;
+			if (isDescriptor || needsHash) {
+				descriptorCache.get(idcode);
 				if (descriptor == null) {
-					errors++;
-					continue;
-					}
+					descriptor = isDescriptor ? parser.getDescriptor(descriptorType)
+											  : CanonizerUtil.getHash(parser.getMolecule(), hashType, anySalt);
 
-				if (descriptorCache.size() < MAX_DESCRIPTOR_CACHE_SIZE)
-					descriptorCache.put(idcode, descriptor);
+					if (descriptor == null) {
+						errors++;
+						continue;
+						}
+
+					if (descriptorCache.size() < MAX_DESCRIPTOR_CACHE_SIZE)
+						descriptorCache.put(idcode, descriptor);
+					}
 				}
 
-			final float[] similarityList = (descriptorType.equals(DescriptorConstants.DESCRIPTOR_Flexophore.shortName)) ?
-					new float[mTableModel.getTotalRowCount()] : null;
+			final float[] similarityList =
+					(isDescriptor && descriptorType.equals(DescriptorConstants.DESCRIPTOR_Flexophore.shortName)) ?
+						new float[mTableModel.getTotalRowCount()] : null;
 
 					// for the flexophore we pre-calculate similarities on multiple threads...
 			if (similarityList != null) {
@@ -838,7 +965,7 @@ public class DETaskFindSimilarCompoundsInFile extends ConfigurableTask implement
 							int index;
 							while ((index = smtIndex.decrementAndGet()) >= 0) {
 								CompoundRecord record = mTableModel.getTotalRecord(index);
-								similarityList[index] = dh.getSimilarity(_descriptor, record.getData(descriptorColumn));
+								similarityList[index] = dh.getSimilarity(_descriptor, record.getData(chemColumn));
 								}
 							}
 						};
@@ -849,10 +976,25 @@ public class DETaskFindSimilarCompoundsInFile extends ConfigurableTask implement
 				}
 
 			boolean isSimilar = false;
+			byte[] idcodeBytes = (isDescriptor || needsHash) ? null : idcode.getBytes();
+
 			for (int row=0; row<mTableModel.getTotalRowCount(); row++) {
 				CompoundRecord record = mTableModel.getTotalRecord(row);
-				float similarity = (similarityList != null) ? similarityList[row]
-						: dh.getSimilarity(descriptor, record.getData(descriptorColumn));
+
+				float similarity = 0;
+				if (isDescriptor) {
+					similarity = (similarityList != null) ? similarityList[row]
+							: dh.getSimilarity(descriptor, record.getData(chemColumn));
+					}
+				else if (needsHash) {
+					if (hash[row] == (long)descriptor)
+						similarity = 1.0f;
+					}
+				else {
+					if ((new ByteArrayComparator()).compare(idcodeBytes, (byte[])record.getData(chemColumn)) == 0)
+						similarity = 1.0f;
+					}
+
 				if (similarity >= similarityLimit) {
 					if (pairWriter != null && (!halfMatrix || row+1 < records)) {
 						try {
@@ -879,7 +1021,7 @@ public class DETaskFindSimilarCompoundsInFile extends ConfigurableTask implement
 										cellValue = parser.getMoleculeName();
 										break;
 									default:
-										cellValue = parser.getFieldData(pme.sourceColumn);
+										cellValue = CompoundTableSaver.convertNewlines(parser.getFieldData(pme.sourceColumn));
 										break;
 										}
 									if (cellValue != null)
@@ -903,34 +1045,32 @@ public class DETaskFindSimilarCompoundsInFile extends ConfigurableTask implement
 						catch (IOException ioe) {}
 						}
 
-					int similarityRank = 0;
-					if (record.getData(firstNewColumn) != null) {	// if is not the only similarity value, then we have to compare
-						String[] similarityText = new String((byte[])record.getData(firstNewColumn)).split("\\n");
-						for (int i=0; i<similarityText.length; i++) {
-							if (similarity > Float.parseFloat(similarityText[i]))
-								break;
-							similarityRank++;
-							}
-						}
-					if (similarityRank == 0) {
+					boolean replace = matchCount[row] == 0 || (isDescriptor && similarity > maxSimilarity[row]);
+
+					matchCount[row]++;
+
+					if (maxSimilarityColumn != -1
+					 && maxSimilarity[row] < similarity)
+						maxSimilarity[row] = similarity;
+
+					if (replace) {
 						String _idcode = parser.getIDCode();
 						if (_idcode != null) {
-							record.setData(_idcode.getBytes(), firstNewColumn+1);
+							record.setData(_idcode.getBytes(), structureColumn);
 							if (coordsAvailable) {
 								String coords = parser.getCoordinates();
 								if (coords != null)
-									record.setData(coords.getBytes(), firstNewColumn+2);
+									record.setData(coords.getBytes(), structureColumn+1);
 								}
 							}
-						}
-					insertBytes(record, firstNewColumn, Float.toString(similarity).getBytes(), similarityRank);
 
-					for (int i=0; i<alphaNumColumnCount; i++) {
-						String fieldData = parser.getFieldData(sourceColumn[i]);
-						int destColumn = firstNewAlphaNumColumn+i;
-						insertBytes(record, destColumn, fieldData.getBytes(), similarityRank);
-						if (!isSDF)
-							mTableModel.getDetailHandler().extractEmbeddedDetailReferences(destColumn, fieldData, detailReferences);
+						for (int i=0; i<alphaNumColumnCount; i++) {
+							String fieldData = parser.getFieldData(sourceColumn[i]);
+							int destColumn = firstNewAlphaNumColumn+i;
+							record.setData(fieldData.getBytes(), destColumn);
+							if (!isSDF)
+								mTableModel.getDetailHandler().extractEmbeddedDetailReferences(destColumn, fieldData, detailReferences);
+							}
 						}
 
 					isSimilar = true;
@@ -946,6 +1086,12 @@ public class DETaskFindSimilarCompoundsInFile extends ConfigurableTask implement
 			}
 //} catch (Exception e) { e.printStackTrace(); }
 
+		for (int row=0; row<mTableModel.getTotalRowCount(); row++) {
+			CompoundRecord record = mTableModel.getRecord(row);
+			record.setData(Integer.toString(matchCount[row]).getBytes(), matchCountColumn);
+			if (maxSimilarityColumn != -1 && maxSimilarity[row] != 0)
+				record.setData(DoubleFormat.toString(maxSimilarity[row]).getBytes(), maxSimilarityColumn);
+			}
 
 		if (!threadMustDie() && !isSDF && detailReferences.size() != 0) {
 			resolveDetailIDCollisions(detailReferences);

@@ -18,8 +18,15 @@
 
 package com.actelion.research.table;
 
-import java.awt.Color;
-import java.awt.Point;
+import com.actelion.research.calc.*;
+import com.actelion.research.chem.SSSearcherWithIndex;
+import com.actelion.research.chem.descriptor.*;
+import com.actelion.research.table.model.CompoundTableEvent;
+import com.actelion.research.table.model.CompoundTableModel;
+import com.actelion.research.util.DoubleFormat;
+
+import javax.swing.*;
+import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.awt.image.DataBufferInt;
 import java.io.BufferedReader;
@@ -27,24 +34,6 @@ import java.io.BufferedWriter;
 import java.io.IOException;
 import java.util.TreeMap;
 import java.util.TreeSet;
-
-import javax.swing.JOptionPane;
-
-import com.actelion.research.calc.BinarySOM;
-import com.actelion.research.calc.ProgressListener;
-import com.actelion.research.calc.SOMController;
-import com.actelion.research.calc.SelfOrganizedMap;
-import com.actelion.research.calc.ThreadMaster;
-import com.actelion.research.calc.VectorSOM;
-import com.actelion.research.chem.SSSearcherWithIndex;
-import com.actelion.research.chem.descriptor.DescriptorConstants;
-import com.actelion.research.chem.descriptor.DescriptorEncoder;
-import com.actelion.research.chem.descriptor.DescriptorHandler;
-import com.actelion.research.chem.descriptor.DescriptorHandlerSkeletonSpheres;
-import com.actelion.research.chem.descriptor.DescriptorHelper;
-import com.actelion.research.table.model.CompoundTableEvent;
-import com.actelion.research.table.model.CompoundTableModel;
-import com.actelion.research.util.DoubleFormat;
 
 public class CompoundTableSOM implements SOMController {
 	public static final int SOM_TYPE_DOUBLE = 0;
@@ -55,24 +44,27 @@ public class CompoundTableSOM implements SOMController {
 	public static final String[] SOM_ANALYSIS_COLUMN_NAME = {"x", "y", "border dissimilarity"};
 
 	private SelfOrganizedMap	mSOM;
-	private CompoundTableModel mTableModel;
-	private int[]				mColumnList,mVaryingKey,mUsedRowIndex;
-	private int					mType,mParameterCount,mInputVectorCount,mPivotGroupColumn,mPivotDataColumn;
+	private CompoundTableModel	mTableModel;
+	private int[]				mColumnList,mVaryingKeyInt,mUsedRowIndex;
+	private long[]              mVaryingKeyLong;
+	private int					mType,mParameterCount,mInputVectorCount,mPivotGroupColumn,mPivotDataColumn,mReactionCenterBitCount;
 	private double[]			mRowParameter;
-	private double[][]		  mPivotValue;
+	private double[][]			mPivotValue;
 	private TreeMap<String,Integer> mPivotDataMap;
 	private String				mCompatibilityError;
+	private boolean				mIsReactionFP;
 
 	public static boolean isDescriptorSupported(String shortName) {
 		return DescriptorHelper.isDescriptorShortName(shortName)
 			&& (DescriptorHelper.isBinaryFingerprint(shortName)
-			 || shortName.equals(DescriptorConstants.DESCRIPTOR_SkeletonSpheres.shortName));
+			 || shortName.equals(DescriptorConstants.DESCRIPTOR_SkeletonSpheres.shortName)
+			 || shortName.equals(DescriptorConstants.DESCRIPTOR_ReactionFP.shortName));
 		}
 
 	public CompoundTableSOM(CompoundTableModel tableModel, int type) {
 			// constructor to be used if SOM interna are read from a SOM file with read()
 		if (type == SOM_TYPE_DOUBLE)
-			mSOM = new VectorSOM();
+			mSOM = createReactionFPAwareVectorSOM();
 		else if (type == SOM_TYPE_BINARY)
 			mSOM = new BinarySOM();
 
@@ -84,13 +76,45 @@ public class CompoundTableSOM implements SOMController {
 		}
 
 	public CompoundTableSOM(int nx, int ny, int mode, CompoundTableModel tableModel, int[] columnList) {
-		mSOM = new VectorSOM(nx, ny, mode);
+		mSOM = createReactionFPAwareVectorSOM();
+		mSOM.initializeReferenceVectors(nx, ny, mode);
 		mTableModel = tableModel;
 		mColumnList = columnList;
 		mType = SOM_TYPE_DOUBLE;
 		mPivotGroupColumn = -1;
 		mPivotDataColumn = -1;
 		mPivotDataMap = null;
+		}
+
+	private VectorSOM createReactionFPAwareVectorSOM() {
+		return new VectorSOM() {
+			@Override public double getDissimilarity(Object vector1, Object vector2) {
+				if (!mIsReactionFP)
+					return super.getDissimilarity(vector1, vector2);
+
+				double[] v1 = (double[])vector1;
+				double[] v2 = (double[])vector2;
+
+				double reactionCenterSum = 0.0;
+				for (int i=0; i<mReactionCenterBitCount; i++) {
+					double dif = Math.abs(v1[i] - v2[i]);
+					reactionCenterSum += dif * dif;
+				}
+
+				double peripherySum = 0.0;
+				for (int i=mReactionCenterBitCount; i<v1.length; i++) {
+					double dif = Math.abs(v1[i] - v2[i]);
+					peripherySum += dif * dif;
+				}
+
+				// euclidian dissimilarity normalized by SQRT(dimensionCount)
+				double reactionCenterDissimilarity = (mReactionCenterBitCount == 0) ? 1.0 : Math.sqrt(reactionCenterSum)/Math.sqrt(mReactionCenterBitCount);
+				double peripheryDissimilarity = (v1.length-mReactionCenterBitCount == 0) ? 1.0 : Math.sqrt(peripherySum)/Math.sqrt(v1.length-mReactionCenterBitCount);
+
+				return DescriptorHandlerReactionFP.REACTION_CENTER_WEIGHT * reactionCenterDissimilarity
+						+ DescriptorHandlerReactionFP.PERIPHERY_WEIGHT * peripheryDissimilarity;
+				}
+			};
 		}
 
 	public void addProgressListener(ProgressListener l) {
@@ -122,36 +146,60 @@ public class CompoundTableSOM implements SOMController {
 			if (mTableModel.isDescriptorColumn(mColumnList[0])) {
 				mSOM.startProgress("Analyzing descriptor...", 0, 0);
 				Object descriptor = mTableModel.getTotalRecord(0).getData(mColumnList[0]);
-				if (descriptor instanceof int[]) {
+				if (descriptor instanceof long[]) {
+					mIsReactionFP = (mTableModel.getDescriptorHandler(mColumnList[0]) instanceof DescriptorHandlerReactionFP);
+
+					long[] firstIndex = (long[])descriptor;
+					mVaryingKeyLong = new long[firstIndex.length];
+					for (int row=1; row<mTableModel.getTotalRowCount(); row++) {
+						long[] currentIndex = (long[])mTableModel.getTotalRecord(row).getData(mColumnList[0]);
+						if (currentIndex != null && currentIndex.length != 0)
+							for (int i=0; i<firstIndex.length; i++)
+								mVaryingKeyLong[i] |= (firstIndex[i] ^ currentIndex[i]);
+					}
+
+					int varyingBits = 0;
+					for (int i=0; i<firstIndex.length; i++)
+						varyingBits += Long.bitCount(mVaryingKeyLong[i]);
+
+					mParameterCount += varyingBits - 1;
+
+					if (mIsReactionFP) {
+						mReactionCenterBitCount = 0;
+						for (int i=0; i<DescriptorHandlerReactionFP.REACTION_CENTER_LONG_COUNT; i++)
+							mReactionCenterBitCount += Long.bitCount(mVaryingKeyLong[i]);
+						}
+					}
+				else if (descriptor instanceof int[]) {
 					int[] firstIndex = (int[])descriptor;
-					mVaryingKey = new int[firstIndex.length];
+					mVaryingKeyInt = new int[firstIndex.length];
 					for (int row=1; row<mTableModel.getTotalRowCount(); row++) {
 						int[] currentIndex = (int[])mTableModel.getTotalRecord(row).getData(mColumnList[0]);
-						if (currentIndex != null)
+						if (currentIndex != null && currentIndex.length != 0)
 							for (int i=0; i<firstIndex.length; i++)
-								mVaryingKey[i] |= (firstIndex[i] ^ currentIndex[i]);
+								mVaryingKeyInt[i] |= (firstIndex[i] ^ currentIndex[i]);
 						}
 		
 					int varyingBits = 0;
 					for (int i=0; i<firstIndex.length; i++)
-						varyingBits += SSSearcherWithIndex.bitCount(mVaryingKey[i]);
+						varyingBits += Integer.bitCount(mVaryingKeyInt[i]);
 
 					mParameterCount += varyingBits - 1;
 					}
 				else {
 					byte[] firstIndex = (byte[])descriptor;
-					mVaryingKey = new int[(firstIndex.length+31)/32];
+					mVaryingKeyInt = new int[(firstIndex.length+31)/32];
 					for (int row=1; row<mTableModel.getTotalRowCount(); row++) {
 						byte[] currentIndex = (byte[])mTableModel.getTotalRecord(row).getData(mColumnList[0]);
-						if (currentIndex != null)
+						if (currentIndex != null && currentIndex.length != 0)
 							for (int i=0; i<firstIndex.length; i++)
 								if (firstIndex[i] != currentIndex[i])
-									mVaryingKey[i>>5] |= (1 << (i & 31));
+									mVaryingKeyInt[i>>5] |= (1 << (i & 31));
 						}
 		
 					int varyingBits = 0;
-					for (int i=0; i<mVaryingKey.length; i++)
-						varyingBits += SSSearcherWithIndex.bitCount(mVaryingKey[i]);
+					for (int i=0; i<mVaryingKeyInt.length; i++)
+						varyingBits += Integer.bitCount(mVaryingKeyInt[i]);
 
 					mParameterCount += varyingBits - 1;
 					}
@@ -198,8 +246,9 @@ public class CompoundTableSOM implements SOMController {
 				double location[] = (mPivotGroupColumn == -1) ?
 						  findExactMatchLocation(row)
 						: pivotLocation[(int)mTableModel.getTotalDoubleAt(row, mPivotGroupColumn)];
-				if (mPivotGroupColumn == -1
-				 || mPivotValue[(int)mTableModel.getTotalDoubleAt(row, mPivotGroupColumn)] != null) {
+				if (location != null
+				 && (mPivotGroupColumn == -1
+				  || mPivotValue[(int)mTableModel.getTotalDoubleAt(row, mPivotGroupColumn)] != null)) {
 					mTableModel.setTotalValueAt(DoubleFormat.toString(location[0]+0.5D), row, firstNewColumn);
 					mTableModel.setTotalValueAt(DoubleFormat.toString(location[1]+0.5D), row, firstNewColumn+1);
 					mTableModel.setTotalValueAt(DoubleFormat.toString(location[2]), row, firstNewColumn+2);
@@ -361,11 +410,11 @@ public class CompoundTableSOM implements SOMController {
 		}
 
 	public Point findBestMatchLocation(int row) {
-		return mSOM.findBestMatchLocation(mSOM.normalizeVector(getInputVector(row)));
+		return mSOM.findBestMatchLocation(mSOM.normalizeVector(getRowInputVector(row)));
 		}
 
 	protected double[] findExactMatchLocation(int row) {
-		return mSOM.findExactMatchLocation(mSOM.normalizeVector(getInputVector(row)));
+		return mSOM.findExactMatchLocation(mSOM.normalizeVector(getRowInputVector(row)));
 		}
 
 	public int getType() {
@@ -405,11 +454,14 @@ public class CompoundTableSOM implements SOMController {
 					writer.newLine();
 					}
 				else {
+					byte[] encoding = (dh instanceof AbstractDescriptorHandlerLongFP) ?
+								new DescriptorEncoder().encodeLong(mVaryingKeyLong)
+							  : new DescriptorEncoder().encode(mVaryingKeyInt);
 					writer.write("<descriptorName=\""+dh.getInfo().shortName+"\">");
 					writer.newLine();
 					writer.write("<descriptorVersion=\""+dh.getVersion()+"\">");
 					writer.newLine();
-					writer.write("<keyList=\""+new String(new DescriptorEncoder().encode(mVaryingKey))+"\">");
+					writer.write("<keyList=\""+new String(encoding)+"\">");
 					writer.newLine();
 					}
 				}
@@ -513,7 +565,7 @@ public class CompoundTableSOM implements SOMController {
 						if (!error) {
 							String keyList = SelfOrganizedMap.extractValue(theLine);
 							mColumnList[i] = descriptorColumn;
-							mVaryingKey = SSSearcherWithIndex.getIndexFromHexString(keyList);
+							mVaryingKeyInt = SSSearcherWithIndex.getIndexFromHexString(keyList);
 							}
 						}
 					else {
@@ -541,13 +593,17 @@ public class CompoundTableSOM implements SOMController {
 							mCompatibilityError = "The SOM was built based on a descriptor that is not available in your data: "+descriptorShortName;
 
 						if (dh.getInfo().isBinary
-						 || dh instanceof DescriptorHandlerSkeletonSpheres) {
+						 || dh instanceof DescriptorHandlerSkeletonSpheres
+						 || dh instanceof DescriptorHandlerReactionFP) {
 							theLine = reader.readLine();
 							error = !theLine.startsWith("<keyList=");
 							if (!error) {
 								String keyList = SelfOrganizedMap.extractValue(theLine);
 								mColumnList[i] = selectDescriptorColumn(descriptorColumnList);
-							   	mVaryingKey = new DescriptorEncoder().decode(keyList);
+								if (dh instanceof AbstractDescriptorHandlerLongFP)
+								   	mVaryingKeyLong = new DescriptorEncoder().decodeLong(keyList);
+								else
+									mVaryingKeyInt = new DescriptorEncoder().decode(keyList);
 								}
 							}
 						}
@@ -623,15 +679,41 @@ public class CompoundTableSOM implements SOMController {
 		int firstListIndex = 0;
 		if (mTableModel.isDescriptorColumn(mColumnList[0])) {
 			Object descriptor = mTableModel.getTotalRecord(row).getData(mColumnList[0]);
-			if (descriptor == null)
+			if (descriptor == null || mTableModel.getDescriptorHandler(mColumnList[0]).calculationFailed(descriptor))
 				return false;
 
-			if (descriptor instanceof int[]) {
+			if (mTableModel.getDescriptorHandler(mColumnList[0]) instanceof DescriptorHandlerReactionFP) {
+				long[] currentIndex = (long[])descriptor;
+				for (int i=0; i<mVaryingKeyLong.length; i++) {
+					boolean isReactionCenter = (i < DescriptorHandlerReactionFP.REACTION_CENTER_LONG_COUNT);
+					long theBit = 1;
+					for (int j=0; j<64; j++) {
+						if ((mVaryingKeyLong[i] & theBit) != 0) {
+							mRowParameter[paramIndex++] = ((currentIndex[i] & theBit) == 0) ? 0.0
+						: isReactionCenter ? DescriptorHandlerReactionFP.REACTION_CENTER_WEIGHT : DescriptorHandlerReactionFP.PERIPHERY_WEIGHT;
+							}
+						theBit <<= 1;
+						}
+					}
+				}
+			else if (descriptor instanceof long[]) {
+				long[] currentIndex = (long[])descriptor;
+				for (int i=0; i<mVaryingKeyLong.length; i++) {
+					long theBit = 1;
+					for (int j=0; j<64; j++) {
+						if ((mVaryingKeyLong[i] & theBit) != 0) {
+							mRowParameter[paramIndex++] = ((currentIndex[i] & theBit) != 0) ? 1.0 : 0.0;
+							}
+						theBit <<= 1;
+						}
+					}
+				}
+			else if (descriptor instanceof int[]) {
 				int[] currentIndex = (int[])descriptor;
-				for (int i=0; i<mVaryingKey.length; i++) {
+				for (int i=0; i<mVaryingKeyInt.length; i++) {
 					int theBit = 1;
 					for (int j=0; j<32; j++) {
-						if ((mVaryingKey[i] & theBit) != 0) {
+						if ((mVaryingKeyInt[i] & theBit) != 0) {
 							mRowParameter[paramIndex++] = ((currentIndex[i] & theBit) != 0) ? 1.0 : 0.0;
 							}
 						theBit <<= 1;
@@ -640,10 +722,10 @@ public class CompoundTableSOM implements SOMController {
 				}
 			else {
 				byte[] currentIndex = (byte[])descriptor;
-				for (int i=0; i<mVaryingKey.length; i++) {
+				for (int i=0; i<mVaryingKeyInt.length; i++) {
 					int theBit = 1;
 					for (int j=0; j<32; j++) {
-						if ((mVaryingKey[i] & theBit) != 0) {
+						if ((mVaryingKeyInt[i] & theBit) != 0) {
 							mRowParameter[paramIndex++] = currentIndex[i*32+j];
 							}
 						theBit <<= 1;
@@ -696,6 +778,7 @@ public class CompoundTableSOM implements SOMController {
 	/////////////////////////////////////////////////////
 	////////////// SOMController methods ////////////////
 	/////////////////////////////////////////////////////
+	@Override
 	public int getInputVectorCount() {
 		if (mInputVectorCount == 0) {
 			mUsedRowIndex = null;
@@ -738,7 +821,8 @@ public class CompoundTableSOM implements SOMController {
 			}
 		return mInputVectorCount;
 		}
- 
+
+	@Override
 	public Object getInputVector(int row) {
 		return (mUsedRowIndex == null) ? getRowInputVector(row) : getRowInputVector(mUsedRowIndex[row]);
 		}

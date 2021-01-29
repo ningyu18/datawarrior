@@ -16,31 +16,53 @@ package org.openmolecules.comm;
 
 import java.io.BufferedInputStream;
 import java.io.IOException;
-import java.net.MalformedURLException;
-import java.net.URL;
-import java.net.URLConnection;
+import java.net.*;
 
 public abstract class ClientCommunicator extends CommunicationHelper {
-    private boolean	mWithSessions;
-	private long	mMostRecentBusyTime;
-	private String	mSessionID;
+	private static final int CONNECT_TIME_OUT = 5000;
+	private static final int READ_TIME_OUT = 300000; // 0 -> no timeout
 
-	public abstract String getServerURL();
+    private boolean	mWithSessions;
+	private String	mSessionID,mSessionServerURL,mAppicationName;
+
+	public abstract String getPrimaryServerURL();
+
+	/**
+	 * @return null or URL of fallback server in case the primary server is not available
+	 */
+	public abstract String getSecondaryServerURL();
+
+	/**
+	 * Whether the service received a setUseSecondaryServer() call earlier,
+	 * because the primary server could not be reached.
+	 * @return whether URL was switched to fallback server
+	 */
+	public abstract boolean isUseSecondaryServer();
+
+	/**
+	 * If the primary server is not available, then this method is called to switch
+	 * to the secondary server for the rest of life of the client application.
+	 */
+	public abstract void setUseSecondaryServer();
+
 	public abstract void showBusyMessage(String message);
 	public abstract void showErrorMessage(String message);
 
-	public ClientCommunicator(boolean withSessions) {
+	public ClientCommunicator(boolean withSessions, String applicationName) {
 		mWithSessions = withSessions;
+		mAppicationName = (applicationName == null) ? "unknown" : applicationName;
 		}
 
-	private URLConnection getConnection() throws MalformedURLException, IOException {
-        URL urlServlet = new URL(getServerURL());
-        URLConnection con = urlServlet.openConnection();
+	private URLConnection getConnection(String serverURL) throws IOException {
+        URL urlServlet = new URL(serverURL);
+        HttpURLConnection con = (HttpURLConnection)urlServlet.openConnection();
     
         // konfigurieren
         con.setDoInput(true);
         con.setDoOutput(true);
         con.setUseCaches(false);
+		con.setConnectTimeout(CONNECT_TIME_OUT);
+		con.setReadTimeout(READ_TIME_OUT);
         con.setRequestProperty("User-Agent", "Mozilla/5.0");
         con.setRequestProperty("Content-Type", "application/x-java-serialized-object");
 
@@ -50,30 +72,48 @@ public abstract class ClientCommunicator extends CommunicationHelper {
         return con;
         }
 
-    private String getResponse(URLConnection con) {
+	private void convertToPostRequest(HttpURLConnection con, String request, String... keyValuePair) throws IOException {
+		StringBuilder postData = new StringBuilder();
+
+		postData.append(URLEncoder.encode(KEY_REQUEST, "UTF-8"));
+		postData.append('=');
+		postData.append(URLEncoder.encode(request, "UTF-8"));
+
+		postData.append('&');
+		postData.append(URLEncoder.encode(KEY_APP_NAME, "UTF-8"));
+		postData.append('=');
+		postData.append(URLEncoder.encode(mAppicationName, "UTF-8"));
+
+		for (int i=0; i<keyValuePair.length; i+=2) {
+			postData.append('&');
+			postData.append(URLEncoder.encode(keyValuePair[i], "UTF-8"));
+			postData.append('=');
+			postData.append(URLEncoder.encode(String.valueOf(keyValuePair[i+1]), "UTF-8"));
+			}
+
+		byte[] postDataBytes = postData.toString().getBytes("UTF-8");
+
+		con.setRequestMethod("POST");
+		con.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
+		con.setRequestProperty("Content-Length", String.valueOf(postDataBytes.length));
+
+		con.getOutputStream().write(postDataBytes); // does make the connection
+		}
+
+    private String getResponse(URLConnection con) throws IOException {
         final int BUFFER_SIZE = 1024;
         StringBuilder sb = new StringBuilder();
-        try {
-            BufferedInputStream is = new BufferedInputStream(con.getInputStream());
-            byte[] buf = new byte[BUFFER_SIZE];
-            while (true) {
-                int size = is.read(buf, 0, BUFFER_SIZE);
-                if (size == -1)
-                    break;
+        BufferedInputStream is = new BufferedInputStream(con.getInputStream());
+        byte[] buf = new byte[BUFFER_SIZE];
+        while (true) {
+            int size = is.read(buf, 0, BUFFER_SIZE);
+            if (size == -1)
+                break;
 
-                sb.append(new String(buf, 0, size));
-                }
-            if (sb.length() != 0)
-                return sb.toString();
-            }
-        catch (IOException ioe) {
-        	showErrorMessage(ioe.toString());
-            }
-        catch (Throwable t) {
-        	showErrorMessage(t.toString());
+            sb.append(new String(buf, 0, size));
             }
 
-        return null;
+        return sb.length() != 0 ? sb.toString() : null;
         }
 
     public void closeConnection() {
@@ -81,7 +121,7 @@ public abstract class ClientCommunicator extends CommunicationHelper {
 			showBusyMessage("Closing Communication Channel ...");
 
 	        try {
-	            URLConnection con = getConnection();
+	            URLConnection con = getConnection(mSessionServerURL);
                 con.addRequestProperty(KEY_REQUEST, REQUEST_END_SESSION);
 
                 getResponse(con);
@@ -99,43 +139,82 @@ public abstract class ClientCommunicator extends CommunicationHelper {
 		}
 
 	private void getNewSession() {
-		String msg = null;
 		if (mSessionID == null) {
 			showBusyMessage("Opening session...");
 
-			if (System.currentTimeMillis() - mMostRecentBusyTime < 10000)
-				msg = "Please wait at least 10 seconds before retrying when the server is busy.";
-			else {
-				try {
-	                URLConnection con = getConnection();
-	                con.addRequestProperty(KEY_REQUEST, REQUEST_NEW_SESSION);
-
-	                String response = getResponse(con);
-	                if (response == null)
-	                    msg = "No response from server";
-                    else if (response.startsWith(BODY_ERROR))
-                        msg = response;
-	                else if (response.startsWith(BODY_MESSAGE))
-	                    mSessionID = response.substring(BODY_MESSAGE.length()+1).trim();
-	                else
-	                    msg = "Unexpected response:"+response;
-					}
-				catch (IOException e) {
-					showErrorMessage(e.toString());
-					}
-
-				if (msg != null)
-				    mMostRecentBusyTime = System.currentTimeMillis();
-			    }
+			mSessionID = (String)getResponse(REQUEST_NEW_SESSION);
+			if (mSessionID != null)
+				mSessionServerURL = isUseSecondaryServer() ? getSecondaryServerURL() : getPrimaryServerURL();
 
 			showBusyMessage("");
 			}
-
-		if (msg != null)
-			showErrorMessage(msg);
 		}
 
+	/**
+	 * Tries to get a proper response or search result from the primary server.
+	 * If the primary server cannot be contacted and a secondary server exists,
+	 * then the secondary server is contacted and in case of a successful completion
+	 * used for further getResponse() calls. In case of connection problems or other
+	 * errors a proper error message is shown through showErrorMessage().
+	 * @param request
+	 * @param keyValuePair
+	 * @return null in case of any error
+	 */
 	public Object getResponse(String request, String... keyValuePair) {
+		boolean mayUseSecondaryServer = (getSecondaryServerURL() != null && mSessionServerURL == null);
+
+		if (!isUseSecondaryServer() || mSessionServerURL != null) {
+			try {
+				String url = (mSessionServerURL != null) ? mSessionServerURL : getPrimaryServerURL();
+				Object response = getResponse(url, request, keyValuePair);
+				if (response != null)
+					return response;
+				}
+			catch (ServerErrorException see) {  // server reached, but could not satisfy request
+				showErrorMessage(see.getMessage());
+				return null;
+				}
+			catch (ConnectException ce) {  // connection refused
+				if (!mayUseSecondaryServer) {
+					showErrorMessage(ce.toString());
+					return null;
+					}
+				showBusyMessage("Connection refused. Trying alternative server...");
+				}
+			catch (SocketTimeoutException ste) {  // timed out
+				if (!mayUseSecondaryServer) {
+					showErrorMessage(ste.toString());
+					return null;
+					}
+				showBusyMessage("Connection timed out. Trying alternative server...");
+				}
+			catch (IOException ioe) {
+				showErrorMessage(ioe.toString());
+				return null;
+				}
+			}
+
+		if (mayUseSecondaryServer) {
+			try {
+				Object response = getResponse(getSecondaryServerURL(), request, keyValuePair);
+				if (response != null) {
+					setUseSecondaryServer();
+					return response;
+					}
+				showErrorMessage("No response from neither primary nor fail-over server.");
+				return null;
+				}
+			catch (IOException ioe) {
+				showErrorMessage(ioe.toString());
+				return null;
+				}
+			}
+
+		showErrorMessage("No response from server.");
+		return null;
+		}
+
+	private Object getResponse(String serverURL, String request, String... keyValuePair) throws IOException {
 		if (mWithSessions && mSessionID == null) {
 			getNewSession();
 			if (mSessionID == null)
@@ -143,41 +222,35 @@ public abstract class ClientCommunicator extends CommunicationHelper {
 			}
 
 		showBusyMessage("Requesting data ...");
-		String msg = null;
-		Object result = null;
-        try {
-            URLConnection con = getConnection();
-        	con.addRequestProperty(KEY_REQUEST, request);
-            for (int i=0; i<keyValuePair.length; i+=2)
-            	con.addRequestProperty(keyValuePair[i], keyValuePair[i+1]);
+        URLConnection con = getConnection(serverURL);
 
-            String response = getResponse(con);
-            if (response == null)
-                msg = "No response from server";
-            else if (response.startsWith(BODY_ERROR))
-                msg = response;
-            else if (response.startsWith(BODY_MESSAGE))
-                result = response.substring(BODY_MESSAGE.length()+1).trim();
-            else if (response.startsWith(BODY_OBJECT))
-                result = decode(response.substring(BODY_OBJECT.length()+1));
-            else
-                msg = "Unexpected response:"+response;
-            }
-        catch (IOException e) {
-			showErrorMessage(e.toString());
-            }
+// The default is a GET request, which is limited on Apache to 8700 characters.
+// As long as we use Apache as entry door to distribute our requests to virtual
+// servers, this may be a problem.
+        convertToPostRequest((HttpURLConnection)con, request, keyValuePair);
+
+// This would add the key value pairs as GET request params
+//	        con.addRequestProperty(KEY_REQUEST, request);
+// 	        con.addRequestProperty(KEY_APP_NAME, mApplicationName);
+//          for (int i=0; i<keyValuePair.length; i+=2)
+//          	con.addRequestProperty(keyValuePair[i], keyValuePair[i+1]);
+
+        String response = getResponse(con);
+
+        if (BODY_ERROR_INVALID_SESSION.equals(response))
+			mSessionID = null;
 
 		showBusyMessage("");
 
-        if (msg != null) {
-            if (msg.equals(BODY_ERROR_INVALID_SESSION))
-                mSessionID = null;
-
-			showErrorMessage(msg);
-            return null;
-            }
-
-		return result;
+		if (response == null)
+        	return null;
+		else if (response.startsWith(BODY_MESSAGE))
+			return response.substring(BODY_MESSAGE.length() + 1).trim();
+        else if (response.startsWith(BODY_OBJECT))
+	        return decode(response.substring(BODY_OBJECT.length() + 1));
+		else if (response.startsWith(BODY_ERROR))
+			throw new ServerErrorException(response);
+        else
+	        throw new ServerErrorException("Unexpected response:" + (response.length()<40 ? response : response.substring(0, 40) + "..."));
 		}
 	}
-

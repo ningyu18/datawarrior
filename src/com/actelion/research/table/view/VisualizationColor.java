@@ -33,7 +33,7 @@ public class VisualizationColor implements CompoundTableListener,CompoundTableLi
 
 	public static final String[] COLOR_LIST_MODE_CODE = { "hsbShort", "hsbLong", "straight", "categories" };
 
-	public static final byte cWedgeColors = 64;
+	public static final int cWedgeColors = 128;
 
 	public static final Color cSelectedColor = new Color(0, 102, 102);
 	public static final Color cUseAsFilterColor = new Color(102, 0, 102);
@@ -356,7 +356,7 @@ public class VisualizationColor implements CompoundTableListener,CompoundTableLi
 	public void listChanged(CompoundTableListEvent e) {
 		if (e.getType() == CompoundTableListEvent.cDelete) {
 			if (CompoundTableListHandler.isListColumn(mColorColumn)) {
-				int hitlistIndex = CompoundTableListHandler.getListFromColumn(mColorColumn);
+				int hitlistIndex = CompoundTableListHandler.convertToListIndex(mColorColumn);
 				if (e.getListIndex() == hitlistIndex)
 					initialize();
 				else if (hitlistIndex > e.getListIndex())
@@ -365,7 +365,7 @@ public class VisualizationColor implements CompoundTableListener,CompoundTableLi
 			}
 		else if (e.getType() == CompoundTableListEvent.cChange) {
 			if (CompoundTableListHandler.isListColumn(mColorColumn)) {
-				int hitlistIndex = CompoundTableListHandler.getListFromColumn(mColorColumn);
+				int hitlistIndex = CompoundTableListHandler.convertToListIndex(mColorColumn);
 				if (e.getListIndex() == hitlistIndex)
 					mColorListener.colorChanged(this);
 				}
@@ -413,7 +413,7 @@ public class VisualizationColor implements CompoundTableListener,CompoundTableLi
 		if (mColorColumn == JVisualization.cColumnUnassigned)
 			return cDefaultDataColorIndex;
 		if (CompoundTableListHandler.isListColumn(mColorColumn)) {
-			int hitlistIndex = CompoundTableListHandler.getListFromColumn(mColorColumn);
+			int hitlistIndex = CompoundTableListHandler.convertToListIndex(mColorColumn);
 			int flagNo = mTableModel.getListHandler().getListFlagNo(hitlistIndex);
 			return record.isFlagSet(flagNo) ? cSpecialColorCount : cSpecialColorCount + 1;
 			}
@@ -651,20 +651,32 @@ public class VisualizationColor implements CompoundTableListener,CompoundTableLi
 	 * and matches the tableModel's current category list.
 	 */
 	private Color[] createUpdatedCategoryColorList() {
-		Color[] colorList = createDefaultCategoryColorList(mColorColumn);
-		String[] categoryList = mTableModel.getCategoryList(mColorColumn);
-		for (int i=0; i<categoryList.length; i++) {
-			Color color = mCategoryColorMap.get(categoryList[i]);
-			if (color != null) {
-				Color origColor = colorList[i];
-				colorList[i] = color;
-				for (int j=i+1; j<categoryList.length; j++) {
-					if (colorList[j].equals(color)) {
-						colorList[j] = origColor;
+		String[] category = mTableModel.getCategoryList(mColorColumn);
+
+		Color[] newColor = createDefaultCategoryColorList(mColorColumn);
+
+		Color[] colorList = new Color[category.length];
+		for (int i=0; i<colorList.length; i++) {
+			colorList[i] = mCategoryColorMap.get(category[i]);
+			if (colorList[i] != null) {
+				for (int j=0; j<newColor.length; j++) {
+					if (colorList[i].equals(newColor[j])) {
+						newColor[j] = null;
+						break;
 						}
 					}
 				}
 			}
+
+		int newColorIndex = 0;
+		for (int i=0; i<colorList.length; i++) {
+			if (colorList[i] == null) {
+				while (newColor[newColorIndex] == null)
+					newColorIndex++;
+				colorList[i] = newColor[newColorIndex++];
+				}
+			}
+
 		createCategoryColorMap(colorList);
 		return colorList;
 		}

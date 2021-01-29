@@ -18,6 +18,7 @@
 
 package com.actelion.research.datawarrior.task.chem;
 
+import com.actelion.research.gui.hidpi.HiDPIHelper;
 import info.clearthought.layout.TableLayout;
 
 import java.util.Arrays;
@@ -42,7 +43,7 @@ import com.actelion.research.table.view.JVisualization2D;
 import com.actelion.research.table.view.VisualizationPanel2D;
 
 
-public class DETaskAutomaticSAR extends DETaskAbstractAddChemProperty implements Runnable {
+public class DETaskAutomaticSAR extends DETaskAbstractFromStructure implements Runnable {
 	public static final String TASK_NAME = "Automatic SAR Analysis";
 	private static final String SUBSTITUENT_VARIES = "*";
 
@@ -79,7 +80,8 @@ public class DETaskAutomaticSAR extends DETaskAbstractAddChemProperty implements
 	@Override
 	public JPanel getExtendedDialogContent() {
 		JPanel ep = new JPanel();
-		double[][] size = { {TableLayout.PREFERRED, 8, TableLayout.PREFERRED},
+		int gap = HiDPIHelper.scale(8);
+		double[][] size = { {TableLayout.PREFERRED, gap, TableLayout.PREFERRED},
 							{TableLayout.PREFERRED} };
 		ep.setLayout(new TableLayout(size));
 		ep.add(new JLabel("Scaffold type:"), "0,0");

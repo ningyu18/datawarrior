@@ -26,11 +26,11 @@ import com.actelion.research.chem.descriptor.*;
 import com.actelion.research.chem.io.CompoundTableConstants;
 import com.actelion.research.chem.reaction.Reaction;
 import com.actelion.research.chem.reaction.ReactionEncoder;
+import com.actelion.research.chem.reaction.SRSearcher;
 import com.actelion.research.table.BinGenerator;
 import com.actelion.research.table.category.*;
-import com.actelion.research.util.ByteArrayComparator;
-import com.actelion.research.util.DoubleFormat;
-import com.actelion.research.util.UniqueList;
+import com.actelion.research.util.*;
+import org.openmolecules.chem.conf.gen.RigidFragmentCache;
 
 import javax.swing.*;
 import javax.swing.event.TableModelEvent;
@@ -43,6 +43,8 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.regex.Pattern;
+import java.util.regex.PatternSyntaxException;
 
 public class CompoundTableModel extends AbstractTableModel
 			implements CompoundTableConstants,DescriptorConstants,TableModel {
@@ -82,10 +84,11 @@ public class CompoundTableModel extends AbstractTableModel
 	private volatile int[]		mDisplayableColumnToColumn,mColumnToDisplayableColumn;
 	private String				mParseDoubleModifier,mParseDoubleStdDev;
 	private CompoundTableColumnInfo[] mColumnInfo;
-	private volatile float[]	mSimilarityListSMP;
+	private volatile Thread     mSMPThread;
+	private volatile float[]	mSimilarityListSMP,mSimilarityList2SMP;
 	private volatile boolean	mSMPProcessWaiting,mSMPStopDescriptorCalculation;
-	private volatile int		mRecords;
-	private volatile AtomicInteger mSMPIndex,mSMPThreadIndex,mSimRecordIndex,mSMPDescriptorThreads,mSSSRecordIndex,mSMPSimilarityThreads;
+	private volatile int		mRecords,mExclusionUpdateThreadCount;
+	private volatile AtomicInteger mSMPIndex,mSMPThreadIndex,mSimRecordIndex,mSMPDescriptorThreads,mSMPSimilarityThreads;
 	private volatile DescriptorColumnSpec[] mSMPColumnSpec;
 	private volatile int		mSMPSimilarityErrors;
 	private volatile AtomicBoolean mLock;
@@ -206,11 +209,7 @@ public class CompoundTableModel extends AbstractTableModel
 			}
 		else {
 			try {
-				SwingUtilities.invokeAndWait(new Runnable() {
-					public void run() {
-						initTableEDT(rows, columns);
-						}
-					} );
+				SwingUtilities.invokeAndWait(() -> initTableEDT(rows, columns) );
 				}
 			catch (Exception ite) {}
 			}
@@ -275,11 +274,7 @@ public class CompoundTableModel extends AbstractTableModel
 			}
 		else {
 			try {
-				SwingUtilities.invokeAndWait(new Runnable() {
-					public void run() {
-						finalizeTableEDT(specifier, listener);
-						}
-					} );
+				SwingUtilities.invokeAndWait(() -> finalizeTableEDT(specifier, listener) );
 				}
 			catch (Exception ite) {}
 			}
@@ -355,6 +350,10 @@ public class CompoundTableModel extends AbstractTableModel
 	 * @return 
 	 */
 	public Object getValueAt(int row, int column) {
+		// substance LaF accesses non existing column index in case of column deletion if rows are selected
+		if (column >= mDisplayableColumnToColumn.length)
+			return "";
+
 		return getValue(mNonExcludedRecord[row], mDisplayableColumnToColumn[column]);
 		}
 
@@ -372,9 +371,11 @@ public class CompoundTableModel extends AbstractTableModel
 			if (mColumnInfo[column].summaryMode != cSummaryModeNormal) {
 				String[] entry = separateEntries(encodeData(record, column));
 				if (entry.length > 1) {
-					if ((mColumnInfo[column].type & cColumnTypeDate) != 0)
-						return DateFormat.getDateInstance().format(new Date(
-								86400000*(long)record.mFloat[column]+43200000))+getSummaryModeString(column, entry.length);
+					if ((mColumnInfo[column].type & cColumnTypeDate) != 0) {
+						String date = DateFormat.getDateInstance().format(new Date(
+								86400000 * (long) record.mFloat[column] + 43200000));
+						return mColumnInfo[column].summaryCountHidden ? date : date + getSummaryModeString(column, entry.length);
+						}
 	
 					float value = (mColumnInfo[column].logarithmicViewMode) ?
 							(float)Math.pow(10.0, record.mFloat[column])
@@ -483,7 +484,7 @@ public class CompoundTableModel extends AbstractTableModel
 	 * The returned value may be split into multiple entries by passing it to separateEntries().
 	 * @param row index referring to all rows
 	 * @param column index referring to all columns
-	 * @return 
+	 * @return empty values are returned as empty string
 	 */
 	public String getTotalValueAt(int row, int column) {
 		return encodeData(mRecord[row], column);
@@ -533,7 +534,7 @@ public class CompoundTableModel extends AbstractTableModel
 	 * If atomColorMode is ATOM_COLOR_MODE_ALL, then molecule itself may be modified(!) depending on current display
 	 * settings, e.g. to highlight structural differences to the reference molecule.
 	 * @param record
-	 * @param column
+	 * @param column idcode column or 3D-coords column
 	 * @param atomColorMode one of ATOM_COLOR_MODE_...
 	 * @param mol null or a StereoMolecule to be filled
 	 * @return null, if record doesn't contain molecule information
@@ -542,7 +543,7 @@ public class CompoundTableModel extends AbstractTableModel
 		if (record == null || column == -1)
 			return null;
 
-		if (getColumnSpecialType(column).equals(cColumnTypeIDCode)) {
+		if (isColumnTypeStructure(column)) {
 			byte[] idcode = (byte[])record.getData(column);
 			if (idcode != null) {
 				int index1 = 0;
@@ -571,7 +572,7 @@ public class CompoundTableModel extends AbstractTableModel
 					mol = new IDCodeParser(true).getCompactMolecule(idcode, coords);
 				else
 					new IDCodeParser(true).parse(mol, idcode, coords);
-				String identifierColumnName = getColumnProperty(column, cColumnPropertyIdentifierColumn);
+				String identifierColumnName = getColumnProperty(column, cColumnPropertyRelatedIdentifierColumn);
 				if (identifierColumnName != null && mol != null) {
 					int identifierColumn = findColumn(identifierColumnName);
 					if (identifierColumn != -1) {
@@ -580,7 +581,15 @@ public class CompoundTableModel extends AbstractTableModel
 							mol.setName(new String(data));
 						}
 					}
-			   	colorizeAtoms(record, column, atomColorMode, mol);
+			   	colorizeStructureAtoms(record, column, atomColorMode, mol);
+				return mol;
+				}
+			else if ("true".equals(mColumnInfo[column].getProperty(cColumnPropertyIsFragment))) {
+				if (mol == null)
+					mol = new StereoMolecule();
+				else
+					mol.deleteMolecule();
+				mol.setFragment(true);
 				return mol;
 				}
 			}
@@ -605,6 +614,35 @@ public class CompoundTableModel extends AbstractTableModel
 		return null;
 		}
 
+	public StereoMolecule getChemicalStructureFromReaction(CompoundRecord record, int reactionColumn, String reactionPart, boolean includeMapping) {
+		if (record == null || reactionColumn == -1)
+			return null;
+
+		byte[] rxnCode = (byte[])record.getData(reactionColumn);
+		if (rxnCode != null) {
+			int coordsColumn = getChildColumn(reactionColumn, cColumnType2DCoordinates);
+			byte[] coords = (coordsColumn == -1) ? null : (byte[])record.getData(coordsColumn);
+			int mappingColumn = getChildColumn(reactionColumn, cColumnTypeReactionMapping);
+			byte[] mapping = (!includeMapping || mappingColumn == -1) ? null : (byte[])record.getData(mappingColumn);
+			if (cReactionPartReactants.equals(reactionPart))
+				return getReactionReactants(rxnCode, coords, mapping);
+			else if (cReactionPartProducts.equals(reactionPart))
+				return getReactionProducts(rxnCode, coords, mapping);
+			else if ("catalysts".equals(reactionPart)) {	// check for the outdated cReactionPartCatalysts, which is not used anymore
+				// catalysts are not longer stored as part of the reaction. they have their own child column to the reaction
+				int catalystsColumn = getRelatedColumn(reactionColumn, cColumnPropertyRelatedCatalystColumn);
+				if (catalystsColumn != -1)
+					return getChemicalStructure(record, catalystsColumn, ATOM_COLOR_MODE_NONE, null);
+				else
+					return getReactionCatalysts(rxnCode);
+				}
+			else if (cReactionPartReaction.equals(reactionPart))
+				return getReactionMolecules(rxnCode, coords, mapping);
+			}
+
+		return null;
+		}
+
 	/**
 	 * Returns the identifier of a parent object from an identifier column, if 
 	 * this column exists and contains an identifier.
@@ -613,7 +651,7 @@ public class CompoundTableModel extends AbstractTableModel
 	 * @return null or identifier, e.g. molecule name
 	 */
 	public String getIdentifier(CompoundRecord record, int parentColumn) {
-		String identifierColumnName = getColumnProperty(parentColumn, cColumnPropertyIdentifierColumn);
+		String identifierColumnName = getColumnProperty(parentColumn, cColumnPropertyRelatedIdentifierColumn);
 		if (identifierColumnName != null) {
 			int identifierColumn = findColumn(identifierColumnName);
 			if (identifierColumn != -1) {
@@ -630,20 +668,48 @@ public class CompoundTableModel extends AbstractTableModel
 	 * If record does not contain a reaction, then null is returned.
 	 * @param record
 	 * @param column
+	 * @param atomColorMode one of ATOM_COLOR_MODE_...
 	 * @return null, if record doesn't contain reaction information
 	 */
-	public Reaction getChemicalReaction(CompoundRecord record, int column) {
+	public Reaction getChemicalReaction(CompoundRecord record, int column, int atomColorMode) {
 		if (record == null || column == -1)
 			return null;
 
 		if (getColumnSpecialType(column).equals(cColumnTypeRXNCode)) {
 			byte[] rxncode = (byte[])record.getData(column);
 			if (rxncode != null) {
-				return ReactionEncoder.decode(new String(rxncode), true);
+				int coordsColumn = getChildColumn(column, cColumnType2DCoordinates);
+				byte[] coords = (coordsColumn == -1) ? null : (byte[])record.getData(coordsColumn);
+
+				int mappingColumn = getChildColumn(column, cColumnTypeReactionMapping);
+				byte[] mapping = (mappingColumn == -1) ? null : (byte[])record.getData(mappingColumn);
+
+				int catalystColumn = getRelatedColumn(column, cColumnPropertyRelatedCatalystColumn);
+				byte[] catalysts = (catalystColumn == -1) ? null : (byte[])record.getData(catalystColumn);
+
+				Reaction rxn = isOldLongRxnEncoding(rxncode) ?
+						  ReactionEncoder.decode(new String(rxncode), true)
+						: ReactionEncoder.decode(rxncode, mapping, coords, null, catalysts, true);
+				if (rxn != null)
+					colorizeReactionAtoms(record, column, atomColorMode, rxn);
+				return rxn;
+				}
+			else if ("true".equals(mColumnInfo[column].getProperty(cColumnPropertyIsFragment))) {
+				Reaction rxn = new Reaction();
+				rxn.setFragment(true);
+				return rxn;
 				}
 			}
 
 		return null;
+		}
+
+	private boolean isOldLongRxnEncoding(byte[] rxncode) {
+		for (byte b:rxncode)
+			if (b == ReactionEncoder.OBJECT_DELIMITER)
+				return true;
+
+		return false;
 		}
 
 	/**
@@ -738,10 +804,10 @@ public class CompoundTableModel extends AbstractTableModel
 		}
 
 	/**
-	 * Updates an idcode column and 2D-coordinates (if existing) from a StereoMolecule.
-	 * All other child columns of the idcode column are cleared.
+	 * Updates an rxncode, 2D-coordinates, mapping, and catalysts (if existing) from a StereoMolecule.
+	 * All other child columns of the rxn column are cleared.
 	 * Call either finalizeChangeCell() after setting one chemistry object or call
-	 * finalizeChangeColumn() for the idcode column after setting multiple ones.
+	 * finalizeChangeColumn() for the rxncode column after setting multiple ones.
 	 * @param record
 	 * @param rxn
 	 * @param column rxncode column
@@ -750,10 +816,35 @@ public class CompoundTableModel extends AbstractTableModel
 	public boolean setChemicalReaction(CompoundRecord record, Reaction rxn, int column) {
 		if (rxn == null || rxn.getMolecules() == 0)
 			record.setData(null, column);
-		else
-			record.setData(ReactionEncoder.encode(rxn, false, ReactionEncoder.INCLUDE_MAPPING
-															| ReactionEncoder.INCLUDE_COORDS
-															| ReactionEncoder.INCLUDE_DRAWING_OBJECTS).getBytes(), column);
+		else {
+			String[] encoded = ReactionEncoder.encode(rxn, true);
+			record.setData(encoded[0].getBytes(), column);
+
+			if (encoded[1] != null) {
+				int mappingColumn = getChildColumn(column, cColumnTypeReactionMapping);
+				if (mappingColumn != -1)
+					record.setData(encoded[1].getBytes(), mappingColumn);
+				}
+
+			if (encoded[2] != null) {
+				int coordsColumn = getChildColumn(column, cColumnType2DCoordinates);
+				if (coordsColumn != -1)
+					record.setData(encoded[2].getBytes(), coordsColumn);
+				}
+
+			// reaction objects are not yet supported in DataWarrior
+			if (encoded[3] != null) {
+				int objectsColumn = getChildColumn(column, cColumnTypeReactionObjects);
+				if (objectsColumn != -1)
+					record.setData(encoded[3].getBytes(), objectsColumn);
+				}
+
+			if (encoded[4] != null) {
+				int catalystsColumn = getRelatedColumn(column, cColumnPropertyRelatedCatalystColumn);
+				if (catalystsColumn != -1)
+					record.setData(encoded[4].getBytes(), catalystsColumn);
+				}
+			}
 
 		return true;
 		}
@@ -869,8 +960,11 @@ public class CompoundTableModel extends AbstractTableModel
 		if (column == -1)
 			return cColumnUnassignedItemText;
 
+		if (column == CompoundTableListHandler.PSEUDO_COLUMN_SELECTION)
+			return CompoundTableListHandler.LIST_NAME_SELECTION;
+
 		if (CompoundTableListHandler.isListColumn(column))
-			return cColumnNameRowList+mHitlistHandler.getListName(CompoundTableListHandler.getListFromColumn(column))+"'";
+			return cColumnNameRowList+mHitlistHandler.getListName(CompoundTableListHandler.convertToListIndex(column))+"'";
 
 		String parent = getColumnProperty(column, cColumnPropertyParentColumn);
 		if (parent != null && !isColumnDisplayable(column))
@@ -894,7 +988,7 @@ public class CompoundTableModel extends AbstractTableModel
 		int column = findColumn(columnName);
 		if (column == -1)
 			return cColumnUnassignedItemText.equals(columnName) ? cColumnUnassignedCode : columnName;
-		if (CompoundTableListHandler.isListColumn(column))
+		if (CompoundTableListHandler.isListOrSelectionColumn(column))
 			return columnName;
 		return mColumnInfo[column].name;
 		}
@@ -909,8 +1003,10 @@ public class CompoundTableModel extends AbstractTableModel
 	public String getColumnTitleNoAlias(int column) {
 		if (column == -1)
 			return cColumnUnassignedCode;
+		if (column == CompoundTableListHandler.PSEUDO_COLUMN_SELECTION)
+			return CompoundTableListHandler.LIST_CODE_SELECTION;
 		if (CompoundTableListHandler.isListColumn(column))
-			return cColumnNameRowList+mHitlistHandler.getListName(CompoundTableListHandler.getListFromColumn(column))+"'";
+			return cColumnNameRowList+mHitlistHandler.getListName(CompoundTableListHandler.convertToListIndex(column))+"'";
 		return mColumnInfo[column].name;
 		}
 
@@ -931,11 +1027,17 @@ public class CompoundTableModel extends AbstractTableModel
 	private String getColumnSpecialTypeForDisplay(int column) {
 		String specialType = getColumnSpecialType(column);
 		if (specialType == null)
-			specialType = "<null>";
+			return "<null>";
+
 		if (specialType.equals(cColumnType2DCoordinates))
-			specialType = "2D-Coordinates";
-		else if (specialType.equals(cColumnType3DCoordinates))
-			specialType = "3D-Coordinates";
+			return "2D-Coordinates";
+		if (specialType.equals(cColumnType3DCoordinates))
+			return "3D-Coordinates";
+
+		String reactionPart = getColumnProperty(column, cColumnPropertyReactionPart);
+		if (reactionPart != null)
+			specialType = specialType.concat(cReactionPartDelimiter).concat(reactionPart);
+
 		return specialType;
 		}
 
@@ -1022,6 +1124,10 @@ public class CompoundTableModel extends AbstractTableModel
 					return CompoundTableListHandler.getColumnFromList(i);
 			}
 
+		if (columnName.equals(CompoundTableListHandler.LIST_CODE_SELECTION)
+		 || columnName.equals(CompoundTableListHandler.LIST_NAME_SELECTION))
+			return CompoundTableListHandler.PSEUDO_COLUMN_SELECTION;
+
 		return -1;
 		}
 
@@ -1034,7 +1140,7 @@ public class CompoundTableModel extends AbstractTableModel
 	 * @return categoryCount; categoryCount+1 in case of multiple categories per cell
 	 */
 	public int getCategoryCount(int column) {
-		if (CompoundTableListHandler.isListColumn(column))
+		if (CompoundTableListHandler.isListOrSelectionColumn(column))
 			return 2;
 
 		int listSize = mColumnInfo[column].categoryList.getSize();
@@ -1043,10 +1149,26 @@ public class CompoundTableModel extends AbstractTableModel
 		return listSize;
 		}
 
+	/**
+	 * The lowest non-logarithmic cell value of the given column.
+	 * If a data range is defined and its lower value is smaller that the
+	 * lowest cell value, then the lower value of the defined range is returned.
+	 * For non-numerical category columns 0 is returned.
+	 * @param column
+	 * @return
+	 */
 	public float getMinimumValue(int column) {
 		return mColumnInfo[column].minValue;
 		}
 
+	/**
+	 * The highest non-logarithmic cell value of the given column.
+	 * If a data range is defined and its higher value is higher that the
+	 * highest cell value, then the higher value of the defined range is returned.
+	 * For non-numerical category columns the category count minus 1 is returned.
+	 * @param column
+	 * @return
+	 */
 	public float getMaximumValue(int column) {
 		return mColumnInfo[column].maxValue;
 		}
@@ -1176,7 +1298,8 @@ public class CompoundTableModel extends AbstractTableModel
 		}
 
 	public void setLogarithmicViewMode(int column, boolean mode) {
-		if (mode
+		if (!cAllowLogModeForNegativeOrZeroValues
+		 && mode
 		 && column < mAllColumns    // if we change the mode of already finalized columns
 		 && (mColumnInfo[column].minValue <= 0
 		  || mColumnInfo[column].dataMin <= 0))
@@ -1187,7 +1310,7 @@ public class CompoundTableModel extends AbstractTableModel
 
 			if (column < mAllColumns) {	// if we change the mode of already finalized columns
 				setupDoubleValues(column, 0);
-	
+
 						// mean calculation is different in logarithmic view mode
 				TableModelEvent tme = (mColumnInfo[column].summaryMode != cSummaryModeNormal) ?
 						new TableModelEvent(this, 0, mNonExcludedRecords-1, mColumnToDisplayableColumn[column], TableModelEvent.UPDATE) : null;
@@ -1295,7 +1418,10 @@ public class CompoundTableModel extends AbstractTableModel
 			mColumnInfo[column].summaryMode = mode;
 
 			if (column < mAllColumns) {	// if we change the mode of already finalized columns
-				setupDoubleValues(column, 0);
+				if (isColumnTypeDate(column))
+					setupDateValues(column, 0);
+				else
+					setupDoubleValues(column, 0);
 	
 				fireEventsNow(new CompoundTableEvent(this, CompoundTableEvent.cChangeColumnData, column),
 						   new TableModelEvent(this, 0, mNonExcludedRecords-1,
@@ -1340,14 +1466,37 @@ public class CompoundTableModel extends AbstractTableModel
 		}
 
 	/**
-	 * Sets the hilite mode for structure columns, which determines whether and how
+	 * Adds or changes a reference from one column to another to define a graph relationship among rows.
+ 	 * @param column
+	 * @param referencedColumn -1 or must contain unique identifiers. Otherwise behaviour is unpredictable
+	 * @param strengthColumn
+	 * @param isBidirectional
+	 */
+	public void setColumnReference(int column, int referencedColumn, int strengthColumn, boolean isBidirectional) {
+		String referencedColumnName = null;
+		String strengthColumnName = null;
+		String type = null;
+		if (referencedColumn != -1) {
+			referencedColumnName = getColumnTitleNoAlias(referencedColumn);
+			if (strengthColumn != -1)
+				strengthColumnName = getColumnTitleNoAlias(strengthColumn);
+			type = isBidirectional ? cColumnPropertyReferenceTypeRedundant : cColumnPropertyReferenceTypeTopDown;
+			}
+		setColumnProperty(column, cColumnPropertyReferencedColumn, referencedColumnName);
+		setColumnProperty(column, cColumnPropertyReferenceStrengthColumn, strengthColumnName);
+		setColumnProperty(column, cColumnPropertyReferenceType, type);
+		fireCompoundTableChanged(new CompoundTableEvent(this, CompoundTableEvent.cChangeColumnReference, column));
+		}
+
+	/**
+	 * Sets the hilite mode for structure or reaction columns, which determines whether and how
 	 * parts of a molecule are highlighted depending on the molecule of the current row.
 	 * @param column total column index
-	 * @param mode one of cStructureHiliteModeNone,cStructureHiliteModeMCS
+	 * @param mode one of cStructureHiliteMode... or cReactionHiliteMode...
 	 */
-	public void setStructureHiliteMode(int column, int mode) {
-		if (mColumnInfo[column].structureHiliteMode != mode) {
-			mColumnInfo[column].structureHiliteMode = mode;
+	public void setHiliteMode(int column, int mode) {
+		if (mColumnInfo[column].hiliteMode != mode) {
+			mColumnInfo[column].hiliteMode = mode;
 
 			if (column < mAllColumns)	// if we change the mode of already finalized columns
 				fireEventsNow(new CompoundTableEvent(this, CompoundTableEvent.cChangeColumnData, column),
@@ -1383,7 +1532,7 @@ public class CompoundTableModel extends AbstractTableModel
 	public void setExtensionData(String name, Object data) {
 		if (mExtensionHandler != null && mExtensionHandler.getID(name) != -1) {
 			if (data != null && mTableExtensionMap == null)
-				mTableExtensionMap = new TreeMap<String,Object>();
+				mTableExtensionMap = new TreeMap<>();
 			if (mTableExtensionMap != null)
 				mTableExtensionMap.put(name, data);
 			fireEventsNow(new CompoundTableEvent(this, CompoundTableEvent.cChangeExtensionData, -1, mExtensionHandler.getID(name)), null);
@@ -1438,20 +1587,34 @@ public class CompoundTableModel extends AbstractTableModel
 		fireEventsNow(new CompoundTableEvent(this, CompoundTableEvent.cChangeSelection, -1), null);
 		}
 
-	public void addNewRows(int newRowCount) {
+	/**
+	 * This method is followed by a call to finalizeNewRows() or finalizeSplitRows().
+	 * @param newRowCount
+	 * @param initializeNewRows
+	 */
+	public void addNewRows(int newRowCount, boolean initializeNewRows) {
 		stopDescriptorCalculation();
 
 		CompoundRecord[] record = new CompoundRecord[mRecords + newRowCount];
 		for (int row=0; row<mRecords; row++)
 			record[row] = mRecord[row];
-		for (int row=mRecords; row<record.length; row++)
-			record[row] = new CompoundRecord(row, mColumnInfo.length);
+		if (initializeNewRows)
+			for (int row=mRecords; row<record.length; row++)
+				record[row] = new CompoundRecord(row, mColumnInfo.length);
 		mRecord = record;
 
 		CompoundRecord[] nonExcludedRecord = new CompoundRecord[mRecords + newRowCount];
 		for (int row=0; row<mNonExcludedRecords; row++)
 			nonExcludedRecord[row] = mNonExcludedRecord[row];
 		mNonExcludedRecord = nonExcludedRecord;
+		}
+
+	public void cloneRow(int sourceRow, int destRow, int rowID) {
+		mRecord[destRow] = new CompoundRecord(mRecord[sourceRow], rowID);
+		}
+
+	public void moveRow(int sourceRow, int destRow) {
+		mRecord[destRow] = mRecord[sourceRow];
 		}
 
 	/**
@@ -1528,44 +1691,122 @@ public class CompoundTableModel extends AbstractTableModel
 		return specialColumn;
 		}
 
-	public void prepareStructureColumns(int idcodeColumn, String idcodeColumnName,
+	public int prepareStructureColumns(int idcodeColumn, String idcodeColumnName,
 										boolean prepareCoordinates, boolean prepareFFP512) {
-		prepareStructureColumns(idcodeColumn, idcodeColumnName, prepareCoordinates,
+		return prepareStructureColumns(idcodeColumn, idcodeColumnName, prepareCoordinates,
 								prepareFFP512 ? DESCRIPTOR_FFP512.shortName : null);
 		}
 
-	public void prepareStructureColumns(int idcodeColumn, String idcodeColumnName,
+	public int prepareStructureColumns(int idcodeColumn, String idcodeColumnName,
 			boolean prepareCoordinates, String descriptorShortName) {
 		int column = idcodeColumn;
 
 		setColumnName(idcodeColumnName, column);
 		setColumnProperty(column, cColumnPropertySpecialType, cColumnTypeIDCode);
+		column++;
 
 		if (prepareCoordinates) {
-			column++;
 			setColumnName(cColumnType2DCoordinates, column);
 			setColumnProperty(column, cColumnPropertySpecialType, cColumnType2DCoordinates);
 			setColumnProperty(column, cColumnPropertyParentColumn, getColumnTitleNoAlias(idcodeColumn));
+			column++;
 			}
 
 		if (descriptorShortName != null) {
+			prepareDescriptorColumn(column, idcodeColumn, null, descriptorShortName);
 			column++;
-			setColumnName(descriptorShortName, column);
-			setColumnProperty(column, cColumnPropertySpecialType, descriptorShortName);
-			setColumnProperty(column, cColumnPropertyParentColumn, getColumnTitleNoAlias(idcodeColumn));
-			mColumnInfo[column].addCurrentDescriptorVersion(descriptorShortName);
 			}
+
+		return column - idcodeColumn;
+		}
+
+	public int prepareReactionColumns(int rxncodeColumn, String rxncodeColumnName, boolean isFragment,
+									   boolean prepareMapping, boolean prepareCoordinates, boolean prepareCatalysts,
+									   boolean prepareReactionFP, boolean prepareReactantFFP, boolean prepareProductFFP,
+									   boolean prepareCatalystFFP) {
+		int column = rxncodeColumn;
+		int catalystColumn = -1;
+
+		setColumnName(rxncodeColumnName, rxncodeColumn);
+		setColumnProperty(rxncodeColumn, cColumnPropertySpecialType, cColumnTypeRXNCode);
+		if (isFragment)
+			setColumnProperty(rxncodeColumn, cColumnPropertyIsFragment, "true");
+		column++;
+
+		if (prepareMapping) {
+			setColumnName(cColumnTypeReactionMapping, column);
+			setColumnProperty(column, cColumnPropertySpecialType, cColumnTypeReactionMapping);
+			setColumnProperty(column, cColumnPropertyParentColumn, getColumnTitleNoAlias(rxncodeColumn));
+			column++;
+			}
+
+		if (prepareCoordinates) {
+			setColumnName(cColumnType2DCoordinates, column);
+			setColumnProperty(column, cColumnPropertySpecialType, cColumnType2DCoordinates);
+			setColumnProperty(column, cColumnPropertyParentColumn, getColumnTitleNoAlias(rxncodeColumn));
+			column++;
+			}
+
+		if (prepareCatalysts) {
+			setColumnName("Catalysts", column);
+			setColumnProperty(column, cColumnPropertySpecialType, cColumnTypeIDCode);
+			setColumnProperty(rxncodeColumn, cColumnPropertyRelatedCatalystColumn, getColumnTitleNoAlias(column));
+			catalystColumn = column;
+			column++;
+			}
+
+		if (prepareReactionFP) {
+			prepareDescriptorColumn(column, rxncodeColumn, null, "reactionFP", DESCRIPTOR_ReactionFP.shortName);
+			column++;
+			}
+
+		if (prepareReactantFFP) {
+			prepareDescriptorColumn(column, rxncodeColumn, cReactionPartReactants, "reactantFFP", DESCRIPTOR_FFP512.shortName);
+			column++;
+			}
+
+		if (prepareProductFFP) {
+			prepareDescriptorColumn(column, rxncodeColumn, cReactionPartProducts, "productFFP", DESCRIPTOR_FFP512.shortName);
+			column++;
+			}
+
+		if (prepareCatalystFFP && catalystColumn != -1) {
+			prepareDescriptorColumn(column, catalystColumn, null, "catalystFFP", DESCRIPTOR_FFP512.shortName);
+			column++;
+			}
+
+		return column - rxncodeColumn;
+		}
+
+	public void prepareDescriptorColumn(int column, int parentColumn, String reactionPart, String descriptorShortName) {
+		prepareDescriptorColumn(column, parentColumn, reactionPart, descriptorShortName, descriptorShortName);
+		}
+
+	public void prepareDescriptorColumn(int column, int parentColumn, String reactionPart, String columnName, String descriptorShortName) {
+		setColumnName(columnName, column);
+		setColumnProperty(column, cColumnPropertySpecialType, descriptorShortName);
+		setColumnProperty(column, cColumnPropertyParentColumn, getColumnTitleNoAlias(parentColumn));
+		if (reactionPart != null)
+			setColumnProperty(column, cColumnPropertyReactionPart, reactionPart);
+		mColumnInfo[column].addCurrentDescriptorVersion(descriptorShortName);
 		}
 
 	private void allocateDefaultDescriptorColumns() {
-		allocateDefaultDescriptorColumns(cColumnTypeIDCode, DESCRIPTOR_FFP512.shortName);
-		allocateDefaultDescriptorColumns(cColumnTypeRXNCode, DESCRIPTOR_FFP512.shortName);
+		allocateDefaultDescriptorColumns(cColumnTypeIDCode, DESCRIPTOR_FFP512.shortName, null);
+		allocateDefaultDescriptorColumns(cColumnTypeRXNCode, DESCRIPTOR_ReactionFP.shortName, null);
+		allocateDefaultDescriptorColumns(cColumnTypeRXNCode, DESCRIPTOR_FFP512.shortName, cReactionPartProducts);
 		}
 
-	private void allocateDefaultDescriptorColumns(String columnType, String descriptorShortName) {
+	/**
+	 * @param columnType
+	 * @param descriptorShortName
+	 * @param reactionPart null or reaction part, if (and only of) a molecule type descriptor is created for a reaction
+	 */
+	private void allocateDefaultDescriptorColumns(String columnType, String descriptorShortName, String reactionPart) {
 		int firstChemCodeColumn = -1;
 		for (int column=0; column<mColumnInfo.length; column++) {
-			if (columnType.equals(getColumnSpecialType(column))) {
+			if (columnType.equals(getColumnSpecialType(column))
+			 && getParentColumn(column) == -1) {
 				firstChemCodeColumn = column;
 				break;
 				}
@@ -1575,7 +1816,8 @@ public class CompoundTableModel extends AbstractTableModel
 		if (firstChemCodeColumn != -1) {
 			for (int column=0; column<mColumnInfo.length; column++) {
 				if (getParentColumn(column) == firstChemCodeColumn
-				 && descriptorShortName.equals(getColumnSpecialType(column))) {
+				 && descriptorShortName.equals(getColumnSpecialType(column))
+				 && (reactionPart == null || reactionPart.equals(getColumnProperty(column, cColumnPropertyReactionPart)))) {
 					defaultDescriptorFound = true;
 					break;
 					}
@@ -1583,11 +1825,18 @@ public class CompoundTableModel extends AbstractTableModel
 			}
 
 		if (firstChemCodeColumn != -1 && !defaultDescriptorFound)
-			allocateDescriptorColumn(firstChemCodeColumn, descriptorShortName);
+			allocateDescriptorColumn(firstChemCodeColumn, descriptorShortName, reactionPart);
 		}
 
-	public int addDescriptorColumn(int parent, String shortName) {
-		int column = allocateDescriptorColumn(parent, shortName);
+	/**
+	 * Before adding a descriptor column, you may make sure that it doesn't already exist, e.g. with hasDescriptorColumn()
+	 * @param parent
+	 * @param shortName
+	 * @param reactionPart
+	 * @return
+	 */
+	public int addDescriptorColumn(int parent, String shortName, String reactionPart) {
+		int column = allocateDescriptorColumn(parent, shortName, reactionPart);
 		updateDescriptors();
 		createDisplayableColumnMap();
 		mAllColumns = mColumnInfo.length;
@@ -1595,12 +1844,14 @@ public class CompoundTableModel extends AbstractTableModel
 		return column;
 		}
 
-	private int allocateDescriptorColumn(int parent, String shortName) {
+	private int allocateDescriptorColumn(int parent, String shortName, String reactionPart) {
 		String[] columnName = new String[1];
 		columnName[0] = shortName;
 		int column = addNewColumns(columnName);
 		setColumnProperty(column, cColumnPropertySpecialType, shortName);
 		setColumnProperty(column, cColumnPropertyParentColumn, mColumnInfo[parent].name);
+		if (reactionPart != null)
+			setColumnProperty(column, cColumnPropertyReactionPart, reactionPart);
 		mColumnInfo[column].isDescriptorIncomplete = true;
 		mColumnInfo[column].addCurrentDescriptorVersion(shortName);
 		return column;
@@ -1670,15 +1921,41 @@ public class CompoundTableModel extends AbstractTableModel
 		}
 
 	/**
+	 * Returns the first child column of the specified column and type.
 	 * @param column
 	 * @param type
 	 * @return first child column of the specified column and type
 	 */
 	public int getChildColumn(int column, String type) {
+		return getChildColumn(column, type, null);
+		}
+
+	/**
+	 * Convenience method that returns the a related column given column and relation type, e.g. finds the catalyst column for a given reaction column.
+	 * @param column
+	 * @param relation e.g. cColumnPropertyIdentifierColumn or cColumnPropertyCatalystColumn
+	 * @return related column for given type or -1
+	 */
+	public int getRelatedColumn(int column, String relation) {
+		return findColumn(getColumnProperty(column, relation));
+		}
+
+	/**
+	 * Returns the first child column of the specified column and type.
+	 * If column contains reactions and if type is a descriptor shortName refering to a molecule descriptor,
+	 * then reactionPart may denote that part of the reaction that the descriptor is based on, e.g. 'reactants'.
+	 * @param column
+	 * @param type
+	 * @param reactionPart if not null, specifies the reaction part that a molecule descriptor refers to
+	 * @return first child column of the specified column and type
+	 */
+	public int getChildColumn(int column, String type, String reactionPart) {
 		for (int i=0; i<mColumnInfo.length; i++)
 			if (type.equals(getColumnProperty(i, cColumnPropertySpecialType))
-			 && mColumnInfo[column].name.equals(getColumnProperty(i, cColumnPropertyParentColumn)))
+			 && mColumnInfo[column].name.equals(getColumnProperty(i, cColumnPropertyParentColumn))
+			 && (reactionPart == null || reactionPart.equals(getColumnProperty(i, cColumnPropertyReactionPart))))
 				return i;
+
 		return -1;
 		}
 
@@ -1688,14 +1965,16 @@ public class CompoundTableModel extends AbstractTableModel
 		}
 
 	public synchronized void removeColumns(boolean[] removeColumn, int removalCount) {
-			// also mark all child columns of removal columns to be removed
-		for (int i = 0; i< mAllColumns; i++) {
+		// also mark all child columns of removal columns to be removed
+		for (int i=0; i<mAllColumns; i++) {
 			if (removeColumn[i]) {
-				for (int j = 0; j< mAllColumns; j++) {
+				for (int j=0; j<mAllColumns; j++) {
 					if (!removeColumn[j]) {
-						String idColumn = getColumnProperty(j, cColumnPropertyIdentifierColumn);
-						if (idColumn != null && idColumn.equals(mColumnInfo[i].name))
-							setColumnProperty(j, cColumnPropertyIdentifierColumn, null);
+						for (String relation:cColumnRelationTypes) {
+							String idColumn = getColumnProperty(j, relation);
+							if (idColumn != null && idColumn.equals(mColumnInfo[i].name))
+								setColumnProperty(j, relation, null);
+							}
 
 						String refColumn = getColumnProperty(j, cColumnPropertyReferencedColumn);
 						if (refColumn != null && refColumn.equals(mColumnInfo[i].name)) {
@@ -1787,13 +2066,28 @@ public class CompoundTableModel extends AbstractTableModel
 					  new TableModelEvent(this, firstRow, mNonExcludedRecords-1, TableModelEvent.ALL_COLUMNS, TableModelEvent.INSERT));
 		}
 
+	/**
+	 * Does housekeeping and fresh column analysis after adding new rows.
+//	 * @param splittedColumns may be null
+	 * @param listener may be null
+	 *
+	public void finalizeSplitRows(int[] splittedColumns, ProgressListener listener) {
+		analyzeData(0, listener);
+		createDisplayableColumnMap();
+		compileVisibleRecords();
+		fireEventsNow(new CompoundTableEvent(this, CompoundTableEvent.cAddRows, -1, 0),
+				new TableModelEvent(this, 0, mNonExcludedRecords-1, TableModelEvent.ALL_COLUMNS, TableModelEvent.INSERT));
+//		for (int column:splittedColumns)
+//			fireEventsNow(new CompoundTableEvent(this, CompoundTableEvent.cChangeColumnData, column, 0), null);
+		}	*/
+
 	public void finalizeNewColumns(int firstNewColumn, ProgressListener listener) {
 		allocateDefaultDescriptorColumns();
 		for (int column=firstNewColumn; column<mColumnInfo.length; column++) {
 			analyzeColumn(column, 0, false);
 			}
 		for (int column=firstNewColumn; column<mColumnInfo.length; column++) {
-			if (cColumnTypeIDCode.equals(getColumnSpecialType(column)))
+			if (isColumnTypeStructure(column))
 				checkIDCodeVersion(column, 0, listener);
 			}
 		updateDescriptors();
@@ -1875,6 +2169,7 @@ public class CompoundTableModel extends AbstractTableModel
 	public void finalizeChangeChemistryColumn(int column, int fromIndex, int toIndex, boolean removeAllDescriptors) {
 		analyzeColumn(column, 0, false);
 
+		boolean startDescriptorThread = false;
 		for (int i=0; i<mColumnInfo.length; i++) {
 			if (i != column && isDescriptorColumn(i) && getParentColumn(i) == column) {
 				boolean needsUpdate = false;
@@ -1887,10 +2182,13 @@ public class CompoundTableModel extends AbstractTableModel
 					}
 				if (needsUpdate) {
 					mColumnInfo[i].isDescriptorIncomplete = true;
-					updateDescriptors();
+					startDescriptorThread = true;
 					}
 				}
 			}
+
+		if (startDescriptorThread)
+			updateDescriptors();
 
 		mFlexophoreSimilarityListCache = null;
 
@@ -2001,8 +2299,8 @@ public class CompoundTableModel extends AbstractTableModel
 		return mColumnInfo[column].stdDeviationShown;
 		}
 
-	public int getStructureHiliteMode(int column) {
-		return mColumnInfo[column].structureHiliteMode;
+	public int getHiliteMode(int column) {
+		return mColumnInfo[column].hiliteMode;
 		}
 
 	/**
@@ -2030,7 +2328,7 @@ public class CompoundTableModel extends AbstractTableModel
 				if (getColumnDetailSource(column, detail).equals(CompoundTableDetailHandler.EMBEDDED)) {
 					for (int row=0; row<mRecords; row++) {
 						String[][] reference = mRecord[row].getDetailReferences(column);
-						if (reference != null && reference[detail] != null) {
+						if (reference != null && detail<reference.length && reference[detail] != null) {
 							for (int i=0; i<reference[detail].length; i++) {
 								try {
 									int id = Integer.parseInt(reference[detail][i]);
@@ -2265,6 +2563,10 @@ public class CompoundTableModel extends AbstractTableModel
 		return mColumnInfo[column].hasMultipleEntries;
 		}
 
+	public boolean isEqualValueColumn(int column) {
+		return mColumnInfo[column].isEqual;
+	}
+
 	public boolean isMultiLineColumn(int column) {
 		return mColumnInfo[column].containsMultiLineText;
 		}
@@ -2307,6 +2609,21 @@ public class CompoundTableModel extends AbstractTableModel
 		}
 
 	/**
+	 * Checks whether the column exclusively contains integer values or is defined to contain
+	 * integer values. Accepted are multiple values per cell, values with
+	 * modifiers as (<,>=,?), NaN or empty values.
+	 * If column < 0, then false is returned.
+	 * @param column
+	 * @return
+	 */
+	public boolean isColumnTypeInteger(int column) {
+		return (column >= 0)
+			&& (mColumnInfo[column].type & cColumnTypeDouble) != 0
+			&& mColumnInfo[column].isInteger
+			&& !mColumnInfo[column].logarithmicViewMode;
+		}
+
+	/**
 	 * Checks whether the column exclusively contains values that can be
 	 * numerically interpreted. Accepted are multiple values per cell, values with
 	 * modifiers as (<,>=,?), NaN or empty values and date values.
@@ -2335,11 +2652,31 @@ public class CompoundTableModel extends AbstractTableModel
 	 * or as data values, they are considered type 'String'.
 	 * At the same time they may also have type 'Category'.
 	 * If column < 0, then false is returned.
+	 * Note that special type columns (e.g. idcode) return true.
 	 * @param column
 	 * @return
 	 */
 	public boolean isColumnTypeString(int column) {
 		return (column >= 0) && (mColumnInfo[column].type & cColumnTypeString) != 0;
+		}
+
+	/**
+	 * Convenience method checking whether the column's special type is cColumnTypeIDCode
+	 * or contains idcodes as a child column, e.g. cColumnTypeReactionCatalysts
+ 	 * @param column
+	 * @return
+	 */
+	public boolean isColumnTypeStructure(int column) {
+		return cColumnTypeIDCode.equals(getColumnSpecialType(column));
+		}
+
+	/**
+	 * Convenience method checking whether the column's special type is cColumnTypeRXNCode
+	 * @param column
+	 * @return
+	 */
+	public boolean isColumnTypeReaction(int column) {
+		return cColumnTypeRXNCode.equals(getColumnSpecialType(column));
 		}
 
 	public boolean isColumnWithModifiers(int column) {
@@ -2350,15 +2687,42 @@ public class CompoundTableModel extends AbstractTableModel
 		return getColumnProperty(column, cColumnPropertySpecialType);
 		}
 
-	public boolean hasDescriptorColumn(int column) {
-		for (int i=0; i<mColumnInfo.length; i++)
+	public boolean hasDescriptorColumn(int column, String shortName, String reactionPart) {
+		for (int i=0; i<mColumnInfo.length; i++) {
 			if (mColumnInfo[i].descriptorHandler != null
-			 && mColumnInfo[column].name.equals(getColumnProperty(i, cColumnPropertyParentColumn)))
-				return true;
+			 && mColumnInfo[i].descriptorHandler.getInfo().shortName.equals(shortName)
+			 && mColumnInfo[column].name.equals(getColumnProperty(i, cColumnPropertyParentColumn))) {
+				if (reactionPart == null
+				 || reactionPart.equals(mColumnInfo[i].getProperty(cColumnPropertyReactionPart)))
+					return true;
+				}
+			}
+		return false;
+		}
+
+	public boolean hasDescriptorColumn(int column, String reactionPart) {
+		for (int i=0; i<mColumnInfo.length; i++) {
+			if (mColumnInfo[i].descriptorHandler != null
+			 && mColumnInfo[column].name.equals(getColumnProperty(i, cColumnPropertyParentColumn))) {
+				if (reactionPart == null
+				 || reactionPart.equals(mColumnInfo[i].getProperty(cColumnPropertyReactionPart)))
+					return true;
+				}
+			}
 		return false;
 		}
 
 	public void setColumnProperty(int column, String key, String value) {
+		if (key.equals(cColumnPropertyDetailCount)) {
+			int oldCount = 0;
+			String old = getColumnProperty(column, key);
+			if (old != null)
+				oldCount = Integer.parseInt(old);
+			int newCount = (value == null) ? 0 : Integer.parseInt(value);
+			if (newCount > oldCount)
+				fireEventsLater(new CompoundTableEvent(this, CompoundTableEvent.cAddColumnDetails, column), null);
+			}
+
 		mColumnInfo[column].setProperty(key, value);
 		}
 
@@ -2371,7 +2735,7 @@ public class CompoundTableModel extends AbstractTableModel
 		}
 
 	public String getColumnProperty(int column, String key) {
-		return mColumnInfo[column].getProperty(key);
+		return column < 0 ? null : mColumnInfo[column].getProperty(key);
 		}
 
 	/**
@@ -2457,7 +2821,7 @@ public class CompoundTableModel extends AbstractTableModel
 		}
 
 	/**
-	 * Checks, whether any row is selected and returns true if one is found.
+	 * Checks, whether any visible row is selected and returns true if one is found.
 	 */
 	public boolean hasSelectedRows() {
 		for (int row=0; row<mNonExcludedRecords; row++)
@@ -2466,6 +2830,15 @@ public class CompoundTableModel extends AbstractTableModel
 
 		return false;
 		}
+
+	public boolean hasVisibleSelectedRows() {
+		long mask = mAllocatedExclusionFlags | CompoundRecord.cFlagMaskSelected;
+		for (int row=0; row<mNonExcludedRecords; row++)
+			if ((mNonExcludedRecord[row].mFlags & mask) == CompoundRecord.cFlagMaskSelected)
+				return true;
+
+		return false;
+	}
 
 	public boolean isVisibleNeglecting(CompoundRecord record, int exclusionFlagNo) {
 		long mask = mAllocatedExclusionFlags & ~convertRowFlagToMask(exclusionFlagNo);
@@ -2479,7 +2852,7 @@ public class CompoundTableModel extends AbstractTableModel
 		else
 			mDirtyCompoundFlags &= ~mask;
 
-		updateVisibleRecords(isAdjusting, exclusionFlagNo);
+		updateVisibleRecords(isAdjusting);
 		}
 
 	/**
@@ -2550,6 +2923,19 @@ public class CompoundTableModel extends AbstractTableModel
 		mAllocatedExclusionFlags &= ~mask;
 		}
 
+	public boolean isRowFlagSuspended(int flagNo) {
+		long mask = convertRowFlagToMask(flagNo);
+		return (mAllocatedExclusionFlags & mask) == 0;
+		}
+
+	public void setRowFlagSuspension(int flagNo, boolean suspend) {
+		long mask = convertRowFlagToMask(flagNo);
+		if (suspend)
+			mAllocatedExclusionFlags &= ~mask;
+		else
+			mAllocatedExclusionFlags |= mask;
+		}
+
 	public void clearRowFlag(int flagNo) {
 		long mask = convertRowFlagToMask(flagNo);
 		if ((mDirtyCompoundFlags & mask) != 0) {
@@ -2560,7 +2946,7 @@ public class CompoundTableModel extends AbstractTableModel
 
 			if (mRecords != 0
 			 && (mask & mAllocatedExclusionFlags) != 0)
-				updateVisibleRecords(false, flagNo);
+				updateVisibleRecords(false);
 			}
 		}
 
@@ -2578,23 +2964,23 @@ public class CompoundTableModel extends AbstractTableModel
 				mRecord[row].mFlags &= ~mask;
 			}
 
-		updateVisibleRecords(false, exclusionFlagNo);
+		updateVisibleRecords(false);
 		}
 
 	public void setCategoryExclusion(int exclusionFlagNo, int column,
 									 boolean[] selection, boolean inverse) {
+		boolean changed = false;
 		long mask = convertRowFlagToMask(exclusionFlagNo);
-		mDirtyCompoundFlags |= mask;
 
 		CategoryList<?> categoryList = mColumnInfo[column].categoryList;
 
 		for (int row=0; row<mRecords; row++) {
 			String[] entry = separateEntries(encodeData(mRecord[row], column));
+
+			boolean isSet = ((mRecord[row].mFlags & mask) != 0);
+			boolean mustBeSet;
 			if (entry.length == 1) {
-				if (selection[categoryList.getIndexOfString(entry[0])] ^ inverse)
-					mRecord[row].mFlags &= ~mask;
-				else
-					mRecord[row].mFlags |= mask;
+				mustBeSet = (inverse == selection[categoryList.getIndexOfString(entry[0])]);
 				}
 			else {	  // record may belong to more than one categories
 				boolean visible = false;
@@ -2616,14 +3002,22 @@ public class CompoundTableModel extends AbstractTableModel
 						}
 					}
 
-				if (visible ^ inverse)
-					mRecord[row].mFlags &= ~mask;
-				else
+				mustBeSet = (visible == inverse);
+				}
+
+			if (isSet ^ mustBeSet) {
+				if (mustBeSet)
 					mRecord[row].mFlags |= mask;
+				else
+					mRecord[row].mFlags &= ~mask;
+				changed = true;
 				}
 			}
 
-		updateVisibleRecords(false, exclusionFlagNo);
+		if (changed) {
+			mDirtyCompoundFlags |= mask;
+			updateVisibleRecords(false);
+			}
 		}
 
 	public void initializeDoubleExclusion(int exclusionFlagNo, int column) {
@@ -2634,7 +3028,7 @@ public class CompoundTableModel extends AbstractTableModel
 				if (Float.isNaN(mRecord[row].mFloat[column]))
 					mRecord[row].mFlags |= mask;
 
-			updateVisibleRecords(false, exclusionFlagNo);
+			updateVisibleRecords(false);
 			}
 		}
 
@@ -2654,39 +3048,48 @@ public class CompoundTableModel extends AbstractTableModel
 		if (!caseSensitive)
 			queryString = queryString.toLowerCase();
 
-		String[] queryList;
-		int index = queryString.indexOf(',');
-		if (index != -1
-		 && !queryString.startsWith(",")
-		 &&	(!queryString.endsWith(",") || queryString.endsWith("\\,"))) {
-			ArrayList<String> list = new ArrayList<String>();
-			int start = 0;
-			while (index != -1) {
-				if (start == index) {
-					list.clear();
-					break;
-					}
-				if (queryString.charAt(index-1) != '\\') {
-					String q = queryString.substring(start, index).replace("\\,", ",");
-					if (q.length() != 0)
-						list.add(q);
-					start = index+1;
-					}
-				index = queryString.indexOf(',', index+1);
-				}
-
-			if (list.size() == 0) {  // evidently the comma was not meant to separate search terms
-				queryList = new String[1];
+		String[] queryList = new String[1];
+		if (type == cTextExclusionTypeRegEx) {
+			try {
+				Pattern.compile(queryString);
 				queryList[0] = queryString;
 				}
-			else {
-				list.add(queryString.substring(start).replace("\\,", ","));
-				queryList = list.toArray(new String[0]);
+			catch (PatternSyntaxException e) {
+				return;
 				}
 			}
 		else {
-			queryList = new String[1];
-			queryList[0] = queryString.replace("\\,", ",");
+			int index = queryString.indexOf(',');
+			if (index != -1
+			 && !queryString.startsWith(",")
+			 &&	(!queryString.endsWith(",") || queryString.endsWith("\\,"))) {
+				ArrayList<String> list = new ArrayList<String>();
+				int start = 0;
+				while (index != -1) {
+					if (start == index) {
+						list.clear();
+						break;
+						}
+					if (queryString.charAt(index-1) != '\\') {
+						String q = queryString.substring(start, index).replace("\\,", ",");
+						if (q.length() != 0)
+							list.add(q);
+						start = index+1;
+						}
+					index = queryString.indexOf(',', index+1);
+					}
+
+				if (list.size() == 0) {  // evidently the comma was not meant to separate search terms
+					queryList[0] = queryString;
+					}
+				else {
+					list.add(queryString.substring(start).replace("\\,", ","));
+					queryList = list.toArray(new String[0]);
+					}
+				}
+			else {
+				queryList[0] = queryString.replace("\\,", ",");
+				}
 			}
 
 		int[] columns = null;
@@ -2706,6 +3109,7 @@ public class CompoundTableModel extends AbstractTableModel
 			columns[0] = filterColumn;
 			}
 
+		boolean changed = false;
 		long mask = convertRowFlagToMask(exclusionFlagNo);
 		for (int row=0; row<mRecords; row++) {
 			boolean found = false;
@@ -2723,6 +3127,10 @@ public class CompoundTableModel extends AbstractTableModel
 						if (theString.startsWith(query))
 							found = true;
 						break;
+					case cTextExclusionTypeEndsWith:
+						if (theString.endsWith(query))
+							found = true;
+						break;
 					case cTextExclusionTypeContains:
 						if (theString.indexOf(query) != -1)
 							found = true;
@@ -2738,79 +3146,299 @@ public class CompoundTableModel extends AbstractTableModel
 				if (found)
 					break;
 				}
-			if (inverse ^ found)
-				mRecord[row].mFlags &= ~mask;
-			else
-				mRecord[row].mFlags |= mask;
+
+			boolean isSet = ((mRecord[row].mFlags & mask) != 0);
+			boolean mustBeSet = (inverse == found);
+
+			if (isSet ^ mustBeSet) {
+				if (mustBeSet)
+					mRecord[row].mFlags |= mask;
+				else
+					mRecord[row].mFlags &= ~mask;
+				changed = true;
+				}
 			}
 
-		mDirtyCompoundFlags |= mask;
-
-		updateVisibleRecords(false, exclusionFlagNo);
+		if (changed) {
+			mDirtyCompoundFlags |= mask;
+			updateVisibleRecords(false);
+			}
 		}
 
 	public void setDoubleExclusion(int column, int exclusionFlagNo,
 								   float low, float high,
 								   boolean inverse, boolean isAdjusting) {
+		boolean changed = false;
 		long mask = convertRowFlagToMask(exclusionFlagNo);
 		for (int row=0; row<mRecords; row++) {
 			float value = mRecord[row].mFloat[column];
-			if (Float.isNaN(value) || Float.isInfinite(value)) {
-				if (inverse)
-					mRecord[row].mFlags &= ~mask;
-				else
+			boolean isSet = ((mRecord[row].mFlags & mask) != 0);
+			boolean mustBeSet;
+			if (Float.isNaN(value) || Float.isInfinite(value))
+				mustBeSet = !inverse;
+			else
+				mustBeSet = (inverse ^ (value < low || value > high));
+
+			if (isSet ^ mustBeSet) {
+				if (mustBeSet)
 					mRecord[row].mFlags |= mask;
-				}
-			else {
-				if (inverse ^ (value < low || value > high))
-					mRecord[row].mFlags |= mask;
 				else
 					mRecord[row].mFlags &= ~mask;
+				changed = true;
 				}
 			}
 
-		mDirtyCompoundFlags |= mask;
-
-		updateVisibleRecords(isAdjusting, exclusionFlagNo);
+		if (changed) {
+			mDirtyCompoundFlags |= mask;
+			updateVisibleRecords(isAdjusting);
+			}
 		}
 
 	public void setHitlistExclusion(int hitlistIndex, int exclusionFlagNo, boolean inverse) {
+		boolean changed = false;
 		long mask = convertRowFlagToMask(exclusionFlagNo);
-		if (hitlistIndex == CompoundTableListHandler.LISTINDEX_NONE) {
-			for (int row=0; row<mRecords; row++) {
-				if (inverse)
+
+		long hitlistMask = (hitlistIndex == CompoundTableListHandler.LISTINDEX_NONE) ? -1L : mHitlistHandler.getListMask(hitlistIndex);
+
+		for (int row=0; row<mRecords; row++) {
+			boolean isSet = ((mRecord[row].mFlags & mask) != 0);
+			boolean mustBeSet;
+			if (hitlistIndex == CompoundTableListHandler.LISTINDEX_NONE)
+				mustBeSet = inverse;
+			else
+				mustBeSet = (inverse == ((mRecord[row].mFlags & hitlistMask) != 0));
+
+			if (isSet ^ mustBeSet) {
+				if (mustBeSet)
 					mRecord[row].mFlags |= mask;
 				else
 					mRecord[row].mFlags &= ~mask;
-				}
-			}
-		else {
-			long hitlistMask = mHitlistHandler.getListMask(hitlistIndex);
-			for (int row=0; row<mRecords; row++) {
-				if (inverse ^ ((mRecord[row].mFlags & hitlistMask) != 0))
-					mRecord[row].mFlags &= ~mask;
-				else
-					mRecord[row].mFlags |= mask;
+				changed = true;
 				}
 			}
 
-		mDirtyCompoundFlags |= mask;
-
-		updateVisibleRecords(false, exclusionFlagNo);
+		if (changed) {
+			mDirtyCompoundFlags |= mask;
+			updateVisibleRecords(false);
+			}
 		}
 
 	/**
 	 * Sets the substructure exclusion flags in parallel threads on all available cores.
 	 * @param exclusionFlagNo no of allocated filter flag
-	 * @param idcodeColumn
-	 * @param fragment
+	 * @param rxncodeColumn
+	 * @param retron
 	 * @param inverse
 	 */
-	public void setSubStructureExclusion(final int exclusionFlagNo, final int idcodeColumn, final StereoMolecule[] fragment, final boolean inverse) {
+	public void setRetronExclusion(final AtomicInteger rowIndex, final int exclusionFlagNo, final int rxncodeColumn, final StereoMolecule retron, final boolean inverse) {
 		int threadCount = Runtime.getRuntime().availableProcessors();
-		mSSSRecordIndex = new AtomicInteger(mRecord.length*fragment.length);
+		rowIndex.set(mRecord.length);
 
-		final int fingerprintColumn = getChildColumn(idcodeColumn, DESCRIPTOR_FFP512.shortName);
+		final int reactantFFPColumn = getChildColumn(rxncodeColumn, DESCRIPTOR_FFP512.shortName, cReactionPartReactants);
+		final int productFFPColumn = getChildColumn(rxncodeColumn, DESCRIPTOR_FFP512.shortName, cReactionPartProducts);
+		final long mask = convertRowFlagToMask(exclusionFlagNo);
+
+		final boolean isMapped = (getChildColumn(rxncodeColumn, cColumnTypeReactionMapping) != -1);
+
+		// The retron instance is read my multiple threads simultaneously.
+		// To prevent collision we must calculate all helper arrays in advance
+		retron.ensureHelperArrays(Molecule.cHelperParities);
+
+		// set flag: excluded as default
+		for (int row=0; row<mRecord.length; row++)
+			mRecord[row].mFlags |= mask;
+
+		Thread[] worker = new Thread[threadCount];
+		for (int i=0; i<threadCount; i++) {
+			worker[i] = new Thread("Retron-Matcher "+(i+1)) {
+				public void run() {
+					SSSearcherWithIndex reactantSearcher = new SSSearcherWithIndex();
+					reactantSearcher.setFragment(retron, (long[])null);
+					SSSearcherWithIndex productSearcher = new SSSearcherWithIndex();
+					productSearcher.setFragment(retron, (long[])null);
+					int recordIndex = rowIndex.decrementAndGet();
+					while (recordIndex >= 0) {
+						if ((mRecord[recordIndex].mFlags & mask) != 0) {
+							// do the substructure search in two steps for not unneccessarily creating the product molecule
+							long[] productFFP = (long[])mRecord[recordIndex].getData(productFFPColumn);
+							long[] reactantFFP = (long[])mRecord[recordIndex].getData(reactantFFPColumn);
+							if (!mColumnInfo[productFFPColumn].descriptorHandler.calculationFailed(productFFP)
+							 && !mColumnInfo[productFFPColumn].descriptorHandler.calculationFailed(reactantFFP)) {
+								productSearcher.setMolecule((StereoMolecule)null, productFFP);
+								if (productSearcher.isFragmentIndexInMoleculeIndex()) {
+									StereoMolecule product = getChemicalStructureFromReaction(mRecord[recordIndex], rxncodeColumn, cReactionPartProducts, isMapped);
+									productSearcher.setMolecule(product, productFFP);
+									int inProductCount = productSearcher.findFragmentInMoleculeWithoutIndex(SSSearcher.cCountModeOverlapping);
+									if (inProductCount != 0) {
+										reactantSearcher.setMolecule((StereoMolecule)null, reactantFFP);
+										int inReactantCount = 0;
+										if (reactantSearcher.isFragmentIndexInMoleculeIndex()) {
+											StereoMolecule reactant = getChemicalStructureFromReaction(mRecord[recordIndex], rxncodeColumn, cReactionPartReactants, isMapped);
+											reactantSearcher.setMolecule(reactant, reactantFFP);
+											inReactantCount = reactantSearcher.findFragmentInMoleculeWithoutIndex(SSSearcher.cCountModeOverlapping);
+											if (inReactantCount != 0 && isMapped) {
+												inProductCount -= countEquivalentMatches(product, productSearcher.getMatchList());
+												if (inProductCount <= inReactantCount)
+													inReactantCount -= countEquivalentMatches(reactant, reactantSearcher.getMatchList());
+												}
+											}
+										// TODO check, whether we also have to take into account in catalyst occurences
+										if (inProductCount > inReactantCount) {
+											mRecord[recordIndex].mFlags &= ~mask;
+											}
+										}
+									}
+								}
+							}
+
+						recordIndex = rowIndex.decrementAndGet();
+						}
+					}
+				};
+			worker[i].setPriority(Thread.MIN_PRIORITY);
+			worker[i].start();
+			}
+
+		for (Thread t:worker)
+			try { t.join(); } catch (InterruptedException e) {}
+
+		// optionally invert flag
+		if (inverse)
+			for (int row=0; row<mRecord.length; row++)
+				mRecord[row].mFlags ^= mask;
+
+		if (SwingUtilities.isEventDispatchThread()) {
+			mDirtyCompoundFlags |= mask;
+			updateVisibleRecords(false);
+			}
+		else  {
+			SwingUtilities.invokeLater(() -> {
+				mDirtyCompoundFlags |= mask;
+				updateVisibleRecords(false);
+				});
+			}
+		}
+
+	private int countEquivalentMatches(StereoMolecule mol, ArrayList<int[]> matchList) {
+		int equivalentCount = 0;
+		TreeSet<int[]> uniqueSet = new TreeSet<int[]>(new IntArrayComparator());
+		for (int[] match:matchList) {
+			int[] mappingNo = new int[match.length];
+			boolean foundZero = false;
+			for (int i=0; i<match.length; i++) {
+				mappingNo[i] = (match[i] == -1) ? -1 : mol.getAtomMapNo(match[i]);
+				if (mappingNo[i] == 0) {
+					foundZero = true;
+					break;
+					}
+				}
+			if (!foundZero) {
+				Arrays.sort(mappingNo);
+				if (uniqueSet.contains(mappingNo))
+					equivalentCount++;
+				else
+					uniqueSet.add(mappingNo);
+				}
+			}
+		return equivalentCount;
+		}
+
+	public void setSubReactionExclusion(final AtomicInteger rowAndFragmentIndex, final int exclusionFlagNo, final int rxncodeColumn, final Reaction[] queryrxn, final boolean inverse) {
+		int threadCount = Runtime.getRuntime().availableProcessors();
+		rowAndFragmentIndex.set(mRecord.length*queryrxn.length);
+
+		final int mappingColumn = getChildColumn(rxncodeColumn, CompoundTableConstants.cColumnTypeReactionMapping);
+		final int reactantFFPColumn = getChildColumn(rxncodeColumn, DESCRIPTOR_FFP512.shortName, CompoundTableConstants.cReactionPartReactants);
+		final int productFFPColumn = getChildColumn(rxncodeColumn, DESCRIPTOR_FFP512.shortName, CompoundTableConstants.cReactionPartProducts);
+		final long mask = convertRowFlagToMask(exclusionFlagNo);
+
+		// These fragments instances are read my multiple threads simultaneously.
+		// To prevent collision we must calculate all helper arrays in advance
+		Reaction[] subrxn = new Reaction[queryrxn.length];
+		long[][] queryReactantFFP = new long[queryrxn.length][];
+		long[][] queryProductFFP = new long[queryrxn.length][];
+		for (int i=0; i<queryrxn.length; i++) {
+			subrxn[i] = queryrxn[i].getMergedCopy();
+			queryReactantFFP[i] = DescriptorHandlerLongFFP512.getDefaultInstance().createDescriptor(subrxn[i].getReactant(0));
+			queryProductFFP[i] = DescriptorHandlerLongFFP512.getDefaultInstance().createDescriptor(subrxn[i].getProduct(0));
+			}
+		for (Reaction rxn:subrxn)
+			for (int m=0; m<rxn.getMolecules(); m++)
+				rxn.getMolecule(m).ensureHelperArrays(Molecule.cHelperParities);
+
+		// set flag: excluded as default
+		for (int row=0; row<mRecord.length; row++)
+			mRecord[row].mFlags |= mask;
+
+		Thread[] worker = new Thread[threadCount];
+		for (int i=0; i<threadCount; i++) {
+			worker[i] = new Thread("SRS-Matcher "+(i+1)) {
+				public void run() {
+					SRSearcher searcher = new SRSearcher();
+					int combinedIndex = rowAndFragmentIndex.decrementAndGet();
+					int queryIndex = -1;
+					while (combinedIndex >= 0) {
+						int recordIndex = combinedIndex % mRecord.length;
+						if ((mRecord[recordIndex].mFlags & mask) != 0) {
+							int newFragmentIndex = combinedIndex / mRecord.length;
+							if (queryIndex != newFragmentIndex) {
+								queryIndex = newFragmentIndex;
+								searcher.setQuery(subrxn[queryIndex], queryReactantFFP[queryIndex], queryProductFFP[queryIndex]);
+								}
+
+							byte[] rxncode = (byte[])mRecord[recordIndex].getData(rxncodeColumn);
+							if (rxncode != null) {
+								byte[] mapping = (byte[])mRecord[recordIndex].getData(mappingColumn);
+								long[] reactantFFP = (long[])mRecord[recordIndex].getData(reactantFFPColumn);
+								long[] productFFP = (long[])mRecord[recordIndex].getData(productFFPColumn);
+								searcher.setReaction(rxncode, mapping, null, reactantFFP, productFFP);
+
+								if (searcher.isQueryInReaction())
+									mRecord[recordIndex].mFlags &= ~mask;
+								}
+							}
+
+						combinedIndex = rowAndFragmentIndex.decrementAndGet();
+						}
+					}
+				};
+			worker[i].setPriority(Thread.MIN_PRIORITY);
+			worker[i].start();
+			}
+
+		for (Thread t:worker)
+			try { t.join(); } catch (InterruptedException e) {}
+
+		// optionally invert flag
+		if (inverse)
+			for (int row=0; row<mRecord.length; row++)
+				mRecord[row].mFlags ^= mask;
+
+		if (SwingUtilities.isEventDispatchThread()) {
+			mDirtyCompoundFlags |= mask;
+			updateVisibleRecords(false);
+			}
+		else  {
+			SwingUtilities.invokeLater(() -> {
+				mDirtyCompoundFlags |= mask;
+				updateVisibleRecords(false);
+				});
+			}
+		}
+
+		/**
+		 * Sets the substructure exclusion flags in parallel threads on all available cores.
+		 * @param exclusionFlagNo no of allocated filter flag
+		 * @param idcodeColumn
+		 * @param fragment
+		 * @param reactionPart
+		 * @param inverse
+		 */
+	public void setSubStructureExclusion(final AtomicInteger rowAndFragmentIndex, final int exclusionFlagNo, final int idcodeColumn, final StereoMolecule[] fragment, String reactionPart, final boolean inverse) {
+		int threadCount = Runtime.getRuntime().availableProcessors();
+		rowAndFragmentIndex.set(mRecord.length*fragment.length);
+
+		final int ffpColumn = getChildColumn(idcodeColumn, DESCRIPTOR_FFP512.shortName, reactionPart);
 		final long mask = convertRowFlagToMask(exclusionFlagNo);
 
 		// These fragments instances are read my multiple threads simultaneously.
@@ -2828,7 +3456,7 @@ public class CompoundTableModel extends AbstractTableModel
 				public void run() {
 					SSSearcherWithIndex searcherWithIndex = new SSSearcherWithIndex();
 
-					int combinedIndex = mSSSRecordIndex.decrementAndGet();
+					int combinedIndex = rowAndFragmentIndex.decrementAndGet();
 					int fragmentIndex = -1;
 					while (combinedIndex >= 0) {
 						int recordIndex = combinedIndex % mRecord.length;
@@ -2836,29 +3464,30 @@ public class CompoundTableModel extends AbstractTableModel
 							int newFragmentIndex = combinedIndex / mRecord.length;
 							if (fragmentIndex != newFragmentIndex) {
 								fragmentIndex = newFragmentIndex;
-								searcherWithIndex.setFragment(fragment[fragmentIndex], null);
+								searcherWithIndex.setFragment(fragment[fragmentIndex], (long[])null);
 								}
 	
-							byte[] idcode = (byte[])mRecord[recordIndex].getData(idcodeColumn);
-							if (idcode != null) {
-								if (getColumnSpecialType(idcodeColumn) == cColumnTypeRXNCode) {
-									// do the substructure search in two steps for not unneccessarily creating the product molecule
-									searcherWithIndex.setMolecule((StereoMolecule)null, (int[])mRecord[recordIndex].getData(fingerprintColumn));
-									if (searcherWithIndex.isFragmentIndexInMoleculeIndex()) {
-										searcherWithIndex.setMolecule(getReactionProduct(idcode), null);
-										if (searcherWithIndex.isFragmentInMoleculeWithoutIndex())
-											mRecord[recordIndex].mFlags &= ~mask;
-										}
+							if (cColumnTypeRXNCode.equals(getColumnSpecialType(idcodeColumn))) {
+								// do the substructure search in two steps for not unneccessarily creating the product molecule
+								long[] molIndex = (long[])mRecord[recordIndex].getData(ffpColumn);
+								searcherWithIndex.setMolecule((StereoMolecule)null, molIndex);
+								if (searcherWithIndex.isFragmentIndexInMoleculeIndex()) {
+									searcherWithIndex.setMolecule(getChemicalStructureFromReaction(mRecord[recordIndex], idcodeColumn, reactionPart, false), molIndex);
+									if (searcherWithIndex.isFragmentInMoleculeWithoutIndex())
+										mRecord[recordIndex].mFlags &= ~mask;
 									}
-								else {	// idcode is normal molecule
-									searcherWithIndex.setMolecule(idcode, (int[])mRecord[recordIndex].getData(fingerprintColumn));
+								}
+							else {	// idcode is normal molecule
+								byte[] idcode = (byte[])mRecord[recordIndex].getData(idcodeColumn);
+								if (idcode != null) {
+									searcherWithIndex.setMolecule(idcode, (long[])mRecord[recordIndex].getData(ffpColumn));
 									if (searcherWithIndex.isFragmentInMolecule())
 										mRecord[recordIndex].mFlags &= ~mask;
 									}
 								}
 							}
 
-						combinedIndex = mSSSRecordIndex.decrementAndGet();
+						combinedIndex = rowAndFragmentIndex.decrementAndGet();
 						}
 					}
 				};
@@ -2874,28 +3503,59 @@ public class CompoundTableModel extends AbstractTableModel
 			for (int row=0; row<mRecord.length; row++)
 				mRecord[row].mFlags ^= mask;
 
-		mDirtyCompoundFlags |= mask;
-		updateVisibleRecords(false, exclusionFlagNo);
+		if (SwingUtilities.isEventDispatchThread()) {
+			mDirtyCompoundFlags |= mask;
+			updateVisibleRecords(false);
+			}
+		else  {
+			SwingUtilities.invokeLater(() -> {
+				mDirtyCompoundFlags |= mask;
+				updateVisibleRecords(false);
+				});
+			}
 		}
 
-	private StereoMolecule getReactionProduct(byte[] rxnCode) {
-		StereoMolecule[] product = ReactionEncoder.decodeProducts(rxnCode);
-		if (product == null)
+	private StereoMolecule getReactionReactants(byte[] rxnCode, byte[] coords, byte[] mapping) {
+		return mergeMolecules(ReactionEncoder.decodeMolecules(rxnCode, coords, mapping, true, false));
+		}
+
+	private StereoMolecule getReactionProducts(byte[] rxnCode, byte[] coords, byte[] mapping) {
+		return mergeMolecules(ReactionEncoder.decodeMolecules(rxnCode, coords, mapping, false, true));
+		}
+
+	private StereoMolecule getReactionCatalysts(byte[] rxnCode) {
+		return mergeMolecules(ReactionEncoder.decodeCatalysts(rxnCode));
+		}
+
+	private StereoMolecule getReactionMolecules(byte[] rxnCode, byte[] coords, byte[] mapping) {
+		return mergeMolecules(ReactionEncoder.decodeMolecules(rxnCode, coords, mapping, true, true));
+		}
+
+	private StereoMolecule mergeMolecules(StereoMolecule[] mol) {
+		if (mol == null)
 			return null;
 
-		if (product.length > 1) {	// gather all products within product[0]
-			product[0] = new StereoMolecule(product[0]);
-			for (int i=1; i<product.length; i++)
-				product[0].addMolecule(product[i]);
+		if (mol.length > 1) {	// gather all products within product[0]
+			mol[0] = new StereoMolecule(mol[0]);
+			for (int i=1; i<mol.length; i++)
+				mol[0].addMolecule(mol[i]);
 			}
 
-		return product[0];
+		return mol[0];
 		}
 
-	public void setSimilarityExclusion(int exclusionFlagNo, int descriptorColumn,
-									   StereoMolecule[] molecule,
-									   float[][] similarity, float minSimilarity,
-									   boolean inverse, boolean isAdjusting) {
+	/**
+	 * @param exclusionFlagNo
+	 * @param descriptorColumn
+	 * @param similarity
+	 * @param minReactionCenterSimilarity
+	 * @param minPeripherySimilarity
+	 * @param inverse
+	 * @param isAdjusting
+	 */
+	public void setReactionSimilarityExclusion(int exclusionFlagNo, int descriptorColumn, float[][][] similarity,
+											   float minReactionCenterSimilarity, float minPeripherySimilarity,
+											   boolean inverse, boolean isAdjusting) {
 		long mask = convertRowFlagToMask(exclusionFlagNo);
 		for (int row=0; row<mRecords; row++) {
 			Object descriptor = mRecord[row].getData(descriptorColumn);
@@ -2908,7 +3568,8 @@ public class CompoundTableModel extends AbstractTableModel
 			else {
 				boolean found = false;
 				for (int i=0; i<similarity.length; i++) {
-					if (similarity[i][mRecord[row].mOriginalIndex]  >= minSimilarity) {
+					if (similarity[i][0][mRecord[row].mOriginalIndex] >= minReactionCenterSimilarity
+					 && similarity[i][1][mRecord[row].mOriginalIndex] >= minPeripherySimilarity) {
 						found = true;
 						break;
 						}
@@ -2922,7 +3583,52 @@ public class CompoundTableModel extends AbstractTableModel
 
 		mDirtyCompoundFlags |= mask;
 
-		updateVisibleRecords(isAdjusting, exclusionFlagNo);
+		updateVisibleRecords(isAdjusting);
+		}
+
+	public void setStructureSimilarityExclusion(int exclusionFlagNo, int descriptorColumn,
+												StereoMolecule[] molecule,
+												float[][] similarity, float minSimilarity,
+												boolean inverse, boolean isAdjusting) {
+		long mask = convertRowFlagToMask(exclusionFlagNo);
+		for (int row=0; row<mRecords; row++) {
+			Object descriptor = mRecord[row].getData(descriptorColumn);
+			if (descriptor == null) {
+				if (inverse)
+					mRecord[row].mFlags &= ~mask;
+				else
+					mRecord[row].mFlags |= mask;
+			}
+			else {
+				boolean found = false;
+				for (int i=0; i<similarity.length; i++) {
+					if (similarity[i][mRecord[row].mOriginalIndex]  >= minSimilarity) {
+						found = true;
+						break;
+					}
+				}
+				if (inverse ^ found)
+					mRecord[row].mFlags &= ~mask;
+				else
+					mRecord[row].mFlags |= mask;
+			}
+		}
+
+		mDirtyCompoundFlags |= mask;
+		updateVisibleRecords(isAdjusting);
+	}
+
+	/**
+	 * May be used by derived classes to set explicit atom color.
+	 * The atomColorMode defines whether and to which extend atoms are in color. For displaying a reaction on the
+	 * screen use ATOM_COLOR_MODE_ALL, for printing use ATOM_COLOR_MODE_EXPLICIT and for copy/paste,
+	 * drag&drop, cheminformatics purposes, etc use ATOM_COLOR_MODE_NONE.
+	 * @param record
+	 * @param rxncodeColumn
+	 * @param atomColorMode one of ATOM_COLOR_MODE_...
+	 * @param rxn molecule that represents the idcode from record's idcodeColumn
+	 */
+	public void colorizeReactionAtoms(CompoundRecord record, int rxncodeColumn, int atomColorMode, Reaction rxn) {
 		}
 
 	/**
@@ -2936,7 +3642,7 @@ public class CompoundTableModel extends AbstractTableModel
 	 * @param atomColorMode one of ATOM_COLOR_MODE_...
 	 * @param mol molecule that represents the idcode from record's idcodeColumn
 	 */
-	public void colorizeAtoms(CompoundRecord record, int idcodeColumn, int atomColorMode, StereoMolecule mol) {
+	public void colorizeStructureAtoms(CompoundRecord record, int idcodeColumn, int atomColorMode, StereoMolecule mol) {
 		if (atomColorMode != ATOM_COLOR_MODE_NONE) {
 			int infoColumn = getChildColumn(idcodeColumn, cColumnTypeAtomColorInfo);
 			if (infoColumn != -1) {
@@ -2988,8 +3694,16 @@ public class CompoundTableModel extends AbstractTableModel
 										  : index3 != -1 ? atomNoList.substring(index1, index3) : atomNoList.substring(index1));
 				if (mol.getAtomColor(atom) == Molecule.cAtomColorNone)
 					mol.setAtomColor(atom, color);
-				if (label != null && label.length() != 0)
-					mol.setAtomCustomLabel(atom, "]"+label);
+				else if ((mol.getAtomColor(atom) == Molecule.cAtomColorRed && color == Molecule.cAtomColorBlue)
+					  || (mol.getAtomColor(atom) == Molecule.cAtomColorBlue && color == Molecule.cAtomColorRed))	// minimum color mixing
+					mol.setAtomColor(atom, Molecule.cAtomColorMagenta);
+
+				if (label != null && label.length() != 0) {
+					if (mol.getAtomCustomLabel(atom) != null && mol.getAtomCustomLabel(atom).startsWith("]"))
+						mol.setAtomCustomLabel(atom, mol.getAtomCustomLabel(atom).concat("; ").concat(label));
+					else
+						mol.setAtomCustomLabel(atom, "]".concat(label));
+					}
 				}
 			catch (NumberFormatException e) {
 				return;
@@ -3008,7 +3722,7 @@ public class CompoundTableModel extends AbstractTableModel
 				mRecord[row].mFlags &= ~CompoundRecord.cFlagMaskSelected;
 		}
 
-	public float[] createSimilarityList(Object chemObject, Object refDescriptor, int descriptorColumn) {
+	public float[] createStructureSimilarityList(Object chemObject, Object refDescriptor, int descriptorColumn) {
 		if (refDescriptor == null)
 			refDescriptor = mColumnInfo[descriptorColumn].getCachedDescriptor(chemObject);
 		DescriptorHandler<Object,Object> descriptorHandler = mColumnInfo[descriptorColumn].descriptorHandler;
@@ -3016,8 +3730,23 @@ public class CompoundTableModel extends AbstractTableModel
 		for (int row=0; row<mRecord.length; row++) {
 			Object descriptor = mRecord[row].getData(descriptorColumn);
 			if (descriptor != null)
-				similarity[mRecord[row].mOriginalIndex]
-						= (float)descriptorHandler.getSimilarity(refDescriptor, descriptor);
+				similarity[mRecord[row].mOriginalIndex] = descriptorHandler.getSimilarity(refDescriptor, descriptor);
+			}
+		return similarity;
+		}
+
+	public float[][] createReactionSimilarityList(Object chemObject, Object refDescriptor, int descriptorColumn) {
+		if (refDescriptor == null)
+			refDescriptor = mColumnInfo[descriptorColumn].getCachedDescriptor(chemObject);
+		// strange double casting, but it works!!!
+		DescriptorHandlerReactionFP descriptorHandler = (DescriptorHandlerReactionFP)(DescriptorHandler)mColumnInfo[descriptorColumn].descriptorHandler;
+		float[][] similarity = new float[2][mRecord.length];
+		for (int row=0; row<mRecord.length; row++) {
+			long[] descriptor = (long[])mRecord[row].getData(descriptorColumn);
+			if (descriptor != null) {
+				similarity[0][mRecord[row].mOriginalIndex] = descriptorHandler.getReactionCenterSimilarity((long[])refDescriptor, descriptor);
+				similarity[1][mRecord[row].mOriginalIndex] = descriptorHandler.getPeripherySimilarity((long[])refDescriptor, descriptor);
+				}
 			}
 		return similarity;
 		}
@@ -3029,7 +3758,7 @@ public class CompoundTableModel extends AbstractTableModel
 	 * @param descriptorColumn
 	 * @return
 	 */
-	public float[] getSimilarityListFromCache(String idcode, int descriptorColumn) {
+	public float[] getStructureSimilarityListFromCache(String idcode, int descriptorColumn) {
 		if (mFlexophoreSimilarityListCache != null
 		 && idcode != null
 		 && mColumnInfo[descriptorColumn].descriptorHandler instanceof DescriptorHandlerFlexophore) {
@@ -3062,10 +3791,8 @@ public class CompoundTableModel extends AbstractTableModel
 	public void createSimilarityListSMP(final Object chemObject, final Object descriptor, final String idcode,
 										final int descriptorColumn, final ProgressController pc,
 										final boolean waitUntilCompletion) {
-		mSimilarityListSMP = new float[mRecord.length];
-
 //System.out.println("CompoundTabelModel createSimilarityListSMP() Start");
-		Thread coordinater = new Thread("Similarity Calculator") {
+		Thread coordinator = new Thread("Similarity Calculator") {
 			public void run() {
 				final int threadCount = Runtime.getRuntime().availableProcessors();
 				mSimRecordIndex = new AtomicInteger(mRecord.length);
@@ -3073,6 +3800,7 @@ public class CompoundTableModel extends AbstractTableModel
 				mSMPSimilarityErrors = 0;
 
 				final DescriptorHandler<Object,Object> dh = mColumnInfo[descriptorColumn].descriptorHandler;
+				final boolean isReaction = dh.getInfo().type == DESCRIPTOR_TYPE_REACTION;
 
 				pc.startProgress("Calculating query descriptor...", 0, 0);
 		
@@ -3087,6 +3815,10 @@ public class CompoundTableModel extends AbstractTableModel
 		
 				pc.startProgress("Calculating similarities...", 0, mRecord.length);
 
+				mSimilarityListSMP = new float[mRecord.length];
+				if (isReaction)
+					mSimilarityList2SMP = new float[mRecord.length];
+
 				Thread[] worker = new Thread[threadCount];
 				for (int i=0; i<threadCount; i++) {
 					worker[i] = new Thread(getColumnSpecialType(descriptorColumn)+" calculator "+(i+1)) {
@@ -3098,9 +3830,17 @@ public class CompoundTableModel extends AbstractTableModel
 		
 								try {
 									Object descriptor = mRecord[recordIndex].getData(descriptorColumn);
-									if (descriptor != null)
-										mSimilarityListSMP[mRecord[recordIndex].mOriginalIndex]
-												= dh.getSimilarity(refDescriptor, descriptor);
+									if (descriptor != null) {
+										if (!isReaction)
+											mSimilarityListSMP[mRecord[recordIndex].mOriginalIndex]
+													= dh.getSimilarity(refDescriptor, descriptor);
+										else {
+											mSimilarityListSMP[mRecord[recordIndex].mOriginalIndex]
+													= ((DescriptorHandlerReactionFP)(DescriptorHandler)dh).getPeripherySimilarity((long[])refDescriptor, (long[])descriptor);
+											mSimilarityList2SMP[mRecord[recordIndex].mOriginalIndex]
+													= ((DescriptorHandlerReactionFP)(DescriptorHandler)dh).getReactionCenterSimilarity((long[])refDescriptor, (long[])descriptor);
+											}
+										}
 									}
 								catch (Exception e) {
 									mSMPSimilarityErrors++;
@@ -3118,7 +3858,7 @@ public class CompoundTableModel extends AbstractTableModel
 								else if (mSMPSimilarityErrors != 0)
 									pc.showErrorMessage(getColumnSpecialType(descriptorColumn)
 											+" similarity calculation failed on "+mSMPSimilarityErrors+" molecules.");
-								else {
+								else if (dh instanceof DescriptorHandlerFlexophore) {
 									String key = idcode;
 									if (key == null && chemObject != null)
 										key = new Canonizer((StereoMolecule)chemObject).getIDCode();
@@ -3142,21 +3882,32 @@ public class CompoundTableModel extends AbstractTableModel
 					try { worker[i].join(); } catch (InterruptedException ie) {}
 				}
 			};
-		coordinater.start();
+		coordinator.start();
 		if (waitUntilCompletion)
-			try { coordinater.join(); } catch (InterruptedException ie) {}
+			try { coordinator.join(); } catch (InterruptedException ie) {}
 		}
 
 	/**
-	 * Returns the most recent similarity list that was creates by a call to createSimilarityListSMP().
+	 * Returns the most recent similarity list that was creates by a call to createReactionSimilarityListSMP()
+	 * or createStructureSimilarityListSMP.
 	 * This method should only be called after progressController.stopProgress() has been called
 	 * by createSimilarityListSMP(). The cached similarity list is cleared upon this call.
+	 * In case of reaction similarities call this method two times for reaction center and periphery
+	 * indicated by the parameter.
+	 * @param isReactionCenter true only for reactions to retrieve the reaction center similarity
 	 * @return similarity list
 	 */
-	public float[] getSimilarityListSMP() {
+	public float[] getSimilarityListSMP(boolean isReactionCenter) {
 //System.out.println("CompoundTabelModel getSimilarityListSMP()");
-		float[] list = mSimilarityListSMP;
-		mSimilarityListSMP = null;
+		float[] list = null;
+		if (isReactionCenter) {
+			list = mSimilarityList2SMP;
+			mSimilarityList2SMP = null;
+			}
+		else {
+			list = mSimilarityListSMP;
+			mSimilarityListSMP = null;
+			}
 		return list;
 		}
 
@@ -3168,6 +3919,19 @@ public class CompoundTableModel extends AbstractTableModel
 	 * @return
 	 */
 	public String[] getCategoryList(int column) {
+		int rowList = getListHandler().getListIndex(column);
+		if (rowList == CompoundTableListHandler.LISTINDEX_SELECTION) {
+			String[] categoryList = new String[2];
+			categoryList[0] = "selected";
+			categoryList[1] = "not selected";
+			return categoryList;
+			}
+		if (rowList != CompoundTableListHandler.LISTINDEX_NONE) {
+			String[] categoryList = new String[2];
+			categoryList[0] = "member";
+			categoryList[1] = "not member";
+			return categoryList;
+			}
 		int listSize = mColumnInfo[column].categoryList.getSize();
 		if (mColumnInfo[column].belongsToMultipleCategories)
 			listSize++;
@@ -3176,6 +3940,27 @@ public class CompoundTableModel extends AbstractTableModel
 			categoryList[i] = mColumnInfo[column].categoryList.getString(i);
 		if (mColumnInfo[column].belongsToMultipleCategories)
 			categoryList[categoryList.length-1] = cTextMultipleCategories;
+
+		if (isColumnTypeStructure(column)) { // if we have atom coordinates in case of structure categories, then we use these coordinates
+			int coordsColumn = getChildColumn(column, cColumnType2DCoordinates);
+			if (coordsColumn != -1) {
+				TreeMap<byte[],byte[]> coordsMap = new TreeMap<>(new ByteArrayComparator());
+				for (CompoundRecord record:mRecord) {
+					byte[] idcode = (byte[])record.getData(column);
+					if (idcode != null) {
+						byte[] coords = (byte[])record.getData(coordsColumn);
+						if (coords != null && coordsMap.get(idcode) == null)
+							coordsMap.put(idcode, coords);
+						}
+					}
+				for (int i=0; i<listSize; i++) {
+					byte[] coords = coordsMap.get(categoryList[i].getBytes());
+					if (coords != null)
+						categoryList[i] = categoryList[i].concat(" ").concat(new String(coords));
+					}
+				}
+			}
+
 		return categoryList;
 		}
 
@@ -3283,7 +4068,7 @@ public class CompoundTableModel extends AbstractTableModel
 			}
 
 		for (int column=0; column<mColumnInfo.length; column++)
-			if (cColumnTypeIDCode.equals(getColumnSpecialType(column)))
+			if (isColumnTypeStructure(column))
 				checkIDCodeVersion(column, firstRow, listener);
 
 		mRecords = mRecord.length;
@@ -3326,18 +4111,28 @@ public class CompoundTableModel extends AbstractTableModel
 						coords = (byte[])mRecord[row].getData(coords3DColumn);
 						coordsAre3D = true;
 						}
-					boolean absolute = parser2D.coordinatesAreAbsolute(coords);
-					if (coordsAre3D)
-						parser3D.parse(mol, idcode, coords);
-					else
-						parser2D.parse(mol, idcode, coords);
+					try {
+						boolean absolute = parser2D.coordinatesAreAbsolute(coords);
+						if (coordsAre3D)
+							parser3D.parse(mol, idcode, coords);
+						else
+							parser2D.parse(mol, idcode, coords);
 
-					Canonizer canonizer = new Canonizer(mol);
-					mRecord[row].setData(canonizer.getIDCode().getBytes(), idcodeColumn);
-					if (coords2DColumn != -1)
-						mRecord[row].setData((coordsAre3D) ? null : canonizer.getEncodedCoordinates(absolute).getBytes(), coords2DColumn);
-					if (coords3DColumn != -1)
-						mRecord[row].setData((!coordsAre3D) ? null : canonizer.getEncodedCoordinates(absolute).getBytes(), coords3DColumn);
+						Canonizer canonizer = new Canonizer(mol);
+						mRecord[row].setData(canonizer.getIDCode().getBytes(), idcodeColumn);
+						if (coords2DColumn != -1)
+							mRecord[row].setData((coordsAre3D) ? null : canonizer.getEncodedCoordinates(absolute).getBytes(), coords2DColumn);
+						if (coords3DColumn != -1)
+							mRecord[row].setData((!coordsAre3D) ? null : canonizer.getEncodedCoordinates(absolute).getBytes(), coords3DColumn);
+						}
+					catch (Exception e) {
+						System.out.println("old idcode exception:"+new String(idcode));
+						mRecord[row].setData(null, idcodeColumn);
+						if (coords2DColumn != -1)
+							mRecord[row].setData(null, coords2DColumn);
+						if (coords3DColumn != -1)
+							mRecord[row].setData(null, coords3DColumn);
+						}
 					}
 				}
 			}
@@ -3570,6 +4365,9 @@ public class CompoundTableModel extends AbstractTableModel
 
 		mColumnInfo[column].categoryList = setupCategoryList(column);
 
+		mColumnInfo[column].isEqual = (mColumnInfo[column].categoryList != null
+									&& mColumnInfo[column].categoryList.getSize() == 1);
+
 		// check for uniqueness
 		if (!isAfterDeletion || !mColumnInfo[column].isUnique) {
 			mColumnInfo[column].isUnique = false;
@@ -3692,7 +4490,6 @@ public class CompoundTableModel extends AbstractTableModel
 					}
 				}
 
-			// don't consider category columns if the number of categories is beyond maximum
 			if ((mColumnInfo[column].type & cColumnTypeRangeCategory) == 0) {
 				if (mColumnInfo[column].categoryList.getSize() > 1)
 					mColumnInfo[column].type |= cColumnTypeCategory;
@@ -3709,19 +4506,18 @@ public class CompoundTableModel extends AbstractTableModel
 		}
 
 	private CategoryList<?> setupCategoryList(int column) {
-
 		CategoryList<?> categoryList = null;
 		mColumnInfo[column].belongsToMultipleCategories = false;
-		boolean isIDCode = cColumnTypeIDCode.equals(getColumnSpecialType(column));
+		boolean isIDCode = isColumnTypeStructure(column);
 
 		if ((mColumnInfo[column].type & cColumnTypeDate) != 0) {
-			categoryList = new SortedCategoryList<Float>(new DateCategoryNormalizer());
+			categoryList = new SortedCategoryList<Float>(new DateCategoryNormalizer(mColumnInfo[column].dateAnalysis));
 			}
 		else if ((mColumnInfo[column].type & cColumnTypeDouble) != 0) {
 			if (mColumnInfo[column].hasModifiers)
 				return null;
 
-			categoryList = new SortedCategoryList<Float>(new DoubleCategoryNormalizer(mColumnInfo[column].logarithmicViewMode));
+			categoryList = new SortedCategoryList<Float>(new DoubleCategoryNormalizer());
 			}
 		else {
 			if (isIDCode) {
@@ -3867,26 +4663,38 @@ public class CompoundTableModel extends AbstractTableModel
 	 */
 	private boolean setupDoubleValues(int column, int firstRow) {
 		if (getExplicitDataType(column) != cDataTypeAutomatic
-		 && getExplicitDataType(column) != cDataTypeNumerical)
+		 && getExplicitDataType(column) != cDataTypeFloat
+		 && getExplicitDataType(column) != cDataTypeInteger)
 			return false;
 
 		// if the existing data is not float conform, type cannot be float
 		if (firstRow != 0 && (mColumnInfo[column].type & cColumnTypeDouble) == 0)
 			return false;
 
-		if (firstRow == 0)
+		if (firstRow == 0) {
 			mColumnInfo[column].hasModifiers = false;
+			mColumnInfo[column].isInteger = true;
+			}
 
 		boolean found = false;
 		for (int row=mRecord.length-1; row>=firstRow || (!found && row>=0); row--) {
 			try {
-				mRecord[row].mFloat[column] = tryParseDouble(encodeData(mRecord[row], column), column);
-				if (!Float.isNaN(mRecord[row].mFloat[column]))
+				float value = tryParseDouble(encodeData(mRecord[row], column), column);
+				if (!Float.isNaN(value)) {
+					if (getExplicitDataType(column) == cDataTypeInteger)
+						value = Math.round(value);
+					else if (value - (int)value != 0)
+						mColumnInfo[column].isInteger = false;
+
 					found = true;
+					}
+				mRecord[row].mFloat[column] = value;
 				}
 			catch (NumberFormatException e) {
-				if (getExplicitDataType(column) != cDataTypeNumerical)
+				if (getExplicitDataType(column) != cDataTypeInteger
+				 && getExplicitDataType(column) != cDataTypeFloat) {
 					return false;
+					}
 				mRecord[row].mFloat[column] = Float.NaN;
 				}
 			}
@@ -3908,6 +4716,9 @@ public class CompoundTableModel extends AbstractTableModel
 	 * @throws NumberFormatException
 	 */
 	public float tryParseEntry(String entry, int column) throws NumberFormatException {
+		if (isColumnTypeDate(column))
+			return mColumnInfo[column].dateAnalysis.getDateFloat(entry);
+
 		boolean logarithmic = mColumnInfo[column].logarithmicViewMode;
 		
 		EntryAnalysis analysis = new EntryAnalysis(entry);
@@ -3964,19 +4775,21 @@ public class CompoundTableModel extends AbstractTableModel
 				if (hasModifier) {
 					mColumnInfo[column].hasModifiers = true;
 					if (!mColumnInfo[column].excludeModifierValues) {
-						if (summaryModifierType == EntryAnalysis.cModifierTypeNone)
-							summaryModifierType = analysis.getModifierType();
-						else if (summaryModifierType != analysis.getModifierType()) {
-							mParseDoubleModifier = "modifier-error ";
-							mParseDoubleValueCount = entry.length;
-							return Float.NaN;  // don't support different modifier types
+						if (mColumnInfo[column].summaryMode != cSummaryModeMinimum
+						 && mColumnInfo[column].summaryMode != cSummaryModeMaximum) {
+							if (summaryModifierType == EntryAnalysis.cModifierTypeNone)
+								summaryModifierType = analysis.getModifierType();
+							else if (summaryModifierType != analysis.getModifierType()) {
+								mParseDoubleModifier = "modifier-error ";
+								mParseDoubleValueCount = entry.length;
+								return Float.NaN;  // don't support different modifier types
+								}
+
+							if (mParseDoubleModifier.length() == 0)
+								mParseDoubleModifier = analysis.getModifier();
+							else if (!mParseDoubleModifier.equals(analysis.getModifier()))
+								mParseDoubleModifier = EntryAnalysis.getDefaultModifier(analysis.getModifierType());
 							}
-
-						if (mParseDoubleModifier.length() == 0)
-							mParseDoubleModifier = analysis.getModifier();
-						else if (!mParseDoubleModifier.equals(analysis.getModifier()))
-							mParseDoubleModifier = EntryAnalysis.getDefaultModifier(analysis.getModifierType());
-
 						entry[i] = analysis.getValue();
 						}
 					}
@@ -3988,7 +4801,7 @@ public class CompoundTableModel extends AbstractTableModel
 					if (commaIndex != -1 && entry[i].indexOf(',', commaIndex+1) == -1)
 						entry[i] = entry[i].replace(',', '.');
 
-					float v = Float.parseFloat(entry[i]);
+					float v = Float.parseFloat(entry[i].startsWith("=") || entry[i].startsWith("~") ? entry[i].substring(1) : entry[i]);
 					if (logarithmic) {
 						if (v <= 0) {
 							mParseDoubleModifier = "";
@@ -3999,17 +4812,17 @@ public class CompoundTableModel extends AbstractTableModel
 	
 					switch (mColumnInfo[column].summaryMode) {
 					case cSummaryModeMinimum:
-						if (valueWithModifierCount == 0)
+						if (valueWithModifierCount == 0 || v < valueWithModifierSum) {
 							valueWithModifierSum = v;
-						else
-							valueWithModifierSum = Math.min(valueWithModifierSum, v);
+							mParseDoubleModifier = analysis.getModifier();
+							}
 						valueWithModifierCount++;
 						break;
 					case cSummaryModeMaximum:
-						if (valueWithModifierCount == 0)
+						if (valueWithModifierCount == 0 || v > valueWithModifierSum) {
 							valueWithModifierSum = v;
-						else
-							valueWithModifierSum = Math.max(valueWithModifierSum, v);
+							mParseDoubleModifier = analysis.getModifier();
+							}
 						valueWithModifierCount++;
 						break;
 					case cSummaryModeMedian:
@@ -4170,7 +4983,7 @@ public class CompoundTableModel extends AbstractTableModel
 			return false;
 
 		DateAnalysis dateAnalysis = new DateAnalysis();
-		for (int row=mRecord.length-1; row>=firstRow; row--) {
+		for (int row=mRecord.length-1; row>=0; row--) {
 			String[] entry = separateEntries(encodeData(mRecord[row], column));
 			for (int i=0; i<entry.length; i++)
 				if (entry[i].length() > 0)
@@ -4184,13 +4997,31 @@ public class CompoundTableModel extends AbstractTableModel
 		boolean found = false;
 		for (int row=mRecord.length-1; row>=firstRow || (!found && row>=0); row--) {
 			String[] entry = separateEntries(encodeData(mRecord[row], column));
-			long timeMean = 0;
+
+			long[] medianMillis = (mColumnInfo[column].summaryMode == cSummaryModeMedian) ? new long[entry.length] : null;
+
+			long date = 0;
 			int count = 0;
 			for (int i=0; i<entry.length; i++) {
 				if (entry[i].length() > 0) {
 					long millis = dateAnalysis.getDateMillis(entry[i]);
 					if (millis != -1) {
-						timeMean += millis;
+						switch (mColumnInfo[column].summaryMode) {
+						case cSummaryModeMinimum:
+							if (count == 0 || date > millis)
+								date = millis;
+							break;
+						case cSummaryModeMaximum:
+							if (count == 0 || date < millis)
+								date = millis;
+							break;
+						case cSummaryModeMedian:
+							medianMillis[count] = millis;
+							break;
+						default:    // sum or mean or normal
+							date += millis;
+							break;
+							}
 						count++;
 						}
 					}
@@ -4201,46 +5032,34 @@ public class CompoundTableModel extends AbstractTableModel
 				}
 			else {
 				found = true;
-				mRecord[row].mFloat[column] = (float)((timeMean/count+43200000)/86400000);
+				switch (mColumnInfo[column].summaryMode) {
+				case cSummaryModeMinimum:
+				case cSummaryModeMaximum:
+				case cSummaryModeSum:
+					mRecord[row].mFloat[column] = (float)(date/86400000);
+					break;
+				case cSummaryModeMedian:
+					Arrays.sort(medianMillis, 0, count);
+					long millis = ((count & 1) != 0) ? medianMillis[count/2]
+							: (medianMillis[count/2-1] + medianMillis[count/2])/2;
+					mRecord[row].mFloat[column] = (float)(millis/86400000);
+					break;
+				default:    // mean or normal
+					mRecord[row].mFloat[column] = (float)((date/count)/86400000);
+					break;
+					}
 				}
 			}
 
-/*		boolean found = false;
-		DateFormat df = DateFormat.getDateInstance(DateFormat.MEDIUM, Locale.US);
-		for (int row=mRecord.length-1; row>=firstRow || (!found && row>=0); row--) {
-			String[] entry = separateEntries(encodeData(mRecord[row], column));
-			long timeMean = 0;
-			int count = 0;
-			for (int i=0; i<entry.length; i++) {
-				if (entry[i].length() > 0) {
-					try {
-						Date date = df.parse(entry[i]);
-						timeMean += date.getTime();
-						count++;
-						}
-					catch (ParseException e) {
-						if (getExplicitDataType(column) != cDataTypeDate)
-							return false;
-						}
-					}
-				}
-
-			if (count == 0) {
-				mRecord[row].mFloat[column] = Float.NaN;
-				}
-			else {
-				found = true;
-				mRecord[row].mFloat[column] = (float)((timeMean/count+43200000)/86400000);
-				}
-			}*/
-
-		if (found)
+		if (found) {
+			mColumnInfo[column].dateAnalysis = dateAnalysis;
 			findMinAndMaxFromDateOrDouble(column, firstRow, true);
+			}
 
 		return found;
 		}
 
-	private void updateVisibleRecords(boolean isAdjusting, int exclusionFlagNo) {
+	private void updateVisibleRecords(boolean isAdjusting) {
 		int oldVisibleRecords = mNonExcludedRecords;
 		compileVisibleRecords();
 
@@ -4254,11 +5073,8 @@ public class CompoundTableModel extends AbstractTableModel
 
 		mExclusionTag++;
 
-		fireEventsLater(new CompoundTableEvent(this,
-								CompoundTableEvent.cChangeExcluded, exclusionFlagNo,
-								isAdjusting),
-						new TableModelEvent(this, 0, mNonExcludedRecords-1,
-								TableModelEvent.ALL_COLUMNS, mode));
+		fireEventsLater(new CompoundTableEvent(this, CompoundTableEvent.cChangeExcluded, -1, isAdjusting),
+						new TableModelEvent(this, 0, mNonExcludedRecords-1, TableModelEvent.ALL_COLUMNS, mode));
 		}
 
 	/**
@@ -4392,7 +5208,7 @@ public class CompoundTableModel extends AbstractTableModel
 			name = "Column 1";
 			}
 		else {
-			name = name.trim().replaceAll("[\\x00-\\x1F]", "_");
+			name = name.trim().replaceAll("[\\x00-\\x1F]|<.*>", "_");
 			}
 
 		while (columnNameExists(name, skipColumn, externalName, externalNameCount, refModel)) {
@@ -4427,6 +5243,24 @@ public class CompoundTableModel extends AbstractTableModel
 					return true;
 
 		return false;
+		}
+
+	/**
+	 * Double and date entries are normalized before entered into a category list.
+	 * If original cell entries need to be compared to category list entries, then any entry from separateEntries()
+	 * should be normalized useing this method.
+	 * @param entry
+	 * @param column
+	 * @return
+	 */
+	public String normalizeCategoryEntry(String entry, int column) {
+		if ((mColumnInfo[column].type & cColumnTypeDate) != 0)
+			return new DateCategoryNormalizer(mColumnInfo[column].dateAnalysis).normalize(entry);
+
+		if ((mColumnInfo[column].type & cColumnTypeDouble) != 0)
+			return new DoubleCategoryNormalizer().normalize(entry);
+
+		return entry;
 		}
 
 	/**
@@ -4487,8 +5321,7 @@ public class CompoundTableModel extends AbstractTableModel
 	 * @param tme
 	 */
 	private void fireEventsLater(final CompoundTableEvent cte, final TableModelEvent tme) {
-		SwingUtilities.invokeLater(new Runnable() {
-			public void run() {
+		SwingUtilities.invokeLater(() -> {
 				try {
 					if (cte != null)
 						fireCompoundTableChanged(cte);
@@ -4498,7 +5331,6 @@ public class CompoundTableModel extends AbstractTableModel
 				catch (Exception e) {
 					e.printStackTrace();
 					}
-				}
 			} );
 		}
 
@@ -4511,17 +5343,15 @@ public class CompoundTableModel extends AbstractTableModel
 			}
 		else {
 			try {
-				SwingUtilities.invokeAndWait(new Runnable() {
-					public void run() {
-						try {
-							if (cte != null)
-								fireCompoundTableChanged(cte);
-							if (tme != null)
-								fireTableChanged(tme);
-							}
-						catch (Exception e) {
-							e.printStackTrace();
-							}
+				SwingUtilities.invokeAndWait(() -> {
+					try {
+						if (cte != null)
+							fireCompoundTableChanged(cte);
+						if (tme != null)
+							fireTableChanged(tme);
+						}
+					catch (Exception e) {
+						e.printStackTrace();
 						}
 					} );
 				}
@@ -4539,17 +5369,24 @@ public class CompoundTableModel extends AbstractTableModel
 			return;
 
 		mSMPProcessWaiting = true;
-		mSMPStopDescriptorCalculation = true;
 
 		new Thread("Descriptor Calculation Supervisor") {
 			public void run() {
-				while (mSMPDescriptorThreads != null)
-					try { Thread.sleep(100); } catch (InterruptedException e) {}
+				if (mSMPThread != null) {
+					mSMPStopDescriptorCalculation = true;
+					try {
+						mSMPThread.join();
+						}
+					catch (InterruptedException ie) {}
+					}
 
-				mSMPProcessWaiting = false;
+				mSMPThread = Thread.currentThread();
 				mSMPStopDescriptorCalculation = false;
 
+				mSMPProcessWaiting = false;
+
 				int descriptorColumnCount = 0;
+				boolean containsFlexophore = false;
 
 				synchronized(CompoundTableModel.this) {
 					for (int column=0; column<mColumnInfo.length; column++)
@@ -4562,10 +5399,16 @@ public class CompoundTableModel extends AbstractTableModel
 						descriptorColumnCount = 0;
 						for (int column=0; column<mColumnInfo.length; column++)
 							if (isDescriptorColumn(column)
-							 && mColumnInfo[column].isDescriptorIncomplete)
+							 && mColumnInfo[column].isDescriptorIncomplete) {
 								mSMPColumnSpec[descriptorColumnCount++] = new DescriptorColumnSpec(column);
+								if (DescriptorConstants.DESCRIPTOR_Flexophore.shortName.equals(mColumnInfo[column].descriptorHandler.getInfo().shortName))
+									containsFlexophore = true;
+							}
 						}
 					}
+
+				if (containsFlexophore)
+					RigidFragmentCache.getDefaultInstance().loadDefaultCache();
 
 				if (descriptorColumnCount != 0) {
 					Arrays.sort(mSMPColumnSpec);	// sort descriptors by ascending calculation priority
@@ -4576,15 +5419,15 @@ public class CompoundTableModel extends AbstractTableModel
 					mSMPIndex = new AtomicInteger(mRecords*descriptorColumnCount);
 					mSMPRecord = mRecord;
 
-					DescriptorHandler<Object,Object>[][] dh = new DescriptorHandler[threadCount][descriptorColumnCount];
+					final DescriptorHandler<Object,Object>[][] dh = new DescriptorHandler[threadCount][descriptorColumnCount];
 					for (int t=0; t<threadCount; t++)
 						for (int i=0; i<descriptorColumnCount; i++)
 							dh[t][i] = mColumnInfo[mSMPColumnSpec[i].descriptorColumn].descriptorHandler.getThreadSafeCopy();
 
 					final int _records = mRecords;
-					final DescriptorHandler<Object,Object>[][] _dh = dh;
+					Thread[] thread = new Thread[threadCount];
 					for (int i=0; i<threadCount; i++) {
-						Thread t = new Thread("Descriptor Calculator "+(i+1)) {
+						thread[i] = new Thread("Descriptor Calculator "+(i+1)) {
 							public void run() {
 								int threadIndex = mSMPThreadIndex.decrementAndGet();
 								StereoMolecule molecule = new StereoMolecule();    // this is the default
@@ -4595,41 +5438,17 @@ public class CompoundTableModel extends AbstractTableModel
 
 									DescriptorColumnSpec spec = mSMPColumnSpec[descriptorIndex];
 
-									if (recordIndex == _records - 1) {
+									if (recordIndex == _records - 1)
 										for (int i = 0; i<mProgressListener.size(); i++)
 											mProgressListener.get(i).startProgress("Calculating "
-													+ spec.descriptorHandler.getInfo().shortName + "...", 0, _records);
-									}
+													+ spec.descriptorHandler.getInfo().shortName + "...", 0, _records/256);
 
-									updateDescriptor(mSMPRecord[recordIndex], spec, _dh[threadIndex][descriptorIndex], molecule);
+									updateDescriptor(mSMPRecord[recordIndex], spec, dh[threadIndex][descriptorIndex], molecule);
 
-									for (ProgressListener pl : mProgressListener)
-										pl.updateProgress(-1);
+									if ((recordIndex & 255) == 0)
+										for (ProgressListener pl : mProgressListener)
+											pl.updateProgress((_records-recordIndex)/256);
 
-									if (recordIndex == 0) {    // one descriptor was completed for all records
-										synchronized (CompoundTableModel.this) {
-											if (!mSMPStopDescriptorCalculation) {
-												String errorMsg = null;
-												if (spec.isOutdated)
-													setColumnProperty(spec.descriptorColumn, cColumnPropertyDescriptorVersion, spec.descriptorHandler.getVersion());
-
-												mColumnInfo[spec.descriptorColumn].isDescriptorIncomplete = false;
-												mColumnInfo[spec.descriptorColumn].isComplete = spec.isComplete;
-												mColumnInfo[spec.descriptorColumn].isCompleteChild = spec.isCompleteChild;
-
-												if (spec.errorCount != 0) {
-													errorMsg = ((errorMsg == null) ? "" : errorMsg + "/n")
-															+ "Descriptor '" + getColumnSpecialType(spec.descriptorColumn) + "' calculation failed in " + spec.errorCount + " cases.";
-													for (ProgressListener pl : mProgressListener)
-														pl.showErrorMessage(errorMsg);
-													}
-												}
-
-											if (!mSMPStopDescriptorCalculation)
-												if (spec.updateCount != 0)
-													fireEventsLater(new CompoundTableEvent(this, CompoundTableEvent.cChangeColumnData, spec.descriptorColumn), null);
-											}
-										}
 									index = mSMPIndex.decrementAndGet();
 									}
 
@@ -4638,16 +5457,45 @@ public class CompoundTableModel extends AbstractTableModel
 										for (ProgressListener pl:mProgressListener)
 											pl.stopProgress();
 
-										mSMPColumnSpec = null;
 										mSMPRecord = null;
-										mSMPDescriptorThreads = null;	// last thing to do as indication that all threads are done
 										}
 									}
 								}
 							};
-						t.setPriority(Thread.MIN_PRIORITY);
-						t.start();
+						thread[i].setPriority(Thread.MIN_PRIORITY);
+						thread[i].start();
 						}
+
+					for (int i=0; i<threadCount; i++)
+						try { thread[i].join(); } catch (InterruptedException ie) {}
+
+					for (DescriptorColumnSpec spec:mSMPColumnSpec) {
+						synchronized (CompoundTableModel.this) {
+							if (!mSMPStopDescriptorCalculation) {
+								String errorMsg = null;
+								if (spec.isOutdated)
+									setColumnProperty(spec.descriptorColumn, cColumnPropertyDescriptorVersion, spec.descriptorHandler.getVersion());
+
+								mColumnInfo[spec.descriptorColumn].isDescriptorIncomplete = false;
+								mColumnInfo[spec.descriptorColumn].isComplete = spec.isComplete;
+								mColumnInfo[spec.descriptorColumn].isCompleteChild = spec.isCompleteChild;
+
+								if (spec.errorCount != 0) {
+									errorMsg = ((errorMsg == null) ? "" : errorMsg + "/n")
+											+ "Descriptor '" + getColumnSpecialType(spec.descriptorColumn) + "' calculation failed in " + spec.errorCount + " cases.";
+									for (ProgressListener pl : mProgressListener)
+										pl.showErrorMessage(errorMsg);
+									}
+								}
+
+							if (!mSMPStopDescriptorCalculation)
+								if (spec.updateCount != 0)
+									fireEventsLater(new CompoundTableEvent(this, CompoundTableEvent.cChangeColumnData, spec.descriptorColumn), null);
+							}
+						}
+
+					mSMPColumnSpec = null;
+					mSMPThread = null;	// last thing to do as indication that all threads are done
 					}
 				}
 			}.start();
@@ -4678,10 +5526,12 @@ public class CompoundTableModel extends AbstractTableModel
 				}
 
 			if (chemData != null && !existingDescriptorIsValid) {
-				Object chemObject;
+				Object chemObject = null;
 				if (spec.isReaction) {
-					// currently we only have molecule descriptors on the product
-					chemObject = getReactionProduct(chemData);
+					if (descriptorHandler.getInfo().type == DescriptorConstants.DESCRIPTOR_TYPE_REACTION)
+						chemObject = getChemicalReaction(record, spec.parentColumn, ATOM_COLOR_MODE_NONE);
+					else
+						chemObject = getChemicalStructureFromReaction(record, spec.parentColumn, spec.reactionPart, false);
 					}
 				else {
 					if (molecule == null) {
@@ -4692,25 +5542,31 @@ public class CompoundTableModel extends AbstractTableModel
 						chemObject = molecule;
 						}
 					}
-	
+
 				descriptor = descriptorHandler.createDescriptor(chemObject);
 				}
 			}
 		catch (Throwable t) {
+			System.out.println((spec.isReaction?"rxncode:":"idcode:")+new String((byte[])record.getData(spec.parentColumn)));
 			t.printStackTrace();
 			spec.errorCount++;
 			descriptor = null;
 			}
 
 		synchronized(CompoundTableModel.this) {
-			if (!mSMPStopDescriptorCalculation && !existingDescriptorIsValid) {
-				record.setData(descriptor, spec.descriptorColumn);
-				spec.updateCount++;
-		
-				if (descriptor == null) {
-					spec.isComplete = false;
-					if (chemData != null)
-						spec.isCompleteChild = false;
+			if (!mSMPStopDescriptorCalculation) {
+				if (existingDescriptorIsValid) {
+					spec.untouchedCount++;
+					}
+				else {
+					record.setData(descriptor, spec.descriptorColumn);
+					spec.updateCount++;
+
+					if (descriptor == null) {
+						spec.isComplete = false;
+						if (chemData != null)
+							spec.isCompleteChild = false;
+						}
 					}
 				}
 			}
@@ -4725,6 +5581,8 @@ public class CompoundTableModel extends AbstractTableModel
 		int parentColumn;
 		int updateCount;
 		int errorCount;
+		int untouchedCount;
+		String reactionPart;
 		DescriptorHandler<Object,Object> descriptorHandler;
 		boolean isOutdated,isComplete,isCompleteChild,isReaction;
 
@@ -4732,11 +5590,13 @@ public class CompoundTableModel extends AbstractTableModel
 			this.descriptorColumn = descriptorColumn;
 			parentColumn = findColumn(getColumnProperty(descriptorColumn, cColumnPropertyParentColumn));
 			descriptorHandler = mColumnInfo[descriptorColumn].descriptorHandler;
+			reactionPart = mColumnInfo[descriptorColumn].getProperty(cColumnPropertyReactionPart);
 			isOutdated = !descriptorHandler.getVersion().equals(getColumnProperty(descriptorColumn, cColumnPropertyDescriptorVersion));
 			isReaction = cColumnTypeRXNCode.equals(getColumnSpecialType(parentColumn));
 			isComplete = true;
 			isCompleteChild = true;
 			updateCount = 0;
+			untouchedCount = 0;
 			errorCount = 0;
 			}
 
@@ -4766,8 +5626,8 @@ public class CompoundTableModel extends AbstractTableModel
 
 class CompoundTableColumnInfo {
 	protected volatile boolean	isDescriptorIncomplete;
-	protected int				type,explicitType,summaryMode,significantDigits,structureHiliteMode;
-	protected boolean			isComplete,isCompleteChild,isUnique,
+	protected int				type,explicitType,summaryMode,significantDigits, hiliteMode;
+	protected boolean			isComplete,isCompleteChild,isUnique,isEqual,isInteger,
 								containsMultiLineText,hasDetail,hasMultipleEntries,
 								belongsToMultipleCategories,logarithmicViewMode,
 								hasModifiers,excludeModifierValues,summaryCountHidden,stdDeviationShown;
@@ -4777,6 +5637,7 @@ class CompoundTableColumnInfo {
 	protected String			name;
 	protected String			alias;		  // is treated as runtime property
 	protected String			description;	// is treated as runtime property
+	protected DateAnalysis      dateAnalysis;
 	private HashMap<String,String> properties;		// belong to table data
 	protected DescriptorHandler<Object,Object> descriptorHandler;
 	private TreeMap<String,DescriptorCacheEntry> descriptorCache;
@@ -5051,15 +5912,17 @@ class EntryAnalysis {
 	protected EntryAnalysis(String entry) {
 		mIsEmpty = (entry == null || entry.length() == 0);
 		if (!mIsEmpty) {
-			mIsNaN = (entry.equals("<LOD")
-				   || entry.equals(">LOD")
-				   || entry.equals("NaN")
-				   || entry.equals("#N/A")
-				   || entry.equals("N/A")
-				   || entry.equals("NA")
-				   || entry.equals("BLQ")
+			mIsNaN = (entry.equalsIgnoreCase("<LOD")
+				   || entry.equalsIgnoreCase(">LOD")
+				   || entry.equalsIgnoreCase("NaN")
+				   || entry.equalsIgnoreCase("#N/A")
+				   || entry.equalsIgnoreCase("N/A")
+				   || entry.equalsIgnoreCase("NA")
+				   || entry.equalsIgnoreCase("ND")
+				   || entry.equalsIgnoreCase("BLQ")
 				   || entry.equals("-")
-				   || entry.equals("?"));
+				   || entry.equals("?")
+				   || entry.equalsIgnoreCase("Infinity"));
 			if (!mIsNaN)
 				analyzeModifier(entry);
 			}
@@ -5091,11 +5954,11 @@ class EntryAnalysis {
 
 	private void analyzeModifier(String entry) {
 		for (int type=0; type<cModifier.length; type++) {
-			for (int j=0; j<cModifier[type].length; j++) {
-				if (entry.startsWith(cModifier[type][j])) {
+			for (String modifier:cModifier[type]) {
+				if (entry.startsWith(modifier)) {
 					mModifierType = type;
-					mModifier = cModifier[type][j];
-					mValue = entry.substring(mModifier.length());
+					mModifier = modifier;
+					mValue = entry.substring(modifier.length());
 					return;
 					}
 				}
@@ -5103,141 +5966,5 @@ class EntryAnalysis {
 		mModifierType = cModifierTypeNone;
 		mModifier = "";
 		mValue = entry;
-		}
-	}
-
-class DateAnalysis {
-	private int[] max,value;
-	private int day,month,year;
-	private Calendar calendar;
-
-	public DateAnalysis() {
-		value = new int[3];
-		max = new int[3];
-		day = -1;
-		month = -1;
-		year = -1;
-		}
-
-	/**
-	 * Checks, whether entry consists of three elements separated by one or more non-word characters
-	 * (neither digit nor letter) that might be day, month and year.
-	 * @param entry
-	 * @return false if entry cannot be a date
-	 */
-	public boolean analyse(String entry) {
-		if (!interpreteValues(entry))
-			return false;
-
-		for (int i=0; i<3; i++)
-			if (max[i] < value[i])
-				max[i] = value[i];
-
-		return true;
-		}
-
-	private boolean interpreteValues(String entry) {
-		String[] item = entry.split("[^\\w]+");
-		if (item.length != 3)
-			return false;
-
-		for (int i=0; i<3; i++) {
-			value[i] = interprete(item[i], i);
-			if (value[i] < 1 || value[i] > 3000)
-				return false;
-			}
-
-		return true;
-		}
-
-	/**
-	 * Call this only once after calling analyse() once or multiple times.
-	 * If this method returns true, then you can use this object to interpret
-	 * date strings of same format with getDateMillis(), e.g. the one passed
-	 * with analyse().
-	 * @return
-	 */
-	public boolean isConclusive() {
-		for (int i=0; i<3; i++) {
-			if (max[i] > 31) {
-				if (year != -1 && year != i)
-					return false;
-				year = i;
-				}
-			}
-
-		for (int i=0; i<3; i++) {
-			if (i != year && (max[i] > 12 || (month != -1 && month != i))) {
-				if (day != -1 && day != i)
-					return false;
-				day = i;
-				}
-			}
-
-		for (int i=0; i<3; i++) {
-			if (i != year && i != day) {
-				if (month != -1 && month != i)
-					return false;
-				month = i;
-				}
-			}
-
-		if (day == -1 || month == -1 || year == -1)
-			return false;
-
-		calendar = Calendar.getInstance();
-		return true;
-		}
-
-	public long getDateMillis(String entry) {
-		if (!interpreteValues(entry))
-			return -1;
-
-		calendar.set(value[year], value[month]-1, value[day]-1);
-		return calendar.getTimeInMillis();
-		}
-
-	private int interprete(String item, int index) {
-		try {
-			return Integer.parseInt(item);
-			}
-		catch (Exception e) {
-			int value = interpreteMonth(item);
-			if (value != -1) {
-				if (month != -1 && month != index)
-					return -1;	// month found in different positions
-				month = index;
-				}
-			return value;
-			}
-		}
-
-	private int interpreteMonth(String item) {
-		item = item.toLowerCase();
-		if (item.startsWith("jan"))
-			return 1;
-		if (item.startsWith("feb"))
-			return 2;
-		if (item.startsWith("mar") || item.startsWith("mär") || item.startsWith("mae"))
-			return 3;
-		if (item.startsWith("apr"))
-			return 4;
-		if (item.startsWith("may") || item.startsWith("mai"))
-			return 5;
-		if (item.startsWith("jun"))
-			return 6;
-		if (item.startsWith("jul"))
-			return 7;
-		if (item.startsWith("aug"))
-			return 8;
-		if (item.startsWith("sep"))
-			return 9;
-		if (item.startsWith("oct") || item.startsWith("okt"))
-			return 10;
-		if (item.startsWith("nov"))
-			return 11;
-		if (item.startsWith("dec") || item.startsWith("dez"))
-			return 12;
-		return -1;
 		}
 	}

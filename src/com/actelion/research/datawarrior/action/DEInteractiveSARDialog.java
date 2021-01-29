@@ -19,6 +19,7 @@
 package com.actelion.research.datawarrior.action;
 
 import com.actelion.research.chem.coords.CoordinateInventor;
+import com.actelion.research.gui.hidpi.HiDPIHelper;
 import com.actelion.research.table.model.CompoundRecord;
 import com.actelion.research.table.model.CompoundTableModel;
 import info.clearthought.layout.TableLayout;
@@ -107,19 +108,20 @@ public class DEInteractiveSARDialog extends JDialog
                     mSourceRecord[row] = new SARSourceRecord(mTableModel.getTotalRecord(row));
             }
 
-        double[][] size = { {8, 26, 8, 180, 12, TableLayout.FILL, TableLayout.PREFERRED, 8, TableLayout.PREFERRED, TableLayout.FILL, 8 },
-                {8, TableLayout.FILL,
-                 8, TableLayout.PREFERRED,
-                 8, 132,
-                 8, 8, TableLayout.PREFERRED, 8} };
+        int gap = HiDPIHelper.scale(8);
+        double[][] size = { {gap, HiDPIHelper.scale(26), gap, HiDPIHelper.scale(120), 2*gap, TableLayout.FILL, TableLayout.PREFERRED, gap, TableLayout.PREFERRED, TableLayout.FILL, gap},
+                {gap, TableLayout.FILL,
+                 gap, TableLayout.PREFERRED,
+                 gap, HiDPIHelper.scale(120),
+                 gap, TableLayout.PREFERRED, gap} };
         JPanel mainPanel = new JPanel();
         mainPanel.setLayout(new TableLayout(size));
 
         mStatusPanel = new SARStatusPanel(mSourceRecord);
-        mainPanel.add(mStatusPanel, "1,1,1,6");
+        mainPanel.add(mStatusPanel, "1,1,1,5");
 
         mDrawArea = new JDrawArea(new StereoMolecule(), 0);
-        mDrawArea.setPreferredSize(new Dimension(320, 240));
+        mDrawArea.setPreferredSize(new Dimension(HiDPIHelper.scale(400), HiDPIHelper.scale(240)));
         mDrawArea.toolChanged(JDrawToolbar.cToolLassoPointer);
         mDrawArea.addDrawAreaListener(this);
 
@@ -137,13 +139,13 @@ public class DEInteractiveSARDialog extends JDialog
 
         mComboBoxCompoundFilter = new JComboBox(COMPOUND_FILTER_OPTIONS);
         mComboBoxCompoundFilter.addItemListener(this);
-        mainPanel.add(mComboBoxCompoundFilter, "1,8,3,8");
+        mainPanel.add(mComboBoxCompoundFilter, "1,7,3,7");
 
         CompoundCollectionModel<SARSourceRecord> model1 = new DefaultCompoundCollectionModel<SARSourceRecord>() {
             public StereoMolecule getMolecule(int index) {
                 CompoundRecord cr = ((SARSourceRecord)getCompound(index)).getCompoundRecord();
                 StereoMolecule mol = mTableModel.getChemicalStructure(cr, mIDCodeColumn, CompoundTableModel.ATOM_COLOR_MODE_NONE, null);
-                int[] fragFp = (int[])cr.getData(mFragFpColumn);
+                long[] fragFp = (long[])cr.getData(mFragFpColumn);
                 MoleculeContext context = new MoleculeContext(mol, fragFp);
                 context.matchBuildingBlocks(mABBList);
                 context.colorizeBuildingBlocks();
@@ -164,7 +166,7 @@ public class DEInteractiveSARDialog extends JDialog
 		            // create molecule context with the correct size
 	                CompoundRecord cr = ((SARSourceRecord)getModel().getCompound(index)).getCompoundRecord();
 	                StereoMolecule mol = mTableModel.getChemicalStructure(cr, mIDCodeColumn, CompoundTableModel.ATOM_COLOR_MODE_NONE, null);
-	                int[] fragFp = (int[])cr.getData(mFragFpColumn);
+	                long[] fragFp = (long[])cr.getData(mFragFpColumn);
 		            mCurrentMoleculeContext = new MoleculeContext(mol, fragFp);
 		            mCurrentMoleculeContext.matchBuildingBlocks(mABBList);
 		            mCurrentMoleculeContext.colorizeBuildingBlocks();
@@ -173,7 +175,7 @@ public class DEInteractiveSARDialog extends JDialog
 		        }
 		    };
 		mCompoundPane.setSelectable(true);
-		mainPanel.add(mCompoundPane, "3,1,3,6");
+		mainPanel.add(mCompoundPane, "3,1,3,5");
         applyCompoundPaneFilter();
 
         CompoundCollectionModel<BuildingBlock> model2 = new DefaultCompoundCollectionModel<BuildingBlock>() {
@@ -214,7 +216,7 @@ public class DEInteractiveSARDialog extends JDialog
         buttonPanel.setLayout(new BorderLayout());
         buttonPanel.add(ibp, BorderLayout.EAST);
         buttonPanel.add(mProgressPanel, BorderLayout.WEST);
-        mainPanel.add(buttonPanel, "5,8,9,8");
+        mainPanel.add(buttonPanel, "5,7,9,7");
 
         getContentPane().add(mainPanel, BorderLayout.CENTER);
 
@@ -576,7 +578,7 @@ public class DEInteractiveSARDialog extends JDialog
 
         int recordIndex = -1;
         mProgressPanel.startProgress("", 0, mSourceRecord.length);
-        int[] bbFragFp = mSearcher.createIndex(bbMol);
+        long[] bbFragFp = mSearcher.createLongIndex(bbMol);
         for (SARSourceRecord sr:mSourceRecord) {
             mProgressPanel.updateProgress(++recordIndex);
             MoleculeContext context = sr.matchBuildingBlocks(mSearcher, mIDCodeColumn, mFragFpColumn, mABBList);
@@ -918,7 +920,7 @@ class AbstractBuildingBlock extends ArrayList<BuildingBlock> {
 class BuildingBlock {
     private StereoMolecule mDisplayMol,mSSSQuery;
     private BBConnection[] mConnection;
-    private int[] mFragFp;
+    private long[] mFragFp;
 
     public BuildingBlock(StereoMolecule query, BBConnection[] connection, SSSearcherWithIndex searcher) {
         mConnection = connection;
@@ -927,7 +929,7 @@ class BuildingBlock {
 
         mSSSQuery = query;
         addConstraintQueryFeatures();
-        mFragFp = searcher.createIndex(mSSSQuery);
+        mFragFp = searcher.createLongIndex(mSSSQuery);
         }
 
     public BBConnection[] getConnectionList() {
@@ -959,7 +961,7 @@ class BuildingBlock {
         return mDisplayMol;
         }
 
-    public int[] getFragFp() {
+    public long[] getFragFp() {
         return mFragFp;
         }
 
@@ -1036,21 +1038,21 @@ class MoleculeContext {
         return BB_ATOM_COLOR[bbID % BB_ATOM_COLOR.length];
         }
 
-    public MoleculeContext(byte[] idcode, int[] fragFp) {
+    public MoleculeContext(byte[] idcode, long[] fragFp) {
         this(new SSSearcherWithIndex(), idcode, fragFp);
         }
 
-    public MoleculeContext(SSSearcherWithIndex searcher, byte[] idcode, int[] fragFp) {
+    public MoleculeContext(SSSearcherWithIndex searcher, byte[] idcode, long[] fragFp) {
         mSearcher = searcher;
         mSearcher.setMolecule(idcode, fragFp);
         mAtomCount = new IDCodeParser().getAtomCount(idcode, 0);
         }
 
-    public MoleculeContext(StereoMolecule mol, int[] fragFp) {
+    public MoleculeContext(StereoMolecule mol, long[] fragFp) {
         this(new SSSearcherWithIndex(), mol, fragFp);
         }
 
-    public MoleculeContext(SSSearcherWithIndex searcher, StereoMolecule mol, int[] fragFp) {
+    public MoleculeContext(SSSearcherWithIndex searcher, StereoMolecule mol, long[] fragFp) {
         mSearcher = searcher;
         mSearcher.setMolecule(mol, fragFp);
         mol.ensureHelperArrays(Molecule.cHelperNeighbours);
@@ -1146,7 +1148,7 @@ class MoleculeContext {
         return newBBIDList;
         }
 
-    public int[] getPreferredMatch(StereoMolecule bbMol, int[] bbFragFp, BBConnection[] connectionList) {
+    public int[] getPreferredMatch(StereoMolecule bbMol, long[] bbFragFp, BBConnection[] connectionList) {
         mSearcher.setFragment(bbMol, bbFragFp);
         int matchCount = mSearcher.findFragmentInMolecule(SSSearcher.cCountModeRigorous,
                                                           SSSearcher.cDefaultMatchMode,
@@ -1392,7 +1394,7 @@ class SARSourceRecord {
 
     public MoleculeContext matchBuildingBlocks(SSSearcherWithIndex searcher, int idcodeColumn, int fragFpColumn, ArrayList<AbstractBuildingBlock> abbl) {
         byte[] idcode = (byte[])mCompoundRecord.getData(idcodeColumn);
-        int[] fragFp = (fragFpColumn == -1) ? null : (int[])mCompoundRecord.getData(fragFpColumn);
+        long[] fragFp = (fragFpColumn == -1) ? null : (long[])mCompoundRecord.getData(fragFpColumn);
         MoleculeContext context = new MoleculeContext(searcher, idcode, fragFp);
         mMatchingBBIDs = context.matchBuildingBlocks(abbl);
         return context;

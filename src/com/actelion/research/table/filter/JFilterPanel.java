@@ -18,25 +18,29 @@
 
 package com.actelion.research.table.filter;
 
+import com.actelion.research.gui.JProgressPanel;
 import com.actelion.research.gui.hidpi.HiDPIHelper;
 import com.actelion.research.gui.hidpi.HiDPIIconButton;
 import com.actelion.research.gui.hidpi.HiDPIToggleButton;
 import com.actelion.research.table.model.CompoundTableEvent;
 import com.actelion.research.table.model.CompoundTableListener;
 import com.actelion.research.table.model.CompoundTableModel;
+import com.actelion.research.util.CursorHelper;
 import info.clearthought.layout.TableLayout;
 
 import javax.swing.*;
 import java.awt.*;
+import java.awt.datatransfer.Transferable;
+import java.awt.dnd.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
-import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public abstract class JFilterPanel extends JPanel
-		implements ActionListener,CompoundTableListener {
+		implements ActionListener,CompoundTableListener,DragGestureListener,DragSourceListener {
 	private static final long serialVersionUID = 0x20110325;
 
 	public static final int FILTER_TYPE_TEXT = 0;
@@ -46,40 +50,43 @@ public abstract class JFilterPanel extends JPanel
 	public static final int FILTER_TYPE_SSS_LIST = 4;
 	public static final int FILTER_TYPE_SIM_LIST = 5;
 	public static final int FILTER_TYPE_REACTION = 6;
-	public static final int FILTER_TYPE_ROWLIST = 7;
-	public static final int FILTER_TYPE_CATEGORY_BROWSER = 8;
+	public static final int FILTER_TYPE_RETRON = 7;
+	public static final int FILTER_TYPE_ROWLIST = 8;
+	public static final int FILTER_TYPE_CATEGORY_BROWSER = 9;
 
 	public static final int PSEUDO_COLUMN_ROW_LIST = -4;
-	public static final int PSEUDO_COLUMN_ALL_COLUMNS = -5;	// currently only used by JTextFilterPanel
+	public static final int PSEUDO_COLUMN_ALL_COLUMNS = -5;    // currently only used by JTextFilterPanel
 
 	public static final String ALL_COLUMN_TEXT = "<All Columns>";
 	public static final String ALL_COLUMN_CODE = "#allColumns#";
 
-	static private final String INVERSE_CODE = "#inverse#";
-	static private final String DISABLED_CODE = "#disabled#";
+	private static final String INVERSE_CODE = "#inverse#";
+	private static final String DISABLED_CODE = "#disabled#";
 
-	protected CompoundTableModel	mTableModel;
-	protected int					mColumnIndex,mExclusionFlag;
-	protected boolean				mIsUserChange;	// Is set from derived classes once the UI is complete
-													// and is temporarily disabled, whenever a programmatic change occurs.
-	private JLabel					mColumnNameLabel;
-	private JPanel					mTitlePanel;
-	private HiDPIIconButton		    mAnimationButton;
-	private HiDPIToggleButton		mButtonInverse,mButtonDisabled;
-	private JPopupMenu				mAnimationPopup;
-	private boolean					mIsActive,mIsInverse,mSuppressErrorMessages;
-	private Animator				mAnimator;
-	private JTextField				mTextFieldFrameDelay;
-	private JDialog					mOptionsDialog;
+	private static final int ALLOWED_DRAG_ACTIONS = DnDConstants.ACTION_COPY_OR_MOVE;
+
+	protected CompoundTableModel mTableModel;
+	protected int mColumnIndex, mExclusionFlag;
+	protected boolean mIsUserChange;    // Is set from derived classes once the UI is complete
+	// and is temporarily disabled, whenever a programmatic change occurs.
+	private JLabel mColumnNameLabel;
+	private JPanel mTitlePanel;
+	private HiDPIIconButton mAnimationButton;
+	private HiDPIToggleButton mButtonInverse,mButtonDisabled;
+	private JPopupMenu mAnimationPopup;
+	private boolean mIsActive,mIsInverse,mSuppressErrorMessages,mIsMouseDown;
+	private Animator mAnimator;
+	private JDialog mOptionsDialog;
+	private JProgressPanel mProgressPanel;
 	private ArrayList<FilterListener> mListenerList;
 
 	/**
 	 * @param tableModel
 	 * @param column
-	 * @param exclusionFlag if -1 then this filter is dead, i.e. it doesn't influence row visibility
+	 * @param exclusionFlag        if -1 then this filter is dead, i.e. it doesn't influence row visibility
 	 * @param showAnimationOptions
 	 */
-	public JFilterPanel(CompoundTableModel tableModel, int column, int exclusionFlag, boolean showAnimationOptions) {
+	public JFilterPanel(CompoundTableModel tableModel, int column, int exclusionFlag, boolean showAnimationOptions, boolean useProgressBar) {
 		mExclusionFlag = exclusionFlag;
 		mIsActive = (exclusionFlag != -1);
 		mTableModel = tableModel;
@@ -89,22 +96,37 @@ public abstract class JFilterPanel extends JPanel
 		setLayout(new BorderLayout());
 
 		mTitlePanel = new JPanel();
-		double[][] size = { {4, TableLayout.FILL, 4, TableLayout.PREFERRED, TableLayout.PREFERRED, 8, TableLayout.PREFERRED},
-							{TableLayout.PREFERRED, 4} };
+		int gap = HiDPIHelper.scale(4);
+		double[][] size = {{gap, TableLayout.FILL, gap, TableLayout.PREFERRED, TableLayout.PREFERRED, gap, TableLayout.PREFERRED},
+				{TableLayout.PREFERRED, gap/2}};
 		mTitlePanel.setLayout(new TableLayout(size));
 		mTitlePanel.setOpaque(false);
 		mColumnNameLabel = new JLabel(getTitle()) {
 			private static final long serialVersionUID = 0x20080128;
-			public Dimension getPreferredSize() {
-				Dimension size = super.getPreferredSize();
-				size.width = Math.min(size.width, HiDPIHelper.scale(72));
+
+			@Override public Dimension getMaximumSize() {
+				Dimension size = super.getMaximumSize();
+				size.width = Math.min(size.width, HiDPIHelper.scale(50));
 				return size;
 				}
+			@Override public Dimension getPreferredSize() {
+				Dimension size = super.getPreferredSize();
+				size.width = Math.min(size.width, HiDPIHelper.scale(50));
+				return size;
+			}
 			};
-		mColumnNameLabel.setMaximumSize(new Dimension(HiDPIHelper.scale(50),mColumnNameLabel.getMaximumSize().height));
+//		mColumnNameLabel.setMaximumSize(new Dimension(HiDPIHelper.scale(50), mColumnNameLabel.getMaximumSize().height));
 		mTitlePanel.add(mColumnNameLabel, "1,0");
+		if (useProgressBar) {
+			mProgressPanel = new JProgressPanel(false);
+			mProgressPanel.setVisible(false);
+			mTitlePanel.add(mProgressPanel, "1,0");
+			}
 
 		JPanel lbp = new JPanel();
+		if (showAnimationOptions)
+			showAnimationControls(lbp);
+		addImageButtons(lbp);
 		mButtonInverse = new HiDPIToggleButton("yy16.png", "iyy16.png", "Invert filter", "inverse");
 		mButtonInverse.addActionListener(this);
 		lbp.add(mButtonInverse);
@@ -122,11 +144,112 @@ public abstract class JFilterPanel extends JPanel
 			mTitlePanel.add(rbp, "6,0");
 			}
 
+		mColumnNameLabel.addMouseListener(new MouseAdapter() {
+			@Override
+			public void mouseEntered(MouseEvent e) {
+				mColumnNameLabel.setCursor(CursorHelper.getCursor(CursorHelper.cHandCursor));
+				mIsMouseDown = false;
+			}
+
+			@Override
+			public void mousePressed(MouseEvent e) {
+				mColumnNameLabel.setCursor(CursorHelper.getCursor(e.getButton() == MouseEvent.BUTTON1 ? CursorHelper.cFistCursor : CursorHelper.cPointerCursor));
+				getParent().repaint();
+				mIsMouseDown = true;
+			}
+
+			@Override
+			public void mouseReleased(MouseEvent e) {
+				mColumnNameLabel.setCursor(CursorHelper.getCursor(CursorHelper.cHandCursor));
+				getParent().repaint();
+				mIsMouseDown = false;
+			}
+
+			@Override
+			public void mouseExited(MouseEvent e) {
+				if (!mIsMouseDown)
+					mColumnNameLabel.setCursor(CursorHelper.getCursor(CursorHelper.cPointerCursor));
+				mIsMouseDown = false;
+				getParent().repaint();
+			}
+		});
+
+		initializeDrag(ALLOWED_DRAG_ACTIONS);
+
 		add(mTitlePanel, BorderLayout.NORTH);
 
-		if (showAnimationOptions) {
-			mAnimator = new Animator(500);
-			showAnimationControls();
+		if (showAnimationOptions)
+			mAnimator = new Animator(getDefaultFrameMillis());
+		}
+
+	public boolean isPotentiallyDragged() {
+		return mIsMouseDown;
+		}
+
+	/**
+	 * Override to add filter specific image buttons
+	 * @param panel
+	 */
+	public void addImageButtons(JPanel panel) {}
+
+	private void initializeDrag(int dragAction) {
+		if (dragAction != DnDConstants.ACTION_NONE)
+			DragSource.getDefaultDragSource().createDefaultDragGestureRecognizer(mColumnNameLabel, dragAction, this);
+		}
+
+	@Override
+	public void dragGestureRecognized(DragGestureEvent dge) {
+		if ((dge.getDragAction() & ALLOWED_DRAG_ACTIONS) != 0) {
+			Transferable transferable = getTransferable();
+			if (transferable != null) {
+				try {
+					dge.startDrag(CursorHelper.getCursor(CursorHelper.cFistCursor), transferable, this);
+					}
+				catch (InvalidDnDOperationException idoe) {
+					idoe.printStackTrace();
+					}
+				}
+			}
+		}
+
+	public Transferable getTransferable() {
+		return new FilterTransferable(this);
+		}
+
+	@Override
+	public void dragEnter(DragSourceDragEvent dsde) {
+		updateDragCursor(dsde);
+		}
+
+	@Override
+	public void dragOver(DragSourceDragEvent dsde) {
+		updateDragCursor(dsde);
+		}
+
+	@Override
+	public void dropActionChanged(DragSourceDragEvent dsde) {
+		updateDragCursor(dsde);
+		}
+
+	@Override
+	public void dragExit(DragSourceEvent dse) {}
+
+	@Override
+	public void dragDropEnd(DragSourceDropEvent dsde) {
+		mIsMouseDown = false;
+		}
+
+	private void updateDragCursor(DragSourceDragEvent dsde) {
+		DragSourceContext context = dsde.getDragSourceContext();
+		int dropAction = dsde.getDropAction();
+		if ((dropAction & DnDConstants.ACTION_COPY) != 0) {
+			context.setCursor(DragSource.DefaultCopyDrop);
+			}
+		else if ((dropAction & DnDConstants.ACTION_MOVE) != 0) {
+			context.setCursor(DragSource.DefaultMoveDrop);
+			}
+		else {
+			context.setCursor(DragSource.DefaultMoveNoDrop);
 			}
 		}
 
@@ -195,12 +318,7 @@ public abstract class JFilterPanel extends JPanel
 	 * This is should only be called, if the update request is indirect (not direct user change)
 	 */
 	public void updateExclusionLater() {
-		SwingUtilities.invokeLater(new Runnable() {
-			@Override
-			public void run() {
-				updateExclusion(false);
-				}
-			});
+		SwingUtilities.invokeLater(() -> updateExclusion(false));
 		}
 
 	/**
@@ -259,9 +377,10 @@ public abstract class JFilterPanel extends JPanel
 			}
 		if (e.getActionCommand().equals("optionsOK")) {
 			try {
-				setFrameDelay(Long.parseLong(mTextFieldFrameDelay.getText()));
+				applyAnimationOptions();
 				mOptionsDialog.setVisible(false);
 				mOptionsDialog.dispose();
+				fireFilterChanged(FilterEvent.FILTER_ANIMATION_CHANGED, false);
 				}
 			catch (NumberFormatException nfe) {
 				}
@@ -283,10 +402,61 @@ public abstract class JFilterPanel extends JPanel
 			return;
 			}
 		if (e.getSource() == mButtonDisabled) {
-			setEnabled(!mButtonDisabled.isSelected());
-			fireFilterChanged(FilterEvent.FILTER_UPDATED, false);
+			boolean enable = !mButtonDisabled.isSelected();
+			setEnabled(enable);
+			if (enable && !isEnabled())	// if we could not enable
+				mButtonDisabled.setSelected(true);
+			else
+				fireFilterChanged(FilterEvent.FILTER_UPDATED, false);
 			return;
 			}
+		}
+
+/*	protected void updateExclusionWithProgressBar(final Thread updateExclusionThread, final AtomicInteger concurrentIndex, final int maxIndexValue, String progressText) {
+		mColumnNameLabel.setVisible(false);
+		mProgressPanel.setVisible(true);
+		mProgressPanel.startProgress(progressText, 0, maxIndexValue);
+		updateExclusionThread.start();
+		new Thread(() -> {
+			int index = concurrentIndex.get();
+			while (index >= 0) {
+				try {
+					Thread.sleep(100);
+					index = concurrentIndex.get();
+					mProgressPanel.updateProgress(maxIndexValue - index);
+					}
+				catch (InterruptedException ie) {
+					index = -1;
+					}
+				}
+			SwingUtilities.invokeLater(() -> {
+				mProgressPanel.setVisible(false);
+				mColumnNameLabel.setVisible(true);
+				});
+			}).start();
+		}*/
+
+	protected void showProgressBarWithUpdates(final AtomicInteger concurrentIndex, final int maxIndexValue, String progressText) {
+		mColumnNameLabel.setVisible(false);
+		mProgressPanel.setVisible(true);
+		mProgressPanel.startProgress(progressText, 0, maxIndexValue);
+		new Thread(() -> {
+			int index = concurrentIndex.get();
+			while (index >= 0) {
+				try {
+					Thread.sleep(100);
+					index = concurrentIndex.get();
+					mProgressPanel.updateProgress(maxIndexValue - index);
+					}
+				catch (InterruptedException ie) {
+					index = -1;
+					}
+				}
+			SwingUtilities.invokeLater(() -> {
+				mProgressPanel.setVisible(false);
+				mColumnNameLabel.setVisible(true);
+				});
+			}).start();
 		}
 
 	private void showOptionDialog(JPanel content) {
@@ -320,17 +490,12 @@ public abstract class JFilterPanel extends JPanel
 		mOptionsDialog.setVisible(true);
 		}
 
+	/**
+	 * Override the following methods, if your filter supports animations
+	 * @return
+	 */
 	protected JPanel createAnimationOptionPanel() {
-		double[][] size = { {8, TableLayout.PREFERRED, 8, TableLayout.PREFERRED, 8},
-							{8, TableLayout.PREFERRED, 8} };
-		JPanel p = new JPanel();
-		p.setLayout(new TableLayout(size));
-		p.add(new JLabel("Frame delay (ms):"), "1,1");
-
-		mTextFieldFrameDelay = new JTextField(""+mAnimator.getFrameDelay(), 6);
-		p.add(mTextFieldFrameDelay, "3,1");
-
-		return p;
+		return null;
 		}
 
 	public boolean isInverse() {
@@ -359,7 +524,11 @@ public abstract class JFilterPanel extends JPanel
 		}
 
 	protected void setText(String text, Color color) {
-		mColumnNameLabel.setForeground(color);
+		if (color != null)
+			mColumnNameLabel.setForeground(color);
+		// Change font to allow displaying rare unicode characters, if necessary
+		if (mColumnNameLabel.getFont().canDisplayUpTo(text) != -1)
+			mColumnNameLabel.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, mColumnNameLabel.getFont().getSize()));
 		mColumnNameLabel.setText(text);
 		}
 
@@ -374,8 +543,18 @@ public abstract class JFilterPanel extends JPanel
 	 * @return
 	 */
 	public String getAnimationSettings() {
-		return (mAnimator != null) ? (mAnimator.isAnimating() ? "state=running" : "state=stopped")
-									+ " delay="+mAnimator.getFrameDelay() : null;
+		if (mAnimator == null || mAnimationButton == null)
+			return null;
+
+		String settings = mAnimationButton.isAnimating() ? "state=running" : "state=stopped";
+		if (mAnimator.getFrameMillis() != getDefaultFrameMillis())
+			settings = settings.concat(" delay=").concat(Long.toString(mAnimator.getFrameMillis()));
+
+		return settings;
+		}
+
+	public void setIsUserChange(boolean b) {
+		mIsUserChange = b;
 		}
 
 	@Override
@@ -429,12 +608,12 @@ public abstract class JFilterPanel extends JPanel
 			sb.append(DISABLED_CODE);
 			}
 		String innerSettings = getInnerSettings();
-		if (innerSettings != null && innerSettings.length() != 0) {
+		if (innerSettings != null) {
 			if (sb.length() != 0)
 				sb.append('\t');
 			sb.append(innerSettings);
 			}
-		return (sb.length() == 0) ? null : sb.toString();
+		return (sb.length() == 0 && innerSettings == null) ? null : sb.toString();
 		}
 
 	public void applySettings(String settings, boolean suppressErrorMessages) {
@@ -456,19 +635,32 @@ public abstract class JFilterPanel extends JPanel
 		setEnabled(enabled);
 		setInverse(inverse);
 
-		if (settings != null && settings.length() != 0)
+		if (settings != null)
 			applyInnerSettings(settings);
 
-		mSuppressErrorMessages = true;
+		mSuppressErrorMessages = false;
 		mIsUserChange = true;
 		}
 
 	public abstract void applyInnerSettings(String settings);
 	public abstract String getInnerSettings();
 
+	public Animator getAnimator() {
+		return mAnimator;
+		}
+
+	public boolean canAnimate() {
+		return mAnimator != null;
+		}
+
+	public boolean isAnimating() {
+		return mAnimationButton != null && mAnimationButton.isAnimating();
+		}
+
 	public final void applyAnimationSettings(String settings) {
 		mIsUserChange = false;
 		resetAnimation();
+		clearAnimationSettings();
 		if (settings != null) {
 			boolean running = false;
 			for (String setting:settings.split(" ")) {
@@ -479,17 +671,25 @@ public abstract class JFilterPanel extends JPanel
 					if (key.equals("state"))
 						running = value.equals("running");
 					else if (key.equals("delay"))
-						try { setFrameDelay(Long.parseLong(value)); } catch (NumberFormatException e) {}
+						try { setFrameMillis(Integer.parseInt(value)); } catch (NumberFormatException e) {}
 					else
 						applyAnimationSetting(key, value);
 					}
 				}
+
 			if (running)
 				startAnimation();
+			else
+				stopAnimation();
 			}
 		mIsUserChange = true;
 		}
 
+	/**
+	 * Override this, if a derived filter has extended animation settings.
+	 * @return
+	 */
+	protected void clearAnimationSettings() {}
 
 	/**
 	 * Override this, if a derived filter has extended animation settings.
@@ -497,11 +697,18 @@ public abstract class JFilterPanel extends JPanel
 	 */
 	protected void applyAnimationSetting(String key, String value) {}
 
-	protected String attachSetting(String settingList, String setting) {
+	protected String attachTABDelimited(String settingList, String setting) {
 		if (settingList == null)
 			return setting;
 
 		return settingList + "\t" + setting;
+		}
+
+	protected String attachSpaceDelimited(String settingList, String setting) {
+		if (settingList == null)
+			return setting;
+
+		return settingList + " " + setting;
 		}
 
 	/**
@@ -525,9 +732,9 @@ public abstract class JFilterPanel extends JPanel
 	 */
 	public abstract void innerReset();
 
-	public void showAnimationControls() {
-		JPanel mbp = new JPanel();
-		mAnimationButton = new HiDPIIconButton("gear14.png", null, "showPopup");
+	public void showAnimationControls(JPanel panel) {
+//		JPanel mbp = new JPanel();
+		mAnimationButton = new HiDPIIconButton("gear16.png", "Animation Options", "showPopup");
 		mAnimationButton.addMouseListener(new MouseAdapter() {
 			@Override
 			public void mousePressed(MouseEvent e) {
@@ -535,8 +742,8 @@ public abstract class JFilterPanel extends JPanel
 					showAnimationPopup(e);
 				}
 			});
-		mbp.add(mAnimationButton);
-		mTitlePanel.add(mbp, "3,0");
+		panel.add(mAnimationButton);
+//		mTitlePanel.add(mbp, "3,0");
 		}
 
 	private void showAnimationPopup(MouseEvent e) {
@@ -550,8 +757,10 @@ public abstract class JFilterPanel extends JPanel
 				mAnimationPopup = null;
 				}
 			};
-		mAnimationPopup.add(createPopupItem("Start Animation", "start"));
-		mAnimationPopup.add(createPopupItem("Stop Animation", "stop"));
+		if (isAnimating())
+			mAnimationPopup.add(createPopupItem("Stop Animation", "stop"));
+		else
+			mAnimationPopup.add(createPopupItem("Start Animation", "start"));
 		mAnimationPopup.addSeparator();
 		mAnimationPopup.add(createPopupItem("Animation Options...", "options"));
 		mAnimationPopup.show(button.getParent(),
@@ -567,11 +776,28 @@ public abstract class JFilterPanel extends JPanel
 		}
 
 	/**
+	 * Override this, if your filter has a different default frame rate
+	 * @return
+	 */
+	public int getDefaultFrameMillis() {
+		return 50;
+		}
+
+	/**
+	 * Override this, if your filter supports animations
+	 */
+	public void applyAnimationOptions() {}
+
+	public int getFrameMillis() {
+		return mAnimator.getFrameMillis();
+		}
+
+	/**
 	 * Changes the delay that the animation timer waits between two subsequent calls to animate().
 	 */
-	public void setFrameDelay(long frameDelay) {
+	public void setFrameMillis(int millis) {
 		if (isActive())
-			mAnimator.setFrameDelay(frameDelay);
+			mAnimator.setFrameMillis(millis);
 		}
 
 	/**
@@ -586,8 +812,11 @@ public abstract class JFilterPanel extends JPanel
 	 * Starts or continues the animation with the current frame rate and number.
 	 */
 	public void startAnimation() {
-		if (isActive())
-			mAnimator.start();
+		if (canAnimate()) {
+			if (isActive())
+				mAnimator.start();
+			mAnimationButton.startAnimation(4);
+			}
 		}
 
 	/**
@@ -596,6 +825,21 @@ public abstract class JFilterPanel extends JPanel
 	public void stopAnimation() {
 		if (isActive())
 			mAnimator.stop();
+		mAnimationButton.stopAnimation();
+		}
+
+	public void setAnimationSuspended(boolean b) {
+		if (mAnimator != null)
+			mAnimator.setSuspended(b);
+		}
+
+	public boolean isAnimationSuspended() {
+		return mAnimator != null && mAnimator.isSuspended();
+		}
+
+	public void skipAnimationFrames(long millis) {
+		if (mAnimator != null)
+			mAnimator.skipFrames(millis);
 		}
 
 	/**
@@ -606,27 +850,35 @@ public abstract class JFilterPanel extends JPanel
 	 * the current frame number.
 	 * @param frame
 	 */
-	protected void animate(int frame) {}
+	public void setAnimationFrame(int frame) {}
 
-	private class Animator implements Runnable {
-		private volatile long mStartMillis,mFrameDelay;
-		private volatile boolean mIsSuspended;
+	/**
+	 * Override this if the derived filter supports animations.
+	 * @return frame count for one full animation
+	 */
+	public int getFullFrameAnimationCount() {
+		return 0;
+	}
+
+	public class Animator implements Runnable {
+		private volatile long mStartMillis,mSuspendMillis;
+		private volatile int mRecentFrame,mFrameMillis;
 		private Thread mThread;
 
-		public Animator(long frameDelay) {
-			mFrameDelay = frameDelay;
+		public Animator(int frameRate) {
+			mFrameMillis = frameRate;
 			}
 
 		public boolean isAnimating() {
 			return mThread != null;
 			}
 
-		public long getFrameDelay() {
-			return mFrameDelay;
+		public int getFrameMillis() {
+			return mFrameMillis;
 			}
 
-		public void setFrameDelay(long frameDelay) {
-			mFrameDelay = frameDelay;
+		public void setFrameMillis(int millis) {
+			mFrameMillis = millis;
 			}
 
 		public void reset() {
@@ -634,6 +886,8 @@ public abstract class JFilterPanel extends JPanel
 			}
 
 		public void start() {
+			mRecentFrame = -1;
+			mSuspendMillis = 0L;
 			if (mThread == null) {
 				mThread = new Thread(this);
 				mThread.start();
@@ -645,41 +899,68 @@ public abstract class JFilterPanel extends JPanel
 			mThread = null;
 			}
 
+		public boolean isSuspended() {
+			return mSuspendMillis != 0L;
+			}
+
 		public void setSuspended(boolean b) {
-			mIsSuspended = b;
+			if (b != isSuspended()) {
+				if (b) {
+					mSuspendMillis = System.currentTimeMillis();
+					}
+				else {
+					mStartMillis += (System.currentTimeMillis() - mSuspendMillis);
+					mSuspendMillis = 0L;
+					}
+				}
+			}
+
+		public void skipFrames(long millis) {
+			if (mSuspendMillis != 0L) {
+				mSuspendMillis += millis;
+				showFrameInEDT(calculateFrameNo());
+				}
+			else {
+				mStartMillis -= millis;
+				if (mFrameMillis>100)
+					showFrameInEDT(calculateFrameNo());
+				}
 			}
 
 		@Override
 		public void run() {
 			while (Thread.currentThread() == mThread) {
-				try {
-					SwingUtilities.invokeAndWait(new Runnable() {
-						int mRecentFrame = -1;
-	
-						@Override
-						public void run() {
-							if (mThread != null) {
-								long totalDelay = System.currentTimeMillis() - mStartMillis;
-								int currentFrame = (int)(totalDelay / mFrameDelay);
-								if (mRecentFrame < currentFrame) {
-									mRecentFrame = currentFrame;
-									mIsUserChange = false;
-									animate(currentFrame);
-									mIsUserChange = true;
-									}
-								}
-							}
-						});
-					}
-				catch (InvocationTargetException ite) {}
-				catch (InterruptedException ie) {}
+				final int frame = calculateFrameNo();
+				if (frame != mRecentFrame)
+					try {
+						SwingUtilities.invokeAndWait(() -> showFrameInEDT(frame));
+						}
+					catch (Exception e) {}
 
 				try {
-					do {
-						Thread.sleep(mFrameDelay - (System.currentTimeMillis() - mStartMillis) % mFrameDelay);
-						} while (mIsSuspended);
+					Thread.sleep(mFrameMillis - (System.currentTimeMillis() - mStartMillis) % mFrameMillis);
 					}
 				catch (InterruptedException ie) {}
+				}
+			}
+
+		private int calculateFrameNo() {
+			long millis = (mSuspendMillis != 0L ? mSuspendMillis : System.currentTimeMillis()) - mStartMillis;
+			return (int)(millis / mFrameMillis);
+			}
+
+		/**
+		 * Determines from mStartMillis and currentTimeMillis() and mFrameRate the frame number
+		 * that should be shown currently and calls animate, if the most recent call to this method
+		 * used a different frame number.
+		 * @param frame the frame number calculated from relevant start millis and millis needed for one frame
+		 */
+		public void showFrameInEDT(int frame) {
+			if (mThread != null && frame != mRecentFrame) {
+				mRecentFrame = frame;
+				mIsUserChange = false;
+				setAnimationFrame(frame);
+				mIsUserChange = true;
 				}
 			}
 		}

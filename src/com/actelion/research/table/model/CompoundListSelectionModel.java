@@ -610,7 +610,7 @@ public class CompoundListSelectionModel implements ListSelectionModel,CompoundTa
 		 || e.getType() == CompoundTableEvent.cChangeSelection
 		 || e.getType() == CompoundTableEvent.cChangeSortOrder)
 			// inform about changed selection only after all components have processed the CompoundTableEvent
-			SwingUtilities.invokeLater(new Runnable() { public void run() { invalidate(); } });
+			SwingUtilities.invokeLater(() -> invalidate());
 		}
 
 	private void update() {

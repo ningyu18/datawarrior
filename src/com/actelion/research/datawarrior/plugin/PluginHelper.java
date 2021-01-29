@@ -146,7 +146,7 @@ public class PluginHelper implements IPluginHelper {
 						mTableModel.getColumnTitleNoAlias(column));
 
 		if (template == null) {
-			mTableModel.finalizeTable(CompoundTableEvent.cSpecifierDefaultRuntimeProperties, mProgressController);
+			mTableModel.finalizeTable(CompoundTableEvent.cSpecifierDefaultFiltersAndViews, mProgressController);
 			}
 		else {
 			mTableModel.finalizeTable(CompoundTableEvent.cSpecifierNoRuntimeProperties, mProgressController);

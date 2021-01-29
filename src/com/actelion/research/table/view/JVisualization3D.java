@@ -20,8 +20,9 @@ package com.actelion.research.table.view;
 
 import com.actelion.research.chem.*;
 import com.actelion.research.chem.io.CompoundTableConstants;
+import com.actelion.research.datawarrior.DataWarrior;
 import com.actelion.research.gui.hidpi.HiDPIHelper;
-import com.actelion.research.table.*;
+import com.actelion.research.table.MarkerLabelDisplayer;
 import com.actelion.research.table.category.CategoryList;
 import com.actelion.research.table.category.CategoryMolecule;
 import com.actelion.research.table.model.CompoundListSelectionModel;
@@ -31,7 +32,6 @@ import com.actelion.research.table.model.CompoundTableModel;
 import com.actelion.research.util.ColorHelper;
 import com.actelion.research.util.CursorHelper;
 import com.actelion.research.util.DoubleFormat;
-import com.actelion.research.util.Settings;
 import org.jmol.g3d.Graphics3D;
 
 import javax.swing.*;
@@ -51,6 +51,7 @@ import java.awt.print.PageFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.TreeMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -217,7 +218,7 @@ public class JVisualization3D extends JVisualization implements ComponentListene
 		mIsStereo = false;
 		mGraphFaceColor = DEFAULT_GRAPH_FACE_COLOR;
 		
-		String mode = Settings.getProperty(STEREO_MODE_PROPERTY);
+		String mode = DataWarrior.getPreferences().get(STEREO_MODE_PROPERTY, null);
 		mStereoMode = STEREO_MODE_H_INTERLACE_LEFT_EYE_FIRST;	// the default
 		if (mode != null) {
 			mParentFrame.addComponentListener(this);
@@ -261,7 +262,12 @@ public class JVisualization3D extends JVisualization implements ComponentListene
 			invalidateOffImage(false);
 		}
 
-	public void paintComponent(Graphics g) {
+	@Override
+	public boolean supportsLabelPositionOptimization() {
+		return false;
+		}
+
+	public synchronized void paintComponent(Graphics g) {
 		mIsHighResolution = false;
 		boolean antialiasing = !mIsAdjusting;
 		mAAFactor = antialiasing ? 2 : 1;
@@ -304,6 +310,9 @@ public class JVisualization3D extends JVisualization implements ComponentListene
 			}
 		drawHighlightedLabelOutline(g);
 		paintTouchIcon(g);
+
+		if (!mIsHighResolution)
+			paintMessages(g, 0, renderSize.width);
 		}
 
 	public int print(Graphics g, PageFormat f, int pageIndex) {
@@ -321,7 +330,7 @@ public class JVisualization3D extends JVisualization implements ComponentListene
 		}
 
 	@Override
-	public void paintHighResolution(Graphics2D g, Rectangle bounds, float fontScaling, boolean transparentBG, boolean isPrinting) {
+	public synchronized void paintHighResolution(Graphics2D g, Rectangle bounds, float fontScaling, boolean transparentBG, boolean isPrinting) {
 			// font sizes are optimized for screen resolution are need to be scaled by fontScaling
 		mIsHighResolution = true;
 		mCoordinatesValid = false;
@@ -352,7 +361,6 @@ public class JVisualization3D extends JVisualization implements ComponentListene
 
 		// font size limitations used to cause different view layouts when resizing a view, TLS 20-Dez-2013
 		mFontHeight = (int)(mRelativeFontSize * bounds.width / 60f);
-//		mFontHeight = (int)(mRelativeFontSize * Math.max(Math.min((float)bounds.width/60f, 9f*fontScaling), 6f*fontScaling));
 
 		boolean antialiasing = true;
 		mContentScaling = (antialiasing) ? 2 : 1;
@@ -405,8 +413,10 @@ public class JVisualization3D extends JVisualization implements ComponentListene
 			if (mChartType == cChartTypeBars
 			 || (mChartType == cChartTypeBoxPlot && mHighlightedPoint.chartGroupIndex != -1)) {
 				BarFraction fraction = getBarFraction((VisualizationPoint3D)mHighlightedPoint);
-				fraction.calculateBounds((VisualizationPoint3D)mHighlightedPoint, false);
-				clipRect.setBounds(fraction.bounds);
+				if (fraction != null) { // should not happen
+					fraction.calculateBounds((VisualizationPoint3D)mHighlightedPoint, false);
+					clipRect.setBounds(fraction.bounds);
+					}
 				}
 			else {
 				mComposedMarker[mHighlightedPoint.shape].calculate((VisualizationPoint3D)mHighlightedPoint);
@@ -770,10 +780,10 @@ public class JVisualization3D extends JVisualization implements ComponentListene
 	private void drawHighlightedLabelOutline(Graphics g)  {
 		if (mHighlightedLabelPosition != null) {
 			g.setColor(ColorHelper.perceivedBrightness(getViewBackground()) > 0.5f ? Color.BLACK : Color.WHITE);
-			g.drawRect(mHighlightedLabelPosition.getScreenX(),
-					   mHighlightedLabelPosition.getScreenY(),
+			g.drawRect(mHighlightedLabelPosition.getScreenX1(),
+					   mHighlightedLabelPosition.getScreenY1(),
 					   mHighlightedLabelPosition.getScreenWidth(),
-					   mHighlightedLabelPosition._getScreenHeight());
+					   mHighlightedLabelPosition.getScreenHeight());
 			}
 		}
 
@@ -787,11 +797,13 @@ public class JVisualization3D extends JVisualization implements ComponentListene
 	protected void updateHighlightedLabelPosition() {
 		int newX = mHighlightedLabelPosition.getLabelCenterOnScreenX();
 		int newY = mHighlightedLabelPosition.getLabelCenterOnScreenY();
-		float[] c = getMetaFromScreenCoordinates(newX, newY, mHighlightedLabelPosition.getScreenZ());
+		float[] c = getMetaFromScreenCoordinates(newX, newY, ((LabelPosition3D)mHighlightedLabelPosition).getScreenZ());
 		float x = mAxisVisMin[0] + (c[0] + 1f) * (mAxisVisMax[0] - mAxisVisMin[0]) / 2f;
 		float y = mAxisVisMin[1] + (c[1] + 1f) * (mAxisVisMax[1] - mAxisVisMin[1]) / 2f;
 		float z = mAxisVisMin[2] + (c[2] + 1f) * (mAxisVisMax[2] - mAxisVisMin[2]) / 2f;
-		mHighlightedLabelPosition.updatePosition(x, y, z);
+		mHighlightedLabelPosition.setCustom(true);
+		mHighlightedLabelPosition.setXY(x, y);
+		((LabelPosition3D)mHighlightedLabelPosition).setZ(z);
 		}
 
 	private DoubleDimension getLabelDimension(VisualizationPoint vp, boolean isMolecule, int position, boolean isTreeView, DoubleDimension size) {
@@ -916,16 +928,16 @@ public class JVisualization3D extends JVisualization implements ComponentListene
 		if (mStereoMode != mode) {
 			switch (mode) {
 			case STEREO_MODE_H_INTERLACE_LEFT_EYE_FIRST:
-				Settings.setProperty(STEREO_MODE_PROPERTY, STEREO_MODE_STRING_H_INTERLACE_LEFT_EYE_FIRST);
+				DataWarrior.getPreferences().put(STEREO_MODE_PROPERTY, STEREO_MODE_STRING_H_INTERLACE_LEFT_EYE_FIRST);
 				break;
 			case STEREO_MODE_H_INTERLACE_RIGHT_EYE_FIRST:
-				Settings.setProperty(STEREO_MODE_PROPERTY, STEREO_MODE_STRING_H_INTERLACE_RIGHT_EYE_FIRST);
+				DataWarrior.getPreferences().put(STEREO_MODE_PROPERTY, STEREO_MODE_STRING_H_INTERLACE_RIGHT_EYE_FIRST);
 				break;
 			case STEREO_MODE_V_INTERLACE:
-				Settings.setProperty(STEREO_MODE_PROPERTY, STEREO_MODE_STRING_V_INTERLACE);
+				DataWarrior.getPreferences().put(STEREO_MODE_PROPERTY, STEREO_MODE_STRING_V_INTERLACE);
 				break;
 			case STEREO_MODE_3DTV_SIDE_BY_SIDE:
-				Settings.setProperty(STEREO_MODE_PROPERTY, STEREO_MODE_STRING_3DTV_SIDE_BY_SIDE);
+				DataWarrior.getPreferences().put(STEREO_MODE_PROPERTY, STEREO_MODE_STRING_3DTV_SIDE_BY_SIDE);
 				break;
 			default:
 				return;
@@ -1184,11 +1196,11 @@ public class JVisualization3D extends JVisualization implements ComponentListene
 		}
 
 	protected void calculateBarsOrPies() {
-		super.calculateBarsOrPies();
+		super.calculateBarsOrPies(1.0);
 
 		for (int axis=0; axis<3; axis++) {
 			if (mChartInfo.barAxis != axis) {
-				float cellSize = 2.0f / (float)mCategoryVisibleCount[axis];
+				float cellSize = 2.0f / (float)getCategoryVisCount(axis);
 				if (mChartInfo.barWidth == 0 || mChartInfo.barWidth > 0.5 * cellSize)
 					mChartInfo.barWidth = 0.5f * cellSize;
 				}
@@ -1211,39 +1223,21 @@ public class JVisualization3D extends JVisualization implements ComponentListene
 		}
 
 	private void calculateMetaCoordinates(int axis) {
-		// In box- and whisker-plots the category axis may be based on doubleCategory types.
-		// In this case we need to consider category numbers rather than the doubleValue for positioning.
-		boolean isDoubleCategory = (mChartType == cChartTypeBoxPlot || mChartType == cChartTypeWhiskerPlot)
-								&& axis != mChartInfo.barAxis
-								&& mAxisIndex[axis] != cColumnUnassigned
-								&& mTableModel.isColumnTypeDouble(mAxisIndex[axis]);
-
-		float mid = (float)(isDoubleCategory ? mCategoryVisibleCount[axis] / 2 : (mAxisVisMin[axis] + mAxisVisMax[axis]) / 2);
-		float halfLen = (float)(isDoubleCategory ? mCategoryVisibleCount[axis] / 2 : (mAxisVisMax[axis] - mAxisVisMin[axis]) / 2);
-
-		if (mChartType == cChartTypeScatterPlot
-		 || mChartType == cChartTypeWhiskerPlot) {
+		if (mChartType == cChartTypeBars) {
+			calculateMetaBarCoordinates(axis);
+			}
+		else {
 			mMetaBarPosition[axis] = null;
 			if (mAxisIndex[axis] == -1) {
 				for (int i=0; i<mDataPoints; i++)
 					((VisualizationPoint3D)mPoint[i]).coord[axis] = 0.0f;
 				}
-			else if (mTableModel.isDescriptorColumn(mAxisIndex[axis])) {
-				if (mAxisSimilarity[axis] == null)
-					for (int i=0; i<mDataPoints; i++)
-						((VisualizationPoint3D)mPoint[i]).coord[axis] = 0.0f;
-				else
-					for (int i=0; i<mDataPoints; i++)
-						((VisualizationPoint3D)mPoint[i]).coord[axis] = (mAxisSimilarity[axis][mPoint[i].record.getID()] - mid) / halfLen;
-				}
-			else if (isDoubleCategory) {
-				for (int i=0; i<mDataPoints; i++)
-					((VisualizationPoint3D)mPoint[i]).coord[axis]
-						= (0.5f + getCategoryIndex(axis, mPoint[i]) - mid) / halfLen;
-				}
 			else {
+				float mid = (mAxisVisMin[axis] + mAxisVisMax[axis]) / 2;
+				float halfLen = (mAxisVisMax[axis] - mAxisVisMin[axis]) / 2;
 				for (int i=0; i<mDataPoints; i++) {
-					float value = mPoint[i].record.getDouble(mAxisIndex[axis]);
+					VisualizationPoint3D vp = (VisualizationPoint3D)mPoint[i];
+					float value = getAxisValue(vp.record, axis);
 					if (Float.isNaN(value))
 						((VisualizationPoint3D)mPoint[i]).coord[axis] = -1.15f;
 					else
@@ -1251,54 +1245,94 @@ public class JVisualization3D extends JVisualization implements ComponentListene
 					}
 				}
 
-			if (mMarkerJittering > 0.0 && (mMarkerJitteringAxes & (1 << axis)) != 0) {
-				float jittering = 0.4f * mMarkerJittering;
-				for (int i=0; i<mDataPoints; i++)
-					((VisualizationPoint3D)mPoint[i]).coord[axis] += (mRandom.nextDouble() - 0.5) * jittering;
-				}
-			}
-		else if (mChartType == cChartTypeBoxPlot) {	// handle box plots separately because of data point specific if condition
+/*
 			// In box- and whisker-plots the category axis may be based on doubleCategory types.
 			// In this case we need to consider category numbers rather than the doubleValue for positioning.
-			if (mAxisIndex[axis] == -1) {
-				for (int i=0; i<mDataPoints; i++)
-					if (mPoint[i].chartGroupIndex == -1)
+
+	  		boolean isDoubleCategory = (mChartType == cChartTypeBoxPlot || mChartType == cChartTypeWhiskerPlot)
+									&& axis != mChartInfo.barAxis
+									&& mAxisIndex[axis] != cColumnUnassigned
+									&& mTableModel.isColumnTypeDouble(mAxisIndex[axis]);
+
+			float mid = mIsCategoryAxis[axis] ? mCategoryVisibleCount[axis] / 2 : (mAxisVisMin[axis] + mAxisVisMax[axis]) / 2;
+			float halfLen = mIsCategoryAxis[axis] ? mCategoryVisibleCount[axis] / 2 : (mAxisVisMax[axis] - mAxisVisMin[axis]) / 2;
+
+			if (mChartType == cChartTypeScatterPlot
+			 || mChartType == cChartTypeWhiskerPlot) {
+				mMetaBarPosition[axis] = null;
+				if (mAxisIndex[axis] == -1) {
+					for (int i=0; i<mDataPoints; i++)
 						((VisualizationPoint3D)mPoint[i]).coord[axis] = 0.0f;
+					}
+				else if (mTableModel.isDescriptorColumn(mAxisIndex[axis])) {
+					if (mAxisSimilarity[axis] == null)
+						for (int i=0; i<mDataPoints; i++)
+							((VisualizationPoint3D)mPoint[i]).coord[axis] = 0.0f;
+					else
+						for (int i=0; i<mDataPoints; i++)
+							((VisualizationPoint3D)mPoint[i]).coord[axis] = (mAxisSimilarity[axis][mPoint[i].record.getID()] - mid) / halfLen;
+					}
+				else if (mIsCategoryAxis[axis]) {
+					for (int i=0; i<mDataPoints; i++)
+						((VisualizationPoint3D)mPoint[i]).coord[axis]
+							= (0.5f + getCategoryIndex(axis, mPoint[i]) - mid) / halfLen;
+					}
+				else {
+					for (int i=0; i<mDataPoints; i++) {
+						float value = mPoint[i].record.getDouble(mAxisIndex[axis]);
+						if (Float.isNaN(value))
+							((VisualizationPoint3D)mPoint[i]).coord[axis] = -1.15f;
+						else
+							((VisualizationPoint3D)mPoint[i]).coord[axis] = (value - mid) / halfLen;
+						}
+					}
+
+				if (mMarkerJittering > 0.0 && (mMarkerJitteringAxes & (1 << axis)) != 0) {
+					float jittering = 0.4f * mMarkerJittering;
+					for (int i=0; i<mDataPoints; i++)
+						((VisualizationPoint3D)mPoint[i]).coord[axis] += (mRandom.nextDouble() - 0.5) * jittering;
+					}
 				}
-			else if (mTableModel.isDescriptorColumn(mAxisIndex[axis])) {
-				if (mAxisSimilarity[axis] == null) {
+			else if (mChartType == cChartTypeBoxPlot) {	// handle box plots separately because of data point specific if condition
+				// In box- and whisker-plots the category axis may be based on doubleCategory types.
+				// In this case we need to consider category numbers rather than the doubleValue for positioning.
+				if (mAxisIndex[axis] == -1) {
 					for (int i=0; i<mDataPoints; i++)
 						if (mPoint[i].chartGroupIndex == -1)
 							((VisualizationPoint3D)mPoint[i]).coord[axis] = 0.0f;
 					}
+				else if (mTableModel.isDescriptorColumn(mAxisIndex[axis])) {
+					if (mAxisSimilarity[axis] == null) {
+						for (int i=0; i<mDataPoints; i++)
+							if (mPoint[i].chartGroupIndex == -1)
+								((VisualizationPoint3D)mPoint[i]).coord[axis] = 0.0f;
+						}
+					else {
+						for (int i=0; i<mDataPoints; i++)
+							if (mPoint[i].chartGroupIndex == -1)
+								((VisualizationPoint3D)mPoint[i]).coord[axis] = (mAxisSimilarity[axis][mPoint[i].record.getID()] - mid) / halfLen;
+						}
+					}
+				else if (isDoubleCategory) {
+					for (int i=0; i<mDataPoints; i++)
+						if (mPoint[i].chartGroupIndex == -1)
+							((VisualizationPoint3D)mPoint[i]).coord[axis]
+								= (0.5f + getCategoryIndex(axis, mPoint[i]) - mid) / halfLen;
+					}
 				else {
 					for (int i=0; i<mDataPoints; i++)
 						if (mPoint[i].chartGroupIndex == -1)
-							((VisualizationPoint3D)mPoint[i]).coord[axis] = (mAxisSimilarity[axis][mPoint[i].record.getID()] - mid) / halfLen;
+							((VisualizationPoint3D)mPoint[i]).coord[axis]
+								= (mPoint[i].record.getDouble(mAxisIndex[axis]) - mid) / halfLen;
 					}
-				}
-			else if (isDoubleCategory) {
-				for (int i=0; i<mDataPoints; i++)
-					if (mPoint[i].chartGroupIndex == -1)
-						((VisualizationPoint3D)mPoint[i]).coord[axis]
-							= (0.5f + getCategoryIndex(axis, mPoint[i]) - mid) / halfLen;
-				}
-			else {
-				for (int i=0; i<mDataPoints; i++)
-					if (mPoint[i].chartGroupIndex == -1)
-						((VisualizationPoint3D)mPoint[i]).coord[axis]
-							= (mPoint[i].record.getDouble(mAxisIndex[axis]) - mid) / halfLen;
-				}
 
-			if (mMarkerJittering > 0.0) {
-				float jittering = 0.4f * mMarkerJittering;
-				for (int i=0; i<mDataPoints; i++)
-					if (mPoint[i].chartGroupIndex == -1)
-						((VisualizationPoint3D)mPoint[i]).coord[axis] += (mRandom.nextDouble() - 0.5) * jittering;
-				}
-			}
-		else if (mChartType == cChartTypeBars) {
-			calculateMetaBarCoordinates(axis);
+				if (mMarkerJittering > 0.0) {
+					float jittering = 0.4f * mMarkerJittering;
+					for (int i=0; i<mDataPoints; i++)
+						if (mPoint[i].chartGroupIndex == -1)
+							((VisualizationPoint3D)mPoint[i]).coord[axis] += (mRandom.nextDouble() - 0.5) * jittering;
+					}
+				}*/
 			}
 
 		mMetaCoordsValid[axis] = true;
@@ -1310,8 +1344,8 @@ public class JVisualization3D extends JVisualization implements ComponentListene
 			return;
 
 		float axisSize = mChartInfo.axisMax - mChartInfo.axisMin;
-		float cellSize = 2.0f / (float)mCategoryVisibleCount[axis];
-		int catCount = mCategoryVisibleCount[0]*mCategoryVisibleCount[1]*mCategoryVisibleCount[2];
+		float cellSize = 2.0f / (float)getCategoryVisCount(axis);
+		int catCount = getCategoryVisCount(0)* getCategoryVisCount(1)* getCategoryVisCount(2);
 
 		if (mChartInfo.barAxis == axis) {
 			int focusFlagNo = getFocusFlag();
@@ -1320,43 +1354,76 @@ public class JVisualization3D extends JVisualization implements ComponentListene
 	
 			float barBaseOffset = (mChartInfo.barBase - mChartInfo.axisMin) * cellSize / axisSize;
 	
-			mChartInfo.innerDistance = new float[1][catCount];
+			if (mChartInfo.useProportionalFractions())
+				mChartInfo.absValueFactor = new float[1][catCount];
+			else
+				mChartInfo.innerDistance = new float[1][catCount];
+
 			mMetaBarColorEdge = new float[catCount][colorCount+1];
 			mMetaBarPosition[axis] = null;
 
-			for (int i=0; i<mCategoryVisibleCount[0]; i++) {
-				for (int j=0; j<mCategoryVisibleCount[1]; j++) {
-					for (int k=0; k<mCategoryVisibleCount[2]; k++) {
-						int cat = i+j*mCategoryVisibleCount[0]+k*mCategoryVisibleCount[0]*mCategoryVisibleCount[1];
-						mChartInfo.innerDistance[0][cat] = cellSize * Math.abs(mChartInfo.barValue[0][cat] - mChartInfo.barBase)
-												   / (axisSize * (float)mChartInfo.pointsInCategory[0][cat]);
-	
+			for (int i = 0; i<getCategoryVisCount(0); i++) {
+				for (int j = 0; j<getCategoryVisCount(1); j++) {
+					for (int k = 0; k<getCategoryVisCount(2); k++) {
+						int cat = i+j* getCategoryVisCount(0)+k* getCategoryVisCount(0)* getCategoryVisCount(1);
+						float barHeight = cellSize * Math.abs(mChartInfo.barValue[0][cat] - mChartInfo.barBase) / axisSize;
+						if (mChartInfo.useProportionalFractions())
+							mChartInfo.absValueFactor[0][cat] = barHeight / mChartInfo.absValueSum[0][cat];
+						else
+							mChartInfo.innerDistance[0][cat] = barHeight / (float)mChartInfo.pointsInCategory[0][cat];
+
 						float barOffset = (mChartInfo.barValue[0][cat] >= 0.0f) ? 0.0f
 								: cellSize * (mChartInfo.barValue[0][cat] - mChartInfo.barBase) / axisSize;
 						int ii = (axis==0) ? i : (axis==1) ? j : k;
 						mMetaBarColorEdge[cat][0] = -1.0f + barBaseOffset + barOffset + ii * cellSize;
-						for (int l=0; l<colorCount; l++)
-							mMetaBarColorEdge[cat][l+1] = mMetaBarColorEdge[cat][l] + mChartInfo.innerDistance[0][cat]
-												   * (float)mChartInfo.pointsInColorCategory[0][cat][l];
+						if (mChartInfo.useProportionalFractions()) {
+							for (int l=0; l<colorCount; l++)
+								mMetaBarColorEdge[cat][l+1] = mMetaBarColorEdge[cat][l]
+										+ mChartInfo.absColorValueSum[0][cat][l] * mChartInfo.absValueFactor[0][cat];
+							}
+						else {
+							for (int l=0; l<colorCount; l++)
+								mMetaBarColorEdge[cat][l+1] = mMetaBarColorEdge[cat][l]
+										+ mChartInfo.innerDistance[0][cat] * (float)mChartInfo.pointsInColorCategory[0][cat][l];
+							}
 						}
 					}
 				}
 
 			// calculate meta coords of individual records as basis for screen position
+			float[][] barColorEdge = null;
+			if (mChartInfo.absColorValueSum != null) {
+				barColorEdge = new float[catCount][colorCount];
+				for (int i=0; i<catCount; i++)
+					for (int j=0; j<colorCount; j++)
+						barColorEdge[i][j] = mMetaBarColorEdge[i][j];
+				}
+
+			int colorListLength = mMarkerColor.getColorList().length;
+
 			for (int i=0; i<mDataPoints; i++) {
-				if (isVisibleExcludeNaN(mPoint[i])) {
+				VisualizationPoint vp = mPoint[i];
+				if (isVisibleExcludeNaN(vp)) {
 					int cat = getChartCategoryIndex(mPoint[i]);
-					((VisualizationPoint3D)mPoint[i]).coord[axis] = mMetaBarColorEdge[cat][0]
-																	 + mChartInfo.innerDistance[0][cat]*(0.5f+mPoint[i].chartGroupIndex);
+					if (mChartInfo.useProportionalFractions()) {
+						int colorIndex = getColorIndex(vp, colorListLength, focusFlagNo);
+						float fractionHeight = Math.abs(vp.record.getDouble(mChartColumn)) * mChartInfo.absValueFactor[0][cat];
+						((VisualizationPoint3D)vp).coord[axis] = barColorEdge[cat][colorIndex] + 0.5f * fractionHeight;
+						barColorEdge[cat][colorIndex] += fractionHeight;
+						}
+					else {
+						((VisualizationPoint3D)vp).coord[axis] = mMetaBarColorEdge[cat][0]
+											 + mChartInfo.innerDistance[0][cat]*(0.5f+vp.chartGroupIndex);
+						}
 					}
 				}
 			}
 		else {
 			mMetaBarPosition[axis] = new float[catCount];
-			for (int i=0; i<mCategoryVisibleCount[0]; i++) {
-				for (int j=0; j<mCategoryVisibleCount[1]; j++) {
-					for (int k=0; k<mCategoryVisibleCount[2]; k++) {
-						int cat = i+j*mCategoryVisibleCount[0]+k*mCategoryVisibleCount[0]*mCategoryVisibleCount[1];
+			for (int i = 0; i<getCategoryVisCount(0); i++) {
+				for (int j = 0; j<getCategoryVisCount(1); j++) {
+					for (int k = 0; k<getCategoryVisCount(2); k++) {
+						int cat = i+j* getCategoryVisCount(0)+k* getCategoryVisCount(0)* getCategoryVisCount(1);
 						int ii = (axis==0) ? i : (axis==1) ? j : k;
 						mMetaBarPosition[axis][cat] = -1.0f + ii * cellSize + cellSize/2;
 						}
@@ -1633,6 +1700,8 @@ public class JVisualization3D extends JVisualization implements ComponentListene
 
 	private void drawAxes() {
 		if (mScaleMode != cScaleModeHidden) {
+//			boolean showArrow = (mScaleStyle == cScaleStyleArrows);
+			boolean showArrow = true;
 			for (int i=0; i<3; i++) {
 				int x1 = mScreenCorner[cCornerOfEdge[i][0]].x;
 				int x2 = mScreenCorner[cCornerOfEdge[i][1]].x;
@@ -1640,9 +1709,9 @@ public class JVisualization3D extends JVisualization implements ComponentListene
 				int y2 = mScreenCorner[cCornerOfEdge[i][1]].y;
 				int z1 = mScreenCorner[cCornerOfEdge[i][0]].z;
 				int z2 = mScreenCorner[cCornerOfEdge[i][1]].z;
-				int surplusX = (x2-x1) / 20;
-				int surplusY = (y2-y1) / 20;
-				int surplusZ = (z2-z1) / 20;
+				int surplusX = showArrow ? (x2-x1) / 20 : 0;
+				int surplusY = showArrow ? (y2-y1) / 20 : 0;
+				int surplusZ = showArrow ? (z2-z1) / 20 : 0;
 	
 				String label = null;
 				if (mAxisIndex[i] != -1)
@@ -1654,23 +1723,34 @@ public class JVisualization3D extends JVisualization implements ComponentListene
 	
 				Point3i base = new Point3i(x2+surplusX, y2+surplusY, z2+surplusZ);
 				Point3i tip = new Point3i(x2+2*surplusX, y2+2*surplusY, z2+2*surplusZ);
-	
-				// fillCone changes current COLIX
-				mG3D.setColix(Graphics3D.getColix(0xFF000000 | getContrastGrey(0.8f).getRGB()));
-				mG3D.fillCone(Graphics3D.ENDCAPS_FLAT, (int)(mScreenZoom / 30), base, tip);
+
+				if (showArrow) {
+					// fillCone changes current COLIX
+					mG3D.setColix(Graphics3D.getColix(0xFF000000 | getContrastGrey(0.8f).getRGB()));
+					mG3D.fillCone(Graphics3D.ENDCAPS_FLAT, (int) (mScreenZoom / 30), base, tip);
+					}
 	
 				mG3D.setColix(Graphics3D.getColix(0xFF000000 | getContrastGrey(0.8f).getRGB()));
 				mG3D.drawLine(x1, y1, z1, x2+surplusX, y2+surplusY, z2+surplusZ);
 	
 				if (label != null && label.length() != 0) {
 					applyZoomToFontSize(mScreenZoom * cLocation / mScreenCorner[cCornerOfEdge[i][1]].z);
-	
-					if (x2 < x1)
-						tip.x -= mG3D.getFont3DCurrent().fontMetrics.stringWidth(label);
-					if (y2 > y1)
-						tip.y += mG3D.getFont3DCurrent().fontMetrics.getHeight();
-	
-					mG3D.drawStringNoSlab(label, null, tip.x, tip.y, tip.z);
+
+					if (showArrow) {
+						if (x2 < x1)
+							tip.x -= mG3D.getFont3DCurrent().fontMetrics.stringWidth(label);
+						if (y2 > y1)
+							tip.y += mG3D.getFont3DCurrent().fontMetrics.getHeight();
+
+						mG3D.drawStringNoSlab(label, null, tip.x, tip.y, tip.z);
+						}
+					else {
+						// not yet supported
+						// If we have no arrow tips, then labels should not be positioned at the arrow positions anymore.
+						// They should go to the middle of the axes, translated a little away from the cube center
+						// and rotated in space to be parallel to the axis.
+						// Graphics3D does not support font rotation in space. Thus, a satisfactory solution would be difficult.
+						}
 					}
 	
 				}
@@ -2057,6 +2137,11 @@ public class JVisualization3D extends JVisualization implements ComponentListene
 
 		boolean showAnyLabels = showAnyLabels();
 		boolean isTreeView = isTreeViewGraph();
+		boolean isDarkBackground = (ColorHelper.perceivedBrightness(getGraphFaceColor()) < 0.5);
+
+		TreeMap<byte[],VisualizationPoint> oneLabelPerCategoryMap = showAnyLabels ? buildOnePerCategoryMap() : null;
+
+		boolean isFilter = mUseAsFilterFlagNo != -1 && !mTableModel.isRowFlagSuspended(mUseAsFilterFlagNo);
 
 		// If two markers with equal coordinates are drawn in a Graphics3D
 		// then the first to be drawn is the one finally visible!
@@ -2065,9 +2150,12 @@ public class JVisualization3D extends JVisualization implements ComponentListene
 			boolean drawLabels = false;
 			if (isVisible(mPoint[i])) {
 				boolean outOfFocus = focusFlagNo != -1 && !mPoint[i].record.isFlagSet(focusFlagNo);
-				drawLabels = showAnyLabels && (labelFlagNo == cLabelsOnAllRows || mPoint[i].record.isFlagSet(labelFlagNo));
-
 				VisualizationPoint3D vp = (VisualizationPoint3D)mPoint[i];
+
+				drawLabels = showAnyLabels
+						&& (labelFlagNo == cLabelsOnAllRows || mPoint[i].record.isFlagSet(labelFlagNo))
+					    && (oneLabelPerCategoryMap==null || vp==oneLabelPerCategoryMap.get(vp.record.getData(mOnePerCategoryLabelCategoryColumn)));
+
 				mComposedMarker[vp.shape].calculate(vp);
 				boolean drawCenterLabel = mLabelColumn[MarkerLabelDisplayer.cMidCenter] != cColumnUnassigned
 									   && drawLabels
@@ -2079,9 +2167,8 @@ public class JVisualization3D extends JVisualization implements ComponentListene
 
 				if (drawMarker || drawLabels) {
 					Color color = (vp == mActivePoint) ? Color.red
-								:  (mUseAsFilterFlagNo != -1 && !vp.record.isFlagSet(mUseAsFilterFlagNo)) ? cUseAsFilterColor
-								: (vp.record.isSelected()
-								   && mFocusList != cFocusOnSelection) ?
+								: (isFilter && !vp.record.isFlagSet(mUseAsFilterFlagNo)) ? cUseAsFilterColor
+								: (vp.record.isSelected() && mFocusList != FocusableView.cFocusOnSelection) ?
 										   VisualizationColor.cSelectedColor : mMarkerColor.getColorList()[vp.colorIndex];
 
 					if (vp == mHighlightedPoint && (clipRect != null || mIsAdjusting))
@@ -2095,7 +2182,9 @@ public class JVisualization3D extends JVisualization implements ComponentListene
 						mComposedMarker[vp.shape].draw(colix);
 
 					if (drawLabels) {
-						mComposedMarker[vp.shape].drawLabels(vp, color, isTreeView, clipRect);
+						Color lc = mIsMarkerLabelsBlackAndWhite ? getContrastGrey(1f, getGraphFaceColor())
+								: isDarkBackground ? color : color.darker();
+						mComposedMarker[vp.shape].drawLabels(vp, lc, isTreeView, clipRect);
 						}
 					}
 				}
@@ -2184,7 +2273,7 @@ public class JVisualization3D extends JVisualization implements ComponentListene
 
 	private void drawReferenceConnectionLines(Rectangle clipRect, int referencedColumn) {
 		if (mConnectionLineMap == null)
-			mConnectionLineMap = createReferenceMap(mConnectionColumn, referencedColumn);
+			mConnectionLineMap = createReferenceMap(referencedColumn);
 
 		String value = (mConnectionColumn < 0) ?
 				null : mTableModel.getColumnProperty(mConnectionColumn, CompoundTableConstants.cColumnPropertyReferencedColumn);
@@ -2251,8 +2340,8 @@ public class JVisualization3D extends JVisualization implements ComponentListene
 		}
 
 	private void drawConnectionLine(VisualizationPoint p1, VisualizationPoint p2, float intensity, boolean showArrow) {
-		int focusFlagNo = (mFocusList == cFocusNone) ? -1
-						: (mFocusList == cFocusOnSelection) ? CompoundRecord.cFlagSelected
+		int focusFlagNo = (mFocusList == FocusableView.cFocusNone) ? -1
+						: (mFocusList == FocusableView.cFocusOnSelection) ? CompoundRecord.cFlagSelected
 						: mTableModel.getListHandler().getListFlagNo(mFocusList);
 
 		VisualizationPoint3D vp1 = (VisualizationPoint3D)p1;
@@ -2337,7 +2426,7 @@ public class JVisualization3D extends JVisualization implements ComponentListene
 		if (!mChartInfo.barOrPieDataAvailable)
 			return;
 
-		int catCount = mCategoryVisibleCount[0]*mCategoryVisibleCount[1]*mCategoryVisibleCount[2];
+		int catCount = getCategoryVisCount(0)* getCategoryVisCount(1)* getCategoryVisCount(2);
 		int focusFlagNo = getFocusFlag();
 		int basicColorCount = mMarkerColor.getColorList().length + 2;
 		int colorCount = basicColorCount * ((focusFlagNo == -1) ? 1 : 2);
@@ -2376,8 +2465,17 @@ public class JVisualization3D extends JVisualization implements ComponentListene
 		if (cat == -1)
 			return null;
 
+		if (mChartInfo.innerDistance == null && mChartInfo.absValueFactor == null)
+			return null;
+
 		BarFraction fraction = new BarFraction(mChartInfo.barAxis, mChartInfo.barWidth, true);
-		fraction.calculate(mChartInfo.innerDistance[0][cat], vp.coord[0], vp.coord[1], vp.coord[2]);
+		if (mChartInfo.useProportionalFractions()) {
+			float height = Math.abs(vp.record.getDouble(mChartColumn)) * mChartInfo.absValueFactor[0][cat];
+			fraction.calculate(height, vp.coord[0], vp.coord[1], vp.coord[2]);
+			}
+		else {
+			fraction.calculate(mChartInfo.innerDistance[0][cat], vp.coord[0], vp.coord[1], vp.coord[2]);
+			}
 		return fraction;
 		}
 
@@ -2438,8 +2536,8 @@ public class JVisualization3D extends JVisualization implements ComponentListene
 
 		void calculate(VisualizationPoint3D vp) {
 			float markerSize = getMarkerSize(vp);
-			vp.width = (int)markerSize;
-			vp.height = (int)markerSize;
+			vp.widthOrAngle1 = (int)markerSize;
+			vp.heightOrAngle2 = (int)markerSize;
 			this.size = mContentScaling*markerSize;
 			float f = this.size / mScreenZoom;
 			for (int i=0; i<point.length; i++) {
@@ -2455,7 +2553,7 @@ public class JVisualization3D extends JVisualization implements ComponentListene
 			   && (!mLabelsInTreeViewOnly || isTreeView)) {
 				int stereoOffset = (mEyeOffset > 0) ? vp.stereoOffset : -vp.stereoOffset;
 				int column = mLabelColumn[MarkerLabelDisplayer.cMidCenter];
-				boolean isMolecule = CompoundTableModel.cColumnTypeIDCode.equals(mTableModel.getColumnSpecialType(column));
+				boolean isMolecule = mTableModel.isColumnTypeStructure(column);
 				bounds.x = Math.round(mContentScaling*vp.screenX)+stereoOffset;
 				bounds.y = Math.round(mContentScaling*vp.screenY);
 
@@ -2599,20 +2697,20 @@ public class JVisualization3D extends JVisualization implements ComponentListene
 		private void drawLabel(VisualizationPoint3D vp, int position, Color color, boolean isTreeView, Rectangle clipRect) {
 			int stereoOffset = (mEyeOffset > 0) ? vp.stereoOffset : -vp.stereoOffset;
 			int column = mLabelColumn[position];
-			boolean isMolecule = CompoundTableModel.cColumnTypeIDCode.equals(mTableModel.getColumnSpecialType(column));
+			boolean isMolecule = mTableModel.isColumnTypeStructure(column);
 			int x = Math.round(mContentScaling*vp.screenX)+stereoOffset;
 			int y = Math.round(mContentScaling*vp.screenY);
 			int z = Math.round(mContentScaling*vp.screenZ);
-			int w = Math.round(mContentScaling*vp.width);
-			int h = Math.round(mContentScaling*vp.height);
+			int w = Math.round(mContentScaling*vp.widthOrAngle1);
+			int h = Math.round(mContentScaling*vp.heightOrAngle2);
 			String label = null;
 			Depictor3D depictor = null;
 			Rectangle2D.Double molRect = null;
 
 			// in case we have an empty label replacing the marker
 			if (position == MarkerLabelDisplayer.cMidCenter) {
-				vp.width = 0;
-				vp.height = 0;
+				vp.widthOrAngle1 = 0;
+				vp.heightOrAngle2 = 0;
 				}
 
 			if (isMolecule) {
@@ -2638,10 +2736,10 @@ public class JVisualization3D extends JVisualization implements ComponentListene
 				h = mG3D.getFont3DCurrent().fontMetrics.getHeight();
 				}
 
-			float vpWidth = mAAFactor*vp.width;
-			float vpHeight = mAAFactor*vp.height;
+			float vpWidth = mAAFactor*vp.widthOrAngle1;
+			float vpHeight = mAAFactor*vp.heightOrAngle2;
 
-			VisualizationLabelPosition labelPosition = vp.getOrCreateLabelPosition(column);
+			LabelPosition3D labelPosition = (LabelPosition3D)vp.getOrCreateLabelPosition(column, true);
 			if (labelPosition.isCustom()) {
 				float dataX = labelPosition.getX();
 				float dataY = labelPosition.getY();
@@ -2676,8 +2774,8 @@ public class JVisualization3D extends JVisualization implements ComponentListene
 						y -= h / 2;
 						break;
 					case MarkerLabelDisplayer.cMidCenter:
-						vp.width = w / mAAFactor;
-						vp.height = h / mAAFactor;
+						vp.widthOrAngle1 = w / mAAFactor;
+						vp.heightOrAngle2 = h / mAAFactor;
 						x -= w / 2;
 						y -= h / 2;
 						break;
@@ -2711,20 +2809,22 @@ public class JVisualization3D extends JVisualization implements ComponentListene
 //					else
 //						mG3D.setColix(Graphics3D.getColixTranslucent(colix, true, mLabelBackgroundTransparency));
 					mG3D.fillRect(x-border, y-border, z+1, 0, w+2*border, h+2*border);
-					mG3D.setColix(Graphics3D.getColix(color.darker().getRGB()));
+					mG3D.setColix(Graphics3D.getColix(color.getRGB()));
 					mG3D.drawRect(x-border, y-border, z, 0, w+2*border, h+2*border);
 					}
 
-				if (clipRect == null && !mIsHighResolution)
-					labelPosition.setScreenLocation((x - border)/mContentScaling, (y - border)/mContentScaling,
-							(x + w + border)/mContentScaling, (y + h + border)/mContentScaling, z/mContentScaling);
+				if (clipRect == null && !mIsHighResolution) {
+					labelPosition.setScreenLocation((x - border) / mContentScaling, (y - border) / mContentScaling,
+							(x + w + border) / mContentScaling, (y + h + border) / mContentScaling);
+					labelPosition.setScreenZ(z / mContentScaling);
+					}
 
 				// For custom located labels we may need to draw a line from marker to label edge
 				if (labelPosition.isCustom()) {
 					Point connectionPoint = getLabelConnectionPoint(vp.screenX*mContentScaling, vp.screenY*mContentScaling,
 							x - border, y - border, x + w + border, y + h + border);
 					if (connectionPoint != null) {
-						mG3D.setColix(Graphics3D.getColix(color.darker().getRGB()));
+						mG3D.setColix(Graphics3D.getColix(color.getRGB()));
 //						mG3D.drawLine(vp.screenX*mContentScaling, vp.screenY*mContentScaling, vp.screenZ,
 //								connectionPoint.x, connectionPoint.y, z*mContentScaling);
 						int diameter = Math.max(1, Math.round(0.12f*mFontHeight));
@@ -2736,14 +2836,14 @@ public class JVisualization3D extends JVisualization implements ComponentListene
 
 				if (isMolecule) {
 					depictor.applyTransformation(new DepictorTransformation(1.0f, x - molRect.x, y - molRect.y));
-					depictor.setOverruleColor(color.darker(), getViewBackground());
+					depictor.setOverruleColor(color, getViewBackground());
 					depictor.setZ(z);
 					depictor.paint(mG3D);
 
 					mG3D.setFont(mG3D.getFont3D((float)mAAFactor*mCurrentFontSize3D));	// restore font size
 					}
 				else {
-					mG3D.setColix(Graphics3D.getColix(color.darker().getRGB()));
+					mG3D.setColix(Graphics3D.getColix(color.getRGB()));
 					mG3D.drawString(label, null, x, y+mG3D.getFont3DCurrent().fontMetrics.getAscent(), z, 0);
 					}
 				}

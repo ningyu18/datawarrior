@@ -24,7 +24,7 @@ public class JSVGFormObject extends ReferenceFormObject {
 		mComponent = new JSVGDetailView(null, null, null);
 		}
 
-	public int getRelativeHeight() {
+	public int getDefaultRelativeHeight() {
 		return 4;
 		}
 	}

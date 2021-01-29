@@ -43,6 +43,11 @@ public class DETaskRemoveSelectionFromList extends DETaskAbstractListTask {
 		}
 
 	@Override
+	public String getHelpURL() {
+		return "/html/help/lists.html#Selection";
+		}
+
+	@Override
 	public void runTask(Properties configuration) {
 		getTableModel().getListHandler().removeSelected(getListIndex(configuration));
 		}

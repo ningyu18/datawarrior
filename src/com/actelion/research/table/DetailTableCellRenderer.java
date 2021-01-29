@@ -66,7 +66,7 @@ public class DetailTableCellRenderer extends DefaultTableCellRenderer {
                 mMultiLineRenderer.setAlternateRowBackground(true);
                 }
 
-            return colorize((JTextArea)mMultiLineRenderer.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, col), column);
+            return colorize((JComponent)mMultiLineRenderer.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, col), column);
     		}
         }
 

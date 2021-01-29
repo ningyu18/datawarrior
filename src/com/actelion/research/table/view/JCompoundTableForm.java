@@ -18,6 +18,8 @@
 
 package com.actelion.research.table.view;
 
+import com.actelion.research.chem.IDCodeParserWithoutCoordinateInvention;
+import com.actelion.research.chem.io.CompoundTableConstants;
 import com.actelion.research.gui.form.*;
 import com.actelion.research.table.*;
 import com.actelion.research.table.model.*;
@@ -100,61 +102,105 @@ public class JCompoundTableForm extends JFormView implements CompoundTableColorH
 			if (formObject.getComponent() instanceof JResultDetailView) {
 				((JResultDetailView)formObject.getComponent()).setResultDetailPopupItemProvider(mTableModel.getDetailHandler());
 				}
+
+			if (formObject instanceof JStructure3DFormObject) {
+				int column = mTableModel.findColumn(formObject.getKey());
+				if (column != -1) {
+					String idcode = mTableModel.getColumnProperty(column, CompoundTableConstants.cColumnPropertySuperposeMolecule);
+					if (idcode != null)
+						((JStructure3DFormObject)formObject).setReferenceMolecule(new IDCodeParserWithoutCoordinateInvention().getCompactMolecule(idcode));
+					}
+				}
 			}
 
 		return formObject;
 		}
 
 	public void createDefaultLayout() {
-		for (int column=0; column<mTableModel.getTotalColumnCount(); column++) {
-			String imagePath = mTableModel.getColumnProperty(column, CompoundTableModel.cColumnPropertyImagePath);
-            String specialType = mTableModel.getColumnSpecialType(column);
-            if (specialType != null) {
-                if (specialType.equals(CompoundTableModel.cColumnTypeIDCode))
-                    addFormObject(mTableModel.getColumnTitleNoAlias(column), FormObjectFactory.TYPE_STRUCTURE);
-                else if (specialType.equals(CompoundTableModel.cColumnTypeRXNCode))
-                    addFormObject(mTableModel.getColumnTitleNoAlias(column), FormObjectFactory.TYPE_REACTION);
-                else if (specialType.equals(CompoundTableModel.cColumnType3DCoordinates))
-                    addFormObject(mTableModel.getColumnTitleNoAlias(column), JStructure3DFormObject.FORM_OBJECT_TYPE);
-                }
-			else if (imagePath != null) {
-				AbstractFormObject formObject = addFormObject(mTableModel.getColumnTitleNoAlias(column),
-															  JImageDetailView.TYPE_IMAGE_FROM_PATH);
-				JImageDetailView imageView = (JImageDetailView)formObject.getComponent();
-				imageView.setImagePath(imagePath);
-				imageView.setUseThumbNail(mTableModel.getColumnProperty(column,
-											CompoundTableModel.cColumnPropertyUseThumbNail) != null);
-				}
-			else {	// default form object is single- or multi-line text
-				addFormObject(mTableModel.getColumnTitleNoAlias(column), mTableModel.isMultiLineColumn(column) ?
-								FormObjectFactory.TYPE_MULTI_LINE_TEXT : FormObjectFactory.TYPE_SINGLE_LINE_TEXT);
-				}
-
-            int columnLookupCount = mTableModel.getColumnLookupCount(column);
-			for (int i=0; i<columnLookupCount; i++) {
-				String lookupURL = mTableModel.getColumnProperty(column, CompoundTableModel.cColumnPropertyLookupDetailURL);
-				if (lookupURL != null)
-					addFormObject(mTableModel.getColumnTitleNoAlias(column)+CompoundTableFormModel.KEY_LOOKUP_SEPARATOR+i,
-							JHTMLDetailView.TYPE_TEXT_HTML);
-				}
-
-			int columnDetailCount = mTableModel.getColumnDetailCount(column);
-			for (int i=0; i<columnDetailCount; i++)
-				addFormObject(mTableModel.getColumnTitleNoAlias(column)+CompoundTableFormModel.KEY_DETAIL_SEPARATOR+i,
-							  mTableModel.getColumnDetailType(column, i));
-			}
-
-		super.createDefaultLayout();
-		updateColors();
+		int columnCount = Math.max(1, Math.round((float)Math.sqrt((float)mTableModel.getTotalColumnCount()/3f)));
+		createLayout(null, true, true, columnCount);
 		}
 
 	/**
-     * This is to set the currently shown/edited record independent from the
-     * CompoundTableEvent based mechanism. It does not change the CompoundTable's
-     * current record. The record set by this method will be superset with the
-     * next CompoundTableEvent of types cCurrentRecordChange, cNewTable, etc.
-     * @param record
-     */
+	 * @param includeTableColumn
+	 * @param includeDetails
+	 * @param includeLookups
+	 * @param formColumnCount -1 is automatic
+	 */
+	public void createLayout(boolean[] includeTableColumn, boolean includeDetails, boolean includeLookups, int formColumnCount) {
+		for (int column=0; column<mTableModel.getTotalColumnCount(); column++) {
+			if (includeTableColumn == null || includeTableColumn[column]) {
+				String imagePath = mTableModel.getColumnProperty(column, CompoundTableModel.cColumnPropertyImagePath);
+				String specialType = mTableModel.getColumnSpecialType(column);
+				if (specialType != null) {
+					if (specialType.equals(CompoundTableModel.cColumnTypeIDCode))
+						addFormObject(mTableModel.getColumnTitleNoAlias(column), FormObjectFactory.TYPE_STRUCTURE);
+					else if (specialType.equals(CompoundTableModel.cColumnTypeRXNCode))
+						addFormObject(mTableModel.getColumnTitleNoAlias(column), FormObjectFactory.TYPE_REACTION);
+					else if (specialType.equals(CompoundTableModel.cColumnType3DCoordinates))
+						addFormObject(mTableModel.getColumnTitleNoAlias(column), JStructure3DFormObject.FORM_OBJECT_TYPE);
+					}
+				else if (imagePath != null) {
+					AbstractFormObject formObject = addFormObject(mTableModel.getColumnTitleNoAlias(column),
+							JImageDetailView.TYPE_IMAGE_FROM_PATH);
+					JImageDetailView imageView = (JImageDetailView)formObject.getComponent();
+					imageView.setImagePath(imagePath);
+					imageView.setUseThumbNail(mTableModel.getColumnProperty(column,
+							CompoundTableModel.cColumnPropertyUseThumbNail) != null);
+					}
+				else {	// default form object is single- or multi-line text
+					int height = Math.max(suggestTextFormObjectHeight(column, formColumnCount),
+							mTableModel.isMultiLineColumn(column) ?
+							JTextFormObject.MULTI_LINE_HEIGHT : JTextFormObject.SINGLE_LINE_HEIGHT);
+					AbstractFormObject fo = addFormObject(mTableModel.getColumnTitleNoAlias(column), mTableModel.isMultiLineColumn(column) ?
+							FormObjectFactory.TYPE_MULTI_LINE_TEXT : FormObjectFactory.TYPE_SINGLE_LINE_TEXT);
+					fo.setRelativeHeight(height);
+					}
+
+				if (includeLookups) {
+					int columnLookupCount = mTableModel.getColumnLookupCount(column);
+					for (int i=0; i<columnLookupCount; i++) {
+						String lookupURL = mTableModel.getColumnProperty(column, CompoundTableModel.cColumnPropertyLookupDetailURL);
+						if (lookupURL != null)
+							addFormObject(mTableModel.getColumnTitleNoAlias(column)+CompoundTableFormModel.KEY_LOOKUP_SEPARATOR+i,
+									JHTMLDetailView.TYPE_TEXT_HTML);
+						}
+					}
+
+				if (includeDetails) {
+					int columnDetailCount = mTableModel.getColumnDetailCount(column);
+					for (int i=0; i<columnDetailCount; i++)
+						addFormObject(mTableModel.getColumnTitleNoAlias(column)+CompoundTableFormModel.KEY_DETAIL_SEPARATOR+i,
+								mTableModel.getColumnDetailType(column, i));
+					}
+				}
+			}
+
+		super.createDefaultLayout(formColumnCount);
+		updateColors();
+		}
+
+	private int suggestTextFormObjectHeight(int column, int formColumnCount) {
+		int avgLength = 0;
+		int count = 0;
+		for (int row=0; row<mTableModel.getTotalRowCount(); row++) {
+			avgLength += mTableModel.getTotalValueAt(row, column).length();
+			count++;
+			}
+		if (count != 0)
+			avgLength /= count;
+
+		int charsPerLine = formColumnCount == -1 ? 24 : 60 / formColumnCount;
+		return Math.min(10, 1 + avgLength / charsPerLine);
+		}
+
+		/**
+		 * This is to set the currently shown/edited record independent from the
+		 * CompoundTableEvent based mechanism. It does not change the CompoundTable's
+		 * current record. The record set by this method will be superset with the
+		 * next CompoundTableEvent of types cCurrentRecordChange, cNewTable, etc.
+		 * @param record
+		 */
 	public void setCurrentRecord(CompoundRecord record) {
         if (record != ((CompoundTableFormModel)getModel()).getCompoundRecord()) {
             ((CompoundTableFormModel)getModel()).setCompoundRecord(record);

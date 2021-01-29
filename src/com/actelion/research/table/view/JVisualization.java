@@ -22,6 +22,7 @@ import com.actelion.research.chem.StereoMolecule;
 import com.actelion.research.chem.descriptor.DescriptorConstants;
 import com.actelion.research.chem.io.CompoundTableConstants;
 import com.actelion.research.gui.JProgressDialog;
+import com.actelion.research.gui.hidpi.HiDPIHelper;
 import com.actelion.research.table.DetailPopupProvider;
 import com.actelion.research.table.MarkerLabelDisplayer;
 import com.actelion.research.table.model.*;
@@ -52,8 +53,10 @@ import java.text.DateFormat;
 import java.text.DecimalFormat;
 import java.util.*;
 
+import static com.actelion.research.chem.io.CompoundTableConstants.*;
+
 public abstract class JVisualization extends JComponent
-		implements CompoundTableListener,FocusableView,HighlightListener,MarkerLabelDisplayer,ListSelectionListener,MouseListener,
+		implements CompoundTableListener,HighlightListener,MarkerLabelDisplayer,ListSelectionListener,MouseListener,
 			MouseMotionListener,Printable,CompoundTableListListener,VisualizationColorListener {
 	private static final long serialVersionUID = 0x20100610;
 
@@ -93,6 +96,10 @@ public abstract class JVisualization extends JComponent
 	public static final int cScaleModeHideY = 2;
 	public static final int cScaleModeHideX = 3;
 
+	public static final String[] SCALE_STYLE_CODE = { "arrows", "frame" };
+	public static final int cScaleStyleArrows = 0;
+	public static final int cScaleStyleFrame = 1;
+
 	public static final String[] GRID_MODE_CODE = { "false", "true", "vertical", "horizontal" };
 	public static final int cGridModeShown = 0;
 	public static final int cGridModeHidden = 1;
@@ -100,19 +107,28 @@ public abstract class JVisualization extends JComponent
 	public static final int cGridModeShowHorizontal = 3;
 
 	public static final int cTreeViewModeNone = 0;
-	public static final int cTreeViewModeHTree = 1;
-	public static final int cTreeViewModeVTree = 2;
-	public static final int cTreeViewModeRadial = 3;
+	public static final int cTreeViewModeTopRoot = 1;
+	public static final int cTreeViewModeBottomRoot = 2;
+	public static final int cTreeViewModeLeftRoot = 3;
+	public static final int cTreeViewModeRightRoot = 4;
+	public static final int cTreeViewModeRadial = 5;
 
-	public static final String[] TREE_VIEW_MODE_NAME = { "<none>", "Horizontal Tree", "Vertical Tree", "Radial Graph" };
-	public static final String[] TREE_VIEW_MODE_CODE = { "none", "hTree", "vTree", "radial" };
+	public static final String[] TREE_VIEW_MODE_NAME = { "<none>", "Layered Graph with root at top", "Layered Graph with root at bottom", "Layered Graph with root at left side", "Layered Graph with root at right side", "Radial Graph with root in center" };
+	public static final String[] TREE_VIEW_MODE_CODE = { "none", "hTree", "hTree2", "vTree", "vTree2", "radial" };
 
 	public static final int cMaxChartCategoryCount = 256;			// this is for one axis
 	public static final int cMaxTotalChartCategoryCount = 32768;	// this is the product of all axis
-	public static final float cBarSpacingFactor = 1.08f;
+	public static final float cAnchoredBarSpacing = 0.08f;  // for bars that touch one end of bar area this spacing is added to the other end
+	public static final float cCenteredBarSpacing = 0.05f;  // for centered bars we add this spacing on both ends of bar area
+	private static final float cLogBarMinSizeFactor = 0.10f;    // bars on logarithic data have this as base height
 
 	public static final int cMaxCaseSeparationCategoryCount = 128;	// this is for one axis
 	public static final int cMaxSplitViewCount = 10000;
+
+	private static final float MAX_SCATTERPLOT_MARGIN = 0.05f;
+
+	private static final float MARKER_ZOOM_ADAPTION_FACTOR = 0.75f;   // value < 1f to keep marker zoom adaption sub-proportional
+	private static final float LABEL_ZOOM_ADAPTION_FACTOR = 0.50f;    // label zoom adaption is smaller than marker zoom adaption
 
 	protected static final String[] CHART_MODE_AXIS_TEXT = CHART_MODE_CODE;
 
@@ -141,63 +157,67 @@ public abstract class JVisualization extends JComponent
 
 	private static final byte EXCLUSION_FLAG_ZOOM_0 = 0x01;
 	private static final byte EXCLUSION_FLAG_NAN_0 = 0x08;
-	private static final byte EXCLUSION_FLAGS_NAN = (byte)(7 * EXCLUSION_FLAG_NAN_0);
 	private static final byte EXCLUSION_FLAG_DETAIL_GRAPH = 0x40;
-	private static final byte EXCLUSION_FLAG_OTHER_NAN = (byte)0x80;	// used if a column's NAN values affect visibility, but column not assigned to axis
+	private static final byte EXCLUSION_FLAG_PROPORTIONAL_FRACTION_NAN = (byte)0x80;	// used if a column's NAN values affect visibility, but column not assigned to axis
+	private static final byte EXCLUSION_FLAGS_NAN = (byte)(7 * EXCLUSION_FLAG_NAN_0) | EXCLUSION_FLAG_PROPORTIONAL_FRACTION_NAN;
 
 	private static final long RIGHT_MOUSE_POPUP_DELAY = 800;
-
-	public static final String CUSTOM_LABEL_POSITION_START_VIEW_TAG = "<view name=\"";
-	public static final String CUSTOM_LABEL_POSITION_END_VIEW_TAG = "</view>";
 
 	protected CompoundTableModel	mTableModel;
 	protected float[]				mAxisVisMin,mAxisVisMax;
 	protected float[][]				mAxisSimilarity;
-	protected int[]					mAxisIndex,mLabelColumn,mSplittingColumn,mCategoryVisibleCount;
+	protected int[]					mAxisIndex,mLabelColumn,mSplittingColumn;
 	protected boolean[]				mIsCategoryAxis;
 	protected CategoryViewInfo		mChartInfo;
 	protected VisualizationPoint[]	mPoint;
 	protected VisualizationPoint 	mHighlightedPoint,mActivePoint;
-	protected VisualizationLabelPosition mHighlightedLabelPosition;
+	protected LabelPosition2D       mHighlightedLabelPosition;
 	protected VisualizationColor	mMarkerColor;
 	protected VisualizationSplitter	mSplitter;
 	protected VisualizationPoint[]  mConnectionLinePoint;
 	protected TreeMap<byte[],VisualizationPoint>mConnectionLineMap;
 	private TreeMap<VisualizationPoint,LineConnection[]> mReverseConnectionMap;
 	protected VisualizationNode[][]	mTreeNodeList;
-	protected ArrayList<JVisualizationLegend> mLegendList;
+	protected ArrayList<VisualizationLegend> mLegendList;
 	protected float					mAbsoluteMarkerSize,mRelativeMarkerSize,mMarkerLabelSize,mMarkerJittering,mRelativeFontSize,
 									mAbsoluteConnectionLineWidth,mRelativeConnectionLineWidth,mCaseSeparationValue,mMarkerSizeZoomAdaption,
-									mSplittingAspectRatio,mLabelBackgroundTransparency;
+									mSplittingAspectRatio,mLabelBackgroundTransparency,mScatterPlotMargin,mZoomState,
+									mMarkerSizeMin,mMarkerSizeMax;
 	protected volatile boolean		mOffImageValid;
-	protected boolean				mCoordinatesValid,mMouseIsDown,mTouchFunctionActive,mLocalAffectsGlobalExclusion,
-									mAddingToSelection,mMarkerSizeInversion,mSuppressLegend,mSuspendGlobalExclusion,
-									mShowNaNValues, mShowMeanAndMedianValues,mBoxplotShowPValue,mBoxplotShowFoldChange,
-									mLabelsInTreeViewOnly,mTreeViewShowAll,mTreeViewIsDynamic,mTreeViewIsInverted,
-									mIsFastRendering,mMarkerSizeProportional,mShowLabelBackground,mIsConnectionLineInverted,
-									mShowEmptyInSplitView,mShowStandardDeviation,mShowConfidenceInterval,mShowValueCount;
+	protected boolean               mCoordinatesValid,mShowNaNValues,mLabelsInTreeViewOnly,
+									mIsMarkerLabelsBlackAndWhite,mIsConnectionLineInverted,mShowLabelBackground,mShowEmptyInSplitView,
+									mIsFastRendering,mOptimizeLabelPositions,mSuppressLegend,mTreeViewShowAll;
+	private boolean                 mShowStandardDeviation,mShowConfidenceInterval,mShowValueCount,mShowBarOrPieSizeValues,
+									mShowMeanAndMedianValues;
 	private boolean[]				mAxisVisRangeIsLogarithmic;
 	protected int					mDataPoints,mMarkerSizeColumn,mMarkerShapeColumn,mFontHeight,mBoxplotMeanMode,mLabelList,
 									mMouseX1,mMouseY1,mMouseX2,mMouseY2,mDimensions,mConnectionColumn,mConnectionOrderColumn,
 									mChartColumn,mChartMode,mChartType,mPreferredChartType,mPValueColumn,mTreeViewRadius,
-									mFocusList,mCaseSeparationColumn,mCaseSeparationCategoryCount,mScaleMode, mUseAsFilterFlagNo,
-									mTreeViewMode,mActiveExclusionFlags,mHVCount,mHVExclusionTag,mVisibleCategoryExclusionTag,
-									mMarkerJitteringAxes,mGridMode;
+									mFocusList,mCaseSeparationColumn,mCaseSeparationCategoryCount,mScaleMode,mScaleStyle,
+									mUseAsFilterFlagNo,mTreeViewMode,mActiveExclusionFlags,mHVCount,mHVExclusionTag,
+									mVisibleCategoryExclusionTag,mMarkerJitteringAxes,mGridMode, mLocalExclusionList,
+									mOnePerCategoryLabelCategoryColumn,mOnePerCategoryLabelValueColumn,mOnePerCategoryLabelMode;
 	protected String				mPValueRefCategory,mWarningMessage;
 	protected Random				mRandom;
 	protected StereoMolecule		mLabelMolecule;
 	protected Color					mLabelBackground;
+	protected int[][]				mVisibleCategoryFromCategory;
 
 	private Thread					mPopupThread;
 	private CompoundListSelectionModel mSelectionModel;
 	private int						mDragMode,mLocalExclusionFlagNo,mPreviousLocalExclusionFlagNo;
 	private float[]					mPruningBarLow,mPruningBarHigh,mSimilarityMarkerSize;
-	private int[][]					mVisibleCategoryFromCategory;
-	private int[]					mCategoryMin,mCategoryMax,mCombinedCategoryCount;
+	private int[]					/*mCategoryMin,mCategoryMax,*/mCombinedCategoryCount,mFullCombinedCategoryCount;
 	private Color					mViewBackground,mTitleBackground;
-	private boolean					mApplyLocalExclusionScheduled,mSplitViewCountExceeded;
+	private volatile boolean		mApplyLocalExclusionScheduled;
+	private boolean				    mMouseIsDown,mMouseIsControlDown,mTouchFunctionActive,mLocalAffectsGlobalExclusion,
+									mAddingToSelection,mMarkerSizeInversion,mSuspendGlobalExclusion,
+									mBoxplotShowPValue,mBoxplotShowFoldChange,mSplitViewCountExceeded,
+									mTreeViewIsDynamic,mTreeViewIsInverted,mMarkerSizeProportional,
+									mIsGloballyHidingRows,mIsIgnoreGlobalExclusion,mIsDynamicScale;
 	private Polygon			 		mLassoRegion;
 	private DetailPopupProvider		mDetailPopupProvider;
+	private ViewSelectionHelper		mViewSelectionHelper;
 
 	public JVisualization(CompoundTableModel tableModel,
 						  CompoundListSelectionModel selectionModel,
@@ -225,7 +245,9 @@ public abstract class JVisualization extends JComponent
 		mLocalExclusionFlagNo = -1;
 		mLocalAffectsGlobalExclusion = true;	// default
 		mSuspendGlobalExclusion = true;
+		mZoomState = 1.0f;
 		mMarkerSizeZoomAdaption = 1.0f;
+		mIsDynamicScale = true; // default
 
 		mMarkerColor = new VisualizationColor(mTableModel, this);
 
@@ -235,9 +257,6 @@ public abstract class JVisualization extends JComponent
 		mChartMode = cChartModeCount;
 		mChartColumn = cColumnUnassigned;
 
-		mCategoryMin = new int[mDimensions];
-		mCategoryMax = new int[mDimensions];
-		mCategoryVisibleCount = new int[mDimensions];
 		mAxisSimilarity = new float[mDimensions][];
 
 		mRandom = new Random();
@@ -261,6 +280,7 @@ public abstract class JVisualization extends JComponent
 		mSplittingAspectRatio = 1.0f;
 		mCaseSeparationColumn = cColumnUnassigned;
 		mCaseSeparationValue = 0.5f;
+		mOnePerCategoryLabelCategoryColumn = cColumnUnassigned;
 		mPValueColumn = cColumnUnassigned;
 		mBoxplotMeanMode = BOXPLOT_DEFAULT_MEAN_MODE;
 		mSplitter = null;
@@ -270,17 +290,17 @@ public abstract class JVisualization extends JComponent
 		mHighlightedPoint = null;
 		mActivePoint = null;
 		mCoordinatesValid = false;
-		mLegendList = new ArrayList<JVisualizationLegend>();
+		mLegendList = new ArrayList<>();
 		mSuppressLegend = false;
 		mScaleMode = cScaleModeShown;
 		mGridMode = cGridModeShown;
-		mFocusList = cFocusNone;
+		mFocusList = FocusableView.cFocusNone;
 		mLabelList = cLabelsOnAllRows;
 		mShowLabelBackground = false;
 		mLabelsInTreeViewOnly = false;
-		for (int i=0; i<MarkerLabelDisplayer.cPositionCode.length; i++) {
+		for (int i=0; i<MarkerLabelDisplayer.cPositionCode.length; i++)
 			mLabelColumn[i] = cColumnUnassigned;
-			}
+
 		mMarkerLabelSize = 1.0f;
 		mLabelBackgroundTransparency = DEFAULT_LABEL_TRANSPARENCY;
 		for (int axis=0; axis<mDimensions; axis++) {
@@ -294,44 +314,28 @@ public abstract class JVisualization extends JComponent
 		mTreeViewRadius = 5;
 		mTreeViewShowAll = true;
 		mUseAsFilterFlagNo = -1;
+		mLocalExclusionList = -1;
+		mScatterPlotMargin = getDefaultScatterplotMargin();
+
 		determineChartType();
 		}
 
-	@Override
-	public CompoundTableModel getTableModel() {
+	protected void setViewSelectionHelper(ViewSelectionHelper l) {
+		mViewSelectionHelper = l;
+		}
+
+	protected CompoundTableModel getTableModel() {
 		return mTableModel;
+		}
+
+	protected boolean copyViewContent() {
+		// don't do anything currently
+		return false;
 		}
 
 	public String getAxisTitle(int column) {
 		return mTableModel.getColumnTitleExtended(column);
 		}
-
-/*	protected int getAxisType(int axis) {
-		if (mAxisIndex[axis] == -1)
-			return AXIS_TYPE_UNASSIGNED;
-		return mIsCategoryAxis[axis] ? AXIS_TYPE_TEXT_CATEGORY : AXIS_TYPE_DOUBLE_VALUE;
-
-		if (mAxisIndex[axis] != -1) {
-			if (!mTableModel.isColumnTypeDouble(mAxisIndex[axis])
-			 && !mTableModel.isDescriptorColumn(mAxisIndex[axis]))
-				return AXIS_TYPE_TEXT_CATEGORY;
-			if ((mChartType == cChartTypeBars
-			  || mChartType == cChartTypePies
-			  || ((mChartType == cChartTypeBoxPlot
-				|| mChartType == cChartTypeWhiskerPlot)
-			   && axis != mChartInfo.barAxis)
-			  || (mChartType == cChartTypeScatterPlot
-			   && mCaseSeparationColumn != cColumnUnassigned))
-			  && mTableModel.isColumnTypeCategory(mAxisIndex[axis]))
-				return AXIS_TYPE_DOUBLE_CATEGORY;
-			else
-				return AXIS_TYPE_DOUBLE_VALUE;
-			}
-		else if (mChartType == cChartTypeBars && mChartInfo.barAxis == axis) {
-			return AXIS_TYPE_DOUBLE_VALUE;
-			}
-		return AXIS_TYPE_UNASSIGNED;
-		}*/
 
 	public void cleanup() {
 		mTableModel.removeHighlightListener(this);
@@ -390,15 +394,17 @@ public abstract class JVisualization extends JComponent
 		}
 
 	protected void drawSelectionOutline(Graphics g) {
-		g.setColor(VisualizationColor.cSelectedColor);
-		if (mDragMode == DRAG_MODE_RECT_SELECT)
-			g.drawRect((mMouseX1<mMouseX2) ? mMouseX1 : mMouseX2,
-					   (mMouseY1<mMouseY2) ? mMouseY1 : mMouseY2,
-					   Math.abs(mMouseX2-mMouseX1),
-					   Math.abs(mMouseY2-mMouseY1));
-
-		if (mDragMode == DRAG_MODE_LASSO_SELECT)
-			g.drawPolygon(mLassoRegion);
+		if (mDragMode == DRAG_MODE_RECT_SELECT
+		 || mDragMode == DRAG_MODE_LASSO_SELECT) {
+			g.setColor(VisualizationColor.cSelectedColor);
+			if (mDragMode == DRAG_MODE_RECT_SELECT)
+				g.drawRect((mMouseX1<mMouseX2) ? mMouseX1 : mMouseX2,
+						   (mMouseY1<mMouseY2) ? mMouseY1 : mMouseY2,
+						   Math.abs(mMouseX2 - mMouseX1),
+						   Math.abs(mMouseY2 - mMouseY1));
+			else
+				g.drawPolygon(mLassoRegion);
+			}
 		}
 
 	protected abstract VisualizationPoint createVisualizationPoint(CompoundRecord record);
@@ -407,7 +413,7 @@ public abstract class JVisualization extends JComponent
 	public abstract int print(Graphics g, PageFormat f, int pageIndex);
 	public abstract void paintHighResolution(Graphics2D g, Rectangle bounds, float fontScaling, boolean transparentBG, boolean isPrinting);
 
-	// methods needed by JVisualizationLegend
+	// methods needed by VisualizationLegend
 	protected abstract int getStringWidth(String s);
 	protected abstract void setFontHeight(int h);
 	protected abstract void setColor(Color c);
@@ -512,20 +518,26 @@ public abstract class JVisualization extends JComponent
 		if (isCaseSeparationDone()) {
 			float v1 = p1.record.getDouble(mCaseSeparationColumn);
 			float v2 = p2.record.getDouble(mCaseSeparationColumn);
-			if (v1 != v2)
+			if (Float.isNaN(v1) ^ Float.isNaN(v2))
+				return Float.isNaN(v2) ? -1 : 1;
+			if (!Float.isNaN(v1) && !Float.isNaN(v2) && v1 != v2)
 				return (v1 < v2) ? -1 : 1;
 			}
 		if (mConnectionColumn > cColumnUnassigned) {
 			float v1 = p1.record.getDouble(mConnectionColumn);
 			float v2 = p2.record.getDouble(mConnectionColumn);
-			if (v1 != v2)
+			if (Float.isNaN(v1) ^ Float.isNaN(v2))
+				return Float.isNaN(v2) ? -1 : 1;
+			if (!Float.isNaN(v1) && !Float.isNaN(v2) && v1 != v2)
 				return (v1 < v2) ? -1 : 1;
 			}
 		int connectionOrderColumn = (mConnectionOrderColumn == cColumnUnassigned) ? mAxisIndex[0] : mConnectionOrderColumn;
 		if (connectionOrderColumn != cColumnUnassigned) {
 			float v1 = p1.record.getDouble(connectionOrderColumn);
 			float v2 = p2.record.getDouble(connectionOrderColumn);
-			if (v1 != v2)
+			if (Float.isNaN(v1) ^ Float.isNaN(v2))
+				return Float.isNaN(v2) ? -1 : 1;
+			if (!Float.isNaN(v1) && !Float.isNaN(v2) && v1 != v2)
 				return (v1 < v2) ? -1 : 1;
 			}
 		return 0;
@@ -574,7 +586,7 @@ public abstract class JVisualization extends JComponent
 				}
 
 			if (mConnectionLineMap == null)
-				mConnectionLineMap = createReferenceMap(mConnectionColumn, referencedColumn);
+				mConnectionLineMap = createReferenceMap(referencedColumn);
 
 	   		for (int i=0; i<mDataPoints; i++)
 	   			mPoint[i].exclusionFlags |= EXCLUSION_FLAG_DETAIL_GRAPH;
@@ -732,7 +744,8 @@ public abstract class JVisualization extends JComponent
 		}
 
 	private VisualizationNode createVisualizationNode(VisualizationPoint vp, VisualizationNode parent, float strength) {
-		if (mTreeViewMode == cTreeViewModeHTree || mTreeViewMode == cTreeViewModeVTree)
+		if (mTreeViewMode == cTreeViewModeLeftRoot || mTreeViewMode == cTreeViewModeRightRoot
+		 || mTreeViewMode == cTreeViewModeTopRoot || mTreeViewMode == cTreeViewModeBottomRoot)
 			return new TreeVisualizationNode(vp, (TreeVisualizationNode)parent, strength);
 		if (mTreeViewMode == cTreeViewModeRadial)
 			return new RadialVisualizationNode(vp, (RadialVisualizationNode)parent, strength);
@@ -758,7 +771,7 @@ public abstract class JVisualization extends JComponent
 				int largestLegendIndex = -1;
 				int largestLegendHeight = 0;
 				for (int i=0; i<mLegendList.size(); i++) {
-					JVisualizationLegend legend = mLegendList.get(i);
+					VisualizationLegend legend = mLegendList.get(i);
 					if (largestLegendHeight < legend.getHeight()) {
 						largestLegendHeight = legend.getHeight();
 						largestLegendIndex = i;
@@ -779,16 +792,14 @@ public abstract class JVisualization extends JComponent
 		if (mMarkerSizeColumn != cColumnUnassigned
 		 && mChartType != cChartTypeBars
 		 && mChartType != cChartTypePies) {
-			JVisualizationLegend sizeLegend = new JVisualizationLegend(this, mTableModel,
+			VisualizationLegend sizeLegend = new VisualizationLegend(this, mTableModel,
 													mMarkerSizeColumn,
 													null,
-													JVisualizationLegend.cLegendTypeSize);
+													VisualizationLegend.cLegendTypeSize);
 			sizeLegend.calculate(bounds, fontHeight);
 			bounds.height -= sizeLegend.getHeight();
 			mLegendList.add(sizeLegend);
 			}
-
-		boolean shareShapeAndColors = false;
 
 		if (mMarkerShapeColumn != cColumnUnassigned
 		 && mChartType != cChartTypeBars
@@ -796,22 +807,22 @@ public abstract class JVisualization extends JComponent
 			// if the marker color and marker shape encode the same categories, the use only one legend
 		 && (mMarkerColor.getColorColumn() != mMarkerShapeColumn
 		  || mMarkerColor.getColorListMode() != VisualizationColor.cColorListModeCategories)) {
-			JVisualizationLegend shapeLegend = new JVisualizationLegend(this, mTableModel,
+			VisualizationLegend shapeLegend = new VisualizationLegend(this, mTableModel,
 													mMarkerShapeColumn,
 													null,
-													JVisualizationLegend.cLegendTypeShapeCategory);
+													VisualizationLegend.cLegendTypeShapeCategory);
 			shapeLegend.calculate(bounds, fontHeight);
 			bounds.height -= shapeLegend.getHeight();
 			mLegendList.add(shapeLegend);
 			}
 
 		if (mMarkerColor.getColorColumn() != cColumnUnassigned) {
-			JVisualizationLegend colorLegend = new JVisualizationLegend(this, mTableModel,
+			VisualizationLegend colorLegend = new VisualizationLegend(this, mTableModel,
 													mMarkerColor.getColorColumn(),
 													mMarkerColor,
 													mMarkerColor.getColorListMode() == VisualizationColor.cColorListModeCategories ?
-													  JVisualizationLegend.cLegendTypeColorCategory
-													: JVisualizationLegend.cLegendTypeColorDouble);
+													  VisualizationLegend.cLegendTypeColorCategory
+													: VisualizationLegend.cLegendTypeColorDouble);
 			colorLegend.calculate(bounds, fontHeight);
 			bounds.height -= colorLegend.getHeight();
 			mLegendList.add(colorLegend);
@@ -819,7 +830,7 @@ public abstract class JVisualization extends JComponent
 		}
 
 	protected void paintLegend(Rectangle bounds, boolean transparentBG) {
-		for (JVisualizationLegend legend:mLegendList)
+		for (VisualizationLegend legend:mLegendList)
 			legend.paint(bounds, transparentBG);
 		}
 
@@ -827,6 +838,23 @@ public abstract class JVisualization extends JComponent
 		if (mTouchFunctionActive) {
 			g.setColor(Color.red);
 			g.drawString("touch", 10, 20);
+			}
+		}
+
+	protected void paintMessages(Graphics g, int boundsX, int boundsWidth) {
+		String msg = "";
+
+		if (mIsIgnoreGlobalExclusion)
+			msg = msg.concat("  Filters off!");
+
+		if (mLocalExclusionList != -1)
+			msg = msg.concat("  List '"+mTableModel.getListHandler().getListName(mLocalExclusionList)+"' only!");
+
+		if (msg.length() != 0) {
+			int fontSize = HiDPIHelper.scale(10);
+			g.setFont(new Font(Font.SANS_SERIF, Font.BOLD, fontSize));
+			g.setColor(ColorHelper.getContrastColor(Color.red, getViewBackground()));
+			g.drawString(msg, boundsX + boundsWidth - fontSize/2 - g.getFontMetrics().stringWidth(msg), fontSize*3/2);
 			}
 		}
 
@@ -913,20 +941,19 @@ public abstract class JVisualization extends JComponent
 		return preferredAxis;
 		}
 
-	@Override
-	public int getFocusList() {
+	protected int getFocusList() {
 		return mFocusList;
 		}
 
 	protected int getFocusFlag() {
-		return (mFocusList == cFocusNone) ? -1
-			 : (mFocusList == cFocusOnSelection) ? CompoundRecord.cFlagSelected
+		return (mFocusList == FocusableView.cFocusNone) ? -1
+			 : (mFocusList == FocusableView.cFocusOnSelection) ? CompoundRecord.cFlagSelected
 			 : mTableModel.getListHandler().getListFlagNo(mFocusList);
 		}
 
 	protected int getLabelFlag() {
 		return (mLabelList == cLabelsOnAllRows) ? getFocusFlag()
-				: (mLabelList == cFocusOnSelection) ? CompoundRecord.cFlagSelected
+				: (mLabelList == FocusableView.cFocusOnSelection) ? CompoundRecord.cFlagSelected
 				: mTableModel.getListHandler().getListFlagNo(mLabelList);
 		}
 
@@ -954,6 +981,20 @@ public abstract class JVisualization extends JComponent
 		return mMarkerSizeColumn;
 		}
 
+	public float getMarkerSizeMin() {
+		return (mMarkerSizeColumn > 0
+			 && !mMarkerSizeProportional
+			 && (mTableModel.isColumnTypeDouble(mMarkerSizeColumn)
+			  || mTableModel.isDescriptorColumn(mMarkerSizeColumn))) ? mMarkerSizeMin : Float.NaN;
+		}
+
+	public float getMarkerSizeMax() {
+		return (mMarkerSizeColumn > 0
+			 && !mMarkerSizeProportional
+			 && (mTableModel.isColumnTypeDouble(mMarkerSizeColumn)
+			  || mTableModel.isDescriptorColumn(mMarkerSizeColumn))) ? mMarkerSizeMax : Float.NaN;
+		}
+
 	public boolean getMarkerSizeInversion() {
 		return mMarkerSizeInversion;
 		}
@@ -972,7 +1013,7 @@ public abstract class JVisualization extends JComponent
 
 	/**
 	 * Calculates the font size for drawing a marker label. Usually this depends on
-	 * default font size, general font size factor, marker label font size factor.
+	 * default font size, general font size factor, marker label size factor.
 	 * However, if we have a central label instead of a marker, and if the marker size column
 	 * is set, then the central label's font size is defined by the general marker label size setting.
 	 * @param vp
@@ -983,12 +1024,14 @@ public abstract class JVisualization extends JComponent
 		if (mMarkerSizeColumn != cColumnUnassigned
 		 && position == cMidCenter
 		 && !isTreeView) {
-			float fontsize = getMarkerSize(vp) / 2.0f;
+			float fontsize = getMarkerSize(vp) / 2.0f;  // includes marker zoom adaption factor
 			float factor = 0.5f*(mMarkerLabelSize+1.0f); // reduce effect by factor 2.0
-			return Math.max(3f, mRelativeFontSize*factor*fontsize);
+			return Math.max(3f, mRelativeFontSize * factor * fontsize);
 			}
 
-		return mMarkerLabelSize * mFontHeight;
+		// if we use marker zoom adaption, we slightly adapt decorating labels as well
+		float factor = Float.isNaN(mMarkerSizeZoomAdaption) ? 1f : 1f + (mZoomState * LABEL_ZOOM_ADAPTION_FACTOR) - LABEL_ZOOM_ADAPTION_FACTOR;
+		return factor * mMarkerLabelSize * mFontHeight;
 		}
 
 	/**
@@ -1006,9 +1049,9 @@ public abstract class JVisualization extends JComponent
 	/**
 	 * Calculates the absolute marker size of the visualization point, which depends
 	 * on a view size specific base value (mAbsoluteMarkerSize), a user changeable factor
-	 * (mRelativeMarkerSize) and optionally another factor derived from a column value
-	 * defined to influence the marker size. It also includes the retina factor, but not
-	 * the anti-aliasing factor.
+	 * (mRelativeMarkerSize), possibly on the zoom state (mMarkerSizeZoomAdaption), and optionally
+	 * another factor derived from a column value defined to influence the marker size.
+	 * It also includes the retina factor, but not the anti-aliasing factor.
 	 * @param vp
 	 * @return
 	 */
@@ -1024,7 +1067,7 @@ public abstract class JVisualization extends JComponent
 
 		if (CompoundTableListHandler.isListColumn(mMarkerSizeColumn))
 			return getMarkerSizeFromHitlistMembership(vp.record.isFlagSet(
-				mTableModel.getListHandler().getListFlagNo(CompoundTableListHandler.getListFromColumn(mMarkerSizeColumn))));
+				mTableModel.getListHandler().getListFlagNo(CompoundTableListHandler.convertToListIndex(mMarkerSizeColumn))));
 
 		return getMarkerSizeFromValue(vp.record.getDouble(mMarkerSizeColumn));
 		}
@@ -1037,7 +1080,7 @@ public abstract class JVisualization extends JComponent
 		return validateSizeWithConnections(size);
 		}
 
-	protected float getMarkerSizeFromDescriptorSimilarity(float similarity) {
+	private float getMarkerSizeFromDescriptorSimilarity(float similarity) {
 		float size = 2f * mAbsoluteMarkerSize * similarity;
 		if (!Float.isNaN(mMarkerSizeZoomAdaption))
 			size *= mMarkerSizeZoomAdaption;
@@ -1063,6 +1106,8 @@ public abstract class JVisualization extends JComponent
 	 */
 	protected float getMarkerSizeVPFactor(float value, int valueColumn) {
 		if (mMarkerSizeProportional) {
+			if (Float.isNaN(value))
+				return 0;
 			float min = mTableModel.getMinimumValue(valueColumn);
 			float max = mTableModel.getMaximumValue(valueColumn);
 			if (mTableModel.isLogarithmicViewMode(valueColumn)) {
@@ -1073,12 +1118,31 @@ public abstract class JVisualization extends JComponent
 				max = Math.max(Math.abs(min), Math.abs(max));
 				value = Math.abs(value);
 				}
-			return 2f*(float)Math.sqrt((0.01+(mMarkerSizeInversion?max-value:value) / max) / 1.01f);
+			return 2f*(float)Math.sqrt((0.000001+(mMarkerSizeInversion?max-value:value) / max) / 1.000001f);
 			}
 		else {
 			float min = mTableModel.getMinimumValue(valueColumn);
+			if (!Float.isNaN(mMarkerSizeMin)) {
+				float msmin = mTableModel.isLogarithmicViewMode(valueColumn) ?
+						(float)Math.log10(mMarkerSizeMin) : mMarkerSizeMin;
+				if (min < msmin)
+					min = msmin;
+				if (!Float.isNaN(value) && value < min)
+					value = min;
+				}
+			if (Float.isNaN(value))
+				value = min;
 			float max = mTableModel.getMaximumValue(valueColumn);
-			return 2f*(float)Math.sqrt((0.04+(mMarkerSizeInversion?max-value:value-min) / (max-min)) / 1.04f);
+			if (!Float.isNaN(mMarkerSizeMax)) {
+				float msmax = mTableModel.isLogarithmicViewMode(valueColumn) ?
+						(float)Math.log10(mMarkerSizeMax) : mMarkerSizeMax;
+				if (max < msmax)
+					max = msmax;
+				if (value > max)
+					value = max;
+				}
+			float minValue = (mLabelColumn[cMidCenter] == -1) ? 0.04f : 0.1f;
+			return 2f*(float)Math.sqrt((minValue+(mMarkerSizeInversion?max-value:value-min) / (max-min)) / (1.0f+minValue));
 			}
 		}
 
@@ -1107,7 +1171,7 @@ public abstract class JVisualization extends JComponent
 			}
 		}
 
-	protected boolean isLegendLayoutValid(JVisualizationLegend legend, VisualizationColor color) {
+	protected boolean isLegendLayoutValid(VisualizationLegend legend, VisualizationColor color) {
 		if (legend == null || color.getColorColumn() == cColumnUnassigned)
 			return legend == null && color.getColorColumn() == cColumnUnassigned;
 
@@ -1124,10 +1188,10 @@ public abstract class JVisualization extends JComponent
 				mPoint[i].colorIndex = VisualizationColor.cDefaultDataColorIndex;
 			}
 		else if (CompoundTableListHandler.isListColumn(mMarkerColor.getColorColumn())) {
-			int listIndex = CompoundTableListHandler.getListFromColumn(mMarkerColor.getColorColumn());
+			int listIndex = CompoundTableListHandler.convertToListIndex(mMarkerColor.getColorColumn());
 			int flagNo = mTableModel.getListHandler().getListFlagNo(listIndex);
 			for (int i=0; i<mDataPoints; i++)
-				mPoint[i].colorIndex = (byte)(mPoint[i].record.isFlagSet(flagNo) ?
+				mPoint[i].colorIndex = (short)(mPoint[i].record.isFlagSet(flagNo) ?
 						VisualizationColor.cSpecialColorCount : VisualizationColor.cSpecialColorCount + 1);
 			}
 		else if (mTableModel.isDescriptorColumn(mMarkerColor.getColorColumn())) {
@@ -1135,7 +1199,7 @@ public abstract class JVisualization extends JComponent
 			}
 		else if (mMarkerColor.getColorListMode() == VisualizationColor.cColorListModeCategories) {
 			for (int i=0; i<mDataPoints; i++)
-				mPoint[i].colorIndex = (byte)(VisualizationColor.cSpecialColorCount
+				mPoint[i].colorIndex = (short)(VisualizationColor.cSpecialColorCount
 					+ mTableModel.getCategoryIndex(mMarkerColor.getColorColumn(), mPoint[i].record));
 			}
 		else if (mTableModel.isColumnTypeDouble(mMarkerColor.getColorColumn())) {
@@ -1160,11 +1224,11 @@ public abstract class JVisualization extends JComponent
 				if (Float.isNaN(value))
 					mPoint[i].colorIndex = VisualizationColor.cMissingDataColorIndex;
 				else if (value <= min)
-					mPoint[i].colorIndex = (byte)VisualizationColor.cSpecialColorCount;
+					mPoint[i].colorIndex = (short)VisualizationColor.cSpecialColorCount;
 				else if (value >= max)
-					mPoint[i].colorIndex = (byte)(mMarkerColor.getColorList().length-1);
+					mPoint[i].colorIndex = (short)(mMarkerColor.getColorList().length-1);
 				else
-					mPoint[i].colorIndex = (byte)(0.5 + VisualizationColor.cSpecialColorCount
+					mPoint[i].colorIndex = (short)(0.5 + VisualizationColor.cSpecialColorCount
 						+ (float)(mMarkerColor.getColorList().length-VisualizationColor.cSpecialColorCount-1)
 						* (value - min) / (max - min));
 				}
@@ -1185,7 +1249,7 @@ public abstract class JVisualization extends JComponent
 		else if (rowID != -1) {
 			for (int i=0; i<mDataPoints; i++) {
 				if (mPoint[i].record.getID() == rowID) {
-					mAxisSimilarity[axis][rowID] =	(float)mTableModel.getDescriptorSimilarity(mActivePoint.record, mPoint[i].record, column);
+					mAxisSimilarity[axis][rowID] = mTableModel.getDescriptorSimilarity(mActivePoint.record, mPoint[i].record, column);
 					break;
 					}
 				}
@@ -1208,9 +1272,10 @@ public abstract class JVisualization extends JComponent
 				mAxisSimilarity[axis] = new float[mDataPoints];
 				for (int i=0; i<mDataPoints; i++)
 					mAxisSimilarity[axis][mPoint[i].record.getID()] =
-						(float)mTableModel.getDescriptorSimilarity(mActivePoint.record, mPoint[i].record, column);
+								mTableModel.getDescriptorSimilarity(mActivePoint.record, mPoint[i].record, column);
 				}
 			}
+		updateLocalZoomExclusion(axis);
 		invalidateOffImage(true);
 		}
 
@@ -1296,11 +1361,11 @@ public abstract class JVisualization extends JComponent
 					if (Float.isNaN(similarity))
 						mPoint[i].colorIndex = VisualizationColor.cMissingDataColorIndex;
 					else if (similarity <= min)
-						mPoint[i].colorIndex = (byte)VisualizationColor.cSpecialColorCount;
+						mPoint[i].colorIndex = (short)VisualizationColor.cSpecialColorCount;
 					else if (similarity >= max)
-						mPoint[i].colorIndex = (byte)(mMarkerColor.getColorList().length-1);
+						mPoint[i].colorIndex = (short)(mMarkerColor.getColorList().length-1);
 					else
-						mPoint[i].colorIndex = (byte)(0.5 + VisualizationColor.cSpecialColorCount
+						mPoint[i].colorIndex = (short)(0.5 + VisualizationColor.cSpecialColorCount
 							+ (float)(mMarkerColor.getColorList().length - VisualizationColor.cSpecialColorCount - 1)
 							* (similarity - min) / (max - min));
 					}
@@ -1309,7 +1374,7 @@ public abstract class JVisualization extends JComponent
 		}
 
 	private float[] createSimilarityListSMP(String idcode, Object descriptor, int descriptorColumn) {
-		float[] similarity = mTableModel.getSimilarityListFromCache(idcode, descriptorColumn);
+		float[] similarity = mTableModel.getStructureSimilarityListFromCache(idcode, descriptorColumn);
 		if (similarity != null)
 			return similarity;
 
@@ -1329,7 +1394,7 @@ public abstract class JVisualization extends JComponent
 	   	mTableModel.createSimilarityListSMP(null, descriptor, idcode, descriptorColumn, progressDialog, false);
 
    		progressDialog.setVisible(true);
-   		similarity = mTableModel.getSimilarityListSMP();
+   		similarity = mTableModel.getSimilarityListSMP(false);
 
 		return similarity;
  		}
@@ -1340,7 +1405,7 @@ public abstract class JVisualization extends JComponent
 	 * @param column valid category column
 	 * @return
 	 */
-	protected int getVisibleCategoryCount(int column) {
+	protected int calculateVisibleCategoryCount(int column) {
 		if (CompoundTableListHandler.isListColumn(column))
 			return 2;	// don't handle lists here
 
@@ -1392,7 +1457,9 @@ public abstract class JVisualization extends JComponent
 	 */
 	protected String[] getVisibleCategoryList(int column) {
 		String[] category = mTableModel.getCategoryList(column);
-		String[] visibleCategory = new String[getVisibleCategoryCount(column)];
+		if (CompoundTableListHandler.isListColumn(column))
+			return category;
+		String[] visibleCategory = new String[calculateVisibleCategoryCount(column)];
 		for (int i=0; i<mVisibleCategoryFromCategory[column].length; i++)
 			if (mVisibleCategoryFromCategory[column][i] != -1)
 				visibleCategory[mVisibleCategoryFromCategory[column][i]] = category[i];
@@ -1414,10 +1481,12 @@ public abstract class JVisualization extends JComponent
 
 		mHVExclusionTag = mTableModel.getExclusionTag();
 
-		int count1 = (mSplittingColumn[0] == cColumnUnassigned) ? 1 : mShowEmptyInSplitView ?
-				mTableModel.getCategoryCount(mSplittingColumn[0]) : getVisibleCategoryCount(mSplittingColumn[0]);
-		int count2 = (mSplittingColumn[1] == cColumnUnassigned) ? 1 : mShowEmptyInSplitView ?
-				mTableModel.getCategoryCount(mSplittingColumn[1]) : getVisibleCategoryCount(mSplittingColumn[1]);
+		int count1 = (mSplittingColumn[0] < cColumnUnassigned) ? 2
+				   : (mSplittingColumn[0] == cColumnUnassigned) ? 1 : mShowEmptyInSplitView ?
+				mTableModel.getCategoryCount(mSplittingColumn[0]) : calculateVisibleCategoryCount(mSplittingColumn[0]);
+		int count2 = (mSplittingColumn[1] < cColumnUnassigned) ? 2
+				   : (mSplittingColumn[1] == cColumnUnassigned) ? 1 : mShowEmptyInSplitView ?
+				mTableModel.getCategoryCount(mSplittingColumn[1]) : calculateVisibleCategoryCount(mSplittingColumn[1]);
 		mHVCount = Math.max(0, count1 * count2);
 
 		mSplitViewCountExceeded = (mHVCount > cMaxSplitViewCount);
@@ -1431,8 +1500,8 @@ public abstract class JVisualization extends JComponent
 				mPoint[i].hvIndex = 0;
 			}
 		else if (mSplittingColumn[1] == cColumnUnassigned) {
-			if (CompoundTableListHandler.isListColumn(mSplittingColumn[0])) {
-				int flagNo = mTableModel.getListHandler().getListFlagNo(CompoundTableListHandler.getListFromColumn(mSplittingColumn[0]));
+			if (CompoundTableListHandler.isListOrSelectionColumn(mSplittingColumn[0])) {
+				int flagNo = mTableModel.getListHandler().getListFlagNo(CompoundTableListHandler.convertToListIndex(mSplittingColumn[0]));
 				for (int i=0; i<mDataPoints; i++)
 					mPoint[i].hvIndex = mPoint[i].record.isFlagSet(flagNo) ? 0 : 1;
 				}
@@ -1447,12 +1516,12 @@ public abstract class JVisualization extends JComponent
 			}
 		else {
 			int flagNo1 = -1;
-			if (CompoundTableListHandler.isListColumn(mSplittingColumn[0]))
-				flagNo1 = mTableModel.getListHandler().getListFlagNo(CompoundTableListHandler.getListFromColumn(mSplittingColumn[0]));
+			if (CompoundTableListHandler.isListOrSelectionColumn(mSplittingColumn[0]))
+				flagNo1 = mTableModel.getListHandler().getListFlagNo(CompoundTableListHandler.convertToListIndex(mSplittingColumn[0]));
 
 			int flagNo2 = -1;
-			if (CompoundTableListHandler.isListColumn(mSplittingColumn[1]))
-				flagNo2 = mTableModel.getListHandler().getListFlagNo(CompoundTableListHandler.getListFromColumn(mSplittingColumn[1]));
+			if (CompoundTableListHandler.isListOrSelectionColumn(mSplittingColumn[1]))
+				flagNo2 = mTableModel.getListHandler().getListFlagNo(CompoundTableListHandler.convertToListIndex(mSplittingColumn[1]));
 
 			for (int i=0; i<mDataPoints; i++) {
 				CompoundRecord record = mPoint[i].record;
@@ -1575,6 +1644,10 @@ public abstract class JVisualization extends JComponent
 	 */
 	protected Color getContrastGrey(float contrast, Color color) {
 		float brightness = ColorHelper.perceivedBrightness(color);
+
+		if (contrast == 1f)
+			return (brightness > 0.5) ? Color.BLACK : Color.WHITE;
+
 		float range = (brightness > 0.5) ? brightness : 1f-brightness;
 
 		// enhance contrast for middle bright backgrounds
@@ -1585,8 +1658,7 @@ public abstract class JVisualization extends JComponent
 				: Color.getHSBColor(0.0f, 0.0f, brightness + range*contrast);
 		}
 
-	@Override
-	public void setFocusHitlist(int listIndex) {
+	public void setFocusList(int listIndex) {
 		if (mFocusList != listIndex) {
 			mFocusList = listIndex;
 			invalidateOffImage(mChartType != cChartTypeScatterPlot);	// no of colors in mChartInfo needs to be updated
@@ -1680,9 +1752,11 @@ public abstract class JVisualization extends JComponent
 		 || (mSplittingColumn[0] != cColumnUnassigned && mSplittingAspectRatio != aspectRatio)
 		 || (mSplittingColumn[0] != cColumnUnassigned && mShowEmptyInSplitView != showEmptyViews)) {
 			if ((column1 == cColumnUnassigned
-			  || mTableModel.isColumnTypeCategory(column1))
+			  || mTableModel.isColumnTypeCategory(column1)
+			  || mTableModel.getListHandler().getListIndex(column1) != CompoundTableListHandler.LISTINDEX_NONE)
 			 && (column2 == cColumnUnassigned
-			  || mTableModel.isColumnTypeCategory(column2))) {
+			  || mTableModel.isColumnTypeCategory(column2)
+			  || mTableModel.getListHandler().getListIndex(column2) != CompoundTableListHandler.LISTINDEX_NONE)) {
 				mSplittingColumn[0] = column1;
 				mSplittingColumn[1] = column2;
 				mSplittingAspectRatio = aspectRatio;
@@ -1717,9 +1791,14 @@ public abstract class JVisualization extends JComponent
 			|| mChartType == cChartTypeWhiskerPlot;
 		}
 
-	/** Determine current mean/median setting for box and whisker plots
-	 * @return mode or BOXPLOT_DEFAULT_MEAN_MODE if not box/whisker plot
-	 */
+	public boolean supportsShowBarOrPieSizeValues() {
+		return mChartType == cChartTypeBars
+			|| mChartType == cChartTypePies;
+		}
+
+		/** Determine current mean/median setting for box and whisker plots
+		 * @return mode or BOXPLOT_DEFAULT_MEAN_MODE if not box/whisker plot
+		 */
 	public int getBoxplotMeanMode() {
 		return (mChartType == cChartTypeBoxPlot
 			 || mChartType == cChartTypeWhiskerPlot) ? mBoxplotMeanMode : BOXPLOT_DEFAULT_MEAN_MODE;
@@ -1735,6 +1814,27 @@ public abstract class JVisualization extends JComponent
 			invalidateOffImage(false);
 			}
 		}
+
+	/** Determines whether bar/pie size values are shown in a current bar/pie chart.
+	 *  Returns false if the current plot is neither bar nor pie chart.
+	 * @return
+	 */
+	public boolean isShowBarOrPieSizeValue() {
+		return supportsShowMeanAndMedian()
+				&& mShowBarOrPieSizeValues;
+	}
+
+	/**
+	 * Defines whether mean and/or median are shown in box/whisker plots.
+	 * @param b
+	 */
+	public void setShowBarOrPieSizeValue(boolean b) {
+		if (mShowBarOrPieSizeValues != b) {
+			mShowBarOrPieSizeValues = b;
+			if (supportsShowBarOrPieSizeValues())
+				invalidateOffImage(true);
+		}
+	}
 
 	/** Determines whether mean and/or median values are shown in a current box or whisker plot.
 	 *  Returns false if the current plot is neither box nor whisker plot. 
@@ -1902,7 +2002,7 @@ public abstract class JVisualization extends JComponent
 
 			for (int axis=0; axis<mDimensions; axis++)
 				if (column == mAxisIndex[axis]
-				 && mCategoryVisibleCount[axis] >= 2
+				 && getCategoryVisCount(axis) >= 2
 				 && axis != mChartInfo.barAxis)
 					return true;
 			}
@@ -1952,9 +2052,10 @@ public abstract class JVisualization extends JComponent
 	 * @return local exclusion update needs (EXCLUSION_FLAG_ZOOM_0 left shifted according to axis)
 	 */
 	private int determineChartType() {
-		boolean[] wasCatagoryAxis = new boolean[mDimensions];
+		boolean[] wasCategoryAxis = new boolean[mDimensions];
 		for (int axis=0; axis<mDimensions; axis++)
-			wasCatagoryAxis[axis] = mIsCategoryAxis[axis];
+			wasCategoryAxis[axis] = mIsCategoryAxis[axis];
+		int oldChartColumn = (mChartInfo == null || !mChartInfo.useProportionalFractions()) ? -1 : mChartColumn;
 
 		mChartType = cChartTypeScatterPlot;	// scatter plot is the default that is always possible
 		for (int axis=0; axis<mDimensions; axis++)
@@ -2003,7 +2104,8 @@ public abstract class JVisualization extends JComponent
 				if (mIsCategoryAxis[axis])
 					mActiveExclusionFlags &= ~(byte)(EXCLUSION_FLAG_NAN_0 << axis);
 
-			updateBarAndPieNaNExclusion();
+			if (!showProportionalBarOrPieFractions())
+				mActiveExclusionFlags &= ~EXCLUSION_FLAG_PROPORTIONAL_FRACTION_NAN;
 			}
 		else if (mTreeNodeList.length == 0) {	// we have an empty tree view
 			mActiveExclusionFlags = 0;
@@ -2014,11 +2116,15 @@ public abstract class JVisualization extends JComponent
 
 		int localExclusionNeeds = 0;
 		for (int axis=0; axis<mDimensions; axis++) {
-			if (mIsCategoryAxis[axis] != wasCatagoryAxis[axis])
+			if (mIsCategoryAxis[axis] != wasCategoryAxis[axis])
 				localExclusionNeeds |= (EXCLUSION_FLAG_ZOOM_0 << axis);
 
 			calculateVisibleRange(axis);
 			}
+
+		int newChartColumn = (mChartInfo == null || !mChartInfo.useProportionalFractions()) ? -1 : mChartColumn;
+		if (oldChartColumn != newChartColumn)
+			localExclusionNeeds |= EXCLUSION_FLAG_PROPORTIONAL_FRACTION_NAN;
 
 		return localExclusionNeeds;
 		}
@@ -2046,20 +2152,30 @@ public abstract class JVisualization extends JComponent
 			}
 		}
 
-	private void updateBarAndPieNaNExclusion() {
-		boolean excludeNaN = (mChartType == cChartTypeBars
-						   || mChartType == cChartTypePies)
-						  && (mChartMode != cChartModeCount
-						  && mChartMode != cChartModePercent)
-						  && mChartColumn != cColumnUnassigned
-						  && !mTableModel.isDescriptorColumn(mChartColumn);
-			
+	/**
+	 * Updates local pie/bar NaN exclusion in case of proportional pie/bar fractions
+	 * @return true, if pie/bar NaN exclusion should be considered
+	 *
+	private boolean updateBarAndPieNaNExclusion() {
+		boolean excludeNaN = mChartInfo.useProportionalFractions();
+
 		for (int i=0; i<mDataPoints; i++) {
 			if (excludeNaN && Float.isNaN(mPoint[i].record.getDouble(mChartColumn)))
-				mPoint[i].exclusionFlags |= EXCLUSION_FLAG_DETAIL_GRAPH;
+				mPoint[i].exclusionFlags |= EXCLUSION_FLAG_PROPORTIONAL_FRACTION_NAN;
 			else
-				mPoint[i].exclusionFlags &= ~EXCLUSION_FLAG_DETAIL_GRAPH;
+				mPoint[i].exclusionFlags &= ~EXCLUSION_FLAG_PROPORTIONAL_FRACTION_NAN;
 			}
+
+		return excludeNaN;
+		}*/
+
+	protected boolean showProportionalBarOrPieFractions() {
+		return (mChartType == cChartTypeBars
+			 || mChartType == cChartTypePies)
+			&& mChartMode != cChartModeCount
+			&& mChartMode != cChartModePercent
+			&& mChartColumn != cColumnUnassigned
+			&& !mTableModel.isDescriptorColumn(mChartColumn);
 		}
 
 	/**
@@ -2079,6 +2195,10 @@ public abstract class JVisualization extends JComponent
 				found = true;
 				updateLocalZoomExclusion(axis);
 				}
+			}
+		if ((localExclusionNeeds & EXCLUSION_FLAG_PROPORTIONAL_FRACTION_NAN) != 0) {
+			found = true;
+			initializeProportionalFractionExclusion();
 			}
 		if (found)
 		   	applyLocalExclusion(false);
@@ -2132,29 +2252,90 @@ public abstract class JVisualization extends JComponent
 		}
 
 	/**
+	 * Calculates visual min and max values for numerical or date columns.
+	 * These are the lowest and highest data values extended by some percent
+	 * of the total range as added margin. For cyclic data or if explicit data low and high
+	 * values exist, then no margin is added.
+	 * @param axis
+	 * @return min and max values of total data range
+	 */
+	protected float[] getDataMinAndMax(int axis) {
+		int column = mAxisIndex[axis];
+		float[] minAndMax = new float[2];
+		minAndMax[0] = mTableModel.getMinimumValue(column);
+		minAndMax[1] = mTableModel.getMaximumValue(column);
+		if (mScatterPlotMargin != 0f
+		 && minAndMax[0] != minAndMax[1]
+		 && mTableModel.getColumnProperty(column, cColumnPropertyCyclicDataMax) == null) {
+			float margin = mScatterPlotMargin * (minAndMax[1] - minAndMax[0]) * (mPruningBarHigh[axis] - mPruningBarLow[axis]);
+			if (mTableModel.getColumnProperty(column, cColumnPropertyDataMin) == null)
+				minAndMax[0] -= margin;
+			if (mTableModel.getColumnProperty(column, cColumnPropertyDataMax) == null)
+				minAndMax[1] += margin;
+			}
+		return minAndMax;
+		}
+
+	/**
+	 * Calculates the total available data range on the axis including any additional margins,
+	 * considering current graph type and logarithmic view mode.
+	 * These values are the data space values mapped to both end positions of the range slider.
+	 * @param axis
+	 * @param range array to be filled with min and max values
+	 * @return whether values are treated logarithmically
+	 */
+	public boolean getFullDataRange(int axis, float[] range) {
+		boolean visRangeIsLog = false;
+		int column = mAxisIndex[axis];
+		if (column == cColumnUnassigned) {
+			range[0] = -1.0f;
+			range[1] =  1.0f;
+			}
+		else {
+			if (mIsCategoryAxis[axis]) {
+				range[0] = -0.5f;
+				range[1] = -0.5f + mTableModel.getCategoryCount(column);
+				}
+			else if (mTableModel.isDescriptorColumn(column)) {
+				range[0] = 0.0f;
+				range[1] = 1.0f;
+				}
+			else {
+				float[] minAndMax = getDataMinAndMax(axis);
+				range[0] = minAndMax[0];
+				range[1] = minAndMax[1];
+				visRangeIsLog = mTableModel.isLogarithmicViewMode(column);
+				}
+			}
+
+		return visRangeIsLog;
+		}
+
+	/**
 	 * Calculates the visible range of the axis based on pruning bar settings,
 	 * current graph type, logarithmic view mode.
 	 * @param axis
 	 * @return whether the visible range has been changed
 	 */
 	private boolean calculateVisibleRange(int axis) {
-		float visMin = -1.0f;
-		float visMax =  1.0f;
+		float visMin = -0.5f;
+		float visMax =  0.5f;
 		boolean visRangeIsLog = false;
 		int column = mAxisIndex[axis];
 		if (column != cColumnUnassigned) {
 			if (mIsCategoryAxis[axis]) {
-				int maxCategory = mTableModel.getCategoryCount(column) - 1;
-				visMin = Math.round(mPruningBarLow[axis] * maxCategory) - 0.5f;
-				visMax = Math.round(mPruningBarHigh[axis] * maxCategory) + 0.5f;
+				int categoryCount = mTableModel.getCategoryCount(column);
+				visMin = Math.round(mPruningBarLow[axis] * categoryCount) - 0.5f;
+				visMax = Math.round(mPruningBarHigh[axis] * categoryCount - 1f) + 0.5f;
 				}
 			else if (mTableModel.isDescriptorColumn(column)) {
 				visMin = mPruningBarLow[axis];
 				visMax = mPruningBarHigh[axis];
 				}
 			else {
-				float dataMin = mTableModel.getMinimumValue(column);
-				float dataMax = mTableModel.getMaximumValue(column);
+				float[] minAndMax = getDataMinAndMax(axis);
+				float dataMin = minAndMax[0];
+				float dataMax = minAndMax[1];
 				float dataRange = dataMax - dataMin;
 				visMin = (mPruningBarLow[axis] == 0.0f) ? dataMin : dataMin + mPruningBarLow[axis] * dataRange;
 				visMax = (mPruningBarHigh[axis] == 1.0f) ? dataMax : dataMin + mPruningBarHigh[axis] * dataRange;
@@ -2196,8 +2377,7 @@ public abstract class JVisualization extends JComponent
 		if (mIsCategoryAxis[axis])
 			return (float)Math.round(mAxisVisMin[axis] + 0.5f) / (float)mTableModel.getCategoryCount(column);
 
-		float min = mTableModel.getMinimumValue(column);
-		float max = mTableModel.getMaximumValue(column);
+		float[] minAndMax = getDataMinAndMax(axis);
 		float visMin = mAxisVisMin[axis];
 
 		if (mTableModel.isLogarithmicViewMode(column) != mAxisVisRangeIsLogarithmic[axis]) {
@@ -2207,8 +2387,8 @@ public abstract class JVisualization extends JComponent
 				visMin = (float)Math.log10(visMin);
 			}
 
-		return Math.min(1f, Math.max(0f, (visMin - min)
-			 / (max - min)));
+		return Math.min(1f, Math.max(0f, (visMin - minAndMax[0])
+			 / (minAndMax[1] - minAndMax[0])));
 		}
 
 	/**
@@ -2226,8 +2406,7 @@ public abstract class JVisualization extends JComponent
 		if (mIsCategoryAxis[axis])
 			return (float)Math.round(mAxisVisMax[axis] + 0.5f) / (float)mTableModel.getCategoryCount(column);
 
-		float min = mTableModel.getMinimumValue(column);
-		float max = mTableModel.getMaximumValue(column);
+		float[] minAndMax = getDataMinAndMax(axis);
 		float visMax = mAxisVisMax[axis];
 
 		if (mTableModel.isLogarithmicViewMode(column) != mAxisVisRangeIsLogarithmic[axis]) {
@@ -2237,38 +2416,64 @@ public abstract class JVisualization extends JComponent
 				visMax = (float)Math.log10(visMax);
 			}
 
-		return Math.min(1f, Math.max(0f, (visMax - min) / (max - min)));
+		return Math.min(1f, Math.max(0f, (visMax - minAndMax[0]) / (minAndMax[1] - minAndMax[0])));
 		}
 
-	private float calculateZoomState() {
-		float zoomState = 1.0f;
+	/**
+	 * For the given axis this method maps the original data range to the pruning bar range
+	 * (0.0 to 1.0). It then determines the data value of the given record and axis column
+	 * and translates it to the pruning bar range. If the axis is unused, then it returns 0.5.
+	 * If the data value is NaN, then NaN is returned.
+	 * @param axis
+	 * @param record
+	 * @return the record's data value mapped to full pruning bar range from 0.0 to 1.0
+	 */
+	public float getPruningBarMappedValue(CompoundRecord record, int axis) {
+		int column = mAxisIndex[axis];
+		if (column == cColumnUnassigned)
+			return 0.5f;
+
+		float value = getAxisValue(record, axis);
+		if (Float.isNaN(value))
+			return Float.NaN;
+
+		if (mTableModel.isDescriptorColumn(column))
+			return value;
+		if (mIsCategoryAxis[axis])
+			return (float)Math.round(value + 0.5f) / (float)mTableModel.getCategoryCount(column);
+
+		float[] minAndMax = getDataMinAndMax(axis);
+
+		if (mTableModel.isLogarithmicViewMode(column) != mAxisVisRangeIsLogarithmic[axis]) {
+			if (mAxisVisRangeIsLogarithmic[axis])
+				value = (float)Math.pow(10, value);
+			else
+				value = (float)Math.log10(value);
+			}
+
+		return Math.min(1f, Math.max(0f, (value - minAndMax[0]) / (minAndMax[1] - minAndMax[0])));
+		}
+
+	private void updateZoomState() {
+		float zoomFactor = 1.0f;
 		int axisCount = 0;
 		for (int axis=0; axis<mDimensions; axis++) {
 			if (mAxisIndex[axis] != cColumnUnassigned) {
-				zoomState *= Math.max(0.001f, mPruningBarHigh[axis] - mPruningBarLow[axis]);
-				axisCount++;
+				if (mIsCategoryAxis[axis]) {
+					zoomFactor *= (Math.max(1f, mAxisVisMax[axis] - mAxisVisMin[axis]) / mTableModel.getCategoryCount(mAxisIndex[axis]));
+					axisCount++;
+					}
+				else {
+					zoomFactor *= Math.max(0.001f, mPruningBarHigh[axis] - mPruningBarLow[axis]);
+					axisCount++;
+					}
 				}
 			}
-		zoomState = (float)Math.pow(zoomState, 0.75f / (float)axisCount);
-		return Math.min(100f, 1f / zoomState);
+		zoomFactor = (float)Math.pow(zoomFactor, 1f / (float)axisCount);
+		mZoomState = Math.min(100f, 1f / zoomFactor);
 		}
 
-	// TODO remove mCategoryMin,mCategoryMax,mCategoryVisibleCount
-	protected void calculateCategoryCounts(int boxPlotDoubleAxis) {
-		for (int axis=0; axis<mDimensions; axis++) {
-			int column = mAxisIndex[axis];
-			if (column == cColumnUnassigned || axis == boxPlotDoubleAxis) {
-				mCategoryMin[axis] = 0;
-				mCategoryMax[axis] = 1;
-				mCategoryVisibleCount[axis] = 1;
-				}
-			else {
-				mCategoryMin[axis] = Math.round(mAxisVisMin[axis] + 0.5f);
-				mCategoryMax[axis] = Math.round(mAxisVisMax[axis] + 0.5f);
-				mCategoryVisibleCount[axis] = mCategoryMax[axis] - mCategoryMin[axis];
-				}
-			}
-
+	private void calculateCategoryCounts(int boxPlotDoubleAxis) {
 		if (isCaseSeparationDone())
 			mCaseSeparationCategoryCount = mTableModel.getCategoryCount(mCaseSeparationColumn);
 		else
@@ -2276,8 +2481,32 @@ public abstract class JVisualization extends JComponent
 
 		mCombinedCategoryCount = new int[1+mDimensions];
 		mCombinedCategoryCount[0] = mCaseSeparationCategoryCount;
-		for (int axis=0; axis<mDimensions; axis++)
-			mCombinedCategoryCount[axis+1] = mCombinedCategoryCount[axis] * mCategoryVisibleCount[axis];
+		for (int axis=0; axis<mDimensions; axis++) {
+			mCombinedCategoryCount[axis + 1] = mCombinedCategoryCount[axis];
+			if (axis != boxPlotDoubleAxis)
+				mCombinedCategoryCount[axis + 1] *= getCategoryVisCount(axis);
+			}
+
+		mFullCombinedCategoryCount = new int[1+mDimensions];
+		mFullCombinedCategoryCount[0] = mCaseSeparationCategoryCount;
+		for (int axis=0; axis<mDimensions; axis++) {
+			int column = mAxisIndex[axis];
+			mFullCombinedCategoryCount[axis + 1] = mFullCombinedCategoryCount[axis];
+			if (column != cColumnUnassigned && axis != boxPlotDoubleAxis)
+				mFullCombinedCategoryCount[axis + 1] *= mTableModel.getCategoryCount(column);
+			}
+		}
+
+	protected int getColorIndex(VisualizationPoint vp, int colorListLength, int focusFlagNo) {
+		int colorIndex = (mUseAsFilterFlagNo != -1 && !mTableModel.isRowFlagSuspended(mUseAsFilterFlagNo)
+						&& !vp.record.isFlagSet(mUseAsFilterFlagNo)) ? colorListLength+1
+					   : (vp.record.isSelected() && mFocusList != FocusableView.cFocusOnSelection) ?
+						 colorListLength : vp.colorIndex;
+
+		if (focusFlagNo != -1 && !vp.record.isFlagSet(focusFlagNo))
+			colorIndex += colorListLength+2;
+
+		return colorIndex;
 		}
 
 	/**
@@ -2285,7 +2514,7 @@ public abstract class JVisualization extends JComponent
 	 * this method assigns all visible VisualizationPoints to bars/pies and to color categories
 	 * within these bars/pies. It also calculates relative bar/pie sizes.
 	 */
-	protected void calculateBarsOrPies() {
+	protected void calculateBarsOrPies(double widthHeightRatio) {
 		calculateCategoryCounts(-1);
 
 		Color[] colorList = mMarkerColor.getColorList();
@@ -2293,19 +2522,39 @@ public abstract class JVisualization extends JComponent
 		int basicColorCount = colorList.length + 2;
 		int colorCount = basicColorCount * ((focusFlagNo == -1) ? 1 : 2);
 
+		// determine the number of visible bars within the view, or within one view in case we have split views
 		int catCount = mCaseSeparationCategoryCount;
-		for (int count:mCategoryVisibleCount)
-			catCount *= count;
+		for (int i=0; i<mDimensions; i++)
+			catCount *= getCategoryVisCount(i);
 
-		mChartInfo = new CategoryViewInfo(mHVCount, catCount, colorCount);
+		mChartInfo = new CategoryViewInfo(mHVCount, catCount, colorCount, mChartMode, mMarkerSizeColumn != cColumnUnassigned);
 
-		mChartInfo.barAxis = 0;
-		for (int axis=1; axis<mDimensions; axis++)
-			if (mAxisIndex[axis] == cColumnUnassigned)
-				mChartInfo.barAxis = axis;
-			else if (mAxisIndex[mChartInfo.barAxis] != cColumnUnassigned
-				  && mCategoryVisibleCount[axis] <= mCategoryVisibleCount[mChartInfo.barAxis])
-				mChartInfo.barAxis = axis;
+		int assignedAxisCount = 0;
+		for (int axis=0; axis<mDimensions; axis++)
+			if (mAxisIndex[axis] != cColumnUnassigned)
+				assignedAxisCount++;
+
+		// determine, which of the axis the bar is parallel to
+		if (assignedAxisCount == 0 || assignedAxisCount == mDimensions) {
+			// we take the axis with the maximum space available
+			double maxSpace = 0;
+			for (int axis=0; axis<mDimensions; axis++) {
+				double relSpace = (axis == 0 ? widthHeightRatio : 1.0) / getCategoryVisCount(axis);
+				if (maxSpace < relSpace) {
+					maxSpace = relSpace;
+					mChartInfo.barAxis = axis;
+					}
+				}
+			}
+		else {
+			mChartInfo.barAxis = 0;
+			for (int axis=1; axis<mDimensions; axis++)
+				if (mAxisIndex[axis] == cColumnUnassigned)
+					mChartInfo.barAxis = axis;
+				else if (mAxisIndex[mChartInfo.barAxis] != cColumnUnassigned
+					  && getCategoryVisCount(axis) <= getCategoryVisCount(mChartInfo.barAxis))
+					mChartInfo.barAxis = axis;
+			}
 
 		for (int i=0; i<colorList.length; i++)
 			mChartInfo.color[i] = colorList[i];
@@ -2318,65 +2567,16 @@ public abstract class JVisualization extends JComponent
 			mChartInfo.color[colorList.length+1+basicColorCount] = VisualizationColor.cUseAsFilterColor;
 			}
 
-		if (mChartMode != cChartModeCount
-		 && mChartMode != cChartModePercent)
-			mChartInfo.mean = new float[mHVCount][catCount];
-
-		int visibleCount = 0;
 		for (int i=0; i<mDataPoints; i++) {
-			if (isVisibleExcludeNaN(mPoint[i])) {
-				int colorIndex = (mUseAsFilterFlagNo != -1 && !mPoint[i].record.isFlagSet(mUseAsFilterFlagNo)) ? colorList.length+1
-							   : (mPoint[i].record.isSelected() && mFocusList != cFocusOnSelection) ?
-									   colorList.length : mPoint[i].colorIndex;
-				if (focusFlagNo != -1 && !mPoint[i].record.isFlagSet(focusFlagNo))
-					colorIndex += basicColorCount;
-
-				int cat = getChartCategoryIndex(mPoint[i]);
-				mChartInfo.pointsInCategory[mPoint[i].hvIndex][cat]++;
-				mChartInfo.pointsInColorCategory[mPoint[i].hvIndex][cat][colorIndex]++;
-				visibleCount++;
-				switch (mChartMode) {
-				case cChartModeCount:
-				case cChartModePercent:
-					mChartInfo.barValue[mPoint[i].hvIndex][cat]++;
-					break;
-				case cChartModeMin:
-				case cChartModeMax:
-					float value = mPoint[i].record.getDouble(mChartColumn);
-					if (mChartInfo.pointsInCategory[mPoint[i].hvIndex][cat] == 1)
-						mChartInfo.barValue[mPoint[i].hvIndex][cat] = value;
-					else if (mChartMode == cChartModeMin)
-						mChartInfo.barValue[mPoint[i].hvIndex][cat] = Math.min(mChartInfo.barValue[mPoint[i].hvIndex][cat], value);
-					else
-						mChartInfo.barValue[mPoint[i].hvIndex][cat] = Math.max(mChartInfo.barValue[mPoint[i].hvIndex][cat], value);
-					break;
-				case cChartModeMean:
-					mChartInfo.barValue[mPoint[i].hvIndex][cat] += mPoint[i].record.getDouble(mChartColumn);
-					break;
-				case cChartModeSum:
-					if (mTableModel.isLogarithmicViewMode(mChartColumn))
-						mChartInfo.barValue[mPoint[i].hvIndex][cat] += Math.pow(10, mPoint[i].record.getDouble(mChartColumn));
-					else
-						mChartInfo.barValue[mPoint[i].hvIndex][cat] += mPoint[i].record.getDouble(mChartColumn);
-					break;
-					}
-				if (mChartInfo.mean != null)
-					mChartInfo.mean[mPoint[i].hvIndex][cat] += mPoint[i].record.getDouble(mChartColumn);
+			VisualizationPoint vp = mPoint[i];
+			if (isVisibleInBarsOrPies(vp)) {
+				int cat = getChartCategoryIndex(vp);
+				int colorIndex = getColorIndex(vp, colorList.length, focusFlagNo);
+				float chartValue = (mChartColumn == -1) ? Float.NaN : vp.record.getDouble(mChartColumn);
+				float widthValue = (mMarkerSizeColumn == -1) ? Float.NaN : vp.record.getDouble(mMarkerSizeColumn);
+				mChartInfo.addValue(vp.hvIndex, cat, colorIndex, chartValue, widthValue);
 				}
 			}
-
-		if (mChartMode == cChartModePercent)
-			for (int i=0; i<mHVCount; i++)
-				for (int j=0; j<catCount; j++)
-	   				mChartInfo.barValue[i][j] *= 100f / visibleCount;
-		if (mChartMode == cChartModeMean)
-			for (int i=0; i<mHVCount; i++)
-				for (int j=0; j<catCount; j++)
-					mChartInfo.barValue[i][j] /= mChartInfo.pointsInCategory[i][j];
-		if (mChartMode == cChartModeSum && mTableModel.isLogarithmicViewMode(mChartColumn))
-			for (int i=0; i<mHVCount; i++)
-				for (int j=0; j<catCount; j++)
-					mChartInfo.barValue[i][j] = (float)Math.log10(mChartInfo.barValue[i][j]);
 
 		if (mChartInfo.mean != null)
 			for (int i=0; i<mHVCount; i++)
@@ -2394,63 +2594,78 @@ public abstract class JVisualization extends JComponent
 				for (int color=1; color<colorCount; color++)
 					count[hv][cat][color] = count[hv][cat][color-1]+mChartInfo.pointsInColorCategory[hv][cat][color-1];
 		for (int i=0; i<mDataPoints; i++) {
-			if (isVisibleExcludeNaN(mPoint[i])) {
-				int colorIndex = (mUseAsFilterFlagNo != -1 && !mPoint[i].record.isFlagSet(mUseAsFilterFlagNo)) ? colorList.length+1
-							   : (mPoint[i].record.isSelected() && mFocusList != cFocusOnSelection) ?
-									   colorList.length : mPoint[i].colorIndex;
-				if (focusFlagNo != -1 && !mPoint[i].record.isFlagSet(focusFlagNo))
-					colorIndex += basicColorCount;
-
-				int hv = mPoint[i].hvIndex;
-				int cat = getChartCategoryIndex(mPoint[i]);
-				mPoint[i].chartGroupIndex = count[hv][cat][colorIndex];
+			VisualizationPoint vp = mPoint[i];
+			if (isVisibleInBarsOrPies(vp)) {
+				int hv = vp.hvIndex;
+				int cat = getChartCategoryIndex(vp);
+				int colorIndex = getColorIndex(vp, colorList.length, focusFlagNo);
+				vp.chartGroupIndex = count[hv][cat][colorIndex];
 				count[hv][cat][colorIndex]++;
 				}
 			}
 
-		float dataMin = Float.POSITIVE_INFINITY;
-		float dataMax = Float.NEGATIVE_INFINITY;
-		for (int i=0; i<mHVCount; i++) {
-			for (int j=0; j<catCount; j++) {
-				if (mChartInfo.pointsInCategory[i][j] != 0) {
-					if (dataMin > mChartInfo.barValue[i][j])
-						dataMin = mChartInfo.barValue[i][j];
-					if (dataMax < mChartInfo.barValue[i][j])
-						dataMax = mChartInfo.barValue[i][j];
+		// generate all category bar values
+		float[] dataMinAndMax = calculateBarDimensions(mChartInfo.barValue, mChartInfo.pointsInCategory,  true);
+
+		// For a static scale, we need to calculate the absolute bar minimum and maximum of all bars
+		// assuming all rows to be visible.
+		if (!mIsDynamicScale) {
+			int allCatCount = mCaseSeparationCategoryCount;
+			for (int axis=0; axis<mDimensions; axis++)
+				if (mAxisIndex[axis] != cColumnUnassigned)
+					allCatCount *=  mTableModel.getCategoryCount(mAxisIndex[axis]);
+
+			int[][] pointsInCategory = new int[mHVCount][allCatCount];
+			for (int i=0; i<mDataPoints; i++) {
+				VisualizationPoint vp = mPoint[i];
+				if (!isNaN(vp) && vp.hvIndex != -1) {
+					int cat = getFullCategoryIndex(vp);
+					pointsInCategory[vp.hvIndex][cat]++;
 					}
 				}
+
+			float[] visOnlyMinAndMax = dataMinAndMax;
+
+			dataMinAndMax = calculateBarDimensions(new float[mHVCount][allCatCount], pointsInCategory, false);
+
+			if (dataMinAndMax[0] > visOnlyMinAndMax[0])
+				dataMinAndMax[0] = visOnlyMinAndMax[0];
+			if (dataMinAndMax[1] < visOnlyMinAndMax[1])
+				dataMinAndMax[1] = visOnlyMinAndMax[1];
 			}
-		mChartInfo.barOrPieDataAvailable = (dataMin != Float.POSITIVE_INFINITY);
+
+		mChartInfo.barOrPieDataAvailable = (dataMinAndMax[0] != Float.POSITIVE_INFINITY);
 
 		if (mChartInfo.barOrPieDataAvailable) {
 			switch (mChartMode) {
 			case cChartModeCount:
 			case cChartModePercent:
 				mChartInfo.axisMin = 0.0f;
-				mChartInfo.axisMax = dataMax * cBarSpacingFactor;
+				mChartInfo.axisMax = dataMinAndMax[1] * (1f + cAnchoredBarSpacing);
 				mChartInfo.barBase = 0.0f;
 				break;
 			default:
+				float maxMinusMin = dataMinAndMax[1] - dataMinAndMax[0];
 				if (mTableModel.isLogarithmicViewMode(mChartColumn)) {
-					float dataRange = dataMax - dataMin;
-					mChartInfo.axisMin = dataMin - dataRange * (cBarSpacingFactor - 1.0f);
-					mChartInfo.axisMax = dataMax + dataRange * (cBarSpacingFactor - 1.0f);
+					float spacing = cAnchoredBarSpacing * maxMinusMin;
+					float minSize = cLogBarMinSizeFactor * maxMinusMin;
+					mChartInfo.axisMin = dataMinAndMax[0] - minSize;
+					mChartInfo.axisMax = dataMinAndMax[1] + spacing;
 					mChartInfo.barBase = mChartInfo.axisMin;
 					}
 				else {
-					if (dataMin >= 0.0) {
+					if (dataMinAndMax[0] >= 0.0) {
 						mChartInfo.axisMin = 0.0f;
-						mChartInfo.axisMax = dataMax * cBarSpacingFactor;
+						mChartInfo.axisMax = dataMinAndMax[1] * (1f + cAnchoredBarSpacing);
 						}
-					else if (dataMax <= 0.0) {
-						mChartInfo.axisMin = dataMin * cBarSpacingFactor;
+					else if (dataMinAndMax[1] <= 0.0) {
+						mChartInfo.axisMin = dataMinAndMax[0] * (1f + cAnchoredBarSpacing);
 						mChartInfo.axisMax = 0.0f;
 						}
 					else {
-						float dataRange = dataMax - dataMin;
-						float spacing = (cBarSpacingFactor - 1.0f) * dataRange / 2.0f;
-						mChartInfo.axisMax = dataMax + spacing;
-						mChartInfo.axisMin = dataMin - spacing;
+						float spacing = cCenteredBarSpacing * maxMinusMin;
+						mChartInfo.axisMax = dataMinAndMax[1] + spacing;
+						mChartInfo.axisMin = dataMinAndMax[0] - spacing;
 						}
 					mChartInfo.barBase = 0.0f;
 					}
@@ -2459,10 +2674,158 @@ public abstract class JVisualization extends JComponent
 			}
 		else {
 			mChartInfo.axisMin = 0.0f;
-			mChartInfo.axisMax = cBarSpacingFactor;
+			mChartInfo.axisMax = 1.0f + cAnchoredBarSpacing;
 			mChartInfo.barBase = 0.0f;
 			}
-//System.out.println("calculateBarsOrPies() dataMin:"+mChartInfo.dataMin+" dataMax:"+mChartInfo.dataMax+" axisMin:"+mChartInfo.axisMin+" axisMax:"+mChartInfo.axisMax+" barBase:"+mChartInfo.barBase);
+//System.out.println("calculateBarsOrPies() dataMin:"+dataMinAndMax[0]+" dataMax:"+dataMinAndMax[1]+" axisMin:"+mChartInfo.axisMin+" axisMax:"+mChartInfo.axisMax+" barBase:"+mChartInfo.barBase);
+		}
+
+	/**
+	 * Calculates depending on the bar chart type (logarithmic, centered, left- or right-anchored)
+	 * the fraction of the default spacing within a graph cell, which multiplied with the cell size
+	 * would give the size of the empty spacing in graph coordinates as long as no labels are shown.
+	 * If labels are shown, they use this area and enlarge it on demand while reducing the
+	 * actual bar area accordingly.
+	 * @return fraction of cell that is used as empty space on that size of the bar, where labels may be shown
+	 */
+	protected float getBarChartEmptyLabelAreaSpacing() {
+		if (isLogarithmicBarOrPieChart())
+			return cAnchoredBarSpacing / (1f + cLogBarMinSizeFactor + cAnchoredBarSpacing);
+		if (isCenteredBarChart())
+			return cCenteredBarSpacing / (1f + 2f * cCenteredBarSpacing);
+		else
+			return cAnchoredBarSpacing / (1f + cAnchoredBarSpacing);
+		}
+
+	/**
+	 * Calculates depending on the bar chart type (logarithmic, centered, left- or right-anchored)
+	 * the fraction of the total spacing within a graph cell. This is the sum of left/top and
+	 * right/bottom spacing fractions of which one of them is 0.0 for anchored bars. In case of
+	 * logarithmic bars the drawn base part of the bar is considered spacing and included in this
+	 * fraction.
+	 * @return fraction of cell that is not occupied by the bar area (or base part of bar in case of logarithmic bars)
+	 */
+	protected float getBarChartTotalSpacing() {
+		if (isLogarithmicBarOrPieChart())
+			return (cAnchoredBarSpacing + cLogBarMinSizeFactor) / (1f + cLogBarMinSizeFactor + cAnchoredBarSpacing);
+		if (isCenteredBarChart())
+			return 2f * cCenteredBarSpacing / (1f + 2f * cCenteredBarSpacing);
+		else
+			return cAnchoredBarSpacing / (1f + cAnchoredBarSpacing);
+		}
+
+	protected boolean isNaNInBarsOrPies(VisualizationPoint vp) {
+		if (isNaN(vp))
+			return true;
+
+		if (mChartMode != cChartModeCount
+		 && mChartMode != cChartModePercent
+		 && Float.isNaN(vp.record.getDouble(mChartColumn)))
+			return true;
+
+		if (mChartType == cChartTypeBars
+		 && mMarkerSizeColumn != cColumnUnassigned
+		 && Float.isNaN(vp.record.getDouble(mMarkerSizeColumn)))
+			return true;
+
+		return false;
+		}
+
+	protected boolean isVisibleInBarsOrPies(VisualizationPoint vp) {
+		if (!isVisibleExcludeNaN(vp))
+			return false;
+
+		if (mChartMode != cChartModeCount
+		 && mChartMode != cChartModePercent
+		 && Float.isNaN(vp.record.getDouble(mChartColumn)))
+			return false;
+
+		if (mChartType == cChartTypeBars
+		 && mMarkerSizeColumn != cColumnUnassigned
+		 && Float.isNaN(vp.record.getDouble(mMarkerSizeColumn)))
+			return false;
+
+		return true;
+		}
+
+	/**
+	 * Calculates the barValue of all bars, which is the basis for the complete bar or pie size.
+	 * @param barValue
+	 * @param pointsInCategory
+	 * @param visibleOnly
+	 * @return
+	 */
+	private float[] calculateBarDimensions(float[][] barValue, int[][] pointsInCategory, boolean visibleOnly) {
+		int count = 0;
+		for (int i=0; i<mDataPoints; i++) {
+			VisualizationPoint vp = mPoint[i];
+			if ((visibleOnly && isVisibleInBarsOrPies(vp)) || (!visibleOnly && !isNaNInBarsOrPies(vp) && vp.hvIndex != -1)) {
+				int cat = visibleOnly ? getChartCategoryIndex(vp) : getFullCategoryIndex(vp);
+				count++;
+				switch (mChartMode) {
+					case cChartModeCount:
+					case cChartModePercent:
+						barValue[vp.hvIndex][cat]++;
+						break;
+					case cChartModeMin:
+					case cChartModeMax:
+						float value = vp.record.getDouble(mChartColumn);
+						if (pointsInCategory[vp.hvIndex][cat] == 1)
+							barValue[vp.hvIndex][cat] = value;
+						else if (mChartMode == cChartModeMin)
+							barValue[vp.hvIndex][cat] = Math.min(barValue[vp.hvIndex][cat], value);
+						else
+							barValue[vp.hvIndex][cat] = Math.max(barValue[vp.hvIndex][cat], value);
+						break;
+					case cChartModeMean:
+						barValue[vp.hvIndex][cat] += vp.record.getDouble(mChartColumn);
+						break;
+					case cChartModeSum:
+						if (mTableModel.isLogarithmicViewMode(mChartColumn))
+							barValue[vp.hvIndex][cat] += Math.pow(10, vp.record.getDouble(mChartColumn));
+						else
+							barValue[vp.hvIndex][cat] += vp.record.getDouble(mChartColumn);
+						break;
+					}
+				}
+			}
+
+		if (mChartMode == cChartModePercent)
+			for (int i=0; i<mHVCount; i++)
+				for (int j=0; j<barValue[i].length; j++)
+					barValue[i][j] *= 100f / count;
+		if (mChartMode == cChartModeMean)
+			for (int i=0; i<mHVCount; i++)
+				for (int j=0; j<barValue[i].length; j++)
+					barValue[i][j] /= pointsInCategory[i][j];
+		if (mChartMode == cChartModeSum && mTableModel.isLogarithmicViewMode(mChartColumn))
+			for (int i=0; i<mHVCount; i++)
+				for (int j=0; j<barValue[i].length; j++)
+					barValue[i][j] = (float)Math.log10(barValue[i][j]);
+
+		float[] dataMinAndMax = new float[2];
+		dataMinAndMax[0] = Float.POSITIVE_INFINITY;
+		dataMinAndMax[1] = Float.NEGATIVE_INFINITY;
+		for (int i=0; i<mHVCount; i++) {
+			for (int j=0; j<pointsInCategory[i].length; j++) {
+				if (pointsInCategory[i][j] != 0) {
+					if (dataMinAndMax[0] > barValue[i][j])
+						dataMinAndMax[0] = barValue[i][j];
+					if (dataMinAndMax[1] < barValue[i][j])
+						dataMinAndMax[1] = barValue[i][j];
+					}
+				}
+			}
+
+		return dataMinAndMax;
+		}
+
+	/**
+	 * @return true if bars of a bar chart are based on the left/bottom edge
+	 */
+	protected boolean isLogarithmicBarOrPieChart() {
+		int chartColumn = getChartColumn();
+		return (chartColumn != -1 && mTableModel.isLogarithmicViewMode(chartColumn));
 		}
 
 	/**
@@ -2504,7 +2867,9 @@ public abstract class JVisualization extends JComponent
 		mChartInfo.stdDev = new float[mHVCount][catCount];
 		mChartInfo.errorMargin = new float[mHVCount][catCount];
 		for (int i=0; i<mDataPoints; i++) {
-			if (isVisibleExcludeNaN(mPoint[i])) {
+			VisualizationPoint vp = mPoint[i];
+			if (((mChartType == cChartTypeBars || mChartType == cChartTypePies) && isVisibleInBarsOrPies(vp))
+			 || ((mChartType == cChartTypeBoxPlot || mChartType == cChartTypeWhiskerPlot) && isVisibleExcludeNaN(vp))) {
 				int hv = mPoint[i].hvIndex;
 				int cat = getChartCategoryIndex(mPoint[i]);
 				float d = getValue(mPoint[i].record, axis, column) - mChartInfo.mean[hv][cat];
@@ -2542,7 +2907,7 @@ public abstract class JVisualization extends JComponent
 		int catCount = mCaseSeparationCategoryCount;
 		for (int axis=0; axis<mDimensions; axis++)
 			if (axis != doubleAxis)
-				catCount *= mCategoryVisibleCount[axis]; 
+				catCount *= getCategoryVisCount(axis);
 
 		BoxPlotViewInfo boxPlotInfo = new BoxPlotViewInfo(mHVCount, catCount, colorCount);
 		mChartInfo = boxPlotInfo;
@@ -2668,7 +3033,8 @@ public abstract class JVisualization extends JComponent
 				}
 			}
 
-		// for this chart type we need the statistical parameters, but no colored bar
+		// For this chart type we need the statistical parameters, but no colored bar.
+		// pointsInCategory[][] is aleady set and we have no outliers.
 		if (mChartType == cChartTypeWhiskerPlot)
 			return;
 
@@ -2687,19 +3053,15 @@ public abstract class JVisualization extends JComponent
 		boxPlotInfo.outlierCount = new int[mHVCount][catCount];
 
 		for (int i=0; i<mDataPoints; i++) {
-			if (isVisibleExcludeNaN(mPoint[i])) {
-				int cat = getChartCategoryIndex(mPoint[i]);
-				int hv = mPoint[i].hvIndex;
-				if (boxPlotInfo.isOutsideValue(hv, cat, getAxisValue(mPoint[i].record, boxPlotInfo.barAxis))) {
+			VisualizationPoint vp = mPoint[i];
+			if (isVisibleExcludeNaN(vp)) {
+				int cat = getChartCategoryIndex(vp);
+				int hv = vp.hvIndex;
+				if (boxPlotInfo.isOutsideValue(hv, cat, getAxisValue(vp.record, boxPlotInfo.barAxis))) {
 					boxPlotInfo.outlierCount[hv][cat]++;
 					}
 				else {
-					int colorIndex = (mUseAsFilterFlagNo != -1 && !mPoint[i].record.isFlagSet(mUseAsFilterFlagNo)) ? colorList.length+1
-								   : (mPoint[i].record.isSelected() && mFocusList != cFocusOnSelection) ?
-										   colorList.length : mPoint[i].colorIndex;
-					if (focusFlagNo != -1 && !mPoint[i].record.isFlagSet(focusFlagNo))
-						colorIndex += basicColorCount;
-	
+					int colorIndex = getColorIndex(vp, colorList.length, focusFlagNo);
 					boxPlotInfo.pointsInCategory[hv][cat]++;
 					boxPlotInfo.pointsInColorCategory[hv][cat][colorIndex]++;
 					}
@@ -2712,26 +3074,21 @@ public abstract class JVisualization extends JComponent
 				for (int color=1; color<colorCount; color++)
 					count[hv][cat][color] = count[hv][cat][color-1]+boxPlotInfo.pointsInColorCategory[hv][cat][color-1];
 		for (int i=0; i<mDataPoints; i++) {
-			if (isVisible(mPoint[i])) {
-				float v = getAxisValue(mPoint[i].record, boxPlotInfo.barAxis);
+			VisualizationPoint vp = mPoint[i];
+			if (isVisible(vp)) {
+				float v = getAxisValue(vp.record, boxPlotInfo.barAxis);
 				if (Float.isNaN(v)) {
-					mPoint[i].chartGroupIndex = -1;
+					vp.chartGroupIndex = -1;
 					}
 				else {
-					int hv = mPoint[i].hvIndex;
-					int cat = getChartCategoryIndex(mPoint[i]);
+					int hv = vp.hvIndex;
+					int cat = getChartCategoryIndex(vp);
 					if (boxPlotInfo.isOutsideValue(hv, cat, v)) {
-						mPoint[i].chartGroupIndex = -1;
+						vp.chartGroupIndex = -1;
 						}
 					else {
-						CompoundRecord record = mPoint[i].record;
-						int colorIndex = (mUseAsFilterFlagNo != -1 && !mPoint[i].record.isFlagSet(mUseAsFilterFlagNo)) ? colorList.length+1
-									   : (record.isSelected() && mFocusList != cFocusOnSelection) ?
-											   colorList.length : mPoint[i].colorIndex;
-						if (focusFlagNo != -1 && !record.isFlagSet(focusFlagNo))
-							colorIndex += basicColorCount;
-		
-						mPoint[i].chartGroupIndex = count[hv][cat][colorIndex];
+						int colorIndex = getColorIndex(vp, colorList.length, focusFlagNo);
+						vp.chartGroupIndex = count[hv][cat][colorIndex];
 						count[hv][cat][colorIndex]++;
 						}
 					}
@@ -2758,15 +3115,16 @@ public abstract class JVisualization extends JComponent
 			}
 		for (int axis=0; axis<mDimensions; axis++) {
 			if (mIsCategoryAxis[axis]) {
+				int categoryCount = getCategoryVisCount(axis);
 				categoryColumn[categoryColumnCount] = mAxisIndex[axis];
-				categoryList[categoryColumnCount] = new String[mCategoryVisibleCount[axis]];
+				categoryList[categoryColumnCount] = new String[categoryCount];
 				if (mAxisIndex[axis] == cColumnUnassigned) { // box/whisker plot with unassigned category axis
 					categoryList[categoryColumnCount][0] = "<All Rows>";
 					}
 				else {
 					String[] list = mTableModel.getCategoryList(categoryColumn[categoryColumnCount]);
-					for (int j=0; j<mCategoryVisibleCount[axis]; j++)
-						categoryList[categoryColumnCount][j] = list[mCategoryMin[axis]+j];
+					for (int j=0; j<categoryCount; j++)
+						categoryList[categoryColumnCount][j] = list[getCategoryVisMin(axis)+j];
 					}
 				categoryColumnCount++;
 				}
@@ -2979,21 +3337,11 @@ public abstract class JVisualization extends JComponent
 			  : (mIsCategoryAxis[axis]) ? mTableModel.getCategoryIndex(column, record) : record.getDouble(column);
 		}
 
-	protected TreeMap<byte[],VisualizationPoint> createReferenceMap(int referencingColumn, int referencedColumn) {
-		// create list of referencing keys
-/*		TreeSet<byte[]> set = new TreeSet<byte[]>(new ByteArrayComparator());
-		for (VisualizationPoint vp:mPoint) {
-			byte[] data = (byte[])vp.record.getData(referencingColumn);
-			if (data != null)
-				for (String ref:mTableModel.separateEntries(new String(data)))
-					set.add(ref.getBytes());
-			}*/
-
+	protected TreeMap<byte[],VisualizationPoint> createReferenceMap(int referencedColumn) {
 		// create map of existing and referenced VisualizationPoints
-		TreeMap<byte[],VisualizationPoint> map = new TreeMap<byte[],VisualizationPoint>(new ByteArrayComparator());
+		TreeMap<byte[],VisualizationPoint> map = new TreeMap<>(new ByteArrayComparator());
 		for (VisualizationPoint vp:mPoint) {
 			byte[] key = (byte[])vp.record.getData(referencedColumn);
-//			if (set.contains(key))
 			if (key.length != 0)
 				map.put(key, vp);
 			}
@@ -3082,7 +3430,38 @@ public abstract class JVisualization extends JComponent
 				}
 			else {
 				mUseAsFilterFlagNo = mTableModel.getUnusedRowFlag(true);
+				mTableModel.setRowFlagSuspension(mUseAsFilterFlagNo, true); // works only after selection
+				mTableModel.updateExternalExclusion(mUseAsFilterFlagNo, false, true);
 				}
+			}
+		}
+
+	public int getLocalExclusionList() {
+		return mLocalExclusionList;
+	}
+
+	public void setLocalExclusionList(int listNo) {
+		if (listNo != mLocalExclusionList) {
+			mLocalExclusionList = listNo;
+			invalidateOffImage(false);
+		}
+	}
+
+	public boolean isIgnoreGlobalExclusion() {
+		return mIsIgnoreGlobalExclusion;
+		}
+
+	public void setIgnoreGlobalExclusion(boolean b) {
+		if (b != mIsIgnoreGlobalExclusion) {
+			mIsIgnoreGlobalExclusion = b;
+			invalidateOffImage(false);
+			}
+		}
+
+	public void resetUseAsFilter() {
+		if (mUseAsFilterFlagNo != -1) {
+			mTableModel.setRowFlagToDirty(mUseAsFilterFlagNo);
+			mTableModel.clearRowFlag(mUseAsFilterFlagNo);
 			}
 		}
 
@@ -3096,6 +3475,113 @@ public abstract class JVisualization extends JComponent
 			applyLocalExclusion(false);
 			invalidateOffImage(true);
 			}
+		}
+
+	public boolean isDynamicScale() {
+		return mIsDynamicScale;
+		}
+
+	public void setDynamicScale(boolean b) {
+		if (mIsDynamicScale != b) {
+			mIsDynamicScale = b;
+			invalidateOffImage(true);
+			}
+		}
+
+	@Override
+	public int[] getMarkerLabelOnePerCategory() {
+		if (mOnePerCategoryLabelCategoryColumn == cColumnUnassigned
+		 || mOnePerCategoryLabelValueColumn == cColumnUnassigned)
+			return null;
+
+		int[] opc = new int[3];
+		opc[0] = mOnePerCategoryLabelCategoryColumn;
+		opc[1] = mOnePerCategoryLabelValueColumn;
+		opc[2] = mOnePerCategoryLabelMode;
+		return opc;
+		}
+
+	@Override
+	public void setMarkerLabelOnePerCategory(int categoryColumn, int valueColumn, int mode) {
+		if (mOnePerCategoryLabelCategoryColumn != categoryColumn
+		 || mOnePerCategoryLabelValueColumn != valueColumn
+		 || mOnePerCategoryLabelMode != mode) {
+			if ((categoryColumn == cColumnUnassigned || mTableModel.isColumnTypeCategory(categoryColumn))
+			 && (valueColumn == cColumnUnassigned || mTableModel.isColumnTypeDouble(valueColumn))) {
+				mOnePerCategoryLabelCategoryColumn = categoryColumn;
+				mOnePerCategoryLabelValueColumn = valueColumn;
+				mOnePerCategoryLabelMode = mode;
+				invalidateOffImage(false);
+				}
+			}
+		}
+
+	protected TreeMap<byte[],VisualizationPoint> buildOnePerCategoryMap() {
+		if (mOnePerCategoryLabelCategoryColumn == cColumnUnassigned
+		 || mOnePerCategoryLabelValueColumn == cColumnUnassigned)
+			return null;
+
+		TreeMap<byte[],VisualizationPoint> oneLabelPerCategoryMap = new TreeMap<>(new ByteArrayComparator());
+		float min = mTableModel.getMinimumValue(mOnePerCategoryLabelValueColumn);
+		float max = mTableModel.getMaximumValue(mOnePerCategoryLabelValueColumn);
+		for (int i=0; i<mDimensions; i++) {
+			if (mOnePerCategoryLabelValueColumn == mAxisIndex[i]) {
+				min = mAxisVisMin[i];
+				max = mAxisVisMax[i];
+				break;
+				}
+			}
+
+		// magicValue contains for every category a different value mapping
+		// the categories in natural order onto the visible value span
+		float[] magicValue = null;
+		if (mOnePerCategoryLabelMode == 3) {
+			int visCatCount = calculateVisibleCategoryCount(mOnePerCategoryLabelCategoryColumn);
+			if (visCatCount == 0)
+				return null;
+			magicValue = new float[visCatCount];
+			for (int cat=0; cat<mTableModel.getCategoryCount(mOnePerCategoryLabelCategoryColumn); cat++) {
+				int visCat = mVisibleCategoryFromCategory[mOnePerCategoryLabelCategoryColumn][cat];
+				if (visCat != -1) {
+					float catSpan = (max - min) / visCatCount;
+					magicValue[visCat] = min + (0.5f + visCat) * catSpan;
+					}
+				}
+			}
+
+		float targetValue = (mOnePerCategoryLabelMode == 0) ? max
+						  : (mOnePerCategoryLabelMode == 1) ? (max + min) / 2f : min;
+		for (VisualizationPoint vp:mPoint) {
+			if (isVisible(vp)) {
+				// don't consider VPs that have no reasonable label
+				boolean hasLabel = false;
+				for (int i=0; i<mLabelColumn.length; i++) {
+					if (mLabelColumn[i] != cColumnUnassigned
+					 && vp.record.getData(mLabelColumn[i]) != null
+					 && (!mTableModel.isColumnTypeDouble(mLabelColumn[i]) || !Float.isNaN(vp.record.getDouble(mLabelColumn[i])))) {
+						hasLabel = true;
+						break;
+						}
+					}
+
+				if (hasLabel) {
+					float value = vp.record.getDouble(mOnePerCategoryLabelValueColumn);
+					if (mOnePerCategoryLabelMode == 3) {
+						int cat = mTableModel.getCategoryIndex(mOnePerCategoryLabelCategoryColumn, vp.record);
+						int visCat = mVisibleCategoryFromCategory[mOnePerCategoryLabelCategoryColumn][cat];
+						targetValue = magicValue[visCat];
+						}
+
+					byte[] category = (byte[])vp.record.getData(mOnePerCategoryLabelCategoryColumn);
+					VisualizationPoint ovp = oneLabelPerCategoryMap.get(category);
+					if (ovp == null
+					 || Math.abs(targetValue - ovp.record.getDouble(mOnePerCategoryLabelValueColumn)) > Math.abs(targetValue - value))
+						oneLabelPerCategoryMap.put(category, vp);
+					}
+				}
+			}
+
+		return oneLabelPerCategoryMap;
 		}
 
 	public int getGridMode() {
@@ -3128,6 +3614,36 @@ public abstract class JVisualization extends JComponent
 		if (mScaleMode != scaleMode) {
 			mScaleMode = scaleMode;
 			invalidateOffImage(true);
+			}
+		}
+
+	public int getScaleStyle() {
+		return mScaleStyle;
+	}
+
+	public void setScaleStyle(int scaleStyle) {
+		if (mScaleStyle != scaleStyle) {
+			mScaleStyle = scaleStyle;
+			invalidateOffImage(true);
+		}
+	}
+
+	public static float getDefaultScatterplotMargin() {
+		return 0.5f * MAX_SCATTERPLOT_MARGIN;
+		}
+
+	public float getScatterPlotMargin() {
+		return mScatterPlotMargin;
+		}
+
+	public void setScatterPlotMargin(float margin) {
+		if (mScatterPlotMargin != margin) {
+			mScatterPlotMargin = margin;
+			if (mChartType == cChartTypeScatterPlot) {
+				for (int i = 0; i<mDimensions; i++)
+					updateVisibleRange(i, mPruningBarLow[i], mPruningBarHigh[i], false);
+				invalidateOffImage(true);
+				}
 			}
 		}
 
@@ -3228,9 +3744,22 @@ public abstract class JVisualization extends JComponent
 			}
 		}
 
-	public void setMarkerSizeColumn(int column) {
-		if (mMarkerSizeColumn != column) {
+	public void setMarkerSizeColumn(int column, float min, float max) {
+		if (mMarkerSizeColumn == cColumnUnassigned) {
+			min = Float.NaN;
+			max = Float.NaN;
+			}
+		else if ((!mTableModel.isColumnTypeDouble(column) && !mTableModel.isDescriptorColumn(column))
+			  || (!Float.isNaN(min) && !Float.isNaN(max) && min >= max)
+			  || (!Float.isNaN(min) && mTableModel.isLogarithmicViewMode(column) && min <= 0.0)
+			  || (!Float.isNaN(max) && mTableModel.isLogarithmicViewMode(column) && max <= 0.0)) {
+			min = Float.NaN;
+			max = Float.NaN;
+			}
+		if (mMarkerSizeColumn != column || mMarkerSizeMin != min || mMarkerSizeMax != max) {
 			mMarkerSizeColumn = column;
+			mMarkerSizeMin = min;
+			mMarkerSizeMax = max;
 			updateSimilarityMarkerSizes(-1);
 			invalidateOffImage(true);
 			}
@@ -3253,7 +3782,7 @@ public abstract class JVisualization extends JComponent
 	public void setMarkerSizeZoomAdaption(boolean adapt) {
 		if (Float.isNaN(mMarkerSizeZoomAdaption) == adapt) {
 			if (adapt)
-				mMarkerSizeZoomAdaption = calculateZoomState();
+				mMarkerSizeZoomAdaption = 1f + (mZoomState * MARKER_ZOOM_ADAPTION_FACTOR) - MARKER_ZOOM_ADAPTION_FACTOR;
 			else
 				mMarkerSizeZoomAdaption = Float.NaN;
 			invalidateOffImage(false);
@@ -3267,6 +3796,36 @@ public abstract class JVisualization extends JComponent
 				invalidateOffImage(false);
 				}
 			}
+		}
+
+	@Override
+	public void setMarkerLabelsBlackOrWhite(boolean blackAndWhite) {
+		if (mIsMarkerLabelsBlackAndWhite != blackAndWhite) {
+			mIsMarkerLabelsBlackAndWhite = blackAndWhite;
+			if (showAnyLabels()) {
+				invalidateOffImage(false);
+				}
+			}
+		}
+
+	@Override
+	public boolean isMarkerLabelBlackOrWhite() {
+		return mIsMarkerLabelsBlackAndWhite;
+		}
+
+	@Override
+	public void setOptimizeLabelPositions(boolean optimize) {
+		if (mOptimizeLabelPositions != optimize) {
+			mOptimizeLabelPositions = optimize;
+			if (showAnyLabels()) {
+				invalidateOffImage(false);
+				}
+			}
+		}
+
+	@Override
+	public boolean isOptimizeLabelPositions() {
+		return mOptimizeLabelPositions;
 		}
 
 	public void setMarkerShapeColumn(int column) {
@@ -3286,7 +3845,7 @@ public abstract class JVisualization extends JComponent
 			for (int i=0; i<mDataPoints; i++)
 				mPoint[i].shape = 0;
 		else if (CompoundTableListHandler.isListColumn(mMarkerShapeColumn)) {
-			int flagNo = mTableModel.getListHandler().getListFlagNo(CompoundTableListHandler.getListFromColumn(mMarkerShapeColumn));
+			int flagNo = mTableModel.getListHandler().getListFlagNo(CompoundTableListHandler.convertToListIndex(mMarkerShapeColumn));
 			for (int i=0; i<mDataPoints; i++)
 				mPoint[i].shape = (byte)(mPoint[i].record.isFlagSet(flagNo) ? 0 : 1);
 			}
@@ -3301,6 +3860,17 @@ public abstract class JVisualization extends JComponent
 	public void setMarkerLabelsInTreeViewOnly(boolean inTreeViewOnly) {
 		mLabelsInTreeViewOnly = inTreeViewOnly;
 		invalidateOffImage(false);
+		}
+
+	public void addMarkerLabel(int position, int column) {
+		if (mLabelColumn[position] != column) {
+			if (mLabelColumn[position] != cColumnUnassigned)
+				clearNonCustomLabelPositions(mLabelColumn[position]);
+
+			mLabelColumn[position] = column;
+
+			invalidateOffImage(false);
+			}
 		}
 
 	public void setMarkerLabels(int[] columnAtPosition) {
@@ -3356,11 +3926,11 @@ public abstract class JVisualization extends JComponent
 	 * Local record hiding of this axis is initialized and applied to the global
 	 * exclusion.
 	 * @param axis
-	 * @param index
+	 * @param column
 	 */
-	public void setColumnIndex(int axis, int index) {
-		if (mAxisIndex[axis] != index) {
-			mAxisIndex[axis] = index;
+	public void setColumnIndex(int axis, int column) {
+		if (mAxisIndex[axis] != column) {
+			mAxisIndex[axis] = column;
 			clearAllLabelPositions();
 			initializeAxis(axis);
 			int exclusionNeeeds = (EXCLUSION_FLAG_NAN_0 << axis) | determineChartType();
@@ -3468,6 +4038,18 @@ public abstract class JVisualization extends JComponent
 		return index;
 		}
 
+	private int getCategoryVisMin(int axis) {
+		return Math.round(mAxisVisMin[axis] + 0.5f);
+		}
+
+	private int getCategoryVisMax(int axis) {
+		return Math.round(mAxisVisMax[axis] - 0.5f);
+		}
+
+	protected int getCategoryVisCount(int axis) {
+		return Math.round(mAxisVisMax[axis] - mAxisVisMin[axis]);
+		}
+
 	/**
 	 * Returns the category index on the axis, i.e. the visible(!) category list
 	 * index of the visualization point. If the row belong to a category being
@@ -3482,8 +4064,8 @@ public abstract class JVisualization extends JComponent
 
 		int index = mTableModel.getCategoryIndex(mAxisIndex[axis], vp.record);
 
-		return (index >= mCategoryMin[axis] && index < mCategoryMax[axis]) ?
-			index - mCategoryMin[axis] : -1;
+		return (index >= getCategoryVisMin(axis) && index <= getCategoryVisMax(axis)) ?
+			index - getCategoryVisMin(axis) : -1;
 		}
 
 	/**
@@ -3512,8 +4094,8 @@ public abstract class JVisualization extends JComponent
 
 		int index = mTableModel.getCategoryIndex(column, value);
 
-		return (index >= mCategoryMin[axis] && index < mCategoryMax[axis]) ?
-			index - mCategoryMin[axis] : -1;
+		return (index >= getCategoryVisMin(axis) && index <= getCategoryVisMax(axis)) ?
+			index - getCategoryVisMin(axis) : -1;
 		}
 
 	/**
@@ -3526,8 +4108,8 @@ public abstract class JVisualization extends JComponent
 		}
 
 	/**
-	 * Calculates one combined category index for VisualizationPoint
-	 * that includes individual categories from case separation and axis
+	 * Calculates one combined category index for a VisualizationPoint that
+	 * includes all categories from case separation and visible(!) axis
 	 * categories. If the vp is zoomed out of the view, then -1 is returned.
 	 * @param vp
 	 * @return
@@ -3545,6 +4127,30 @@ public abstract class JVisualization extends JComponent
 					return -1;
 
 				index += axisIndex * mCombinedCategoryCount[axis];
+				}
+			}
+
+		return index;
+		}
+
+	/**
+	 * Calculates one combined category index for a VisualizationPoint that
+	 * includes all categories from case separation and all(!) axis
+	 * categories.
+	 * @param vp
+	 * @return
+	 */
+	protected int getFullCategoryIndex(VisualizationPoint vp) {
+		int index = (mCombinedCategoryCount[0] == 1) ?
+				0 : mTableModel.getCategoryIndex(mCaseSeparationColumn, vp.record);
+
+		for (int axis=0; axis<mDimensions; axis++) {
+			if ((mChartType != cChartTypeBoxPlot
+			 && mChartType != cChartTypeWhiskerPlot)
+			  || axis != mChartInfo.barAxis) {
+				int column = mAxisIndex[axis];
+				int axisIndex = (column == cColumnUnassigned) ? 0 : mTableModel.getCategoryIndex(column, vp.record);
+				index += axisIndex * mFullCombinedCategoryCount[axis];
 				}
 			}
 
@@ -3607,7 +4213,7 @@ public abstract class JVisualization extends JComponent
 
 	/**
 	 * This is the default implementation of locating a marker from screen coordinates.
-	 * It assumes a rectangular marker shape and relies on the getDistanceToMarker().
+	 * It assumes a rectangular marker shape and relies on getDistanceToMarker().
 	 * For complex marker shapes overwrite this method or getDistanceToMarker().
 	 * @param x
 	 * @param y
@@ -3621,9 +4227,12 @@ public abstract class JVisualization extends JComponent
 		float minDistance = Float.MAX_VALUE;
 		for (int i=mDataPoints-1; i>=0; i--) {
 			if (isVisible(mPoint[i])) {
-				float dvp = getDistanceToMarker(mPoint[i], x, y);
-				if (dvp == 0)
-					return mPoint[i];
+				float dvp = Float.MAX_VALUE;
+				if (mLabelColumn[cMidCenter] == -1) {
+					dvp = getDistanceToMarker(mPoint[i], x, y);
+					if (dvp == 0)
+						return mPoint[i];
+					}
 				if (searchLabels) {
 					mHighlightedLabelPosition = mPoint[i].findLabel(x, y);
 					if (mHighlightedLabelPosition != null)
@@ -3649,19 +4258,21 @@ public abstract class JVisualization extends JComponent
 	 * @return
 	 */
 	public float getDistanceToMarker(VisualizationPoint vp, int x, int y) {
-		float dx = Math.abs(vp.screenX - x) - vp.width / 2f;
-		float dy = Math.abs(vp.screenY - y) - vp.height / 2f;
+		float dx = Math.abs(vp.screenX - x) - vp.widthOrAngle1 / 2f;
+		float dy = Math.abs(vp.screenY - y) - vp.heightOrAngle2 / 2f;
 		return Math.max(0, Math.max(dx, dy));
 		}
 
 	public void mousePressed(MouseEvent e) {
-		mMouseX1 = mMouseX2 = e.getX();
-		mMouseY1 = mMouseY2 = e.getY();
+		mViewSelectionHelper.setSelectedView((CompoundTableView)getParent());
+
+		mMouseX2 = e.getX();
+		mMouseY2 = e.getY();
 		mMouseIsDown = true;
+		mMouseIsControlDown = e.isControlDown();
 
 		if (System.getProperty("touch") != null) {
-			new Thread() {
-				public void run() {
+			new Thread(() -> {
 					try {
 						Thread.sleep(1000);
 						}
@@ -3669,15 +4280,9 @@ public abstract class JVisualization extends JComponent
 
 					if (Math.abs(mMouseX2 - mMouseX1) < 5
 					 && Math.abs(mMouseY2 - mMouseY1) < 5
-					 && mMouseIsDown) {
-						SwingUtilities.invokeLater(new Runnable() {
-							public void run() {
-								activateTouchFunction();
-								}
-							});
-						}
-					}
-				}.start();
+					 && mMouseIsDown)
+						SwingUtilities.invokeLater(() -> activateTouchFunction() );
+				} ).start();
 			}
 
 		mDragMode = DRAG_MODE_NONE;
@@ -3741,6 +4346,7 @@ public abstract class JVisualization extends JComponent
 				}
 
 			boolean isCustomFilter = (mUseAsFilterFlagNo != -1);
+			boolean customSelectionFound = false;
 			for (int i=0; i<mDataPoints; i++) {
 				boolean isSelected = mPoint[i].screenX>=mouseX1
 								  && mPoint[i].screenX<=mouseX2
@@ -3748,10 +4354,13 @@ public abstract class JVisualization extends JComponent
 								  && mPoint[i].screenY<=mouseY2
 								  && isVisible(mPoint[i]);
 				if (isCustomFilter) {
-					if (isSelected)
+					if (isSelected) {
 						mPoint[i].record.clearFlag(mUseAsFilterFlagNo);
-					else if (!mAddingToSelection)
+						customSelectionFound = true;
+						}
+					else if (!mAddingToSelection) {
 						mPoint[i].record.setFlag(mUseAsFilterFlagNo);
+						}
 					}
 				else {
 					if (isSelected)
@@ -3761,21 +4370,27 @@ public abstract class JVisualization extends JComponent
 					}
 				}
 
-			if (isCustomFilter)
-				mTableModel.updateExternalExclusion(mUseAsFilterFlagNo, false, true);
+			if (isCustomFilter) {
+				mTableModel.setRowFlagSuspension(mUseAsFilterFlagNo, !customSelectionFound);
+				mTableModel.updateExternalExclusion(mUseAsFilterFlagNo, false, customSelectionFound);
+				}
 			else
 				mSelectionModel.invalidate();
 			}
 		else if (mDragMode == DRAG_MODE_LASSO_SELECT) {
 			boolean isCustomFilter = (mUseAsFilterFlagNo != -1);
+			boolean customSelectionFound = false;
 			for (int i=0; i<mDataPoints; i++) {
 				boolean isSelected = mLassoRegion.contains(mPoint[i].screenX, mPoint[i].screenY)
 						&& isVisible(mPoint[i]);
 				if (isCustomFilter) {
-					if (isSelected)
+					if (isSelected) {
 						mPoint[i].record.clearFlag(mUseAsFilterFlagNo);
-					else if (!mAddingToSelection)
+						customSelectionFound = true;
+						}
+					else if (!mAddingToSelection) {
 						mPoint[i].record.setFlag(mUseAsFilterFlagNo);
+						}
 					}
 				else {
 					if (isSelected)
@@ -3785,8 +4400,10 @@ public abstract class JVisualization extends JComponent
 					}
 				}
 
-			if (isCustomFilter)
-				mTableModel.updateExternalExclusion(mUseAsFilterFlagNo, false, true);
+			if (isCustomFilter) {
+				mTableModel.setRowFlagSuspension(mUseAsFilterFlagNo, !customSelectionFound);
+				mTableModel.updateExternalExclusion(mUseAsFilterFlagNo, false, customSelectionFound);
+				}
 			else
 				mSelectionModel.invalidate();
 			}
@@ -3817,7 +4434,7 @@ public abstract class JVisualization extends JComponent
 	protected boolean showPopupMenu() {
 		if (mDetailPopupProvider != null) {
 			CompoundRecord record = (mHighlightedPoint == null) ? null : mHighlightedPoint.record;
-			JPopupMenu popup = mDetailPopupProvider.createPopupMenu(record, (VisualizationPanel)getParent(), -1);
+			JPopupMenu popup = mDetailPopupProvider.createPopupMenu(record, (VisualizationPanel)getParent(), -1, mMouseIsControlDown);
 			if (popup != null) {
 				popup.show(this, mMouseX1, mMouseY1);
 				return true;
@@ -3838,21 +4455,15 @@ public abstract class JVisualization extends JComponent
 		}
 
 	private void startPopupTimer() {
-		mPopupThread = new Thread(new Runnable() {
-			@Override
-			public void run() {
-				try {
-					Thread.sleep(RIGHT_MOUSE_POPUP_DELAY);
-					if (showDelayedPopupMenu())
-						SwingUtilities.invokeLater(new Runnable() {
-							@Override
-							public void run() {
-								if (mPopupThread != null)
-									showPopupMenu();
-							}
-						});
-					} catch (InterruptedException ie) {}
-				}
+		mPopupThread = new Thread(() -> {
+			try {
+				Thread.sleep(RIGHT_MOUSE_POPUP_DELAY);
+				if (showDelayedPopupMenu())
+					SwingUtilities.invokeLater(() -> {
+						if (mPopupThread != null)
+							showPopupMenu();
+					});
+				} catch (InterruptedException ie) {}
 			} );
 		mPopupThread.start();
 		}
@@ -3875,9 +4486,11 @@ public abstract class JVisualization extends JComponent
 		}
 
 	public void mouseMoved(MouseEvent e) {
-		VisualizationLabelPosition oldLabel = mHighlightedLabelPosition;
+		mMouseX1 = e.getX();
+		mMouseY1 = e.getY();
+		LabelPosition2D oldLabel = mHighlightedLabelPosition;
 		VisualizationPoint marker = findMarker(e.getX(), e.getY());
-		if (oldLabel != mHighlightedLabelPosition)
+		if (oldLabel != mHighlightedLabelPosition || showCrossHair())
 			repaint();
 		if (mHighlightedPoint != marker)
 			mTableModel.setHighlightedRow((marker == null) ? null : marker.record);
@@ -3907,6 +4520,10 @@ public abstract class JVisualization extends JComponent
 			}
 		}
 
+	public boolean showCrossHair() {
+		return false;
+		}
+
 	@Override
 	public Point getToolTipLocation(MouseEvent e) {
 		VisualizationPoint vp = findMarker(e.getX(), e.getY());
@@ -3918,12 +4535,14 @@ public abstract class JVisualization extends JComponent
 		VisualizationPoint vp = findMarker(e.getX(), e.getY());
 		if (vp == null)
 			return null;
-		TreeSet<Integer> columnSet = new TreeSet<Integer>();
+		TreeSet<Integer> columnSet = new TreeSet<>();
 		StringBuilder sb = new StringBuilder();
 		for (int axis=0; axis<mDimensions; axis++)
 			addTooltipRow(vp.record, mAxisIndex[axis], mAxisSimilarity[axis], columnSet, sb);
 
 		addMarkerTooltips(vp, columnSet, sb);
+
+		addLabelTooltips(vp, columnSet, sb);
 
 		if (sb.length() == 0)
 			return null;
@@ -3939,13 +4558,19 @@ public abstract class JVisualization extends JComponent
 		addTooltipRow(vp.record, getChartColumn(), null, columnSet, sb);
 		}
 
+	protected void addLabelTooltips(VisualizationPoint vp, TreeSet<Integer> columnSet, StringBuilder sb) {
+		for (int column:mLabelColumn)
+			if (column != cColumnUnassigned)
+				addTooltipRow(vp.record, column, null, columnSet, sb);
+		}
+
 	protected void addTooltipRow(CompoundRecord record, int column, float[] similarity, TreeSet<Integer> columnSet, StringBuilder sb) {
 		if (column != cColumnUnassigned && !columnSet.contains(column)) {
 			columnSet.add(column);
 			String title = null;
 			String value = null;
 			if (CompoundTableListHandler.isListColumn(column)) {
-				int listIndex = CompoundTableListHandler.getListFromColumn(column);
+				int listIndex = CompoundTableListHandler.convertToListIndex(column);
 				int flagNo = mTableModel.getListHandler().getListFlagNo(listIndex);
 				title = record.isFlagSet(flagNo) ? "Member of '" : "Not member of '";
 				value = mTableModel.getListHandler().getListName(listIndex);
@@ -3961,7 +4586,7 @@ public abstract class JVisualization extends JComponent
 					}
 				else if (mTableModel.getColumnSpecialType(column) != null) {
 					int idColumn = mTableModel.findColumn(mTableModel.getColumnProperty(column,
-							CompoundTableConstants.cColumnPropertyIdentifierColumn));
+							CompoundTableConstants.cColumnPropertyRelatedIdentifierColumn));
 					if (idColumn != -1)
 						value = mTableModel.encodeData(record, idColumn);
 					}
@@ -4020,6 +4645,14 @@ public abstract class JVisualization extends JComponent
 					mCaseSeparationColumn = cColumnUnassigned;
 				needsUpdate = true;
 				}
+			if (mOnePerCategoryLabelCategoryColumn == column) {
+				if (!mTableModel.isColumnTypeCategory(column))
+					mOnePerCategoryLabelCategoryColumn = cColumnUnassigned;
+				needsUpdate = true;
+				}
+			if (mOnePerCategoryLabelValueColumn == column) {
+				needsUpdate = true;
+				}
 			if (mSplittingColumn[0] == column
 			 || mSplittingColumn[1] == column) {
 				if (!mTableModel.isColumnTypeCategory(column)) {
@@ -4045,7 +4678,8 @@ public abstract class JVisualization extends JComponent
 			}
 		else if (e.getType() == CompoundTableEvent.cAddRows
 			  || e.getType() == CompoundTableEvent.cDeleteRows) {
-			initializeDataPoints(true, e.getType() == CompoundTableEvent.cDeleteRows);
+			boolean recycle = (e.getType() != CompoundTableEvent.cAddRows || e.getSpecifier() != 0);	// otherwise we have inserted rows from row splitting
+			initializeDataPoints(recycle, e.getType() == CompoundTableEvent.cDeleteRows);
 			mVisibleCategoryFromCategory = null;
 			for (int axis=0; axis<mDimensions; axis++) {
 				int column = mAxisIndex[axis];
@@ -4056,6 +4690,8 @@ public abstract class JVisualization extends JComponent
 				   	exclusionNeeds |= ((EXCLUSION_FLAG_NAN_0 | EXCLUSION_FLAG_ZOOM_0) << axis);
 					}
 				}
+			if (e.getType() == CompoundTableEvent.cAddRows && showProportionalBarOrPieFractions())
+				exclusionNeeds |= EXCLUSION_FLAG_PROPORTIONAL_FRACTION_NAN;
 
 	   		updateSimilarityMarkerSizes(-1);
 		   	if (mMarkerShapeColumn >= 0) {	// if not is unassigned or list
@@ -4067,8 +4703,11 @@ public abstract class JVisualization extends JComponent
 				if (!mTableModel.isColumnTypeCategory(mCaseSeparationColumn)
 				 || mTableModel.getCategoryCount(mCaseSeparationColumn) > cMaxCaseSeparationCategoryCount)
 					mCaseSeparationColumn = cColumnUnassigned;
-				needsUpdate = true;
 				}
+			if (mOnePerCategoryLabelCategoryColumn >= 0) {
+				if (!mTableModel.isColumnTypeCategory(mOnePerCategoryLabelCategoryColumn))
+					mOnePerCategoryLabelCategoryColumn = cColumnUnassigned;
+			}
 			if (mSplittingColumn[0] >= 0
 			 || mSplittingColumn[1] >= 0) {  // if not is unassigned or list
 				if (mSplittingColumn[0] >= 0 && !mTableModel.isColumnTypeCategory(mSplittingColumn[0])) {
@@ -4133,6 +4772,23 @@ public abstract class JVisualization extends JComponent
 					needsUpdate = true;
 					}
 				}
+			if (mOnePerCategoryLabelCategoryColumn >= 0) {
+				mOnePerCategoryLabelCategoryColumn = columnMapping[mOnePerCategoryLabelCategoryColumn];
+				if (mOnePerCategoryLabelCategoryColumn == cColumnUnassigned)
+					needsUpdate = true;
+				}
+			if (mOnePerCategoryLabelValueColumn >= 0) {
+				mOnePerCategoryLabelValueColumn = columnMapping[mOnePerCategoryLabelValueColumn];
+				if (mOnePerCategoryLabelValueColumn == cColumnUnassigned)
+					needsUpdate = true;
+				}
+			if (mChartColumn >= 0) {
+				mChartColumn = columnMapping[mChartColumn];
+				if (mChartColumn == cColumnUnassigned) {
+					mChartMode = cChartModeCount;
+					needsUpdate = true;
+					}
+				}
 			if (mConnectionColumn >= 0) {
 				mConnectionColumn = columnMapping[mConnectionColumn];
 				if (mConnectionColumn == cColumnUnassigned) {
@@ -4175,8 +4831,15 @@ public abstract class JVisualization extends JComponent
 		else if (e.getType() == CompoundTableEvent.cChangeColumnName) {
 			invalidateOffImage(false);
 			}
+		else if (e.getType() == CompoundTableEvent.cChangeColumnReference) {
+			if (mConnectionColumn == e.getColumn()) {
+				invalidateConnectionLines();
+				updateTreeViewGraph();
+				invalidateOffImage(false);
+				}
+			}
 
-		for (JVisualizationLegend legend:mLegendList)
+		for (VisualizationLegend legend:mLegendList)
 			legend.compoundTableChanged(e);
 
 		mMarkerColor.compoundTableChanged(e);
@@ -4205,32 +4868,28 @@ public abstract class JVisualization extends JComponent
 			mPoint[i].labelPosition = null;
 		}
 
-	/**
-	 * Updates the column entry of all cached label positions from oldColumn to newColumn.
-	 * This may include or exclude manually assigned label positions.
-	 * @param oldToNewColumn
-	 */
-	public void remapLabelPositionColumns(int[] oldToNewColumn) {
-		for (int i=0; i<mDataPoints; i++)
-			mPoint[i].remapLabelPositionColumns(oldToNewColumn);
-		}
-
 	public void listChanged(CompoundTableListEvent e) {
 		if (e.getType() == CompoundTableListEvent.cDelete) {
-			if (mFocusList != cFocusNone) {
+			if (mLocalExclusionList != CompoundTableListHandler.LISTINDEX_NONE) {
+				if (mLocalExclusionList == e.getListIndex())
+					setLocalExclusionList(CompoundTableListHandler.LISTINDEX_NONE);
+				else if (mLocalExclusionList > e.getListIndex())
+					mLocalExclusionList--;
+				}
+			if (mFocusList != FocusableView.cFocusNone) {
 				if (mFocusList == e.getListIndex())
-					setFocusHitlist(cFocusNone);
+					setFocusList(FocusableView.cFocusNone);
 				else if (mFocusList > e.getListIndex())
 					mFocusList--;
 				}
 			if (mLabelList != cLabelsOnAllRows) {
 				if (mLabelList == e.getListIndex())
-					setFocusHitlist(cLabelsOnAllRows);
+					setMarkerLabelList(cLabelsOnAllRows);
 				else if (mLabelList > e.getListIndex())
 					mLabelList--;
 				}
 			if (CompoundTableListHandler.isListColumn(mMarkerSizeColumn)) {
-				int listIndex = CompoundTableListHandler.getListFromColumn(mMarkerSizeColumn);
+				int listIndex = CompoundTableListHandler.convertToListIndex(mMarkerSizeColumn);
 				if (e.getListIndex() == listIndex) {
 					mMarkerSizeColumn = cColumnUnassigned;
 					invalidateOffImage(false);
@@ -4240,7 +4899,7 @@ public abstract class JVisualization extends JComponent
 					}
 				}
 			if (CompoundTableListHandler.isListColumn(mMarkerShapeColumn)) {
-				int listIndex = CompoundTableListHandler.getListFromColumn(mMarkerShapeColumn);
+				int listIndex = CompoundTableListHandler.convertToListIndex(mMarkerShapeColumn);
 				if (e.getListIndex() == listIndex) {
 					mMarkerShapeColumn = cColumnUnassigned;
 					for (int i=0; i<mDataPoints; i++)
@@ -4252,7 +4911,7 @@ public abstract class JVisualization extends JComponent
 					}
 				}
 			if (CompoundTableListHandler.isListColumn(mCaseSeparationColumn)) {
-				int listIndex = CompoundTableListHandler.getListFromColumn(mCaseSeparationColumn);
+				int listIndex = CompoundTableListHandler.convertToListIndex(mCaseSeparationColumn);
 				if (e.getListIndex() == listIndex) {
 					mCaseSeparationColumn = cColumnUnassigned;
 					invalidateOffImage(true);
@@ -4263,7 +4922,7 @@ public abstract class JVisualization extends JComponent
 				}
 			boolean splittingChanged = false;
 			if (CompoundTableListHandler.isListColumn(mSplittingColumn[0])) {
-				int listIndex = CompoundTableListHandler.getListFromColumn(mSplittingColumn[0]);
+				int listIndex = CompoundTableListHandler.convertToListIndex(mSplittingColumn[0]);
 				if (e.getListIndex() == listIndex) {
 					mSplittingColumn[0] = cColumnUnassigned;
 					splittingChanged = true;
@@ -4273,7 +4932,7 @@ public abstract class JVisualization extends JComponent
 					}
 				}
 			if (CompoundTableListHandler.isListColumn(mSplittingColumn[1])) {
-				int listIndex = CompoundTableListHandler.getListFromColumn(mSplittingColumn[1]);
+				int listIndex = CompoundTableListHandler.convertToListIndex(mSplittingColumn[1]);
 				if (e.getListIndex() == listIndex) {
 					mSplittingColumn[1] = cColumnUnassigned;
 					splittingChanged = true;
@@ -4292,6 +4951,9 @@ public abstract class JVisualization extends JComponent
 				}
 			}
 		else if (e.getType() == CompoundTableListEvent.cChange) {
+			if (mLocalExclusionList == e.getListIndex()) {
+				invalidateOffImage(false);
+				}
 			if (mFocusList == e.getListIndex()) {
 				invalidateOffImage(false);
 				}
@@ -4299,13 +4961,13 @@ public abstract class JVisualization extends JComponent
 				invalidateOffImage(false);
 				}
 			if (CompoundTableListHandler.isListColumn(mMarkerSizeColumn)) {
-				int listIndex = CompoundTableListHandler.getListFromColumn(mMarkerSizeColumn);
+				int listIndex = CompoundTableListHandler.convertToListIndex(mMarkerSizeColumn);
 				if (e.getListIndex() == listIndex) {
 					invalidateOffImage(false);
 					}
 				}
 			if (CompoundTableListHandler.isListColumn(mMarkerShapeColumn)) {
-				int listIndex = CompoundTableListHandler.getListFromColumn(mMarkerShapeColumn);
+				int listIndex = CompoundTableListHandler.convertToListIndex(mMarkerShapeColumn);
 				if (e.getListIndex() == listIndex) {
 					int flagNo = mTableModel.getListHandler().getListFlagNo(listIndex);
 					for (int i=0; i<mDataPoints; i++)
@@ -4314,14 +4976,14 @@ public abstract class JVisualization extends JComponent
 					}
 				}
 			if (CompoundTableListHandler.isListColumn(mCaseSeparationColumn)) {
-				int listIndex = CompoundTableListHandler.getListFromColumn(mCaseSeparationColumn);
+				int listIndex = CompoundTableListHandler.convertToListIndex(mCaseSeparationColumn);
 				if (e.getListIndex() == listIndex)
 					invalidateOffImage(true);
 				}
 			if ((CompoundTableListHandler.isListColumn(mSplittingColumn[0])
-			  && e.getListIndex() == CompoundTableListHandler.getListFromColumn(mSplittingColumn[0]))
+			  && e.getListIndex() == CompoundTableListHandler.convertToListIndex(mSplittingColumn[0]))
 			 || (CompoundTableListHandler.isListColumn(mSplittingColumn[1])
-			  && e.getListIndex() == CompoundTableListHandler.getListFromColumn(mSplittingColumn[1]))) {
+			  && e.getListIndex() == CompoundTableListHandler.convertToListIndex(mSplittingColumn[1]))) {
 				invalidateSplittingIndices();
 				}
 			}
@@ -4331,6 +4993,10 @@ public abstract class JVisualization extends JComponent
 
 	public void valueChanged(ListSelectionEvent e) {
 		if (!e.getValueIsAdjusting()) {
+			if (mSplittingColumn[0] == CompoundTableListHandler.PSEUDO_COLUMN_SELECTION
+			 || mSplittingColumn[1] == CompoundTableListHandler.PSEUDO_COLUMN_SELECTION)
+				invalidateSplittingIndices();
+
 			invalidateOffImage(mChartType == cChartTypeBoxPlot
 							|| mChartType == cChartTypeBars
 							|| mChartType == cChartTypePies);
@@ -4360,8 +5026,9 @@ public abstract class JVisualization extends JComponent
 			if (calculateVisibleRange(axis)) {
 				updateLocalZoomExclusion(axis);
 				applyLocalExclusion(isAdjusting);
+				updateZoomState();
 				if (!Float.isNaN(mMarkerSizeZoomAdaption))
-					mMarkerSizeZoomAdaption = calculateZoomState();
+					mMarkerSizeZoomAdaption = 1f + (mZoomState * MARKER_ZOOM_ADAPTION_FACTOR) - MARKER_ZOOM_ADAPTION_FACTOR;
 				invalidateOffImage(true);
 				}
 			}
@@ -4413,7 +5080,11 @@ public abstract class JVisualization extends JComponent
 	 * @return whether this is a non excluded point in the table model neglecting this views filter flag
 	 */
 	protected boolean isVisibleInModel(VisualizationPoint point) {
-		return (mUseAsFilterFlagNo == -1) ? mTableModel.isVisible(point.record)
+		if (mLocalExclusionList != CompoundTableListHandler.LISTINDEX_NONE
+				&& !point.record.isFlagSet(mTableModel.getListHandler().getListFlagNo(mLocalExclusionList)))
+			return false;
+		return mIsIgnoreGlobalExclusion ? true
+				: (mUseAsFilterFlagNo == -1) ? mTableModel.isVisible(point.record)
 				: mTableModel.isVisibleNeglecting(point.record, mUseAsFilterFlagNo);
 		}
 
@@ -4480,6 +5151,17 @@ public abstract class JVisualization extends JComponent
 		}
 
 	/**
+	 * Checks whether the current column to axis assigment, the current zoom state
+	 * and the current show NaN state, and the current localAffectsGlobalExclusion
+	 * cause rows to be hidden globally. Suspension of global row hiding (because
+	 * a view is currently not visible) is not taken into acount.
+	 * @return whether this view currently causes rows to be hidden globally
+	 */
+	public boolean isGloballyHidingRows() {
+		return mIsGloballyHidingRows;
+		}
+
+	/**
 	 * Sets axis related zoom flags to false and sets NaN flags depending on
 	 * whether the value is NaN regardless whether the axis is showing floats or categories.
 	 * @param axis
@@ -4487,7 +5169,7 @@ public abstract class JVisualization extends JComponent
 	private void initializeLocalExclusion(int axis) {
 			// flags 0-2: set if invisible due to view zooming
 			// flags 3-5: set if invisible because of empty data (applies only for non-category )
-			// flags 6  : set if invisible because point is not part of currently shown detail graph
+			// flag  6  : set if invisible because point is not part of currently shown detail graph
 		int column = mAxisIndex[axis];
 		byte nanFlag = (byte)(EXCLUSION_FLAG_NAN_0 << axis);
 		byte bothFlags = (byte)((EXCLUSION_FLAG_ZOOM_0 | EXCLUSION_FLAG_NAN_0) << axis);
@@ -4502,6 +5184,28 @@ public abstract class JVisualization extends JComponent
 				mPoint[i].exclusionFlags |= nanFlag;
 			}
 		}
+
+	/**
+	 * Sets proportional bar/pie fraction related NaN flags depending on whether the respective
+	 * chart-column value is NaN regardless whether bars/pies show count or value proportional fractions.
+	 */
+	private void initializeProportionalFractionExclusion() {
+		// flags 0-2: set if invisible due to view zooming
+		// flags 3-5: set if invisible because of empty data (applies only for non-category )
+		// flag  6  : set if invisible because point is not part of currently shown detail graph
+		byte nanFlag = EXCLUSION_FLAG_PROPORTIONAL_FRACTION_NAN;
+		boolean isProportional = showProportionalBarOrPieFractions()
+				&& !mTableModel.isDescriptorColumn(mChartColumn);
+
+		// reset all flags and then
+		// flag all records with empty data
+		for (int i=0; i<mDataPoints; i++) {
+			if (isProportional && Float.isNaN(mPoint[i].record.getDouble(mChartColumn)))
+				mPoint[i].exclusionFlags |= nanFlag;
+			else
+				mPoint[i].exclusionFlags &= ~nanFlag;
+		}
+	}
 
 	/**
 	 * Updates the local exclusion flags of non-NAN row values to
@@ -4578,25 +5282,24 @@ public abstract class JVisualization extends JComponent
 	 * @param isAdjusting
 	 */
 	private void applyLocalExclusion(final boolean isAdjusting) {
-			// set "current view exclusion flags" in CompoundTableModel
 		if (!mApplyLocalExclusionScheduled) {
 			mApplyLocalExclusionScheduled = true;
 
 			// in case applyLocalExclusion() is called in the cascade caused by a compoundTableChanged()
 			// (e.g. with delete columns), then we must wait until all views have updated accordingly,
 			// before interfering by spawning another compoundTableChanged() cascade...
-			SwingUtilities.invokeLater(new Runnable() {
-				@Override
-				public void run() {
+			SwingUtilities.invokeLater(() -> {
 					mApplyLocalExclusionScheduled = false;
 
 					if (mLocalExclusionFlagNo != -1) {
 						boolean excludedRecordsFound = false;
 						long mask = mTableModel.convertRowFlagToMask(mLocalExclusionFlagNo);
+						long listMask = mTableModel.getListHandler().getListMask(mLocalExclusionList);
 						for (int i=0; i<mDataPoints; i++) {
 							if ((mPoint[i].exclusionFlags & mActiveExclusionFlags) == 0
-							 || (mShowNaNValues
-							  && (mPoint[i].exclusionFlags & ~EXCLUSION_FLAGS_NAN) == 0)) {
+							 || (mShowNaNValues && (mPoint[i].exclusionFlags & ~EXCLUSION_FLAGS_NAN) == 0)
+							 || (mLocalExclusionList != CompoundTableListHandler.LISTINDEX_NONE
+									&& (mPoint[i].record.getFlags() & listMask) == 0)) {
 								mPoint[i].record.clearFlags(mask);
 								}
 							else {
@@ -4604,15 +5307,20 @@ public abstract class JVisualization extends JComponent
 								excludedRecordsFound = true;
 								}
 							}
-	
+
+						if (!mSuspendGlobalExclusion)
+							mIsGloballyHidingRows = excludedRecordsFound;
+
 						mTableModel.updateExternalExclusion(mLocalExclusionFlagNo, isAdjusting, excludedRecordsFound);
 						}
 					else if (mPreviousLocalExclusionFlagNo != -1) {
+						if (!mSuspendGlobalExclusion)
+							mIsGloballyHidingRows = false;
+
 						mTableModel.freeRowFlag(mPreviousLocalExclusionFlagNo);
 						}
 
 					mPreviousLocalExclusionFlagNo = mLocalExclusionFlagNo;
-					}
 				});
 			}
 		}
@@ -4654,12 +5362,16 @@ public abstract class JVisualization extends JComponent
 		}
 
 	@Override
-	public boolean supportsMidPositionLabels() {
-		return true;
+	public boolean isShowColumnNameInTable() {
+		return false;
 		}
 
-	public int getMarkerLabelTableEntryCount() {
-		return 0;
+	@Override
+	public void setShowColumnNameInTable(boolean b) {}
+
+	@Override
+	public boolean supportsMidPositionLabels() {
+		return true;
 		}
 
 	@Override
@@ -4679,7 +5391,7 @@ public abstract class JVisualization extends JComponent
 
 	public boolean hasCustomPositionLabels() {
 		for (int i=0; i<mDataPoints; i++) {
-			VisualizationLabelPosition lp = mPoint[i].labelPosition;
+			LabelPosition2D lp = mPoint[i].labelPosition;
 			while (lp != null) {
 				if (lp.isCustom())
 					return true;
@@ -4690,7 +5402,7 @@ public abstract class JVisualization extends JComponent
 		}
 
 	public void readCustomLabelPositions(ArrayList<String> lineList) {
-		float[] value = new float[3];
+		float[] value = new float[mDimensions];
 		for (String line:lineList) {
 			String[] entry = line.split("\\t");
 			if (entry.length == mDimensions+2) {
@@ -4699,8 +5411,11 @@ public abstract class JVisualization extends JComponent
 					int row = Integer.parseInt(entry[0]);
 					for (int i=0; i<mDimensions; i++)
 						value[i] = Float.parseFloat(entry[i+2]);
-					VisualizationLabelPosition lp = mPoint[row].getOrCreateLabelPosition(column);
-					lp.setXYZ(value[0], value[1], value[2]);
+					LabelPosition2D lp = mPoint[row].getOrCreateLabelPosition(column, value.length == 3);
+					lp.setCustom(true);
+					lp.setXY(value[0], value[1]);
+					if (value.length == 3)
+						((LabelPosition3D)lp).setZ(value[2]);
 					}
 				catch (NumberFormatException nfe) {}
 				}
@@ -4713,27 +5428,16 @@ public abstract class JVisualization extends JComponent
 			idToRow[mTableModel.getTotalRecord(row).getID()] = row;
 
 		for (int i=0; i<mDataPoints; i++) {
-			VisualizationLabelPosition lp = mPoint[i].labelPosition;
+			LabelPosition2D lp = mPoint[i].labelPosition;
 			while (lp != null) {
 				if (lp.isCustom()) {
-					writer.write(Integer.toString(idToRow[mPoint[i].record.getID()]));
-					writer.write('\t');
-					writer.write(mTableModel.getColumnTitleNoAlias(lp.getColumn()));
-					writer.write('\t');
-					writer.write(DoubleFormat.toString(lp.getX()));
-					writer.write('\t');
-					writer.write(DoubleFormat.toString(lp.getY()));
-					if (mDimensions == 3) {
-						writer.write('\t');
-						writer.write(DoubleFormat.toString(lp.getZ()));
-						}
+					lp.writePosition(writer, Integer.toString(idToRow[mPoint[i].record.getID()]), mTableModel.getColumnTitleNoAlias(lp.getColumn()));
 					writer.newLine();
 					}
+
 				lp = lp.getNext();
 				}
 			}
-		writer.write(CUSTOM_LABEL_POSITION_END_VIEW_TAG);
-		writer.newLine();
 		}
 
 	public class DoubleDimension {

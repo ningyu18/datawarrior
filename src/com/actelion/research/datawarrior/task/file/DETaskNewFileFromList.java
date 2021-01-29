@@ -126,7 +126,7 @@ public class DETaskNewFileFromList extends DETaskAbstractListTask {
 		for (int i=0; i<hitlistUsed.length; i++) {
 			if (hitlistUsed[i]) {
 				int flagNo = targetHitlistHandler.getListFlagNo(targetHitlistHandler.createList(
-						sourceHitlistHandler.getListName(i), -1, CompoundTableListHandler.EMPTY_LIST, -1, null));
+						sourceHitlistHandler.getListName(i), -1, CompoundTableListHandler.EMPTY_LIST, -1, null, false));
 			   	int tRow = 0;
 				for (int row=0; row<sourceTableModel.getTotalRowCount(); row++) {
 			   		CompoundRecord record = sourceTableModel.getTotalRecord(row);

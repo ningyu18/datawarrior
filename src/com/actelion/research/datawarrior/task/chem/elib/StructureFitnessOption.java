@@ -26,11 +26,16 @@ import com.actelion.research.chem.descriptor.DescriptorHandler;
 import com.actelion.research.chem.descriptor.DescriptorHandlerFlexophore;
 import com.actelion.research.datawarrior.task.AbstractTask;
 import com.actelion.research.table.model.CompoundTableModel;
+import org.openmolecules.chem.conf.gen.RigidFragmentCache;
+
+import java.util.concurrent.ConcurrentHashMap;
 
 public class StructureFitnessOption extends FitnessOption {
+	private volatile boolean mIsFexophore;
 	private int mSearchType;
 	private String mDescriptorShortName;
 	private MoleculeWithDescriptor[] mRefMoleculeList;
+	private static ConcurrentHashMap<String,DescriptorHandlerFlexophore> sDescriptorHandlerMap;
 
 	public StructureFitnessOption(String params, ProgressListener pl) {
 		String[] param = params.split("\\t");
@@ -41,18 +46,21 @@ public class StructureFitnessOption extends FitnessOption {
 			mRefMoleculeList = new MoleculeWithDescriptor[param.length-3];
 			@SuppressWarnings("unchecked")
 			DescriptorHandler<Object,StereoMolecule> dh = CompoundTableModel.getDefaultDescriptorHandler(mDescriptorShortName);
-			boolean isFlexophore = DescriptorConstants.DESCRIPTOR_Flexophore.shortName.equals(mDescriptorShortName);
+			mIsFexophore = DescriptorConstants.DESCRIPTOR_Flexophore.shortName.equals(mDescriptorShortName);
+			if (mIsFexophore)
+				RigidFragmentCache.getDefaultInstance().loadDefaultCache();
+
 			for (int i=0; i<mRefMoleculeList.length; i++) {
 				StereoMolecule mol = new IDCodeParser(true).getCompactMolecule(param[i+3]);
-				Object descriptor = null;
-				if (isFlexophore) {
+
+				if (mIsFexophore)
 					pl.startProgress("Calculating Flexophore...", 0, 0);
-					descriptor = ((DescriptorHandlerFlexophore)dh).createDescriptor(mol);
+
+				Object descriptor = dh.createDescriptor(mol);
+
+				if (mIsFexophore)
 					pl.stopProgress();
-					}
-				else {
-					descriptor = dh.createDescriptor(mol);
-					}
+
 				mRefMoleculeList[i] = new MoleculeWithDescriptor(mol, descriptor);
 				}
 			}
@@ -81,18 +89,31 @@ public class StructureFitnessOption extends FitnessOption {
 
 	@Override
 	public String getName() {
-		return mDescriptorShortName + (mSearchType == 0 ? " similarity" : " dissimilarity");
+		return mDescriptorShortName + (mSearchType == 0 ? " sim score" : " dissim score");
 		}
 
 	@Override
-	public float calculateProperty(StereoMolecule mol) {
+	public float calculateProperty(StereoMolecule mol, String[][] customColumnValueHolder) {
 		boolean isSimilar = (mSearchType == 0);
 		@SuppressWarnings("unchecked")
-		DescriptorHandler<Object,StereoMolecule> dh = CompoundTableModel.getDefaultDescriptorHandler(mDescriptorShortName);
-		boolean isFlexophore = (dh.getInfo() == DescriptorConstants.DESCRIPTOR_Flexophore);
+		DescriptorHandler<Object,StereoMolecule> dh;
+		if (mIsFexophore) {
+			synchronized (this) {
+				if (sDescriptorHandlerMap == null)
+					sDescriptorHandlerMap = new ConcurrentHashMap<>();
 
-		Object descriptor = isFlexophore ? ((DescriptorHandlerFlexophore)dh).createDescriptor(mol)
-										 : dh.createDescriptor(mol);
+				dh = sDescriptorHandlerMap.get(Thread.currentThread().getName());
+				if (dh == null) {
+					dh = CompoundTableModel.getDefaultDescriptorHandler(mDescriptorShortName).getThreadSafeCopy();
+					sDescriptorHandlerMap.put(Thread.currentThread().getName(), (DescriptorHandlerFlexophore)dh);
+					}
+				}
+			}
+		else {
+			dh = CompoundTableModel.getDefaultDescriptorHandler(mDescriptorShortName);
+			}
+
+		Object descriptor = dh.createDescriptor(mol);
 		if (descriptor == null)
 			return 0.0f;
 
@@ -102,12 +123,8 @@ public class StructureFitnessOption extends FitnessOption {
 			property = Math.max(property, similarity);
 			}
 
-		// For the flexophore halogene atoms are invisible. Therefore we need to
-		// add a panalty factor for surplus unneeded flour atoms.
-		if (isFlexophore)
-			property *= calculateFlexophorePanalty(mol);
-
-		return isSimilar ? property : 1.0f - property;
+		// in case of dissimilarity, we consider 50% similarity already as completely dissimilar to avoid absurd structure modifications
+		return isSimilar ? property : 2.0f * (1.0f - Math.max(property, 0.5f));
 		}
 
 	@Override
@@ -122,16 +139,5 @@ public class StructureFitnessOption extends FitnessOption {
 		else
 			// consider similarities lower than 50% as fully optimal
 			return (propertyValue >= 0.5) ? 1f : propertyValue * 2f;
-		}
-
-	private float calculateFlexophorePanalty(StereoMolecule mol) {
-		int count = 0;
-		for (int atom=0; atom<mol.getAllAtoms(); atom++) {
-			int atomicNo = mol.getAtomicNo(atom);
-			if (atomicNo == 9 || atomicNo == 17 || atomicNo == 35 || atomicNo == 53)
-				count++;
-			}
-		float factor = (float)(mol.getAllAtoms() - count) / (float)mol.getAllAtoms();
-		return factor;
 		}
 	}

@@ -19,41 +19,42 @@
 package com.actelion.research.datawarrior.task.data;
 
 import com.actelion.research.datawarrior.DETable;
+import com.actelion.research.gui.hidpi.HiDPIHelper;
 import info.clearthought.layout.TableLayout;
 
 import java.awt.Dimension;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Properties;
 
-import javax.swing.JLabel;
-import javax.swing.JList;
-import javax.swing.JOptionPane;
-import javax.swing.JPanel;
-import javax.swing.JScrollPane;
-import javax.swing.JTextArea;
-import javax.swing.SwingConstants;
+import javax.swing.*;
 
 import com.actelion.research.datawarrior.DEFrame;
 import com.actelion.research.datawarrior.task.ConfigurableTask;
 import com.actelion.research.table.model.CompoundRecord;
 import com.actelion.research.table.model.CompoundTableModel;
 
-public class DETaskDeleteDuplicateRows extends ConfigurableTask {
-	public static final int MODE_MERGE_DUPLICATE = 0;
+public class DETaskDeleteDuplicateRows extends ConfigurableTask implements ActionListener {
+	public static final int MODE_MERGE_EQUIVALENT = 0;
 	public static final int MODE_REMOVE_DUPLICATE = 1;
 	public static final int MODE_REMOVE_UNIQUE = 2;
 
 	public static final String[] TASK_NAME = { "Merge Equivalent Rows", "Delete Duplicate Rows", "Delete Unique Rows" };
 
 	private static final String PROPERTY_COLUMN_LIST = "columnList";
+	private static final String PROPERTY_CASE_SENSITIVE = "caseSensitive";
+	private static final String CODE_ALL_COLUMNS = "<all>";
 
 	private DETable				mTable;
 	private CompoundTableModel	mTableModel;
 	private JList				mListColumns;
 	private JTextArea			mTextArea;
 	private int					mMode;
+	private JCheckBox			mCheckBoxMergeAll;
+	private JCheckBox			mCheckBoxCaseSensitive;
 
 	public DETaskDeleteDuplicateRows(DEFrame owner, int mode) {
 		super(owner, false);
@@ -64,8 +65,10 @@ public class DETaskDeleteDuplicateRows extends ConfigurableTask {
 
 	@Override
 	public JPanel createDialogContent() {
-		double[][] size = { {8, TableLayout.PREFERRED, 8},
-							{8, TableLayout.PREFERRED, 4, TableLayout.PREFERRED, 8, TableLayout.PREFERRED, 8} };
+		int gap = HiDPIHelper.scale(8);
+		double[] sizeYmerge = {gap, TableLayout.PREFERRED, gap/2, TableLayout.PREFERRED, gap, TableLayout.PREFERRED, gap, TableLayout.PREFERRED, gap/2, TableLayout.PREFERRED, gap};
+		double[] sizeYremove = {gap, TableLayout.PREFERRED, gap/2, TableLayout.PREFERRED, gap, TableLayout.PREFERRED, gap, TableLayout.PREFERRED, gap};
+		double[][] size = { {gap, TableLayout.PREFERRED, gap}, mMode == MODE_MERGE_EQUIVALENT ? sizeYmerge : sizeYremove };
 		JPanel content = new JPanel();
 		content.setLayout(new TableLayout(size));
 
@@ -89,10 +92,34 @@ public class DETaskDeleteDuplicateRows extends ConfigurableTask {
 			mTextArea = new JTextArea();
 			scrollPane = new JScrollPane(mTextArea);
 			}
-		scrollPane.setPreferredSize(new Dimension(220,160));
+		scrollPane.setPreferredSize(new Dimension(HiDPIHelper.scale(240), HiDPIHelper.scale(160)));
 		content.add(scrollPane, "1,5");
 
+		mCheckBoxCaseSensitive = new JCheckBox("Case sensitive");
+		content.add(mCheckBoxCaseSensitive, "1,7");
+
+		if (mMode == MODE_MERGE_EQUIVALENT) {
+			mCheckBoxMergeAll = new JCheckBox("Merge all rows");
+			mCheckBoxMergeAll.addActionListener(this);
+			content.add(mCheckBoxMergeAll, "1,9");
+			}
+
 		return content;
+		}
+
+	@Override
+	public void actionPerformed(ActionEvent e) {
+		if (e.getSource() == mCheckBoxMergeAll) {
+			enableItems();
+			}
+		}
+
+	private void enableItems() {
+		boolean enableList = (mCheckBoxMergeAll == null || !mCheckBoxMergeAll.isSelected());
+		if (mTextArea != null)
+			mTextArea.setEnabled(enableList);
+		if (mListColumns != null)
+			mListColumns.setEnabled(enableList);
 		}
 
 	@Override
@@ -103,12 +130,12 @@ public class DETaskDeleteDuplicateRows extends ConfigurableTask {
 	@Override
 	public boolean isConfigurable() {
 		if (mTableModel.getTotalRowCount() == 0) {
-			showErrorMessage(mMode== MODE_MERGE_DUPLICATE ? "Can't merge rows of an empty table."
+			showErrorMessage(mMode== MODE_MERGE_EQUIVALENT ? "Can't merge rows of an empty table."
 														 : "Can't delete rows from an empty table.");
 			return false;
 			}
 		if (mTableModel.getTotalRowCount() == 1) {
-			showErrorMessage(mMode== MODE_MERGE_DUPLICATE ? "Can't merge rows a single row."
+			showErrorMessage(mMode== MODE_MERGE_EQUIVALENT ? "Can't merge rows a single row."
 														 : "Can't find redundant rows in a single row.");
 			return false;
 			}
@@ -118,21 +145,28 @@ public class DETaskDeleteDuplicateRows extends ConfigurableTask {
 	@Override
 	public Properties getDialogConfiguration() {
 		Properties p = new Properties();
-		String columnNames = isInteractive() ?
-				  getSelectedColumnsFromList(mListColumns, mTableModel)
+		String columnNames = (mCheckBoxMergeAll != null && mCheckBoxMergeAll.isSelected()) ? CODE_ALL_COLUMNS
+				: isInteractive() ? getSelectedColumnsFromList(mListColumns, mTableModel)
 				: mTextArea.getText().replace('\n', '\t');
 		if (columnNames != null && columnNames.length() != 0)
 			p.setProperty(PROPERTY_COLUMN_LIST, columnNames);
+		p.setProperty(PROPERTY_CASE_SENSITIVE, mCheckBoxCaseSensitive.isSelected() ? "true" : "false");
 		return p;
 		}
 
 	@Override
 	public void setDialogConfiguration(Properties configuration) {
 		String columnNames = configuration.getProperty(PROPERTY_COLUMN_LIST, "");
-		if (isInteractive())
+		if (columnNames.equals(CODE_ALL_COLUMNS) && mCheckBoxMergeAll != null)
+			mCheckBoxMergeAll.setSelected(true);
+		else if (isInteractive())
 			selectColumnsInList(mListColumns, columnNames, mTableModel);
 		else
 			mTextArea.setText(columnNames.replace('\t', '\n'));
+
+		mCheckBoxCaseSensitive.setSelected(!"false".equals(configuration.getProperty(PROPERTY_CASE_SENSITIVE)));
+
+		enableItems();
 		}
 
 	@Override
@@ -141,6 +175,8 @@ public class DETaskDeleteDuplicateRows extends ConfigurableTask {
 			mListColumns.clearSelection();
 		else
 			mTextArea.setText("");
+
+		mCheckBoxCaseSensitive.setSelected(true);
 		}
 
 	@Override
@@ -152,19 +188,21 @@ public class DETaskDeleteDuplicateRows extends ConfigurableTask {
 			}
 
 		if (isLive) {
-			String[] columnName = columnList.split("\\t");
-			int[] column = new int[columnName.length];
-			for (int i=0; i<columnName.length; i++) {
-				column[i] = mTableModel.findColumn(columnName[i]);
-				if (column[i] == -1) {
-					showErrorMessage("Column '"+columnName[i]+"' not found.");
-					return false;
+			if (!columnList.equals(CODE_ALL_COLUMNS)) {
+				String[] columnName = columnList.split("\\t");
+				int[] column = new int[columnName.length];
+				for (int i=0; i<columnName.length; i++) {
+					column[i] = mTableModel.findColumn(columnName[i]);
+					if (column[i] == -1) {
+						showErrorMessage("Column '"+columnName[i]+"' not found.");
+						return false;
+						}
 					}
-				}
-			for (int i=0; i<column.length; i++) {
-				if (!columnQualifies(column[i])) {
-					showErrorMessage("Column '"+columnName[i]+"' cannot be used for a redundency check.");
-					return false;
+				for (int i=0; i<column.length; i++) {
+					if (!columnQualifies(column[i])) {
+						showErrorMessage("Column '"+columnName[i]+"' cannot be used for a redundency check.");
+						return false;
+						}
 					}
 				}
 			}
@@ -186,20 +224,28 @@ public class DETaskDeleteDuplicateRows extends ConfigurableTask {
 
 	@Override
 	public void runTask(Properties configuration) {
-		String[] columnName = configuration.getProperty(PROPERTY_COLUMN_LIST).split("\\t");
-		int[] columnList = new int[columnName.length];
+		String columnNames = configuration.getProperty(PROPERTY_COLUMN_LIST);
+		int[] columnList = new int[0];
+
 		boolean[] columnMask = new boolean[mTableModel.getTotalColumnCount()];
 		boolean[] columnError = new boolean[mTableModel.getTotalColumnCount()];
-		for (int i=0; i<columnList.length; i++) {
-			columnList[i] = mTableModel.findColumn(columnName[i]);
-			columnMask[columnList[i]] = true;
+
+		if (!columnNames.equals(CODE_ALL_COLUMNS)) {
+			String[] columnName = columnNames.split("\\t");
+			columnList = new int[columnName.length];
+			for (int i=0; i<columnList.length; i++) {
+				columnList[i] = mTableModel.findColumn(columnName[i]);
+				columnMask[columnList[i]] = true;
+				}
 			}
 
 		CompoundRecord[] record = new CompoundRecord[mTableModel.getTotalRowCount()];
 		for (int row=0; row<mTableModel.getTotalRowCount(); row++)
 			record[row] = mTableModel.getTotalRecord(row);
 
-		RedundancyComparator comparator = new RedundancyComparator(mTableModel, columnList);
+		boolean caseSensitive = !"false".equals(configuration.getProperty(PROPERTY_CASE_SENSITIVE));
+
+		RedundancyComparator comparator = new RedundancyComparator(mTableModel, columnList, caseSensitive);
 
 		Arrays.sort(record, comparator);
 
@@ -220,7 +266,7 @@ public class DETaskDeleteDuplicateRows extends ConfigurableTask {
 			while (row < mTableModel.getTotalRowCount()) {
 				if (comparator.compare(record[row - 1], record[row]) == 0)
 					record[row].markForDeletion();
-				else if (mMode == MODE_MERGE_DUPLICATE) {
+				else if (mMode == MODE_MERGE_EQUIVALENT) {
 					if (firstRow < row - 1)
 						mergeRowContent(record, firstRow, row - 1, columnMask, columnError);
 
@@ -228,12 +274,12 @@ public class DETaskDeleteDuplicateRows extends ConfigurableTask {
 					}
 				row++;
 				}
-			if (mMode == MODE_MERGE_DUPLICATE && firstRow < row - 1)
+			if (mMode == MODE_MERGE_EQUIVALENT && firstRow < row - 1)
 				mergeRowContent(record, firstRow, row - 1, columnMask, columnError);
 			}
 
 		mTableModel.finalizeDeletion();
-		if (mMode == MODE_MERGE_DUPLICATE) {
+		if (mMode == MODE_MERGE_EQUIVALENT) {
 			for (int column=0; column<mTableModel.getTotalColumnCount(); column++)
 				if (!columnMask[column]
 				 && mTableModel.getColumnSpecialType(column) == null)
@@ -241,7 +287,7 @@ public class DETaskDeleteDuplicateRows extends ConfigurableTask {
 			mTable.updateTableRenderers(false);
 			}
 
-		if (isInteractive() && mMode == MODE_MERGE_DUPLICATE) {
+		if (isInteractive() && mMode == MODE_MERGE_EQUIVALENT) {
 			boolean errorFound = false;
 			for (int column=0; column<mTableModel.getTotalColumnCount(); column++) {
 				if (columnError[column]) {
@@ -375,10 +421,14 @@ public class DETaskDeleteDuplicateRows extends ConfigurableTask {
 class RedundancyComparator implements Comparator<CompoundRecord> {
 	private CompoundTableModel mTableModel;
 	private int[] mColumnList;
+	private boolean[] mIsCaseSensitive;
 
-	public RedundancyComparator(CompoundTableModel tableModel, int[] columnList) {
+	public RedundancyComparator(CompoundTableModel tableModel, int[] columnList, boolean caseSensitive) {
 		mTableModel = tableModel;
 		mColumnList = columnList;
+		mIsCaseSensitive = new boolean[columnList.length];
+		for (int i=0; i<columnList.length; i++)
+			mIsCaseSensitive[i] = caseSensitive || mTableModel.getColumnSpecialType(columnList[i]) != null;
 		}
 
 	public int compare(CompoundRecord o1, CompoundRecord o2) {
@@ -386,6 +436,12 @@ class RedundancyComparator implements Comparator<CompoundRecord> {
 		for (int i=0; i<mColumnList.length; i++) {
 			String s1 = mTableModel.getValue(o1, mColumnList[i]);
 			String s2 = mTableModel.getValue(o2, mColumnList[i]);
+			if (!mIsCaseSensitive[i]) {
+				if (s1 != null)
+					s1 = s1.toLowerCase();
+				if (s2 != null)
+					s2 = s2.toLowerCase();
+				}
 			comparison = (s1 == null) ? ((s2 == null) ? 0 : 1)
 					   : (s2 == null) ? -1
 					   : s1.compareTo(s2);

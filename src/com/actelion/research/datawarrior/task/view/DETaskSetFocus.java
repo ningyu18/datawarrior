@@ -18,20 +18,16 @@
 
 package com.actelion.research.datawarrior.task.view;
 
-import com.actelion.research.table.model.CompoundTableListHandler;
-import info.clearthought.layout.TableLayout;
-
-import java.awt.Frame;
-import java.util.Properties;
-
-import javax.swing.JComboBox;
-import javax.swing.JComponent;
-import javax.swing.JLabel;
-import javax.swing.JPanel;
-
 import com.actelion.research.datawarrior.DEMainPane;
+import com.actelion.research.gui.hidpi.HiDPIHelper;
+import com.actelion.research.table.model.CompoundTableListHandler;
 import com.actelion.research.table.view.CompoundTableView;
 import com.actelion.research.table.view.FocusableView;
+import info.clearthought.layout.TableLayout;
+
+import javax.swing.*;
+import java.awt.*;
+import java.util.Properties;
 
 
 public class DETaskSetFocus extends DETaskAbstractSetViewOptions {
@@ -60,9 +56,15 @@ public class DETaskSetFocus extends DETaskAbstractSetViewOptions {
 		}
 
 	@Override
-	public JComponent createInnerDialogContent() {
-		double[][] size = { {8, TableLayout.PREFERRED, 4, TableLayout.PREFERRED, 8},
-							{8, TableLayout.PREFERRED, 8} };
+	public OTHER_VIEWS getOtherViewMode() {
+		return OTHER_VIEWS.GRAPHICAL;
+		}
+
+	@Override
+	public JComponent createViewOptionContent() {
+		int gap = HiDPIHelper.scale(8);
+		double[][] size = { {gap, TableLayout.PREFERRED, gap/2, TableLayout.PREFERRED, gap},
+							{gap, TableLayout.PREFERRED, gap} };
 		JPanel cp = new JPanel();
 		cp.setLayout(new TableLayout(size));
 
@@ -113,8 +115,8 @@ public class DETaskSetFocus extends DETaskAbstractSetViewOptions {
 		}
 
 	@Override
-	public void addViewConfiguration(Properties configuration) {
-		int list = ((FocusableView)getInteractiveView()).getFocusList();
+	public void addViewConfiguration(CompoundTableView view, Properties configuration) {
+		int list = ((FocusableView)view).getFocusList();
 		if (list == FocusableView.cFocusNone)
 			configuration.setProperty(PROPERTY_ROWS, CODE_ALL_ROWS);
 		else if (list == FocusableView.cFocusOnSelection)
@@ -146,13 +148,16 @@ public class DETaskSetFocus extends DETaskAbstractSetViewOptions {
 
 	@Override
 	public void applyConfiguration(CompoundTableView view, Properties configuration, boolean isAdjusting) {
+		if (!(view instanceof FocusableView))
+			return;
+
 		String pseudoColumnName = configuration.getProperty(PROPERTY_ROWS, CODE_ALL_ROWS);
 		if (pseudoColumnName.equals(CODE_ALL_ROWS))
-			((FocusableView)view).setFocusHitlist(FocusableView.cFocusNone);
+			((FocusableView)view).setFocusList(FocusableView.cFocusNone);
 		else if (pseudoColumnName.equals(CODE_SELECTED_ROWS))
-			((FocusableView)view).setFocusHitlist(FocusableView.cFocusOnSelection);
+			((FocusableView)view).setFocusList(FocusableView.cFocusOnSelection);
 		else
-			((FocusableView)view).setFocusHitlist(
-					CompoundTableListHandler.getListFromColumn(getTableModel().findColumn(pseudoColumnName)));
+			((FocusableView)view).setFocusList(
+					CompoundTableListHandler.convertToListIndex(getTableModel().findColumn(pseudoColumnName)));
 		}
 	}

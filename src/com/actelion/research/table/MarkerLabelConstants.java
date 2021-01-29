@@ -45,6 +45,8 @@ public interface MarkerLabelConstants {
 	public static int[] cCornerPositions = { cTopLeft, cTopRight, cBottomLeft, cBottomRight };
 	public static int[] cEdgePositions = { cTopCenter, cMidLeft, cMidRight, cBottomCenter };
 
+	public static final String[] cOnePerCategoryMode = { "highest", "average", "lowest", "magic" };
+
 	public static final String[] cPositionOption = { "top left", "top center", "top right",
 													 "mid left", "mid center (instead of marker)", "mid right",
 													 "bottom left", "bottom center", "bottom right",

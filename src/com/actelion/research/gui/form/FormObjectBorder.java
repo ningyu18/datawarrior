@@ -19,7 +19,6 @@
 package com.actelion.research.gui.form;
 
 import com.actelion.research.gui.hidpi.HiDPIHelper;
-import com.actelion.research.util.ColorHelper;
 
 import javax.swing.*;
 import javax.swing.border.AbstractBorder;
@@ -44,11 +43,11 @@ public class FormObjectBorder extends AbstractBorder {
 
 	public FormObjectBorder(String title, Font font) {
 		mTitle = title;
-		mFont = font;
+		mFont = font.deriveFont(Font.BOLD);
 		}
 
 	public void setFont(Font font) {
-		mFont = font;
+		mFont = font.deriveFont(Font.BOLD);
 		mMetrics = null;
 		}
 
@@ -107,8 +106,8 @@ public class FormObjectBorder extends AbstractBorder {
 
 		Color titleBackground = UIManager.getColor("TextArea.inactiveBackground");
 		Color titleForeground = UIManager.getColor("TextArea.foreground");
-		Color borderColor = ColorHelper.intermediateColor(titleBackground, Color.BLUE, 0.3f);
-		Color editBorderColor = ColorHelper.getContrastColor(Color.yellow, titleBackground);
+//		Color borderColor = ColorHelper.intermediateColor(titleBackground, Color.BLUE, 0.3f);
+//		Color editBorderColor = ColorHelper.getContrastColor(Color.yellow, titleBackground);
 
 		Insets insets = getBorderInsets(c);
 		if (mTitle != null) {
@@ -129,10 +128,10 @@ public class FormObjectBorder extends AbstractBorder {
 				g.drawString(title, x+insets.left-titleWidth, y+insets.top+mMetrics.getAscent());
 				}
 			}
-		if (insets.top != 0) {
-			g.setColor(mIsEditMode ? editBorderColor : borderColor);
-			g.drawRect(x, y, width-1, height-1);
-			}
+//		if (insets.top != 0) {
+//			g.setColor(mIsEditMode ? editBorderColor : borderColor);
+//			g.drawRect(x, y, width-1, height-1);
+//			}
 		}
 
 	public void printBorder(Graphics2D g2D, Rectangle2D.Double rect, float scale) {

@@ -20,6 +20,7 @@ package com.actelion.research.datawarrior.task.data;
 
 import com.actelion.research.datawarrior.DEFrame;
 import com.actelion.research.datawarrior.task.ConfigurableTask;
+import com.actelion.research.gui.hidpi.HiDPIHelper;
 import com.actelion.research.table.model.CompoundRecord;
 import com.actelion.research.table.model.CompoundTableModel;
 import info.clearthought.layout.TableLayout;
@@ -27,8 +28,7 @@ import info.clearthought.layout.TableLayout;
 import javax.swing.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
-import java.util.Properties;
-import java.util.TreeMap;
+import java.util.*;
 
 
 public class DETaskAddRecordNumbers extends ConfigurableTask implements ActionListener {
@@ -36,16 +36,18 @@ public class DETaskAddRecordNumbers extends ConfigurableTask implements ActionLi
 
 	private static final String PROPERTY_COLUMN_NAME = "columnName";
 	private static final String PROPERTY_FIRST_NUMBER = "firstNumber";
+	private static final String PROPERTY_RANDOM_ORDER = "randomOrder";
 	private static final String PROPERTY_VISIBLE_ONLY = "visibleOnly";
 	private static final String PROPERTY_CATEGORY = "category";
 	private static final String PROPERTY_CATEGORY_MODE = "categoryMode";
+	private static final String PROPERTY_SHARED_ROW_COUNT = "shareRowCount";
 
 	private static final String CATEGORY_MODE_INDEPENDENT = "independent";
 	private static final String CATEGORY_MODE_SAME = "same";
 
 	private DEFrame				mSourceFrame;
-    private JTextField          mTextFieldColumnName,mTextFieldFirstNo;
-    private JCheckBox           mCheckBoxVisibleOnly,mCheckBoxUseSameForSame,mCheckBoxCountWithinCategory;
+    private JTextField          mTextFieldColumnName,mTextFieldFirstNo,mTextFieldSharedRowCount;
+    private JCheckBox           mCheckBoxVisibleOnly,mCheckBoxRandomOrder,mCheckBoxSharedRowNumbers,mCheckBoxUseSameForSame,mCheckBoxCountWithinCategory;
     private JComboBox           mComboBoxCategory;
 
 	public DETaskAddRecordNumbers(DEFrame sourceFrame) {
@@ -71,14 +73,18 @@ public class DETaskAddRecordNumbers extends ConfigurableTask implements ActionLi
 	@Override
     public JPanel createDialogContent() {
         mTextFieldColumnName = new JTextField("Row No", 12);
-        mTextFieldFirstNo = new JTextField("1", 12);
-        mCheckBoxVisibleOnly = new JCheckBox("Visible rows only", true);
-        mCheckBoxUseSameForSame = new JCheckBox("Use same number within same category", false);
+        mTextFieldFirstNo = new JTextField("1", 3);
+		mCheckBoxRandomOrder = new JCheckBox("Use random order");
+        mCheckBoxVisibleOnly = new JCheckBox("Visible rows only");
+		mCheckBoxSharedRowNumbers = new JCheckBox("Share same row number for");
+		mCheckBoxSharedRowNumbers.addActionListener(this);
+        mCheckBoxUseSameForSame = new JCheckBox("Use same number within same category");
         mCheckBoxUseSameForSame.addActionListener(this);
+		mTextFieldSharedRowCount = new JTextField(3);
         mComboBoxCategory = new JComboBox();
         mComboBoxCategory.setEnabled(false);
         mComboBoxCategory.setEditable(!isInteractive());
-		mCheckBoxCountWithinCategory = new JCheckBox("Use independent row numbers in each category", false);
+		mCheckBoxCountWithinCategory = new JCheckBox("Use independent row numbers in each category");
 		mCheckBoxCountWithinCategory.addActionListener(this);
         CompoundTableModel tableModel = mSourceFrame.getTableModel();
         for (int column=0; column<tableModel.getTotalColumnCount(); column++)
@@ -88,19 +94,24 @@ public class DETaskAddRecordNumbers extends ConfigurableTask implements ActionLi
         	mCheckBoxUseSameForSame.setEnabled(false);
 
         JPanel gp = new JPanel();
-        double[][] size = { {8, TableLayout.PREFERRED, 4, TableLayout.PREFERRED, 8},
-                            {8, TableLayout.PREFERRED, 8, TableLayout.PREFERRED, 8, TableLayout.PREFERRED, 16,
-							 TableLayout.PREFERRED, TableLayout.PREFERRED, 8, TableLayout.PREFERRED, 16} };
+        int gap = HiDPIHelper.scale(8);
+        double[][] size = { {gap, TableLayout.PREFERRED, gap/2, TableLayout.PREFERRED, gap/2, TableLayout.PREFERRED, TableLayout.FILL, gap},
+                            {gap, TableLayout.PREFERRED, gap, TableLayout.PREFERRED, gap, TableLayout.PREFERRED, TableLayout.PREFERRED, gap*2,
+							 TableLayout.PREFERRED, TableLayout.PREFERRED, TableLayout.PREFERRED, gap, TableLayout.PREFERRED, gap*2} };
         gp.setLayout(new TableLayout(size));
         gp.add(new JLabel("Title of new column:", JLabel.RIGHT), "1,1");
         gp.add(new JLabel("First number to use:", JLabel.RIGHT), "1,3");
-        gp.add(mTextFieldColumnName, "3,1");
+        gp.add(mTextFieldColumnName, "3,1,6,1");
         gp.add(mTextFieldFirstNo, "3,3");
-        gp.add(mCheckBoxVisibleOnly, "1,5");
-        gp.add(mCheckBoxUseSameForSame, "1,7,3,7");
-		gp.add(mCheckBoxCountWithinCategory, "1,8,3,8");
-		gp.add(new JLabel("Category:", JLabel.RIGHT), "1,10");
-		gp.add(mComboBoxCategory, "3,10");
+		gp.add(mCheckBoxRandomOrder, "1,5");
+        gp.add(mCheckBoxVisibleOnly, "1,6");
+        gp.add(mCheckBoxSharedRowNumbers, "1,8");
+		gp.add(mTextFieldSharedRowCount, "3,8");
+		gp.add(new JLabel("consecutive rows"), "5,8");
+        gp.add(mCheckBoxUseSameForSame, "1,9,6,9");
+		gp.add(mCheckBoxCountWithinCategory, "1,10,6,10");
+		gp.add(new JLabel("Category:", JLabel.RIGHT), "1,12");
+		gp.add(mComboBoxCategory, "3,12,6,12");
 
         return gp;
 		}
@@ -121,7 +132,11 @@ public class DETaskAddRecordNumbers extends ConfigurableTask implements ActionLi
 	    	catch (NumberFormatException nfe) {}
     		}
 
-   		configuration.setProperty(PROPERTY_VISIBLE_ONLY, mCheckBoxVisibleOnly.isSelected() ? "true" : "false");
+   		configuration.setProperty(PROPERTY_RANDOM_ORDER, mCheckBoxRandomOrder.isSelected() ? "true" : "false");
+		configuration.setProperty(PROPERTY_VISIBLE_ONLY, mCheckBoxVisibleOnly.isSelected() ? "true" : "false");
+
+		if (mCheckBoxSharedRowNumbers.isSelected())
+			configuration.setProperty(PROPERTY_SHARED_ROW_COUNT, mTextFieldSharedRowCount.getText());
 
    		if (mCheckBoxUseSameForSame.isSelected()
 		 || mCheckBoxCountWithinCategory.isSelected()) {
@@ -141,7 +156,14 @@ public class DETaskAddRecordNumbers extends ConfigurableTask implements ActionLi
 		value = configuration.getProperty(PROPERTY_FIRST_NUMBER);
 		mTextFieldFirstNo.setText(value == null ? "1" : value);
 
+		mCheckBoxRandomOrder.setSelected("true".equals(configuration.getProperty(PROPERTY_RANDOM_ORDER)));
 		mCheckBoxVisibleOnly.setSelected("true".equals(configuration.getProperty(PROPERTY_VISIBLE_ONLY)));
+
+		value = configuration.getProperty(PROPERTY_SHARED_ROW_COUNT);
+		if (value != null) {
+			mCheckBoxSharedRowNumbers.setSelected(true);
+			mTextFieldSharedRowCount.setText(value);
+			}
 
 		value = configuration.getProperty(PROPERTY_CATEGORY);
 		if (value != null) {
@@ -164,11 +186,27 @@ public class DETaskAddRecordNumbers extends ConfigurableTask implements ActionLi
 		}
 
 	private void enableItems() {
+		mTextFieldSharedRowCount.setEnabled(mCheckBoxSharedRowNumbers.isSelected());
 		mComboBoxCategory.setEnabled(mCheckBoxUseSameForSame.isSelected() || mCheckBoxCountWithinCategory.isSelected());
 		}
 
 	@Override
     public boolean isConfigurationValid(Properties configuration, boolean isLive) {
+		String value = configuration.getProperty(PROPERTY_SHARED_ROW_COUNT);
+		if (value != null) {
+			try {
+				int sharedRowCount = Integer.parseInt(value);
+				if (sharedRowCount <= 1) {
+					showErrorMessage("The row count value must be large than one.");
+					return false;
+					}
+				}
+			catch (NumberFormatException nfe) {
+				showErrorMessage("The row count value is not numerical.");
+				return false;
+				}
+			}
+
 		if (isLive) {
 			String category = configuration.getProperty(PROPERTY_CATEGORY);
 			if (category != null) {
@@ -191,23 +229,39 @@ public class DETaskAddRecordNumbers extends ConfigurableTask implements ActionLi
     public void setDialogConfigurationToDefault() {
 		mTextFieldColumnName.setText("Row No");
 		mTextFieldFirstNo.setText("1");
+		mCheckBoxRandomOrder.setSelected(false);
 		mCheckBoxVisibleOnly.setSelected(false);
+		mCheckBoxSharedRowNumbers.setSelected(false);
+		mTextFieldSharedRowCount.setText("2");
 		mCheckBoxUseSameForSame.setSelected(false);
 		mCheckBoxCountWithinCategory.setSelected(false);
+		mTextFieldSharedRowCount.setEnabled(false);
         mComboBoxCategory.setEnabled(false);
 		}
 
 	@Override
     public void actionPerformed(ActionEvent e) {
-        if (e.getSource() == mCheckBoxUseSameForSame) {
-			if (mCheckBoxUseSameForSame.isSelected())
+		if (e.getSource() == mCheckBoxSharedRowNumbers) {
+			if (mCheckBoxSharedRowNumbers.isSelected()) {
 				mCheckBoxCountWithinCategory.setSelected(false);
+				mCheckBoxUseSameForSame.setSelected(false);
+				}
+			enableItems();
+			return;
+			}
+        if (e.getSource() == mCheckBoxUseSameForSame) {
+			if (mCheckBoxUseSameForSame.isSelected()) {
+				mCheckBoxSharedRowNumbers.setSelected(false);
+				mCheckBoxCountWithinCategory.setSelected(false);
+				}
 			enableItems();
             return;
             }
 		if (e.getSource() == mCheckBoxCountWithinCategory) {
-			if (mCheckBoxCountWithinCategory.isSelected())
+			if (mCheckBoxCountWithinCategory.isSelected()) {
+				mCheckBoxSharedRowNumbers.setSelected(false);
 				mCheckBoxUseSameForSame.setSelected(false);
+				}
 			enableItems();
 			return;
 			}
@@ -221,10 +275,10 @@ public class DETaskAddRecordNumbers extends ConfigurableTask implements ActionLi
 		columnName[0] = configuration.getProperty(PROPERTY_COLUMN_NAME, "Row No");
 
 		int recordNoColumn = tableModel.addNewColumns(columnName);
-
         int categoryColumn = tableModel.findColumn(configuration.getProperty(PROPERTY_CATEGORY));
-        TreeMap<String,Integer> map = (categoryColumn == -1) ? null : new TreeMap<String,Integer>();
+        int shareRowCount = Integer.parseInt(configuration.getProperty(PROPERTY_SHARED_ROW_COUNT, "1"));
 
+		boolean randomOrder = "true".equals(configuration.getProperty(PROPERTY_RANDOM_ORDER));
         boolean visibleOnly = "true".equals(configuration.getProperty(PROPERTY_VISIBLE_ONLY));
 
 		boolean sameInCategory = false;
@@ -239,12 +293,56 @@ public class DETaskAddRecordNumbers extends ConfigurableTask implements ActionLi
         int rowCount = visibleOnly ? tableModel.getRowCount() : tableModel.getTotalRowCount();
 		String value = configuration.getProperty(PROPERTY_FIRST_NUMBER);
 		int firstNo = (value == null) ? 1 : Integer.parseInt(value);
+
+		int[] randomMap = null;
+		TreeMap<String,int[]> categoryRandomMap = null;
+		if (randomOrder) {
+			if (categoryColumn != -1) {
+				if (sameInCategory) {
+					TreeSet<String> set = new TreeSet<String>();
+					for (int row=0; row<rowCount; row++) {
+						CompoundRecord record = visibleOnly ? tableModel.getRecord(row) : tableModel.getTotalRecord(row);
+						String[] entries = mSourceFrame.getTableModel().separateEntries(tableModel.encodeData(record, categoryColumn));
+						for (String entry:entries)
+							set.add(entry);
+						}
+					randomMap = generateRandomMap(set.size(), 1);
+					}
+				else {
+					categoryRandomMap = new TreeMap<>();
+					for (int row=0; row<rowCount; row++) {
+						CompoundRecord record = visibleOnly ? tableModel.getRecord(row) : tableModel.getTotalRecord(row);
+						String[] entries = mSourceFrame.getTableModel().separateEntries(tableModel.encodeData(record, categoryColumn));
+						for (String entry:entries) {
+							int[] count = categoryRandomMap.get(entry);
+							if (count == null) {
+								count = new int[1];
+								count[0] = 1;
+								categoryRandomMap.put(entry, count);
+								}
+							else {
+								count[0]++;
+								}
+							}
+						}
+					for (String category:categoryRandomMap.keySet()) {
+						int[] count = categoryRandomMap.get(category);
+						categoryRandomMap.put(category, generateRandomMap(count[0], 1));
+						}
+					}
+				}
+			else {
+				randomMap = generateRandomMap(rowCount, shareRowCount);
+				}
+			}
+
 		StringBuilder sb = new StringBuilder();
-        for (int row=0; row<rowCount; row++) {
+		TreeMap<String,Integer> map = (categoryColumn == -1) ? null : new TreeMap<>();
+		for (int row=0; row<rowCount; row++) {
             CompoundRecord record = visibleOnly ? tableModel.getRecord(row) : tableModel.getTotalRecord(row);
 			String data = null;
 
-			if (sameInCategory || independentCategories) {
+			if (categoryColumn != -1) {
 				String[] entries = mSourceFrame.getTableModel().separateEntries(tableModel.encodeData(record, categoryColumn));
 				sb.setLength(0);
 				for (String entry:entries) {
@@ -265,18 +363,33 @@ public class DETaskAddRecordNumbers extends ConfigurableTask implements ActionLi
 
 					if (sb.length() != 0)
 						sb.append(CompoundTableModel.cEntrySeparator);
-					sb.append(Integer.toString(firstNo+index));
+					if (randomOrder)
+						index = new Integer(sameInCategory ? randomMap[index] : categoryRandomMap.get(entry)[index]);
+					sb.append(firstNo+index);
 					}
 				data = sb.toString();
 				}
 			else {
-				data = Integer.toString(firstNo+row);
+				int index = randomOrder ? randomMap[row] : (shareRowCount != 1) ? row / shareRowCount : row;
+				data = Integer.toString(firstNo+index);
 				}
 
             record.setData(tableModel.decodeData(data, recordNoColumn), recordNoColumn);
             }
 
         tableModel.finalizeNewColumns(recordNoColumn, null);
+		}
+
+	private int[] generateRandomMap(int length, int shareRowCount) {
+		Random random = new Random();
+		long[] la = new long[length];
+		for (int i=0; i<length; i++)
+			la[i] = (((long)random.nextInt()) << 32) + i;
+		Arrays.sort(la);
+		int[] ia = new int[length];
+		for (int i=0; i<length; i++)
+			ia[i] = (shareRowCount != 1) ? (int)la[i] / shareRowCount : (int)la[i];
+		return ia;
 		}
 
     private String getCategoryNumbers(int firstNo, boolean isSame, TreeMap<String,Integer> map, String categories, StringBuilder sb) {
@@ -289,7 +402,7 @@ public class DETaskAddRecordNumbers extends ConfigurableTask implements ActionLi
 
             if (sb.length() != 0)
                 sb.append(CompoundTableModel.cEntrySeparator);
-			sb.append(Integer.toString(firstNo+index));
+			sb.append(firstNo+index);
             }
         return sb.toString();
         }

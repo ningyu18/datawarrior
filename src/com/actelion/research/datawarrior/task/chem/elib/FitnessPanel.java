@@ -37,7 +37,10 @@ public abstract class FitnessPanel extends JPanel implements ActionListener,Chan
 
 	protected static final String STRUCTURE_OPTION_TEXT = "Structural (dis)similarity";
 	protected static final String STRUCTURE_OPTION_CODE = "structure";
-	protected static final int STRUCTURE_OPTION = -1;
+	protected static final String CONFORMER_OPTION_TEXT = "Conformer similarity";
+	protected static final String CONFORMER_OPTION_CODE = "conformer";
+	protected static final int STRUCTURE_OPTION = -2;
+	protected static final int CONFORMER_OPTION = -1;
 
 	private static ImageIcon sIcon;
 
@@ -51,6 +54,8 @@ public abstract class FitnessPanel extends JPanel implements ActionListener,Chan
 		if (index == -1)
 			return null;
 		String optionCode = configuration.substring(0, index);
+		if (optionCode.equals(CONFORMER_OPTION_CODE))
+			return new ConformerFitnessPanel(owner, delegate, configuration.substring(index+1));
 		if (optionCode.equals(STRUCTURE_OPTION_CODE))
 			return new StructureFitnessPanel(owner, delegate, configuration.substring(index+1));
 		int type = MolecularPropertyHelper.getTypeFromCode(optionCode);
@@ -60,6 +65,8 @@ public abstract class FitnessPanel extends JPanel implements ActionListener,Chan
 	protected abstract String getConfiguration();
 
 	protected static FitnessPanel createFitnessPanel(Frame owner, UIDelegateELib delegate, int type) {
+		if (type == CONFORMER_OPTION)
+			return new ConformerFitnessPanel(owner, delegate);
 		if (type == STRUCTURE_OPTION)
 			return new StructureFitnessPanel(owner, delegate);
 

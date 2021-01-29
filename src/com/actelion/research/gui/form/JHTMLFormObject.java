@@ -24,7 +24,7 @@ public class JHTMLFormObject extends ReferenceFormObject {
         mComponent = new JHTMLDetailView(null, null, null, type);
 		}
 
-	public int getRelativeHeight() {
+	public int getDefaultRelativeHeight() {
 		return 3;
 		}
 	}

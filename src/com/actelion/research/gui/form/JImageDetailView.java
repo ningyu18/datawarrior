@@ -89,9 +89,7 @@ public class JImageDetailView extends JResultDetailView implements ImageObserver
 	    String path = ((JImagePanel)mDetailView).getImagePath();
 	    boolean imageReady = false;
 	    if (data instanceof String) {
-			String filePath = (!usesThumbNail) ? path + (String)data
-			        				: path + (String)data + JImagePanel.cLargeImageExtension;
-
+			String filePath = JImagePanel.buildImagePath(path, (String)data, usesThumbNail);
 			mPrintImage = Toolkit.getDefaultToolkit().createImage(filePath);
 			imageReady = Toolkit.getDefaultToolkit().prepareImage(mPrintImage, -1, -1, this);
 			}

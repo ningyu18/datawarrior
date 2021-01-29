@@ -34,12 +34,13 @@ import java.awt.*;
 import java.awt.event.ItemEvent;
 import java.awt.event.ItemListener;
 import java.util.Hashtable;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public abstract class JStructureFilterPanel extends JFilterPanel 
 				implements ChangeListener,DescriptorConstants,ItemListener {
 	private static final long serialVersionUID = 0x20060925;
 
-	public static final String RXN_PRODUCT_TEXT = "Product of ";	// not used in files, used in GUI only
+	private static final int MIN_ROWS_TO_SHOW_PROGRESS = 20000;
 
 	protected static final String cFilterBySubstructure = "#substructure#";
 	protected static final String cFilterBySimilarity = "#similarity#";
@@ -54,11 +55,18 @@ public abstract class JStructureFilterPanel extends JFilterPanel
 	private Frame		mParentFrame;
 	private JSlider		mSimilaritySlider;
 	private int			mCurrentDescriptorColumn;
+	private String		mReactionPart;
 
-	public JStructureFilterPanel(Frame parent, CompoundTableModel tableModel, int column, int exclusionFlag) {
-		super(tableModel, column, exclusionFlag, false);
+	public JStructureFilterPanel(Frame parent, CompoundTableModel tableModel, int column, String reactionPart, int exclusionFlag) {
+		super(tableModel, column, exclusionFlag, false, true);
 		mParentFrame = parent;
+		mReactionPart = reactionPart;
 		mCurrentDescriptorColumn = -1;
+		setText(getTitle(), null);
+		}
+
+	public String getReactionPart() {
+		return mReactionPart;
 		}
 
 	protected JSlider getSimilaritySlider() {
@@ -74,7 +82,7 @@ public abstract class JStructureFilterPanel extends JFilterPanel
 			mSimilaritySlider.setLabelTable(labels);
 			mSimilaritySlider.setPaintLabels(true);
 			mSimilaritySlider.setPaintTicks(true);
-			mSimilaritySlider.setPreferredSize(new Dimension(HiDPIHelper.scale(50), HiDPIHelper.scale(100)));
+			mSimilaritySlider.setPreferredSize(new Dimension(HiDPIHelper.scale(44), HiDPIHelper.scale(100)));
 			mSimilaritySlider.addChangeListener(this);
 			}
 		return mSimilaritySlider;
@@ -82,15 +90,20 @@ public abstract class JStructureFilterPanel extends JFilterPanel
 
 	@Override
 	public String getTitle() {
+		if (mColumnIndex < 0)
+			return "";
+
 		String title = mTableModel.getColumnTitle(mColumnIndex);
-		if (CompoundTableConstants.cColumnTypeRXNCode.equalsIgnoreCase(mTableModel.getColumnSpecialType(mColumnIndex)))
-			title = "Product of ".concat(title);
+
+		if (mReactionPart != null)
+			title = title + " " + mReactionPart;
+
 		return title;
 		}
 
 	@Override
 	public boolean canEnable(boolean suppressErrorMessages) {
-		if (isActive() && mComboBox.getItemCount() == 0) {
+		if (isActive() && mComboBox != null && mComboBox.getItemCount() == 0) {
 			if (!suppressErrorMessages)
 				JOptionPane.showMessageDialog(mParentFrame, "This structure filter cannot be enabled, because\n" +
 					"'"+mTableModel.getColumnTitle(mColumnIndex)+"' has no descriptor columns.");
@@ -112,7 +125,7 @@ public abstract class JStructureFilterPanel extends JFilterPanel
 		else if (e.getType() == CompoundTableEvent.cRemoveColumns) {
 			// correct column mapping of mColumnIndex is done by JFilterPanel
 
-			if (!mTableModel.hasDescriptorColumn(mColumnIndex) && !supportsSSS()) {
+			if (!mTableModel.hasDescriptorColumn(mColumnIndex, mReactionPart) && !supportsSSS()) {
 				removePanel();
 				return;
 				}
@@ -176,11 +189,12 @@ public abstract class JStructureFilterPanel extends JFilterPanel
 		mComboBox.removeAllItems();
 
 		if (isActive()) {
-			int fingerprintColumn = mTableModel.getChildColumn(mColumnIndex, DESCRIPTOR_FFP512.shortName);
+			int fingerprintColumn = mTableModel.getChildColumn(mColumnIndex, DESCRIPTOR_FFP512.shortName, null);
 			int descriptorCount = 0;
 			for (int column=0; column<mTableModel.getTotalColumnCount(); column++)
 				if (mTableModel.isDescriptorColumn(column)
-				 && mTableModel.getParentColumn(column) == mColumnIndex)
+				 && mTableModel.getParentColumn(column) == mColumnIndex
+				 && (mReactionPart == null || mReactionPart.equals(mTableModel.getColumnProperty(column, CompoundTableConstants.cColumnPropertyReactionPart))))
 					descriptorCount++;
 	
 			mDescriptorColumn = new int[((supportsSSS() && fingerprintColumn != -1) ? 1 : 0)
@@ -193,7 +207,8 @@ public abstract class JStructureFilterPanel extends JFilterPanel
 			if (supportsSim()) {
 				for (int column=0; column<mTableModel.getTotalColumnCount(); column++) {
 					if (mTableModel.isDescriptorColumn(column)
-					 && mTableModel.getParentColumn(column) == mColumnIndex) {
+					 && mTableModel.getParentColumn(column) == mColumnIndex
+					 && (mReactionPart == null || mReactionPart.equals(mTableModel.getColumnProperty(column, CompoundTableConstants.cColumnPropertyReactionPart)))) {
 						mDescriptorColumn[itemIndex++] = column;
 						mComboBox.addItem(descriptorToItem(mTableModel.getColumnSpecialType(column)));
 						}
@@ -251,8 +266,17 @@ public abstract class JStructureFilterPanel extends JFilterPanel
 		if (getStructureCount() == 0)
 			mTableModel.clearRowFlag(mExclusionFlag);
 		else {
-			if (((String)mComboBox.getSelectedItem()).equals(cItemContains)) {
-				mTableModel.setSubStructureExclusion(mExclusionFlag, mColumnIndex, getStructures(), isInverse());
+			if ((mComboBox.getSelectedItem()).equals(cItemContains)) {
+				AtomicInteger concurrentIndex = new AtomicInteger();
+				int rowCount = getStructureCount() * mTableModel.getTotalRowCount();
+
+				if (rowCount < MIN_ROWS_TO_SHOW_PROGRESS) {
+					mTableModel.setSubStructureExclusion(concurrentIndex, mExclusionFlag, mColumnIndex, getStructures(), mReactionPart, isInverse());
+					}
+				else {
+					showProgressBarWithUpdates(concurrentIndex, rowCount, "Searching structures...");
+					new Thread(() -> mTableModel.setSubStructureExclusion(concurrentIndex, mExclusionFlag, mColumnIndex, getStructures(), mReactionPart, isInverse()) ).start();
+					}
 				}
 			else {
 				int descriptorColumn = mDescriptorColumn[mComboBox.getSelectedIndex()];
@@ -276,7 +300,7 @@ public abstract class JStructureFilterPanel extends JFilterPanel
 					setEnabled(false);	// treat this as user change, since the user actively cancelled
 					}
 				else {
-					mTableModel.setSimilarityExclusion(mExclusionFlag,
+					mTableModel.setStructureSimilarityExclusion(mExclusionFlag,
 							mDescriptorColumn[mComboBox.getSelectedIndex()], getStructures(), mSimilarity,
 							(float)mSimilaritySlider.getValue() / (float)100.0, isInverse(),
 							mSimilaritySlider.getValueIsAdjusting());
@@ -290,13 +314,14 @@ public abstract class JStructureFilterPanel extends JFilterPanel
 
 	protected float[] createSimilarityList(StereoMolecule mol, int descriptorColumn) {
 		return (DESCRIPTOR_Flexophore.shortName.equals(mTableModel.getColumnSpecialType(descriptorColumn))
-			 || mTableModel.getTotalRowCount() > 400000) ?
+			 || DESCRIPTOR_ShapeAlign.shortName.equals(mTableModel.getColumnSpecialType(descriptorColumn))
+			 || mTableModel.getTotalRowCount() > 500000) ?
 
 			// if we have the slow 3DPPMM2 then use a progress dialog
 			createSimilarityListSMP(mol, descriptorColumn)
 
 			// else calculate similarity list in event dispatcher thread
-			: mTableModel.createSimilarityList(mol, null, descriptorColumn);
+			: mTableModel.createStructureSimilarityList(mol, null, descriptorColumn);
 		}
 
 	protected abstract boolean supportsSSS();
@@ -312,7 +337,7 @@ public abstract class JStructureFilterPanel extends JFilterPanel
 		}
 
 	private float[] createSimilarityListSMP(Object chemObject, int descriptorColumn) {
-		float[] similarity = mTableModel.getSimilarityListFromCache(new Canonizer((StereoMolecule)chemObject).getIDCode(), descriptorColumn);
+		float[] similarity = mTableModel.getStructureSimilarityListFromCache(new Canonizer((StereoMolecule)chemObject).getIDCode(), descriptorColumn);
 		if (similarity != null)
 			return similarity;
 		
@@ -328,7 +353,7 @@ public abstract class JStructureFilterPanel extends JFilterPanel
 	   	mTableModel.createSimilarityListSMP(chemObject, null, null, descriptorColumn, progressDialog, false);
 
 	   	progressDialog.setVisible(true);
-		similarity = mTableModel.getSimilarityListSMP();
+		similarity = mTableModel.getSimilarityListSMP(false);
 
 		return similarity;
  		}

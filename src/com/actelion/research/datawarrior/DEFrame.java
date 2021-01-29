@@ -20,13 +20,13 @@ package com.actelion.research.datawarrior;
 
 import com.actelion.research.chem.io.CompoundFileHelper;
 import com.actelion.research.datawarrior.task.DEMacroRecorder;
-import com.actelion.research.datawarrior.task.file.CustomLabelPositionWriter;
-import com.actelion.research.datawarrior.task.file.DETaskCloseWindow;
-import com.actelion.research.datawarrior.task.file.DETaskSaveFile;
-import com.actelion.research.datawarrior.task.file.DETaskSaveFileAs;
+import com.actelion.research.datawarrior.task.file.*;
 import com.actelion.research.gui.FileHelper;
 import com.actelion.research.gui.hidpi.HiDPIHelper;
-import com.actelion.research.table.*;
+import com.actelion.research.table.CompoundTableSaver;
+import com.actelion.research.table.DataDependentPropertyWriter;
+import com.actelion.research.table.RuntimePropertyEvent;
+import com.actelion.research.table.RuntimePropertyListener;
 import com.actelion.research.table.model.*;
 import com.actelion.research.table.view.CompoundTableView;
 
@@ -61,7 +61,7 @@ public class DEFrame extends JFrame implements ApplicationViewFactory,CompoundTa
 			tableModel.setDetailHandler(datawarrior.createDetailHandler(this, tableModel));
 
 			mParentPane = new DEParentPane(this, tableModel,
-										   datawarrior.createDetailPane(tableModel),
+										   datawarrior.createDetailPane(this, tableModel),
 										   datawarrior.createDatabaseActions(this));
 			mParentPane.addRuntimePropertyListener(this);
 			mParentPane.getMainPane().setApplicationViewFactory(this);
@@ -81,6 +81,19 @@ public class DEFrame extends JFrame implements ApplicationViewFactory,CompoundTa
 		catch(Exception e) {
 			e.printStackTrace();
 			}
+		}
+
+	/**
+	 * This was taken from the IdeFrameImpl class of the Intellij source code. Without this override frames could not be larger
+	 * than one screen. In multi-monitor setups, however, frames that span more than one monitor may be useful
+	 * 
+	 * original intelij comment:
+	 * This is overridden to get rid of strange Alloy LaF customization of frames. For unknown reason it sets the maxBounds rectangle
+	 * and it does it plain wrong. Setting bounds to {@code null} means default value should be taken from the underlying OS.
+	 */
+	@Override
+	public synchronized void setMaximizedBounds(Rectangle bounds) {
+		super.setMaximizedBounds(null);
 		}
 
 	public CompoundTableView createApplicationView(int type, Frame frame) {
@@ -226,7 +239,9 @@ public class DEFrame extends JFrame implements ApplicationViewFactory,CompoundTa
 				}
 			};
 		DataDependentPropertyWriter clpw = new CustomLabelPositionWriter(getMainFrame().getMainPane());
+		DataDependentPropertyWriter cvpw = new CardViewPositionWriter(getMainFrame().getMainPane());
 		saver.addDataDependentPropertyWriter(clpw);
+		saver.addDataDependentPropertyWriter(cvpw);
 		saver.saveNative(rtp, file, visibleOnly, embedDetails);
 		}
 

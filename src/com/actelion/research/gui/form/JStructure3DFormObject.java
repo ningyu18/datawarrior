@@ -18,27 +18,117 @@
 
 package com.actelion.research.gui.form;
 
-import com.actelion.research.chem.ExtendedMolecule;
-import com.actelion.research.chem.FFMolecule;
 import com.actelion.research.chem.IDCodeParser;
+import com.actelion.research.chem.IDCodeParserWithoutCoordinateInvention;
 import com.actelion.research.chem.StereoMolecule;
-import com.actelion.research.gui.viewer2d.ActionProvider;
-import com.actelion.research.gui.viewer2d.MoleculeCanvas;
-import com.actelion.research.gui.viewer2d.MoleculeViewer;
+import com.actelion.research.util.ArrayUtils;
+import javafx.embed.swing.SwingFXUtils;
+import javafx.geometry.Point3D;
+import javafx.scene.image.WritableImage;
 
 import java.awt.*;
-import java.awt.geom.AffineTransform;
 import java.awt.geom.Rectangle2D;
+import java.util.ArrayList;
 
 public class JStructure3DFormObject extends AbstractFormObject {
 	public static final String FORM_OBJECT_TYPE = "structure3D";
 
-	private static ActionProvider<MoleculeViewer> sCopyActionProvider,sRaytraceActionProvider;
+	private StereoMolecule mRefMol;
 
+	public JStructure3DFormObject(String key, String type) {
+		super(key, type);
+		mComponent = new JFXConformerPanel(false, false, false);
+		}
+
+	public void setReferenceMolecule(StereoMolecule refMol) {
+		((JFXConformerPanel)mComponent).setReferenceMolecule(refMol);
+		mRefMol = refMol;
+		}
+
+    @Override
+	public Object getData() {
+		ArrayList<StereoMolecule> molList = ((JFXConformerPanel)mComponent).getConformers();
+		return (molList.isEmpty()) ? null : molList.get(0);
+		}
+
+    @Override
+	public void setData(Object data) {
+		if (data == null) {
+			((JFXConformerPanel) mComponent).clear();
+			}
+		else if (data instanceof StereoMolecule) {
+			((JFXConformerPanel)mComponent).clear();
+			((JFXConformerPanel)mComponent).addMolecule((StereoMolecule)data, null, null);
+			((JFXConformerPanel)mComponent).optimizeView();
+			}
+		else if (data instanceof String) {
+			((JFXConformerPanel)mComponent).clear();
+
+			byte[] idcode = ((String)data).getBytes();
+			int index = ArrayUtils.indexOf(idcode, (byte)9);
+
+			if (index != -1 && idcode.length > index+2) {
+				StereoMolecule mol = new IDCodeParserWithoutCoordinateInvention().getCompactMolecule(idcode, idcode, 0, index+1);
+				index = ArrayUtils.indexOf(idcode, (byte)32, index+1);
+				if (index == -1) {
+					((JFXConformerPanel)mComponent).addMolecule(mol, null, null);
+					}
+				else {
+					int count = 2;
+					for (int i=index+1; i<idcode.length; i++)
+						if (idcode[i] == (byte)32)
+							count++;
+
+					Point3D cor = new Point3D(0,0,0);
+					for (int i=0; i<count; i++) {
+						javafx.scene.paint.Color color = javafx.scene.paint.Color.hsb(360f * i / count, 0.75, 0.6);
+						((JFXConformerPanel)mComponent).addMolecule(mol, color, cor);
+						mol = new IDCodeParserWithoutCoordinateInvention().getCompactMolecule(idcode, idcode, 0, index+1);
+						index = ArrayUtils.indexOf(idcode, (byte)32, index+1);
+						}
+					}
+				((JFXConformerPanel)mComponent).optimizeView();
+				}
+			}
+		}
+
+    @Override
+	public int getDefaultRelativeHeight() {
+		return 4;
+		}
+
+    @Override
+	public void printContent(Graphics2D g2D, Rectangle2D.Double r, float scale, Object data, boolean isMultipleRows) {
+	    if (data != null && r.width > 1 && r.height > 1) {
+		    StereoMolecule mol = null;
+		    if (data instanceof StereoMolecule) {
+		        mol = (StereoMolecule)data;
+		    	}
+		    else if (data instanceof String) {
+				String idcode = (String)data;
+				int index = idcode.indexOf('\t');
+				String coords = (index == -1) ? null : idcode.substring(index+1);
+				mol = new IDCodeParser().getCompactMolecule(idcode, coords);
+		    	}
+
+		    if (mol != null) {
+				JFXConformerPanel fxp = new JFXConformerPanel(false, (int)(4*r.width), (int)(4*r.height), true, false);
+				fxp.setBackground(Color.WHITE);
+				fxp.addMolecule(mRefMol, javafx.scene.paint.Color.WHITE, null);
+				fxp.addMolecule(mol, null, null);
+				fxp.optimizeView();
+				WritableImage image = fxp.getContentImage();
+				if (image != null)
+					g2D.drawImage(SwingFXUtils.fromFXImage(image, null), (int)(r.x), (int)(r.y),
+							(int)(r.x+r.width), (int)(r.y+r.height), 0, 0, (int)(4*r.width), (int)(4*r.height), null);
+		    	}
+	    	}
+		}
+
+/*	private static ActionProvider<MoleculeViewer> sCopyActionProvider,sRaytraceActionProvider;
 	public static ActionProvider<MoleculeViewer> getCopyActionProvider() {
 		return sCopyActionProvider;
 		}
-
 	public static ActionProvider<MoleculeViewer> getRaytraceActionProvider() {
 		return sRaytraceActionProvider;
 	}
@@ -116,5 +206,5 @@ public class JStructure3DFormObject extends AbstractFormObject {
 		        g2D.setTransform(originalTransform);
 		    	}
 	    	}
-		}
+		}*/
 	}

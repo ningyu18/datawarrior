@@ -1,17 +1,5 @@
 package com.actelion.research.datawarrior.task.db;
 
-import java.awt.Frame;
-import java.io.BufferedReader;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.net.URL;
-import java.net.URLConnection;
-import java.util.ArrayList;
-import java.util.Properties;
-
-import javax.swing.JOptionPane;
-import javax.swing.JTable;
-
 import com.actelion.research.chem.Canonizer;
 import com.actelion.research.chem.IDCodeParser;
 import com.actelion.research.chem.MolecularFormula;
@@ -22,6 +10,16 @@ import com.actelion.research.datawarrior.DataWarrior;
 import com.actelion.research.datawarrior.task.AbstractTaskWithoutConfiguration;
 import com.actelion.research.table.model.CompoundTableEvent;
 import com.actelion.research.table.model.CompoundTableModel;
+
+import javax.swing.*;
+import java.awt.*;
+import java.io.BufferedReader;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.net.URL;
+import java.net.URLConnection;
+import java.util.ArrayList;
+import java.util.Properties;
 
 public class DETaskRetrieveWikipediaCompounds extends AbstractTaskWithoutConfiguration {
 	public static final String TASK_NAME = "Retrieve Wikipedia Compounds";
@@ -71,7 +69,7 @@ public class DETaskRetrieveWikipediaCompounds extends AbstractTaskWithoutConfigu
 
 	@Override
 	public void runTask(Properties configuration) {
-		ArrayList<byte[][]> rowList = new ArrayList<byte[][]>();
+		ArrayList<byte[][]> rowList = new ArrayList<>();
 		try {
 			startProgress("Retrieving Wikipedia compounds...", 0, 0);
 
@@ -109,7 +107,7 @@ public class DETaskRetrieveWikipediaCompounds extends AbstractTaskWithoutConfigu
 		    int columnCount = COLUMN_NAME.length + 3;
 			tableModel.initializeTable(rowList.size(), columnCount);
             tableModel.prepareStructureColumns(0, "Structure", true, true);
-        	tableModel.setColumnProperty(0, CompoundTableModel.cColumnPropertyIdentifierColumn, COLUMN_NAME[1]);
+        	tableModel.setColumnProperty(0, CompoundTableModel.cColumnPropertyRelatedIdentifierColumn, COLUMN_NAME[1]);
 			for (int i=3; i<columnCount; i++)
 				tableModel.setColumnName(COLUMN_NAME[i-3], i);
 
@@ -148,13 +146,15 @@ public class DETaskRetrieveWikipediaCompounds extends AbstractTaskWithoutConfigu
 			table.getColumnModel().getColumn(2).setPreferredWidth(120);
 			table.getColumnModel().getColumn(3).setPreferredWidth(80);
 
-			mTargetFrame.getMainFrame().getMainPane().addExplanationView("Explanation", "Table\ttop\t0.25");
+			SwingUtilities.invokeLater(() -> {
+				mTargetFrame.getMainFrame().getMainPane().addExplanationView("Explanation", "Table\ttop\t0.25");
 
-			try {
-				mTargetFrame.getMainFrame().getPruningPanel().addStructureFilter(tableModel, 0, null);
-				mTargetFrame.getMainFrame().getPruningPanel().addTextFilter(tableModel, 3);
-				}
-			catch (FilterException fe) {}
+				try {
+					mTargetFrame.getMainFrame().getPruningPanel().addStructureFilter(tableModel, 0, null, null);
+					mTargetFrame.getMainFrame().getPruningPanel().addTextFilter(tableModel, 3);
+					}
+				catch (FilterException fe) {}
+				} );
 			}
 		}
 	}

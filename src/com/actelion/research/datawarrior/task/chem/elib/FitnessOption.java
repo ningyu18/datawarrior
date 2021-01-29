@@ -21,6 +21,7 @@ package com.actelion.research.datawarrior.task.chem.elib;
 import com.actelion.research.calc.ProgressListener;
 import com.actelion.research.chem.StereoMolecule;
 import com.actelion.research.chem.prediction.MolecularPropertyHelper;
+import com.actelion.research.table.model.CompoundTableModel;
 
 public abstract class FitnessOption {
 	protected int mSliderValue;
@@ -30,6 +31,8 @@ public abstract class FitnessOption {
 		if (index == -1)
 			return null;
 		String optionCode = params.substring(0, index);
+		if (optionCode.equals(FitnessPanel.CONFORMER_OPTION_CODE))
+			return new ConformerFitnessOption(params.substring(index+1), pl);
 		if (optionCode.equals(FitnessPanel.STRUCTURE_OPTION_CODE))
 			return new StructureFitnessOption(params.substring(index+1), pl);
 		int type = MolecularPropertyHelper.getTypeFromCode(optionCode);
@@ -48,13 +51,50 @@ public abstract class FitnessOption {
 		if (index == -1)
 			return "Fitness option error.";
 		String optionCode = params.substring(0, index);
+		if (optionCode.equals(FitnessPanel.CONFORMER_OPTION_CODE))
+			return ConformerFitnessOption.getParamError(params.substring(index+1));
 		if (optionCode.equals(FitnessPanel.STRUCTURE_OPTION_CODE))
 			return StructureFitnessOption.getParamError(params.substring(index+1));
 		int type = MolecularPropertyHelper.getTypeFromCode(optionCode);
 		return (type == -1) ? "Fitness option error." : PropertyFitnessOption.getParamError(type, params.substring(index+1));
 		}
 
-	public abstract float calculateProperty(StereoMolecule mol);
+	/**
+	 * @param mol
+	 * @param columnValueHolder may return values for custom column values beyond the default columns
+	 * @return
+	 */
+	public abstract float calculateProperty(StereoMolecule mol, String[][] columnValueHolder);
 	public abstract float evaluateFitness(float propertyValue);
 	public abstract String getName();
+
+	public boolean hasDeferredColumnValues() { return false; }
+	public void calculateDeferredColumnValues(StereoMolecule mol, String[] v) {}
+
+	/**
+	 * Default is to have one result column named as the fitness option itself containing the property value
+	 * @return no of result columns
+	 */
+	public int getResultColumnCount() {
+		return 1;
+		}
+
+	/**
+	 * Default is to have one result column named as the fitness option itself
+	 * @return result column header
+	 */
+	public String getResultColumnName(int i) {
+		return i==0 ? getName() : null;
+		}
+
+	/**
+	 * If the property value is speaking for itself (e.g. compound similarity), then there is no need for a fitness column.
+	 * If there is a fitness column, then it is the second one, just after the property column.
+	 * @return whether there is a fitness column
+	 */
+	public boolean hasFitnessColumn() {
+		return false;
+		}
+
+	public void setResultColumnProperties(int i, CompoundTableModel tableModel, int column) {}
 	}

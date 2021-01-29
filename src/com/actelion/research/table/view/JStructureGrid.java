@@ -18,15 +18,16 @@
 
 package com.actelion.research.table.view;
 
-import com.actelion.research.chem.AbstractDepictor;
-import com.actelion.research.chem.Depictor2D;
-import com.actelion.research.chem.IDCodeParser;
-import com.actelion.research.chem.StereoMolecule;
-import com.actelion.research.gui.hidpi.HiDPIHelper;
+import com.actelion.research.chem.*;
 import com.actelion.research.gui.LookAndFeelHelper;
+import com.actelion.research.gui.clipboard.ClipboardHandler;
 import com.actelion.research.gui.dnd.MoleculeDragAdapter;
 import com.actelion.research.gui.dnd.MoleculeTransferable;
-import com.actelion.research.table.*;
+import com.actelion.research.gui.hidpi.HiDPIHelper;
+import com.actelion.research.table.CompoundTableChemistryCellRenderer;
+import com.actelion.research.table.CompoundTableColorHandler;
+import com.actelion.research.table.DetailPopupProvider;
+import com.actelion.research.table.MarkerLabelDisplayer;
 import com.actelion.research.table.model.*;
 import com.actelion.research.util.ColorHelper;
 
@@ -34,16 +35,17 @@ import javax.swing.*;
 import javax.swing.event.ListSelectionEvent;
 import javax.swing.event.ListSelectionListener;
 import java.awt.*;
+import java.awt.datatransfer.StringSelection;
 import java.awt.datatransfer.Transferable;
 import java.awt.dnd.DnDConstants;
-import java.awt.event.InputEvent;
-import java.awt.event.MouseEvent;
-import java.awt.event.MouseListener;
-import java.awt.event.MouseMotionListener;
+import java.awt.event.*;
 import java.awt.geom.Rectangle2D;
 import java.awt.image.BufferedImage;
 import java.awt.print.PageFormat;
 import java.awt.print.Printable;
+import java.io.BufferedWriter;
+import java.io.IOException;
+import java.io.StringWriter;
 import java.util.ArrayList;
 
 public class JStructureGrid extends JScrollPane
@@ -52,20 +54,22 @@ public class JStructureGrid extends JScrollPane
 	private static final long serialVersionUID = 0x20060904;
 
 	private Frame						mParentFrame;
-	private CompoundTableModel mTableModel;
+	private CompoundTableModel			mTableModel;
 	private CompoundTableColorHandler	mColorHandler;
-	private CompoundListSelectionModel mSelectionModel;
-	private CompoundRecord mActiveRow,mHighlightedRow;
+	private CompoundListSelectionModel	mSelectionModel;
+	private CompoundRecord				mActiveRow,mHighlightedRow;
+	private ViewSelectionHelper			mViewSelectionHelper;
 	private JStructureGridContentPanel	mContentPanel;
 	private GridCellSize				mCellSize;
 	private float						mMarkerLabelSize;
-	private int							mNoOfColumns,mTableRowCount,
+	private int							mNoOfColumns,mDefinedNoOfColumns,mTableRowCount,
 										mRecordCountOnLastValidation,mIndexOfFirstImage,
 										mTableRowCountOnLastValidation,mFocusList,mFocusCount,
-										mStructureColumn;
+										mStructureColumn,mStructureDrawMode;
 	private int[]						mLabelColumn,mFocusRow;
 	private ArrayList<GridImage> 		mImageList;
-	private boolean						mFocusValid,mSelectionChanged,mRepaintRequested,mShowAnyLabels;
+	private boolean						mFocusValid,mSelectionChanged,mRepaintRequested,mShowAnyLabels,
+										mIsMarkerLabelsBlackAndWhite,mIsShowColumnNameInTable;
 	private DetailPopupProvider			mDetailPopupProvider;
 
 	public JStructureGrid(Frame parent, CompoundTableModel tableModel,
@@ -82,6 +86,7 @@ public class JStructureGrid extends JScrollPane
 		addMouseListener(this);
 		addMouseMotionListener(this);
 		mNoOfColumns = noOfColumns;
+		mDefinedNoOfColumns = noOfColumns;
 		mLabelColumn = new int[cPositionCode.length];
 		for (int i=0; i<mLabelColumn.length; i++)
 			mLabelColumn[i] = -1;
@@ -90,14 +95,24 @@ public class JStructureGrid extends JScrollPane
 		mHighlightedRow = mTableModel.getHighlightedRow();
 		mImageList = new ArrayList<GridImage>();
 		mContentPanel = new JStructureGridContentPanel();
-//		mContentPanel.setBackground(Color.white);
 		mFocusList = cFocusNone;
 		mFocusValid = true;
+		mIsShowColumnNameInTable = true;
+		mStructureDrawMode = Depictor.cDModeSuppressChiralText;
+
+		addKeyListener(new KeyAdapter() {
+			@Override
+			public void keyPressed(KeyEvent e) {
+				if (!handleKeyPressed(e))
+					super.keyPressed(e);
+			}
+		});
 
 		setBorder(BorderFactory.createEmptyBorder());
 		setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
 		setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_ALWAYS);
 		setViewportView(mContentPanel);
+		getVerticalScrollBar().setUnitIncrement(HiDPIHelper.scale(32));
 
 		mColorHandler.addColorListener(this);
 
@@ -110,6 +125,11 @@ public class JStructureGrid extends JScrollPane
 
 	public int getStructureColumn() {
 		return mStructureColumn;
+		}
+
+	@Override
+	public void setViewSelectionHelper(ViewSelectionHelper l) {
+		mViewSelectionHelper = l;
 		}
 
 	@Override
@@ -203,7 +223,7 @@ public class JStructureGrid extends JScrollPane
 		float x2 = bounds.x+bounds.width;
 		float y2 = bounds.y+bounds.height-FOOTER_FONT_SIZE/4;
 		g2D.setColor(Color.black);
-		g2D.setFont(g2D.getFont().deriveFont(Font.PLAIN, (int)FOOTER_FONT_SIZE));
+		g2D.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, (int)FOOTER_FONT_SIZE));
 		String docTitle = mParentFrame.getTitle();
 		g2D.drawString(docTitle, (int)x1, (int)y2);
 		g2D.drawString(footer, (int)x2-g2D.getFontMetrics().stringWidth(footer), (int)y2);
@@ -235,7 +255,7 @@ public class JStructureGrid extends JScrollPane
 
 			if (mShowAnyLabels) {
 				g2D.setColor(Color.black);
-				g2D.setFont(g2D.getFont().deriveFont(Font.PLAIN, (int)cellSize.fontSize));
+				g2D.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, (int)cellSize.fontSize));
 				for (int position=0; position<mLabelColumn.length; position++) {
 					int column = mLabelColumn[position];
 					if (column != -1) {
@@ -283,7 +303,7 @@ public class JStructureGrid extends JScrollPane
 								g2D.setComposite(opaque);
 							}
 	
-						if (mColorHandler.hasColorAssigned(column, CompoundTableColorHandler.FOREGROUND))
+						if (mColorHandler.hasColorAssigned(column, CompoundTableColorHandler.FOREGROUND) && !mIsMarkerLabelsBlackAndWhite)
 							g2D.setColor(mColorHandler.getVisualizationColor(column, CompoundTableColorHandler.FOREGROUND).getColorForPrintForeground(getRecord(firstRow+i)));
 						else
 							g2D.setColor(Color.black);
@@ -317,12 +337,17 @@ public class JStructureGrid extends JScrollPane
 							y = cellSize.structureHeight - cellSize.fontSize/3;
 							break;
 						default:
-							String columnName = mTableModel.getColumnTitle(column)+":";
-							x = cellSize.viewWidth/2-1 - g2D.getFontMetrics().stringWidth(columnName);
-							y = cellSize.viewHeight + cellSize.fontSize *7/8 - cellSize.fontSize * (mTableRowCount -
-								position + MarkerLabelDisplayer.cFirstTablePosition);
-							g2D.drawString(columnName, r.x+x, r.y+y);
-							x = cellSize.viewWidth/2;
+							y = cellSize.viewHeight + cellSize.fontSize * 7 / 8 - cellSize.fontSize * (mTableRowCount -
+									position + MarkerLabelDisplayer.cFirstTablePosition);
+							if (mIsShowColumnNameInTable) {
+								String columnName = mTableModel.getColumnTitle(column) + ":";
+								x = cellSize.viewWidth / 2 - 1 - g2D.getFontMetrics().stringWidth(columnName);
+								g2D.drawString(columnName, r.x + x, r.y + y);
+								x = cellSize.viewWidth / 2;
+								}
+							else {
+								x = 2;
+								}
 							break;
 							}
 						g2D.drawString(label, r.x+x, r.y+y);
@@ -342,7 +367,7 @@ public class JStructureGrid extends JScrollPane
 			StereoMolecule mol = mTableModel.getChemicalStructure(getRecord(firstRow+i), mStructureColumn, CompoundTableModel.ATOM_COLOR_MODE_EXPLICIT, molContainer);
 			if (mol != null) {
 				g2D.setColor(Color.black);
-				Depictor2D depictor = new Depictor2D(mol, Depictor2D.cDModeSuppressChiralText);
+				Depictor2D depictor = new Depictor2D(mol, mStructureDrawMode);
 				depictor.validateView(g2D, new Rectangle2D.Double(r.x, r.y+cellSize.topHeight, r.width,
 											r.height-cellSize.topHeight-cellSize.bottomHeight-cellSize.tableHeight),
 									  AbstractDepictor.cModeInflateToMaxAVBL+(int)(scaling*AbstractDepictor.cOptAvBondLen));
@@ -382,15 +407,56 @@ public class JStructureGrid extends JScrollPane
 		}
 
 	public void setColumnCount(int no) {
-		if (mNoOfColumns != no) {
+		if (mDefinedNoOfColumns != mNoOfColumns) {  // if is maximized and no of column temporarily changed because of that
+			if (mDefinedNoOfColumns != no) {
+				mDefinedNoOfColumns = Math.round((float)mDefinedNoOfColumns * no / mNoOfColumns);
+				mNoOfColumns = no;
+				mRepaintRequested = true;	// to track and abort nested paint() calls
+				mContentPanel.repaint();
+				}
+			}
+		else if (mDefinedNoOfColumns != no) {    // not maximized
+			mDefinedNoOfColumns = no;
 			mNoOfColumns = no;
 			mRepaintRequested = true;	// to track and abort nested paint() calls
 			mContentPanel.repaint();
 			}
 		}
 
+	/**
+	 * @param widthFactor 1.0 if is demaximization, otherwise factor of width increse due to maximization
+	 */
+	public void setMaximized(float widthFactor) {
+		if (widthFactor == 1.0)
+			mNoOfColumns = mDefinedNoOfColumns;
+		else
+			mNoOfColumns = Math.round(widthFactor * mDefinedNoOfColumns);
+		}
+
 	public int getColumnCount() {
 		return mNoOfColumns;
+		}
+
+	public boolean isShowColumnNameInTable() {
+		return mIsShowColumnNameInTable;
+		}
+
+	public void setShowColumnNameInTable(boolean b) {
+		if (mIsShowColumnNameInTable != b) {
+			mIsShowColumnNameInTable = b;
+			invalidateView();
+			}
+		}
+
+	public int getStructureDisplayMode() {
+		return mStructureDrawMode;
+		}
+
+	public void setStructureDisplayMode(int mode) {
+		if (mStructureDrawMode != mode) {
+			mStructureDrawMode = mode;
+			invalidateView();
+			}
 		}
 
 	@Override
@@ -399,7 +465,7 @@ public class JStructureGrid extends JScrollPane
 		}
 
 	@Override
-	public void setFocusHitlist(int no) {
+	public void setFocusList(int no) {
 		if (mFocusList != no) {
 			mFocusList = no;
 			mFocusValid = false;
@@ -505,7 +571,7 @@ public class JStructureGrid extends JScrollPane
 	public void listChanged(CompoundTableListEvent e) {
 		if (e.getType() == CompoundTableListEvent.cDelete) {
 			if (mFocusList == e.getListIndex())
-				setFocusHitlist(cFocusNone);
+				setFocusList(cFocusNone);
 			else if (mFocusList > e.getListIndex())
 				mFocusList--;
 			}
@@ -572,24 +638,29 @@ public class JStructureGrid extends JScrollPane
 		return false;
 		}
 	@Override public void setMarkerLabelList(int listNo) {}
+	@Override public void setMarkerLabelOnePerCategory(int categoryColumn, int valueColumn, int mode) {}
+	@Override public int[] getMarkerLabelOnePerCategory() { return null; }
 	@Override public int getMarkerLabelList() {
 		return cLabelsOnAllRows;
 		}
-	@Override public boolean supportsLabelsByList() {
-		return false;
-		}
+	@Override public boolean supportsLabelsByList() { return false; }
 	@Override public boolean supportsLabelBackground() {
 		return false;
 		}
 	@Override public boolean supportsLabelBackgroundTransparency() { return false; }
+	@Override public boolean supportsLabelPositionOptimization() {
+		return false;
+	}
 	@Override public float getLabelTransparency() { return 0f; }
 	@Override public void setLabelTransparency(float transparency, boolean isAdjusting) {}
 	@Override public boolean isShowLabelBackground() { return false; }
 	@Override public void setShowLabelBackground(boolean b) {}
+	@Override public boolean isOptimizeLabelPositions() { return false; }
+	@Override public void setOptimizeLabelPositions(boolean b) {}
 
-	public int getMarkerLabelTableEntryCount() {
-		return mTableRowCount;
-		}
+//	public int getMarkerLabelTableEntryCount() {
+//		return mTableRowCount;
+//		}
 
 	public int getMarkerLabelColumn(int position) {
 		return mLabelColumn[position];
@@ -609,6 +680,19 @@ public class JStructureGrid extends JScrollPane
 			}
 		}
 
+	public void setMarkerLabelsBlackOrWhite(boolean blackAndWhite) {
+		if (mIsMarkerLabelsBlackAndWhite != blackAndWhite) {
+			mIsMarkerLabelsBlackAndWhite = blackAndWhite;
+			if (mShowAnyLabels) {
+				invalidateView();
+				}
+			}
+		}
+
+	public boolean isMarkerLabelBlackOrWhite() {
+		return mIsMarkerLabelsBlackAndWhite;
+		}
+
 	public synchronized void valueChanged(ListSelectionEvent e) {
 		if (!e.getValueIsAdjusting()) {
 			if (mFocusList == cFocusOnSelection) {
@@ -625,7 +709,7 @@ public class JStructureGrid extends JScrollPane
 
 	private void updateActiveRow(CompoundRecord record) {
 		if (mActiveRow != record) {
-			if (mTableModel.getStructureHiliteMode(mStructureColumn) == CompoundTableModel.cStructureHiliteModeCurrentRow)
+			if (mTableModel.getHiliteMode(mStructureColumn) == CompoundTableModel.cStructureHiliteModeCurrentRow)
 				invalidateView();
 
 			Rectangle r = new Rectangle();
@@ -664,6 +748,8 @@ public class JStructureGrid extends JScrollPane
 		}
 
 	public synchronized void mousePressed(MouseEvent e) {
+		requestFocus();
+		mViewSelectionHelper.setSelectedView(this);
 		if (!handlePopupTrigger(e)
 		 && (e.getModifiers() & InputEvent.BUTTON1_MASK) != 0) {
 			int index = getIndex(e.getX(), e.getY());
@@ -699,7 +785,7 @@ public class JStructureGrid extends JScrollPane
 		if (e.isPopupTrigger()) {
 			int index = getIndex(e.getX(), e.getY());
 			if (index != -1 && mDetailPopupProvider != null) {
-				JPopupMenu popup = mDetailPopupProvider.createPopupMenu(getRecord(index), this, -1);
+				JPopupMenu popup = mDetailPopupProvider.createPopupMenu(getRecord(index), this, -1, e.isControlDown());
 				if (popup != null)
 					popup.show(this, e.getX(), e.getY());
 				}
@@ -716,6 +802,91 @@ public class JStructureGrid extends JScrollPane
 		}
 
 	public synchronized void mouseDragged(MouseEvent e) {
+		}
+
+	@Override
+	public boolean copyViewContent() {
+		if (mSelectionModel.getSelectionCount() == 1) {
+			int row = mSelectionModel.getMinSelectionIndex();
+			StereoMolecule mol = mTableModel.getChemicalStructure(getRecord(row), mStructureColumn, CompoundTableModel.ATOM_COLOR_MODE_NONE, null);
+			if (mol != null)
+				new ClipboardHandler().copyMolecule(mol);
+			}
+		else if (mSelectionModel.getSelectionCount() > 1) {
+			StringWriter sw = new StringWriter(1024);
+			BufferedWriter bw = new BufferedWriter(sw);
+			try {
+				bw.write(mTableModel.getColumnTitle(mStructureColumn)+" [idcode]");
+				for (int position=0; position<mLabelColumn.length; position++) {
+					int column = mLabelColumn[position];
+					if (column != -1) {
+						bw.write('\t');
+						bw.write(mTableModel.getColumnTitle(column));
+						}
+					}
+				bw.newLine();
+				for (int row=0; row<mTableModel.getRowCount(); row++) {
+					if (mTableModel.isSelected(row)) {
+						CompoundRecord record = mTableModel.getRecord(row);
+						bw.write(mTableModel.encodeData(record, mStructureColumn));
+						for (int position=0; position<mLabelColumn.length; position++) {
+							int column = mLabelColumn[position];
+							if (column != -1) {
+								bw.write('\t');
+								bw.write(mTableModel.encodeData(record, column));
+								}
+							}
+						bw.newLine();
+						}
+					}
+				bw.close();
+				StringSelection theData = new StringSelection(sw.toString());
+				Toolkit.getDefaultToolkit().getSystemClipboard().setContents(theData, theData);
+				}
+			catch (IOException ioe) {}
+			}
+		return true;
+		}
+
+	/**
+		 * If any of the arrow keys is pressed and the active row is visible, then the active row
+		 * is advanced accordingly and the view scrolled, if needed to keep the new active row
+		 * visible.
+		 * @param e
+		 * @return true, if active row was visible and event was handled
+		 */
+	public boolean handleKeyPressed(KeyEvent e) {
+		int key = e.getKeyCode();
+		if (key == KeyEvent.VK_LEFT
+		 || key == KeyEvent.VK_RIGHT
+		 || key == KeyEvent.VK_UP
+		 || key == KeyEvent.VK_DOWN) {
+			for (int i=0; i<mImageList.size(); i++) {
+				int row = mIndexOfFirstImage + i;
+				if (getRecord(row) == mHighlightedRow) {
+					if (key == KeyEvent.VK_LEFT)
+						row--;
+					else if (key == KeyEvent.VK_RIGHT)
+						row++;
+					else if (key == KeyEvent.VK_UP)
+						row -= mNoOfColumns;
+					else
+						row += mNoOfColumns;
+
+					if (row >= 0 && row < mTableModel.getRowCount()) {
+						mTableModel.setHighlightedRow(getRecord(row));
+						mSelectionModel.setSelectionInterval(row, row);
+						Rectangle r = new Rectangle();
+						setFieldRect(r, row);
+						mContentPanel.scrollRectToVisible(r);
+						}
+
+					return true;
+					}
+				}
+			}
+
+		return false;
 		}
 
 	private void setFieldRect(Rectangle r, int index) {
@@ -852,7 +1023,7 @@ public class JStructureGrid extends JScrollPane
 				}
 
 			int coordinateColumn = (mStructureColumn == -1) ? -1
-					: mTableModel.getChildColumn(mStructureColumn, CompoundTableModel.cColumnType2DCoordinates);
+					: mTableModel.getChildColumn(mStructureColumn, CompoundTableModel.cColumnType2DCoordinates, null);
 
 				// create and add not yet available structure images to imagelist
 			if (mSelectionChanged || firstNonVisible - firstVisible > mImageList.size()) {
@@ -874,18 +1045,18 @@ public class JStructureGrid extends JScrollPane
 						((Graphics2D)ig).setRenderingHint(RenderingHints.KEY_STROKE_CONTROL, RenderingHints.VALUE_STROKE_PURE);
 // doesn't seem to work ((Graphics2D)ig).setRenderingHint(RenderingHints.KEY_FRACTIONALMETRICS, RenderingHints.VALUE_FRACTIONALMETRICS_ON);
 
+						boolean isOutOfFocus = (mFocusList != cFocusNone && i>=mFocusCount);
+
 						if (mFocusList == cFocusOnSelection) // don't show selection background
 							ig.setColor(i<mFocusCount ? backgroundColor : outOfFocusBackground);
-						else if (mFocusList != cFocusNone && i>=mFocusCount)
+						else if (isOutOfFocus)
 							ig.setColor(getRecord(i).isSelected() ? outOfFocusSelection : outOfFocusBackground);
 						else
 							ig.setColor((getRecord(i).isSelected()) ? selectionBackground : backgroundColor);
 						ig.fillRect(mCellSize.border, mCellSize.border, mCellSize.viewWidth, mCellSize.viewHeight);
 
-						boolean isOutOfFocus = (mFocusList != cFocusNone && i>=mFocusCount);
-
 						if (mShowAnyLabels) {
-							ig.setFont(ig.getFont().deriveFont(Font.PLAIN, mCellSize.fontSize));
+							ig.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, mCellSize.fontSize));
 							for (int position=0; position<mLabelColumn.length; position++) {
 								int column = mLabelColumn[position];
 								if (column != -1) {
@@ -936,11 +1107,11 @@ public class JStructureGrid extends JScrollPane
 
 									if (isOutOfFocus)
 										ig.setColor(outOfFocusForeground);
-									else if (mColorHandler.hasColorAssigned(column, CompoundTableColorHandler.FOREGROUND)) {
+									else if (mColorHandler.hasColorAssigned(column, CompoundTableColorHandler.FOREGROUND) && !mIsMarkerLabelsBlackAndWhite) {
 										VisualizationColor vc = mColorHandler.getVisualizationColor(column, CompoundTableColorHandler.FOREGROUND);
 										ig.setColor(vc.getColorForForeground(getRecord(i)));
 										}
-									else if (getRecord(i).isSelected())
+									else if (getRecord(i).isSelected() && mFocusList != cFocusOnSelection)
 										ig.setColor(selectionForeground);
 									else
 										ig.setColor(foregroundColor);
@@ -974,13 +1145,17 @@ public class JStructureGrid extends JScrollPane
 										y += mCellSize.structureHeight - mCellSize.fontSize / 3;
 										break;
 									default:
-										String columnName = mTableModel.getColumnTitle(column)+":";
-										x += mCellSize.viewWidth / 2 - ig.getFontMetrics().stringWidth(columnName) - 2;
-										y += mCellSize.viewHeight + mCellSize.fontSize *7/8
-										  - mCellSize.fontSize * (mTableRowCount -
-												  position + MarkerLabelDisplayer.cFirstTablePosition);
-										ig.drawString(columnName, x, y);
-										x = mCellSize.scaledWidth / 2;
+										y += mCellSize.viewHeight + mCellSize.fontSize * 7 / 8 - mCellSize.fontSize
+											* (mTableRowCount - position + MarkerLabelDisplayer.cFirstTablePosition);
+										if (mIsShowColumnNameInTable) {
+											String columnName = mTableModel.getColumnTitle(column) + ":";
+											x += mCellSize.viewWidth / 2 - ig.getFontMetrics().stringWidth(columnName) - 2;
+											ig.drawString(columnName, x, y);
+											x = mCellSize.scaledWidth / 2;
+											}
+										else {
+											x += 3;
+											}
 										break;
 										}
 
@@ -1017,7 +1192,7 @@ public class JStructureGrid extends JScrollPane
 							else {
 								StereoMolecule mol = mTableModel.getChemicalStructure(getRecord(i), mStructureColumn, CompoundTableModel.ATOM_COLOR_MODE_ALL, molContainer);
 								if (mol != null) {
-									AbstractDepictor depictor = new Depictor2D(mol, Depictor2D.cDModeSuppressChiralText);
+									AbstractDepictor depictor = new Depictor2D(mol, mStructureDrawMode);
 									depictor.validateView(ig,
 														  new Rectangle2D.Double(mCellSize.border,
 																mCellSize.border+mCellSize.topHeight,

@@ -34,7 +34,10 @@ import java.util.StringTokenizer;
 public class JFormView extends JPanel implements FormObjectListener,Printable {
 	private static final long serialVersionUID = 0x20061016;
 
-	public static final int DEFAULT_FONT_SIZE = 10;
+	public static final int DEFAULT_FONT_SIZE = 9;
+
+	private static final int HORIZONTAL_GAP = 6;
+	private static final int VERTICAL_GAP = 4;
 
 	private ArrayList<AbstractFormObject> mComponentList;
 	private FormModel			mFormModel;
@@ -45,7 +48,7 @@ public class JFormView extends JPanel implements FormObjectListener,Printable {
 	public JFormView() {
 		mObjectFactory = new FormObjectFactory();
 		mComponentList = new ArrayList<AbstractFormObject>();
-		setFont(getFont().deriveFont(Font.PLAIN, HiDPIHelper.scale(DEFAULT_FONT_SIZE)));
+		setFont(new Font(Font.SANS_SERIF, Font.PLAIN, HiDPIHelper.scale(DEFAULT_FONT_SIZE)));
 		}
 
 	public void setModel(FormModel model) {
@@ -73,7 +76,7 @@ public class JFormView extends JPanel implements FormObjectListener,Printable {
 		}
 
 	public void setFontSize(int fontSize) {
-		Font font = getFont().deriveFont(Font.PLAIN, HiDPIHelper.scale(fontSize));
+		Font font = new Font(Font.SANS_SERIF, Font.PLAIN, HiDPIHelper.scale(fontSize));
 		setFont(font);
 		for (AbstractFormObject fo:mComponentList)
 			fo.setFont(font);
@@ -310,40 +313,78 @@ public class JFormView extends JPanel implements FormObjectListener,Printable {
 		}
 
 	public void createDefaultLayout() {
+		createDefaultLayout(2);
+		}
+
+	/**
+	 * @param formColumnCount -1 is automatic based on form width and height and amount and height of form objects
+	 */
+	public void createDefaultLayout(int formColumnCount) {
 		removeAll();
 
-		int overallHeight = 0;
-		for (int i=0; i<mComponentList.size(); i++)
-			overallHeight += mComponentList.get(i).getRelativeHeight();
+		int[] formObjectHeight = new int[mComponentList.size()];
+
+		int totalHeight = 0;
+		for (int i=0; i<mComponentList.size(); i++) {
+			formObjectHeight[i] = mComponentList.get(i).getRelativeHeight();
+			totalHeight += formObjectHeight[i];
+			}
+
+		if (formColumnCount == -1) {
+			Dimension size = getSize();
+			if (size.width == 0 || size.height == 0) {
+				size.width = 120;
+				size.height = 80;
+				}
+
+			formColumnCount = Math.max(1, Math.round((float)Math.sqrt((double)(totalHeight * size.width) / (8 * size.height))));
+			}
 
 		String[] position = new String[mComponentList.size()];
 		int x = 0;
 		int y = 0;
-		int layoutHeight = 0;
+		int layoutWidth = 1;
+		int layoutHeight = determineLayoutHeight(formObjectHeight, totalHeight, formColumnCount);
 		for (int i=0; i<mComponentList.size(); i++) {
+			int height = formObjectHeight[i];
+
+			if (y + height > layoutHeight) {
+				y = 0;
+				x++;
+				}
+
 			int layoutX = x*2+1;	// considers border and spacing
 			int layoutY = y*2+1;
-			int height = mComponentList.get(i).getRelativeHeight();
+
 			if (height == 1)
 				position[i] = ""+layoutX+", "+layoutY;
 			else
 				position[i] = ""+layoutX+", "+layoutY+", "+layoutX+", "+(layoutY+2*height-2);
+
 			y += height;
-			if (2*y >= overallHeight) {
-				layoutHeight = y;
-				x++;
-				y = 0;
-				}
 			}
+
+		if (layoutWidth < formColumnCount)	// may happen with no form objects
+			layoutWidth = formColumnCount;
+
+		int vgap = HiDPIHelper.scale(VERTICAL_GAP);
+		int hgap = HiDPIHelper.scale(HORIZONTAL_GAP);
+
+		double[] xLayout = new double[layoutWidth*2+1];
+		for (int i=0; i<layoutWidth; i++) {
+			xLayout[i*2] = hgap;
+			xLayout[i*2+1] = TableLayout.FILL;
+			}
+		xLayout[layoutWidth*2] = hgap;
 
 		double[] yLayout = new double[layoutHeight*2+1];
 		for (int i=0; i<layoutHeight; i++) {
-			yLayout[i*2] = 8;
+			yLayout[i*2] = vgap;
 			yLayout[i*2+1] = TableLayout.FILL;
 			}
-		yLayout[layoutHeight*2] = 8;
+		yLayout[layoutHeight*2] = vgap;
 
-		double[][] layoutDesc = { {8, TableLayout.FILL, 8, TableLayout.FILL, 8}, yLayout };
+		double[][] layoutDesc = { xLayout, yLayout };
 		setLayout(new TableLayout(layoutDesc));
 		mLayoutDesc = layoutDesc;
 
@@ -351,6 +392,43 @@ public class JFormView extends JPanel implements FormObjectListener,Printable {
 			AbstractFormObject formObject = mComponentList.get(i);
 			addObject(formObject, position[i]);
 			formObject.setData(mFormModel.getValue(formObject.getKey()));
+			}
+		}
+
+	/**
+	 * Determine real height for multi column forms
+	 * @param formObjectHeight
+	 * @param totalHeight
+	 * @param formColumnCount
+	 * @return
+	 */
+	private int determineLayoutHeight(int[] formObjectHeight, int totalHeight, int formColumnCount) {
+		if (formColumnCount == 1)
+			return totalHeight;
+
+		int formHeight = Math.max(1, 1+(totalHeight-1)/formColumnCount);
+
+		while (true) {
+			int column = 0;
+			int usedHeight = 0;
+			for (int i=0; i<mComponentList.size(); i++) {
+				int height = formObjectHeight[i];
+				if (usedHeight + height <= formHeight) {
+					usedHeight += height;
+					}
+				else {
+					column++;
+					if (column == formColumnCount)
+						break;
+
+					usedHeight = height;
+					}
+				}
+
+			if (column < formColumnCount)
+				return formHeight;
+
+			formHeight++;
 			}
 		}
 

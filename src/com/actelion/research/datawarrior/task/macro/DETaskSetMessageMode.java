@@ -42,8 +42,8 @@ public class DETaskSetMessageMode extends ConfigurableTask {
 	private static final String PROPERTY_MODE = "mode";
 
 	// these Strings map on the DEMacroRecorder's MESSAGE_MODE_XXX options
-	private static final String[] MODE_TEXT = { "Show error messages", "Suppress error messages" };
-	private static final String[] MODE_CODE = { "showErrors", "skipErrors" };
+	private static final String[] MODE_TEXT = { "Show all error messages", "Show first error only", "Suppress all error messages" };
+	private static final String[] MODE_CODE = { "showErrors", "showOneError", "skipErrors" };
 
 
 	private DEFrame		mParentFrame;

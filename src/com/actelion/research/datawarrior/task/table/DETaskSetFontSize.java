@@ -23,8 +23,9 @@ import com.actelion.research.datawarrior.DEMainPane;
 import com.actelion.research.datawarrior.DETable;
 import com.actelion.research.datawarrior.DETableView;
 import com.actelion.research.datawarrior.task.AbstractViewTask;
-import com.actelion.research.datawarrior.task.view.DETaskSetGraphicalViewProperties;
+import com.actelion.research.datawarrior.task.view.DETaskSetGraphicalViewOptions;
 import com.actelion.research.gui.form.JFormView;
+import com.actelion.research.gui.hidpi.HiDPIHelper;
 import com.actelion.research.table.view.CompoundTableView;
 import info.clearthought.layout.TableLayout;
 
@@ -50,8 +51,8 @@ public class DETaskSetFontSize extends AbstractViewTask {
 
 	public String getViewQualificationError(CompoundTableView view) {
 		return (view instanceof DETableView || view instanceof DEFormView) ? null
-				: "The 'Set Font Size' task aplies to table and form views only."
-				+ "\nTo change font sizes of graphical view use '"+ DETaskSetGraphicalViewProperties.TASK_NAME+"'.";
+				: "The 'Set Font Size' task applies to table and form views only."
+				+ "\nTo change font sizes of graphical view use '"+ DETaskSetGraphicalViewOptions.TASK_NAME+"'.";
 		}
 
 	@Override
@@ -61,8 +62,9 @@ public class DETaskSetFontSize extends AbstractViewTask {
 
 	@Override
 	public JComponent createInnerDialogContent() {
-		double[][] size = { {8, TableLayout.PREFERRED, 4, TableLayout.PREFERRED, 8},
-							{8, TableLayout.PREFERRED, 8} };
+		int gap = HiDPIHelper.scale(8);
+		double[][] size = { {gap, TableLayout.PREFERRED, gap/2, TableLayout.PREFERRED, gap},
+							{gap, TableLayout.PREFERRED, gap} };
 
 		JPanel content = new JPanel();
 		content.setLayout(new TableLayout(size));

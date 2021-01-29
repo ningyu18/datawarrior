@@ -18,24 +18,25 @@
 
 package com.actelion.research.datawarrior.task.chem;
 
-import java.sql.SQLException;
 import java.util.Properties;
 
 import com.actelion.research.chem.*;
 import com.actelion.research.chem.io.CompoundTableConstants;
 import com.actelion.research.datawarrior.DEFrame;
+import com.actelion.research.gui.hidpi.HiDPIHelper;
 import com.actelion.research.table.model.CompoundRecord;
 import info.clearthought.layout.TableLayout;
 
 import javax.swing.*;
 
-public class DETaskAddLargestFragment extends DETaskAbstractAddChemProperty {
+public class DETaskAddLargestFragment extends DETaskAbstractFromStructure {
 	public static final String TASK_NAME = "Add Largest Fragment";
 
 	private static final String PROPERTY_NEUTRALIZE = "neutralize";
+	private static final String PROPERTY_AS_SUBSTRUCTURE = "asSubstructure";
 
-	private JCheckBox mCheckBoxNeutralize;
-	private boolean mNeutralizeFragment;
+	private JCheckBox mCheckBoxNeutralize,mCheckBoxAsSubstructure;
+	private boolean mNeutralizeFragment,mAsSubstructure;
 
     public DETaskAddLargestFragment(DEFrame parent) {
 		super(parent, DESCRIPTOR_NONE, false, true);
@@ -45,7 +46,7 @@ public class DETaskAddLargestFragment extends DETaskAbstractAddChemProperty {
 	protected int getNewColumnCount() {
 		int count = 1;
 		for (int column=0; column<getTableModel().getTotalColumnCount(); column++)
-			if (getTableModel().getParentColumn(column) == getStructureColumn() && isCoordinateColumn(column))
+			if (getTableModel().getParentColumn(column) == getChemistryColumn() && isCoordinateColumn(column))
 			  count++;
 		return count;
 		}
@@ -63,13 +64,16 @@ public class DETaskAddLargestFragment extends DETaskAbstractAddChemProperty {
 
 	@Override
 	public JPanel getExtendedDialogContent() {
-		double[][] size = { {TableLayout.PREFERRED}, {TableLayout.PREFERRED} };
+    	int gap = HiDPIHelper.scale(8);
+		double[][] size = { {TableLayout.PREFERRED}, {TableLayout.PREFERRED, gap/2, TableLayout.PREFERRED} };
 
 		mCheckBoxNeutralize = new JCheckBox("Neutralize charges");
+		mCheckBoxAsSubstructure = new JCheckBox("Convert to sub-structure");
 
 		JPanel ep = new JPanel();
 		ep.setLayout(new TableLayout(size));
 		ep.add(mCheckBoxNeutralize, "0,0");
+		ep.add(mCheckBoxAsSubstructure, "0,2");
 		return ep;
 		}
 
@@ -79,9 +83,15 @@ public class DETaskAddLargestFragment extends DETaskAbstractAddChemProperty {
 		}
 
 	@Override
+	public String getHelpURL() {
+		return "/html/help/chemistry.html#AddLargestFragment";
+		}
+
+	@Override
 	public Properties getDialogConfiguration() {
 		Properties configuration = super.getDialogConfiguration();
 		configuration.setProperty(PROPERTY_NEUTRALIZE, mCheckBoxNeutralize.isSelected() ? "true" : "false");
+		configuration.setProperty(PROPERTY_AS_SUBSTRUCTURE, mCheckBoxAsSubstructure.isSelected() ? "true" : "false");
 		return configuration;
 		}
 
@@ -89,25 +99,29 @@ public class DETaskAddLargestFragment extends DETaskAbstractAddChemProperty {
 	public void setDialogConfiguration(Properties configuration) {
 		super.setDialogConfiguration(configuration);
 		mCheckBoxNeutralize.setSelected("true".equals(configuration.getProperty(PROPERTY_NEUTRALIZE)));
+		mCheckBoxAsSubstructure.setSelected("true".equals(configuration.getProperty(PROPERTY_AS_SUBSTRUCTURE)));
 		}
 
 	@Override
 	public void setDialogConfigurationToDefault() {
 		super.setDialogConfigurationToDefault();
 		mCheckBoxNeutralize.setSelected(true);
+		mCheckBoxAsSubstructure.setSelected(false);
 		}
 
 	@Override
 	protected void setNewColumnProperties(int firstNewColumn) {
-		String sourceColumnName = getTableModel().getColumnTitle(getStructureColumn());
+		String sourceColumnName = getTableModel().getColumnTitle(getChemistryColumn());
 
 		getTableModel().setColumnName("Largest Fragment of " + sourceColumnName, firstNewColumn);
 		getTableModel().setColumnProperty(firstNewColumn, CompoundTableConstants.cColumnPropertySpecialType,
 				CompoundTableConstants.cColumnTypeIDCode);
+		if (mAsSubstructure)
+			getTableModel().setColumnProperty(firstNewColumn, CompoundTableConstants.cColumnPropertyIsFragment, "true");
 
 		int count = 1;
 		for (int column=0; column<getTableModel().getTotalColumnCount(); column++) {
-			if (getTableModel().getParentColumn(column) == getStructureColumn() && isCoordinateColumn(column)) {
+			if (getTableModel().getParentColumn(column) == getChemistryColumn() && isCoordinateColumn(column)) {
 				getTableModel().setColumnName("fragmentCoordinates"+count, firstNewColumn+count);
 				getTableModel().setColumnProperty(firstNewColumn+count,
 						CompoundTableConstants.cColumnPropertySpecialType, getTableModel().getColumnSpecialType(column));
@@ -126,23 +140,23 @@ public class DETaskAddLargestFragment extends DETaskAbstractAddChemProperty {
 	@Override
 	protected boolean preprocessRows(Properties configuration) {
 		mNeutralizeFragment = "true".equals(configuration.getProperty(PROPERTY_NEUTRALIZE));
+		mAsSubstructure = "true".equals(configuration.getProperty(PROPERTY_AS_SUBSTRUCTURE));
 		return super.preprocessRows(configuration);
     	}
 
 	@Override
-	public void processRow(int row, int firstNewColumn, StereoMolecule containerMol) throws Exception {
+	public void processRow(int row, int firstNewColumn, StereoMolecule containerMol) {
 		CompoundRecord record = getTableModel().getTotalRecord(row);
-		byte[] idcode = (byte[])record.getData(getStructureColumn());
+		byte[] idcode = (byte[])record.getData(getChemistryColumn());
 		if (idcode != null) {
 			int count = 0;
 			for (int column=0; column<getTableModel().getTotalColumnCount(); column++) {
-				if (getTableModel().getParentColumn(column) == getStructureColumn()) {
+				if (getTableModel().getParentColumn(column) == getChemistryColumn()) {
 					if (record.getData(column) != null && isCoordinateColumn(column)) {
 						count++;
 						boolean is2D = CompoundTableConstants.cColumnType2DCoordinates.equals(getTableModel().getColumnSpecialType(column));
 						StereoMolecule mol = new IDCodeParser(is2D).getCompactMolecule(idcode, (byte[])record.getData(column));
-						mol.stripSmallFragments();
-						new MoleculeNeutralizer().neutralizeChargedMolecule(mol);
+						handleMolecule(mol);
 						Canonizer canonizer = new Canonizer(mol);
 						getTableModel().setTotalValueAt(canonizer.getIDCode(), row, firstNewColumn);
 						getTableModel().setTotalValueAt(canonizer.getEncodedCoordinates(), row, firstNewColumn+count);
@@ -152,11 +166,19 @@ public class DETaskAddLargestFragment extends DETaskAbstractAddChemProperty {
 			if (count == 0) {
 				StereoMolecule mol = getChemicalStructure(row, containerMol);
 				if (mol != null) {
-					mol.stripSmallFragments();
+					handleMolecule(mol);
 					Canonizer canonizer = new Canonizer(mol);
 					getTableModel().setTotalValueAt(canonizer.getIDCode(), row, firstNewColumn);
 					}
 				}
 			}
+		}
+
+	private void handleMolecule(StereoMolecule mol) {
+		mol.stripSmallFragments();
+		if (mNeutralizeFragment)
+			new MoleculeNeutralizer().neutralizeChargedMolecule(mol);
+		if (mAsSubstructure)
+			mol.setFragment(true);
 		}
 	}
