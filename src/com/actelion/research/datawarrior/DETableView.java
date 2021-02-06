@@ -287,8 +287,13 @@ public class DETableView extends JScrollPane
 			int column = mTable.convertTotalColumnIndexFromView(mTable.columnAtPoint(e.getPoint()));
 			if (column != -1) {
 				int row = mTable.rowAtPoint(e.getPoint());
+<<<<<<< HEAD
 				new DEDetailPopupMenu(mParentPane.getMainPane(), mTableModel.getRecord(row), null, this, null, column, e.isControlDown()).actionPerformed(
 						new ActionEvent(this, ActionEvent.ACTION_PERFORMED, DEDetailPopupMenu.EDIT_VALUE+mTableModel.getColumnTitleNoAlias(column)));
+=======
+				new DERowDetailPopupMenu(mParentPane.getMainPane(), mTableModel.getRecord(row), null, this, null, column, e.isControlDown()).actionPerformed(
+						new ActionEvent(this, ActionEvent.ACTION_PERFORMED, DERowDetailPopupMenu.EDIT_VALUE+mTableModel.getColumnTitleNoAlias(column)));
+>>>>>>> refs/remotes/thsa/master
 				}
 			}
 		}

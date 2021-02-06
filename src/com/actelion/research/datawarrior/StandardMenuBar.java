@@ -217,7 +217,11 @@ public class StandardMenuBar extends JMenuBar implements ActionListener,
 		getActionMap().put(maximize, new AbstractAction(maximize) {
 			@Override
 			public void actionPerformed(ActionEvent evt) {
+<<<<<<< HEAD
 				mMainPane.maximize(mMainPane.getSelectedViewTitle());
+=======
+				mMainPane.maximize(mMainPane.getSelectedViewTitle(), null);
+>>>>>>> refs/remotes/thsa/master
 				}
 			});
 		getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke(KeyEvent.VK_F4, 0), maximize);

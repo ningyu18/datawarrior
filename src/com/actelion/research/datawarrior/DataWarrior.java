@@ -206,7 +206,11 @@ public abstract class DataWarrior implements WindowFocusListener {
 
 		initialize();
 
+<<<<<<< HEAD
 		if (!isIdorsia()) {
+=======
+		if (!isIdorsia() && System.getProperty("development") == null) {
+>>>>>>> refs/remotes/thsa/master
 			try {
 				Preferences prefs = getPreferences();
 

@@ -625,6 +625,7 @@ public class DETaskAddCalculatedValues extends ConfigurableTask
 
 		for (int i=0; i<s.length(); i++) {
 			char theChar = s.charAt(i);
+<<<<<<< HEAD
 			if (theChar == 'u')	// special handling, because JEP produces syntax errors with this char
 				theChar = 'u';
 			if (Character.isLetterOrDigit(theChar) || theChar=='_')
@@ -763,3 +764,142 @@ public class DETaskAddCalculatedValues extends ConfigurableTask
 		}
 	}
 
+=======
+			if (theChar == 'µ')	// special handling, because JEP produces syntax errors with this char
+				theChar = 'u';
+			if (Character.isLetterOrDigit(theChar) || theChar=='_')
+				buf.append(theChar);
+			}
+		return buf.toString();
+		}
+
+	private String ensureUniqueness(String varName, TreeSet<String> varNameList) {
+		// where variable names collide with a function name, we enforce upper case first letters
+		if (mParser.getFunctionTable().containsKey(varName) && Character.isLowerCase(varName.charAt(0)))
+			varName = varName.substring(0, 1).toUpperCase().concat(varName.substring(1));
+
+		if (varNameList.contains(varName)) {
+			for (int suffix = 2; true; suffix++) {
+				String suggestedName = varName.concat("_").concat(Integer.toString(suffix));
+				if (!varNameList.contains(suggestedName)) {
+					varName = suggestedName;
+					break;
+					}
+				}
+			}
+
+		varNameList.add(varName);
+		return varName;
+		}
+
+	@Override
+	public boolean isConfigurable() {
+		if (mTableModel.getTotalColumnCount() == 0 || mTableModel.getTotalRowCount() == 0) {
+			showErrorMessage("The data table is empty.");
+			return false;
+			}
+		return true;
+		}
+
+	@Override
+	public String getTaskName() {
+		return TASK_NAME;
+		}
+
+	@Override
+	public Properties getDialogConfiguration() {
+		boolean isOverwrite = mCheckBoxOverwriteExisting.isSelected();
+		Properties configuration = new Properties();
+		configuration.put(PROPERTY_FORMULA, mTextAreaFormula.getText().replace("\n", "<NL>"));
+		configuration.put(PROPERTY_OVERWRITE_COLUMN, isOverwrite ? "true" : "false");
+		configuration.put(PROPERTY_COLUMN_NAME, mTableModel.getColumnTitleNoAlias(
+				isOverwrite ? (String)mComboBoxColumnName.getSelectedItem() : mTextFieldColumnName.getText()));
+		return configuration;
+		}
+
+	@Override
+	public void setDialogConfiguration(Properties configuration) {
+		if (mFormula != null) {
+			mTextAreaFormula.setText(mFormula);
+			mCheckBoxOverwriteExisting.setSelected(true);
+			mComboBoxColumnName.setSelectedItem(mTableModel.getColumnTitle(mColumn));
+			updateColumnNameComponent(true);
+			}
+		else {
+			boolean isOverwrite = "true".equals(configuration.getProperty(PROPERTY_OVERWRITE_COLUMN));
+			mTextAreaFormula.setText(configuration.getProperty(PROPERTY_FORMULA, "").replace("<NL>", "\n"));
+			mCheckBoxOverwriteExisting.setSelected(isOverwrite);
+			String columnName = configuration.getProperty(PROPERTY_COLUMN_NAME, "");
+			if (isOverwrite) {
+				int column = mTableModel.findColumn(columnName);
+				if (column != -1)
+					columnName = mTableModel.getColumnTitle(column);
+				mComboBoxColumnName.setSelectedItem(columnName);
+				updateColumnNameComponent(true);
+				}
+			else {
+				mTextFieldColumnName.setText(columnName);
+				}
+			}
+		}
+
+	@Override
+	public void setDialogConfigurationToDefault() {
+		if (mFormula == null) {
+			mTextAreaFormula.setText("");
+			mCheckBoxOverwriteExisting.setSelected(false);
+			mTextFieldColumnName.setText("Calculated Column");
+			}
+		else {
+			mTextAreaFormula.setText(mFormula);
+			mCheckBoxOverwriteExisting.setSelected(true);
+			mComboBoxColumnName.setSelectedItem(mTableModel.getColumnTitle(mColumn));
+			updateColumnNameComponent(true);
+			}
+		}
+
+	@Override
+	public boolean isConfigurationValid(Properties configuration, boolean isLive) {
+		String columnName = configuration.getProperty(PROPERTY_COLUMN_NAME, "");
+		if (columnName.length() == 0) {
+			showErrorMessage("No column name specified.");
+			return false;
+			}
+
+		String formula = resolveVariables(configuration.getProperty(PROPERTY_FORMULA, "").replace("\n", "").replace("<NL>", ""));
+		if (formula.length() == 0) {
+			showErrorMessage("No formula specified.");
+			return false;
+			}
+
+		if (isLive) {
+			boolean isOverwrite = "true".equals(configuration.getProperty(PROPERTY_OVERWRITE_COLUMN));
+			if (isOverwrite) {
+				int column = mTableModel.findColumn(columnName);
+				if (column == -1) {
+					showErrorMessage("Target column not found.");
+					return false;
+					}
+				if (mTableModel.getColumnSpecialType(column) != null) {
+					showErrorMessage("Target column is not alpha-numerical.");
+					return false;
+					}
+				}
+
+			mRunTimeColumnMap = createColumnMap();
+			formula = preprocessFormula(formula, true);
+			if (formula == null)
+				return false;	// no error message because the user cancelled
+
+			if (!parseFormula(createParser(), formula))
+				return false;	// parseFormula shows error message
+			}
+		return true;
+		}
+
+	@Override
+	public DEFrame getNewFrontFrame() {
+		return null;
+		}
+	}
+>>>>>>> refs/remotes/thsa/master
