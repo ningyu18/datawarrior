@@ -18,83 +18,6 @@ import java.util.TreeMap;
  * Created by thomas on 7/13/17.
  */
 public class DEStructureNameResolver implements IStructureNameResolver {
-<<<<<<< HEAD
-	private N2SCommunicator sCommunicator;
-	private TreeMap<String,String> sNameMap;
-
-	public StereoMolecule resolveLocal(String name) {
-		if (name == null)
-			return null;
-
-		name = name.trim();
-
-		// Try local OPSIN first
-		try {
-			String smiles = NameToStructure.getInstance().parseToSmiles(name);
-			if (smiles != null) {
-				StereoMolecule mol = new StereoMolecule();
-				new SmilesParser().parse(mol, smiles);
-				if (mol.getAllAtoms() != 0) {
-					mol.setFragment(false);
-					new CoordinateInventor().invent(mol);
-					return mol;
-				}
-			}
-		}
-		catch (Exception e) {}
-
-		return null;
-	}
-
-	@Override
-	public StereoMolecule resolveRemote(String name) {
-		if (name == null)
-			return null;
-
-		name = name.trim();
-
-		if (sCommunicator == null)
-			sCommunicator = new N2SCommunicator(null, "datawarrior");
-		String idcode = null;
-		if (name != null && name.length() != 0) {
-			if (sNameMap != null)
-				idcode = sNameMap.get(name);
-
-			if (idcode == null) {
-				idcode = sCommunicator.getIDCode(name);
-
-				if (sCommunicator.hasConnectionProblem())
-					return null;
-
-				if (idcode != null) {
-					if (sNameMap == null)
-						sNameMap = new TreeMap<>();
-					sNameMap.put(name, idcode);
-					}
-				}
-
-			if (idcode != null) {
-				StereoMolecule mol = new IDCodeParser().getCompactMolecule(idcode);
-				if (mol != null && mol.getAllAtoms() != 0)
-					return mol;
-				}
-			}
-
-		return null;
-		}
-
-	public String[] resolveRemote(String[] nameList) {
-		if (nameList == null)
-			return null;
-
-		if (sCommunicator == null)
-			sCommunicator = new N2SCommunicator(null, "datawarrior");
-
-		ArrayList<String> unknownList = new ArrayList<>();
-		StringBuilder names = new StringBuilder();
-		for (String name:nameList) {
-			if (name.length() != 0) {
-=======
 	private static final int MAX_NAME_LENGTH = 64;  // actually the name server limit is 40
 
 	private N2SCommunicator sCommunicator;
@@ -172,7 +95,6 @@ public class DEStructureNameResolver implements IStructureNameResolver {
 		StringBuilder names = new StringBuilder();
 		for (String name:nameList) {
 			if (name.length() != 0 && name.length() <= MAX_NAME_LENGTH) {
->>>>>>> refs/remotes/thsa/master
 				if (sNameMap == null || sNameMap.get(name) == null) {
 					unknownList.add(name);
 					names.append(name);
