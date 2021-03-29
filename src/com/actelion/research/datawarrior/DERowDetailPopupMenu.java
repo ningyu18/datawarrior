@@ -373,7 +373,8 @@ public class DERowDetailPopupMenu extends JPopupMenu implements ActionListener {
 					addMenuItem("Search "+columnName+" in Google Patents", PATENT_SEARCH+columnName);
 					addSeparator();
 					JMenu predictSynthesisMenu = new JMenu("Suggest Synthesis Route");
-					addSubmenuItem(predictSynthesisMenu, "of "+columnName+" using Spaya.ai", SPAYA_SEARCH+columnName);
+					addSubmenuItem(predictSynthesisMenu, "of "+columnName+" using Spaya.ai", SPAYA_SEARCH+columnName
+							/* ,"Press <Ctrl> when opening menu to change Spaya server" */ );
 					if (isCtrlDown)
 						addSubmenuItem(predictSynthesisMenu, "Change SPAYA Server URL", SPAYA_CHANGE_URL);
 //	TODO			addSubmenuItem(predictSynthesisMenu, "of "+columnName+" using ICSynth Light", ICSYNTH_SEARCH+columnName);
@@ -531,7 +532,7 @@ public class DERowDetailPopupMenu extends JPopupMenu implements ActionListener {
 				}
 			}
 
-		if(System.getProperty("development") != null)
+		if (DataWarrior.USE_CARDS_VIEW)
 			addCardViewOptions(source);
 		}
 
@@ -838,11 +839,8 @@ public class DERowDetailPopupMenu extends JPopupMenu implements ActionListener {
 //				menuFromSelection.addSeparator();
 //				menuFromAll.addSeparator();
 
-
-
 //				menuFromSelection.add(A_menuSort2D);
 //				menuFromAll.add(B_menuSort2D);
-
 
 //                JMenu menuCreateStacks = new JMenu("Create Stacks");
 //                for (Integer ci : columnsCategorical) {
@@ -1088,7 +1086,6 @@ public class DERowDetailPopupMenu extends JPopupMenu implements ActionListener {
 			final int idcodeColumn = mTableModel.findColumn(actionCommand.substring(CONFORMERS.length(), index));
 			StereoMolecule mol = mTableModel.getChemicalStructure(mRecord, idcodeColumn, CompoundTableModel.ATOM_COLOR_MODE_NONE, null);
 			if (mol != null)
-//				new DEConformerDialog(getParentFrame(), mol).generateConformers();
 				new FXConformerDialog(getParentFrame(), mol).generateConformers();
 		} else if (actionCommand.startsWith(PATENT_SEARCH)
 				|| actionCommand.startsWith(SCHOLAR_SEARCH)
@@ -1127,7 +1124,10 @@ public class DERowDetailPopupMenu extends JPopupMenu implements ActionListener {
 			Preferences prefs = DataWarrior.getPreferences();
 			String current = prefs.get(DataWarrior.PREFERENCES_KEY_SPAYA_SERVER, "");
 			String server = JOptionPane.showInputDialog(getParentFrame(), "Change Spaya Server (keep empty for '"+SPAYA_DEFAULT+"')", current);
-			if (!server.equals(current)) {
+			if (server.indexOf('/') != -1) {
+				JOptionPane.showMessageDialog(getParentFrame(), "Please use the domain name only, e.g. 'myspaya.mycompany.com'");
+				}
+			else if (!server.equals(current)) {
 				if (server.length() == 0)
 					prefs.remove(DataWarrior.PREFERENCES_KEY_SPAYA_SERVER);
 				else
@@ -1376,12 +1376,19 @@ public class DERowDetailPopupMenu extends JPopupMenu implements ActionListener {
 		return index2 == -1 ? null : actionCommand.substring(index2 + DELIMITER.length());
 		}
 
-	private void addSubmenuItem(JMenu menu, String text, String actionCommand) {
+	private JMenuItem addSubmenuItem(JMenu menu, String text, String actionCommand) {
 		JMenuItem item = new JMenuItem(text);
 		item.addActionListener(this);
 		if (actionCommand != null)
 			item.setActionCommand(actionCommand);
 		menu.add(item);
+		return item;
+		}
+
+	private JMenuItem addSubmenuItem(JMenu menu, String text, String actionCommand, String toolTipText) {
+		JMenuItem item = addSubmenuItem(menu, text, actionCommand);
+		item.setToolTipText(toolTipText);
+		return item;
 		}
 
 	private void addMenuItem(String text) {

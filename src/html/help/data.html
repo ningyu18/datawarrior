@@ -444,9 +444,11 @@ The expression syntax, all operators and available functions are explained below
 <br>
 
 <p><b>Date Functions</b></p>
-<p>If a column contains date values, then DataWarrior should recognize this fact and
-  handle the values accordingly, e.g. when applying filters or the column is assigned
-  to axes. A set of date functions allows to work with date values for numerical purposes.</p>
+<p>If a column contains date values, then <i>DataWarrior</i> recognizes them automatically.
+  Internally, date values are represented as the number of days that have been passed since Jan 1st, 1970.
+  Therefore, when a date column is used in filters or assigned to an axis, the behaviour is nicely proportional
+  and covers the full date range in a linear way. When used in expressions the following date functions
+  work seemlessly with date values from date columns.</p>
 
 <table align="center" border="0" cellpadding="2" cellspacing="0" width="620">
   <tbody>
@@ -539,8 +541,10 @@ The expression syntax, all operators and available functions are explained below
   a year that matches the respective weekXXX() functions. Here the new year starts with the first day
   that is considered to belong to week 1. This day may still be in December or it may be one of the
   first days of January.</p>
-<p>The today() function returns the current data and, thus, may server as a parameter to the date
-  functions described in the previous paragraph.</p>
+<p>The <b>today()</b> function returns the current date as the number of days that have been passed
+  since Jan 1st, 1970. Because <i>DataWarrior</i> represents date values the same way, the today()
+  function can be used to convert an absolute date into the number of days that
+  have been passed since then. For this use an expression like <i>today()-myDataColumn</i>.</p>
 <br>
 
 <p><b>Table Related Functions</b></p>
@@ -577,8 +581,16 @@ The expression syntax, all operators and available functions are explained below
     <td><font face="sans-serif"><small>numvalue(column-name, row)</small></font></td>
   </tr>
   <tr bgcolor="#ffffff">
-    <td><font face="sans-serif"><small>Number of values in cell</small></font></td>
-    <td><font face="sans-serif"><small>valueCount(column-value)</small></font></td>
+    <td><font face="sans-serif"><small>Number of cell values including empty ones</small></font></td>
+    <td><font face="sans-serif"><small>valueCount(column-var)</small></font></td>
+  </tr>
+  <tr bgcolor="#ffffff">
+    <td><font face="sans-serif"><small>Number of non empty cell values</small></font></td>
+    <td><font face="sans-serif"><small>nonEmptyValueCount(column-var)</small></font></td>
+  </tr>
+  <tr bgcolor="#ffffff">
+    <td><font face="sans-serif"><small>Standard deviation of cell values from mean</small></font></td>
+    <td><font face="sans-serif"><small>valueStdDev(column-var)</small></font></td>
   </tr>
   <tr bgcolor="#ffffff">
     <td><font face="sans-serif"><small>Frequency of occurance</small></font></td>
@@ -611,6 +623,10 @@ The expression syntax, all operators and available functions are explained below
   <tr bgcolor="#ffffff">
     <td><font face="sans-serif"><small>Cumulative sum in category</small></font></td>
     <td><font face="sans-serif"><small>cumulativeSumInCategory(category-column, value-column)</small></font></td>
+  </tr>
+  <tr bgcolor="#ffffff">
+    <td><font face="sans-serif"><small>Moving sum in category</small></font></td>
+    <td><font face="sans-serif"><small>movingSumInCategory(category-column, value-column, n1, n2)</small></font></td>
   </tr>
   <tr bgcolor="#ffffff">
     <td><font face="sans-serif"><small>Moving average in category</small></font></td>
@@ -655,9 +671,12 @@ The expression syntax, all operators and available functions are explained below
   for the first row of the table.</p>
 <p>The <b>numvalue()</b> function returns the numerical content of a cell defined by its column name and
   its row index starting from 1 for the first row in the table.</p>
-<p>The <b>valueCount()</b> function just counts the number of entries in a particular cell, no matter
-  whether these are separated by '; ' or whether they are in separate lines. The function takes any
-  variable name that referrs to a data column.</p>
+<p>The <b>valueCount()</b> function counts the number of entries in a particular cell, no matter
+  whether these are separated by '; ' or whether they are in separate lines. Empty values are included.
+  The function takes any variable name that refers to a displayable table column.</p>
+<p>The <b>nonEmptyValueCount()</b> function works like valueCount(), but does not include empty values.</p>
+<p>The <b>valueStdDev()</b> function calculates the standard deviation of all value within one cell in regard
+  to their mean value.</p>
 <p>The <b>frequency()</b> function counts how many rows of the entire table contain the given value
   in the specified value-column. When using this function, then typically, but not necessarily, <i>value</i>
   is a column variable, while <i>value-column</i> is the name of the same column, e.g. 'frequency(AnimalKind,
@@ -670,15 +689,20 @@ The expression syntax, all operators and available functions are explained below
   as absolute difference or as percentage relative to the previous value. The <b>cumulativeSum()</b> function
   calculates the total sum of this value and all previous values. All three functions depend on the table sort
   order.</p>
-<p>The <b>increaseInCategory(), percentIncreaseInCategory(), cumulativeSumInCategory()</b>, and
+<p>The <b>increaseInCategory(), percentIncreaseInCategory(), cumulativeSumInCategory(), movingSumInCategory()</b>, and
   <b>movingAverageInCategory()</b> functions all calculate a value from multiple rows, which belong to the same
   specified category. They all depend on the table's current sort order. <b>increaseInCategory()</b>
   calculates the absolute increase of the current row's value in regard to the value of the closest row
   in the table above, which belongs to the same category.
   <b>percentIncreaseInCategory()</b> gives you the relative increase in percent. <b>cumulativeSumInCategory()</b>
-  calculates the sum of all previous values plus the current row's value within the same category.
-  <b>movingAverageInCategory()</b> calculates an average from the row's value, <i>n1</i> values above,
-  and <i>n2</i> below in the table, which belong to the same category.</p>
+  calculates the sum of all previous values plus the current row's value within the same category.</p>
+<p><b>movingAverageInCategory()</b> calculates an average from the row's value, <i>n1</i> previous and
+  and <i>n2</i> following values in the table that belong to the same category. If the table contains less
+  than n1 previous rows or less than n2 following rows matching the same category, then an average value in
+  calculated anyway from the available rows only.</p>
+<p>Similarly, the <b>movingSumInCategory()</b> calculates the value sum from the row's value, the <i>n1</i> previous
+  and the <i>n2</i> following values that belong to the same category. If the table contains less than n1 previous rows
+  or less than n2 following rows matching the same category, then NaN is returned.</p>
 <p>The <b>categoryFirst()</b> function returns the first value within a given value-column that belongs to
   a specified category. Thus, the result depends on the current order of table rows.
   <br>Example: If a table contains stock prices from different companies and different dates, then in order to

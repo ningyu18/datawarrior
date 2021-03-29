@@ -81,6 +81,8 @@ public class DERuntimeProperties extends RuntimeProperties {
 	private static final String cAxisColumn = "axisColumn";
 	private static final String cAxisMin = "axisMin";
 	private static final String cAxisMax = "axisMax";
+	private static final String cCachedAxisMin = "cachedAxisMin";
+	private static final String cCachedAxisMax = "cachedAxisMax";
 	private static final String cAxisLow = "axisLow";	// used to set the visible range the old way (before 20-Feb-2017)
 	private static final String cAxisHigh = "axisHigh";	// used to set the visible range the old way (before 20-Feb-2017)
 	private static final String cJittering = "jittering";
@@ -132,6 +134,7 @@ public class DERuntimeProperties extends RuntimeProperties {
 	private static final String cDrawBoxOutline = "drawBoxOutline";
 	private static final String cScatterplotMargin = "scatterplotMargin";
 	private static final String cViewFontSize = "fontSize";
+	private static final String cViewFontSizeMode = "fontSizeMode";
 	private static final String cShapeColumn = "shapeColumn";
 	private static final String cMarkerTransparency = "markertransparency";
 	private static final String cMultiValueMarkerMode = "multiValueMarkerMode";
@@ -163,6 +166,7 @@ public class DERuntimeProperties extends RuntimeProperties {
 	private static final String cCurveMode = "meanLineMode";
 	private static final String cCurveStdDev = "meanLineStdDev";
 	private static final String cCurveSplitByCategory = "splitCurveByCategory";
+	private static final String cCurveExpression = "curveExpression";
 	private static final String cCurveLineWidth = "curveLineWidth";
 	private static final String cCurveSmoothing = "curveSmoothing";
 	private static final String cShowBarOrPieSizeValue = "showBarOrPieSizeValue";
@@ -541,6 +545,17 @@ public class DERuntimeProperties extends RuntimeProperties {
 
 					if (!Float.isNaN(low) || !Float.isNaN(high))
 						vpanel.setVisibleRange(j, low, high);
+
+					// setting cached visible min and max in case of autozooming
+					key = cCachedAxisMin + viewName + "_" + j;
+					value = getProperty(key);
+					if (value != null)
+						vpanel.setCachedPruningBarLow(j, Float.parseFloat(value));
+
+					key = cCachedAxisMax + viewName + "_" + j;
+					value = getProperty(key);
+					if (value != null)
+						vpanel.setCachedPruningBarHigh(j, Float.parseFloat(value));
 					}
 				}
 
@@ -549,8 +564,12 @@ public class DERuntimeProperties extends RuntimeProperties {
 				visualization.setScatterPlotMargin(Float.parseFloat(value));
 
 			value = getProperty(cViewFontSize + viewName);
-			if (value != null)
-				visualization.setFontSize(Float.parseFloat(value), false);
+			int fontSizeMode = decodeProperty(cViewFontSizeMode+viewName, JVisualization.FONT_SIZE_MODE_CODE);
+			if (value != null || fontSizeMode != -1) {
+				if (fontSizeMode == -1)
+					fontSizeMode = JVisualization.cFontSizeModeRelative;
+				visualization.setFontSize(Float.parseFloat(value), fontSizeMode, false);
+				}
 
 			value = getProperty(cViewBackground + viewName);
 			if (value != null)
@@ -957,7 +976,9 @@ public class DERuntimeProperties extends RuntimeProperties {
 					value = getProperty(cCurveLineWidth+viewName);
 					float curveLineWidth = (value == null) ? JVisualization2D.DEFAULT_CURVE_LINE_WIDTH : Float.parseFloat(value);
 					((JVisualization2D)visualization).setCurveLineWidth(curveLineWidth);
-
+					value = getProperty(cCurveExpression+viewName);
+					if (value != null)
+						((JVisualization2D)visualization).setCurveExpression(value);
 					value = getProperty(cCurveSmoothing+viewName);
 					if (value != null)
 						((JVisualization2D)visualization).setCurveSmoothing(Float.parseFloat(value));
@@ -1273,6 +1294,12 @@ public class DERuntimeProperties extends RuntimeProperties {
 								key = cAxisMax + viewName + "_" + j;
 								setProperty(key, ""+visualization.getVisibleMax(j));
 								}
+							if (vpanel.getAutoZoomFactor() != 0f) {
+								key = cCachedAxisMin + viewName + "_" + j;
+								setProperty(key, ""+vpanel.getCachedPruningBarLow(j));
+								key = cCachedAxisMax + viewName + "_" + j;
+								setProperty(key, ""+vpanel.getCachedPruningBarHigh(j));
+								}
 							}
 
 						if (view instanceof VisualizationPanel3D) {
@@ -1287,6 +1314,9 @@ public class DERuntimeProperties extends RuntimeProperties {
 
 					if (visualization.getFontSize() != 1.0)
 						setProperty(cViewFontSize+viewName, ""+visualization.getFontSize());
+
+					if (visualization.getFontSizeMode() != JVisualization.cFontSizeModeRelative)
+						setProperty(cViewFontSizeMode+viewName, JVisualization.FONT_SIZE_MODE_CODE[visualization.getFontSizeMode()]);
 
 					if (!visualization.getViewBackground().equals(Color.WHITE))
 						setProperty(cViewBackground+viewName, ""+visualization.getViewBackground().getRGB());
@@ -1581,6 +1611,8 @@ public class DERuntimeProperties extends RuntimeProperties {
 								setProperty(cCurveSplitByCategory+viewName, "true");
 							float curveLineWidth = ((JVisualization2D)visualization).getCurveLineWidth();
 							setProperty(cCurveLineWidth+viewName, ""+curveLineWidth);
+							if (curveMode == JVisualization2D.cCurveModeExpression)
+								setProperty(cCurveExpression+viewName, ((JVisualization2D)visualization).getCurveExpression());
 							if (curveMode == JVisualization2D.cCurveModeSmooth)
 								setProperty(cCurveSmoothing+viewName, ""+((JVisualization2D)visualization).getCurveSmoothing());
 							}

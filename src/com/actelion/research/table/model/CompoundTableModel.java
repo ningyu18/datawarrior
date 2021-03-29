@@ -81,8 +81,9 @@ public class CompoundTableModel extends AbstractTableModel
 								mDirtyCompoundFlags;
 	private int					mLastSortColumn,mParseDoubleValueCount,
 								mAllColumns,mNonExcludedRecords,mExclusionTag;
+	private double              mParseDoubleStdDev;
 	private volatile int[]		mDisplayableColumnToColumn,mColumnToDisplayableColumn;
-	private String				mParseDoubleModifier,mParseDoubleStdDev;
+	private String				mParseDoubleModifier;
 	private CompoundTableColumnInfo[] mColumnInfo;
 	private volatile Thread     mSMPThread;
 	private volatile float[]	mSimilarityListSMP,mSimilarityList2SMP;
@@ -93,6 +94,7 @@ public class CompoundTableModel extends AbstractTableModel
 	private volatile int		mSMPSimilarityErrors;
 	private volatile AtomicBoolean mLock;
 	private volatile ConcurrentHashMap<String,float[]> mFlexophoreSimilarityListCache;	// TODO prevent this to grow to much
+	private volatile ConcurrentHashMap<Integer,ArrayList<Object>> mStoppableSearcherMap;	// flagNo->SSSearcherList to notify that search is stopped
 
 	/**
 	 * This is the single point of assigning DescriptorHandlers to shortNames and, thus, defines
@@ -116,9 +118,10 @@ public class CompoundTableModel extends AbstractTableModel
 
 
 	public CompoundTableModel() {
-		mProgressListener = new ArrayList<ProgressListener>();
-		mCompoundTableListener = new ArrayList<CompoundTableListener>();
-		mHighlightListener = new ArrayList<HighlightListener>();
+		mProgressListener = new ArrayList<>();
+		mCompoundTableListener = new ArrayList<>();
+		mHighlightListener = new ArrayList<>();
+		mStoppableSearcherMap = new ConcurrentHashMap<>();
 		mLastSortColumn = -1;
 		mLock = new AtomicBoolean(false);
 		}
@@ -293,6 +296,7 @@ public class CompoundTableModel extends AbstractTableModel
 		TableModelEvent tme = new TableModelEvent(this, TableModelEvent.HEADER_ROW);
 		fireEventsNow(cte, tme);
 		unlock();
+		updateDescriptors();
 		}
 
 	private void createDisplayableColumnMap() {
@@ -386,7 +390,7 @@ public class CompoundTableModel extends AbstractTableModel
 							: DoubleFormat.toString(value, mColumnInfo[column].significantDigits);
 	
 					try {   // this is to generate modifier and value count
-						tryParseDouble(encodeData(record, column), column);
+						tryParseDouble(record, column, mColumnInfo[column].summaryMode, mColumnInfo[column].stdDeviationShown);
 						} catch (NumberFormatException nfe) {}
 
 					return mColumnInfo[column].summaryCountHidden ? mParseDoubleModifier+numPart
@@ -435,7 +439,8 @@ public class CompoundTableModel extends AbstractTableModel
 	private String getSummaryModeString(int column, int valueCount) {
 		switch (mColumnInfo[column].summaryMode) {
 		case cSummaryModeMean:
-			String end = mColumnInfo[column].stdDeviationShown ? ", stdDev="+mParseDoubleStdDev+")" : ")";
+			String stdDev = DoubleFormat.toString(mParseDoubleStdDev);
+			String end = mColumnInfo[column].stdDeviationShown ? ", stdDev="+stdDev+")" : ")";
 			return " (mean, n="+valueCount+end;
 		case cSummaryModeMedian:
 			return " (median, n="+valueCount+")";
@@ -449,6 +454,20 @@ public class CompoundTableModel extends AbstractTableModel
 			return "";
 			}
 		}
+
+	/**
+	 * @return the value count used by the most recent call of tryParseDouble()
+	 */
+	public int getParseDoubleValueCount() {
+		return mParseDoubleValueCount;
+		}
+
+	/**
+	 * @return the standard deviation value that was calculated by the most recent call of tryParseDouble()
+	 */
+	public double getParseDoubleStdDev() {
+		return mParseDoubleStdDev;
+	}
 
 	/**
 	 * Returns a summarized numerical value reflecting one or more entries of the cell.
@@ -1837,10 +1856,10 @@ public class CompoundTableModel extends AbstractTableModel
 	 */
 	public int addDescriptorColumn(int parent, String shortName, String reactionPart) {
 		int column = allocateDescriptorColumn(parent, shortName, reactionPart);
-		updateDescriptors();
 		createDisplayableColumnMap();
 		mAllColumns = mColumnInfo.length;
 		fireEventsNow(new CompoundTableEvent(this, CompoundTableEvent.cAddColumns, column), null);
+		updateDescriptors();
 		return column;
 		}
 
@@ -2064,6 +2083,7 @@ public class CompoundTableModel extends AbstractTableModel
 		compileVisibleRecords();
 		fireEventsNow(new CompoundTableEvent(this, CompoundTableEvent.cAddRows, -1, firstRow),
 					  new TableModelEvent(this, firstRow, mNonExcludedRecords-1, TableModelEvent.ALL_COLUMNS, TableModelEvent.INSERT));
+		updateDescriptors();
 		}
 
 	/**
@@ -2090,11 +2110,12 @@ public class CompoundTableModel extends AbstractTableModel
 			if (isColumnTypeStructure(column))
 				checkIDCodeVersion(column, 0, listener);
 			}
-		updateDescriptors();
 		createDisplayableColumnMap();
 		mAllColumns = mColumnInfo.length;
 		TableModelEvent tme = new TableModelEvent(this, TableModelEvent.HEADER_ROW, TableModelEvent.HEADER_ROW, 0, TableModelEvent.INSERT);
 		fireEventsNow(new CompoundTableEvent(this, CompoundTableEvent.cAddColumns, firstNewColumn), tme);
+
+		updateDescriptors();
 
 		// if we add atom coordinates to an existing structure column, fire a column changed on the structure column
 		for (int column = firstNewColumn; column< mAllColumns; column++) {
@@ -2937,6 +2958,7 @@ public class CompoundTableModel extends AbstractTableModel
 		}
 
 	public void clearRowFlag(int flagNo) {
+		stopExclusionThreads(flagNo);
 		long mask = convertRowFlagToMask(flagNo);
 		if ((mDirtyCompoundFlags & mask) != 0) {
 			for (int row=0; row<mRecords; row++)
@@ -3223,6 +3245,18 @@ public class CompoundTableModel extends AbstractTableModel
 			}
 		}
 
+	public void stopExclusionThreads(int flagNo) {
+		ArrayList<Object> sssList = mStoppableSearcherMap.get(flagNo);
+		if (sssList != null) {
+			for (Object searcher : sssList) {
+				if (searcher instanceof SSSearcherWithIndex)
+					((SSSearcherWithIndex)searcher).stop();
+				else if (searcher instanceof SRSearcher)
+					((SRSearcher)searcher).stop();
+				}
+			}
+		}
+
 	/**
 	 * Sets the substructure exclusion flags in parallel threads on all available cores.
 	 * @param exclusionFlagNo no of allocated filter flag
@@ -3248,13 +3282,18 @@ public class CompoundTableModel extends AbstractTableModel
 		for (int row=0; row<mRecord.length; row++)
 			mRecord[row].mFlags |= mask;
 
+		ArrayList<Object> sssList = new ArrayList<>();
+		mStoppableSearcherMap.put(exclusionFlagNo, sssList);
+
 		Thread[] worker = new Thread[threadCount];
 		for (int i=0; i<threadCount; i++) {
 			worker[i] = new Thread("Retron-Matcher "+(i+1)) {
 				public void run() {
 					SSSearcherWithIndex reactantSearcher = new SSSearcherWithIndex();
+					sssList.add(reactantSearcher);
 					reactantSearcher.setFragment(retron, (long[])null);
 					SSSearcherWithIndex productSearcher = new SSSearcherWithIndex();
+					sssList.add(productSearcher);
 					productSearcher.setFragment(retron, (long[])null);
 					int recordIndex = rowIndex.decrementAndGet();
 					while (recordIndex >= 0) {
@@ -3301,6 +3340,8 @@ public class CompoundTableModel extends AbstractTableModel
 
 		for (Thread t:worker)
 			try { t.join(); } catch (InterruptedException e) {}
+
+		mStoppableSearcherMap.remove(exclusionFlagNo);
 
 		// optionally invert flag
 		if (inverse)
@@ -3370,11 +3411,16 @@ public class CompoundTableModel extends AbstractTableModel
 		for (int row=0; row<mRecord.length; row++)
 			mRecord[row].mFlags |= mask;
 
+		ArrayList<Object> sssList = new ArrayList<>();
+		mStoppableSearcherMap.put(exclusionFlagNo, sssList);
+
 		Thread[] worker = new Thread[threadCount];
 		for (int i=0; i<threadCount; i++) {
 			worker[i] = new Thread("SRS-Matcher "+(i+1)) {
 				public void run() {
 					SRSearcher searcher = new SRSearcher();
+					sssList.add(searcher);
+
 					int combinedIndex = rowAndFragmentIndex.decrementAndGet();
 					int queryIndex = -1;
 					while (combinedIndex >= 0) {
@@ -3408,6 +3454,8 @@ public class CompoundTableModel extends AbstractTableModel
 
 		for (Thread t:worker)
 			try { t.join(); } catch (InterruptedException e) {}
+
+		mStoppableSearcherMap.remove(exclusionFlagNo);
 
 		// optionally invert flag
 		if (inverse)
@@ -3450,11 +3498,15 @@ public class CompoundTableModel extends AbstractTableModel
 		for (int row=0; row<mRecord.length; row++)
 			mRecord[row].mFlags |= mask;
 
+		ArrayList<Object> sssList = new ArrayList<>();
+		mStoppableSearcherMap.put(exclusionFlagNo, sssList);
+
 		Thread[] worker = new Thread[threadCount];
 		for (int i=0; i<threadCount; i++) {
 			worker[i] = new Thread("SSS-Matcher "+(i+1)) {
 				public void run() {
 					SSSearcherWithIndex searcherWithIndex = new SSSearcherWithIndex();
+					sssList.add(searcherWithIndex);
 
 					int combinedIndex = rowAndFragmentIndex.decrementAndGet();
 					int fragmentIndex = -1;
@@ -3497,6 +3549,8 @@ public class CompoundTableModel extends AbstractTableModel
 
 		for (Thread t:worker)
 			try { t.join(); } catch (InterruptedException e) {}
+
+		mStoppableSearcherMap.remove(exclusionFlagNo);
 
 		// optionally invert flag
 		if (inverse)
@@ -4073,8 +4127,6 @@ public class CompoundTableModel extends AbstractTableModel
 
 		mRecords = mRecord.length;
 		mAllColumns = mColumnInfo.length;
-
-		updateDescriptors();
 		}
 
 	private void checkIDCodeVersion(int idcodeColumn, int firstRow, ProgressListener listener) {
@@ -4679,7 +4731,7 @@ public class CompoundTableModel extends AbstractTableModel
 		boolean found = false;
 		for (int row=mRecord.length-1; row>=firstRow || (!found && row>=0); row--) {
 			try {
-				float value = tryParseDouble(encodeData(mRecord[row], column), column);
+				float value = tryParseDouble(mRecord[row], column, mColumnInfo[column].summaryMode, mColumnInfo[column].stdDeviationShown);
 				if (!Float.isNaN(value)) {
 					if (getExplicitDataType(column) == cDataTypeInteger)
 						value = Math.round(value);
@@ -4744,12 +4796,15 @@ public class CompoundTableModel extends AbstractTableModel
 	 * on the logarithmic values.
 	 * If no exception is thrown, mModifier contains the modifier, which
 	 * is even meaningful, when multiple values were merged.
-	 * @param valueString
+	 * @param record
 	 * @param column to check for mean/median/viewMode settings
+	 * @param summaryMode
+	 * @param calcStdDev
 	 * @return float value or NaN
 	 * @throws NumberFormatException
 	 */
-	private float tryParseDouble(String valueString, int column) throws NumberFormatException {
+	public float tryParseDouble(CompoundRecord record, int column, int summaryMode, boolean calcStdDev) throws NumberFormatException {
+		String valueString = encodeData(record, column);
 		boolean logarithmic = mColumnInfo[column].logarithmicViewMode;
 
 		String[] entry = separateEntries(valueString);
@@ -4757,8 +4812,8 @@ public class CompoundTableModel extends AbstractTableModel
 		float valueWithoutModifierSum = 0.0f;
 		float[] valueWithModifier = null;
 		float[] valueWithoutModifier = null;
-		boolean calculateStdDev = (mColumnInfo[column].summaryMode == cSummaryModeMean && mColumnInfo[column].stdDeviationShown);
-		if (mColumnInfo[column].summaryMode == cSummaryModeMedian || calculateStdDev) {
+		boolean calculateStdDev = (summaryMode == cSummaryModeMean && calcStdDev);
+		if (summaryMode == cSummaryModeMedian || calculateStdDev) {
 			valueWithModifier = new float[entry.length];
 			valueWithoutModifier = new float[entry.length];
 			}
@@ -4766,7 +4821,7 @@ public class CompoundTableModel extends AbstractTableModel
 		int valueWithoutModifierCount = 0;
 		int summaryModifierType = EntryAnalysis.cModifierTypeNone;
 		mParseDoubleModifier = "";
-		mParseDoubleStdDev = "";
+		mParseDoubleStdDev = Double.NaN;
 		mParseDoubleValueCount = 0;
 		for (int i=0; i<entry.length; i++) {
 			EntryAnalysis analysis = new EntryAnalysis(entry[i]);
@@ -4775,8 +4830,8 @@ public class CompoundTableModel extends AbstractTableModel
 				if (hasModifier) {
 					mColumnInfo[column].hasModifiers = true;
 					if (!mColumnInfo[column].excludeModifierValues) {
-						if (mColumnInfo[column].summaryMode != cSummaryModeMinimum
-						 && mColumnInfo[column].summaryMode != cSummaryModeMaximum) {
+						if (summaryMode != cSummaryModeMinimum
+						 && summaryMode != cSummaryModeMaximum) {
 							if (summaryModifierType == EntryAnalysis.cModifierTypeNone)
 								summaryModifierType = analysis.getModifierType();
 							else if (summaryModifierType != analysis.getModifierType()) {
@@ -4810,7 +4865,7 @@ public class CompoundTableModel extends AbstractTableModel
 						v = (float)Math.log10(v);
 						}
 	
-					switch (mColumnInfo[column].summaryMode) {
+					switch (summaryMode) {
 					case cSummaryModeMinimum:
 						if (valueWithModifierCount == 0 || v < valueWithModifierSum) {
 							valueWithModifierSum = v;
@@ -4857,18 +4912,18 @@ public class CompoundTableModel extends AbstractTableModel
 		if (valueWithModifierCount + valueWithoutModifierCount == 0)
 			return Float.NaN;
 
-		if (mColumnInfo[column].summaryMode == cSummaryModeMinimum
-		 || mColumnInfo[column].summaryMode == cSummaryModeMaximum) {
+		if (summaryMode == cSummaryModeMinimum
+		 || summaryMode == cSummaryModeMaximum) {
 			mParseDoubleValueCount = valueWithModifierCount;
 			return valueWithModifierSum;
 			}
 
-		if (mColumnInfo[column].summaryMode == cSummaryModeSum) {
+		if (summaryMode == cSummaryModeSum) {
 			mParseDoubleValueCount = valueWithModifierCount + valueWithoutModifierCount;
 			return valueWithModifierSum + valueWithoutModifierSum;
 			}
 
-		if (mColumnInfo[column].summaryMode == cSummaryModeMedian) {
+		if (summaryMode == cSummaryModeMedian) {
 			if (valueWithoutModifierCount != 0) {
 				Arrays.sort(valueWithoutModifier, 0, valueWithoutModifierCount);
 				valueWithoutModifierSum = ((valueWithoutModifierCount & 1) != 0) ?
@@ -4951,20 +5006,20 @@ public class CompoundTableModel extends AbstractTableModel
 		}
 
 	private void calculateStandardDeviation(float[] value1, float[] value2, int count1, int count2, float mean) {
-		float stdDev = 0f;
-//		float errorMargin = 0f;
+		double stdDev = 0f;
+//		double errorMargin = 0f;
 
 		for (int i=0; i<count1; i++) {
-			float d = value1[i] - mean;
+			double d = value1[i] - mean;
 			stdDev += d*d;
 			}
 		for (int i=0; i<count2; i++) {
-			float d = value2[i] - mean;
+			double d = value2[i] - mean;
 			stdDev += d*d;
 		    }
 
-		mParseDoubleStdDev = DoubleFormat.toString(Math.sqrt(stdDev / (count1+count2)));
-//		errorMargin = 1.96f * stdDev / (float)Math.sqrt(count);
+		mParseDoubleStdDev = Math.sqrt(stdDev / (count1+count2));
+//		errorMargin = 1.96 * stdDev / Math.sqrt(count);
 		}
 
 	/**
@@ -5894,7 +5949,7 @@ class IDCodeComparator implements Comparator<CompoundRecord> {
 class EntryAnalysis {
 	// The first modifier of any type is the default one if multiple modifiers
 	// of the same type are merged, e.g. for mean generation.
-	private static final String[][] cModifier = {{"<=", "<"}, {">=", ">", "H"}};
+	private static final String[][] cModifier = {{"<=", "<", "0-"}, {">=", ">", "H"}};
 
 	protected static final int cModifierTypeNone = -1;
 	protected static final int cModifierTypeSmaller = 0;

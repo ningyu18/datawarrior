@@ -40,19 +40,22 @@ The ESR information is encoded in a canonical form into the ID-Codes and <span c
 is using it, whenever appropriate, e.g. when displaying or editing chemical structures,
 during substructure search, or when generating conformers.</p>
 
-<p>ID-Codes that represent substructures as opposed to molecules may also contain atom
-and bond related query features. Reactions can be represented by ID-Codes as well.</p>
-<p>ID-Codes don't include atom coordinates. Therefore, <span class="keyword">DataWarrior</span>
-typically stores atom coordinates in a separate, invisible column.</p>
+<p>ID-Codes may also represent substructures or query fragments as opposed to normal molecules.
+Then they may contain atom and bond related query features. Reactions can be represented by ID-Codes as well.</p>
+
+<p>Because atom coordinates cannot be part of a canonical representation, ID-Codes don't include them.
+Instead, <span class="keyword">DataWarrior</span> usually stores atom coordinates in a separate, invisible
+child column associated with the ID-Code column. If atom coordinates are 3D, then that atom coordinate column
+contains conformers.</p>
 
 <p>Much, of what you can do with molecular structures in <span class="keyword">DataWarrior</span>,
 especially if it is related to structure similarity, requires the presence of
-<span class="keyword">descriptors</span> derived from the chemical structure.
-The kind of descriptors, which can be generated and used by <span class="keyword">DataWarrior</span>,
+<span class="keyword">descriptors</span> derived from the chemical structure itself.
+The kinds of descriptors, which can be generated and used by <span class="keyword">DataWarrior</span>,
 are explained in more detail in a section called <a href="help/similarity.html">Similarity & Descriptors</a>.
-Like the atom coordinates, descriptors are also stored in invisible columns. To calculate a new
-descriptor column for a given chemical structure column you need to select its name from the
-<span class="menu">Chemistry->From Chemical Structure->Calculate Descriptor</span> menu.</p>
+Like atom coordinates, descriptors are stored in invisible child columns that are associated with a parent
+ID-Code column. To calculate a new descriptor for a given chemical structure column you need to select its
+name from the <span class="menu">Chemistry->From Chemical Structure->Calculate Descriptor</span> menu.</p>
 
 <p>The <span class="menu">Chemistry->From Chemical Structure</span> menu contains various
 additional items, which allow adding a new column with data derived from the chemical structure:</p>
@@ -553,29 +556,36 @@ in reality one would often skip the very first compounds of the diverse selectio
 <h3><a name="ClusterCompounds"></a>Clustering Compounds</h3>
 <p>Clustering is an old cheminformatics technique for subdividing a typically large
 compound collection into small groups of similar compounds. Clustering was used in
-the old days, when computational resources were expensive, to precompute similarity
-relationships between compounds. Cluster membership could be stored easily in databases
-to be quickly retrieved later, whenever the need arose to locate similar structures
-to any given structure, e.g. after a high-throughput screening. The inherent problem
+the old days to precompute similarity relationships between compounds, when computational
+resources were expensive and the calculation of compound similarities time-consuming.
+Cluster membership could be easily stored in databases to be quickly retrieved later,
+whenever the need arose to locate similar structures to any given structure,
+e.g. after a high-throughput screening. The inherent problem
 of clustering is that cluster borders are arbitrary and may separate very similar
-compounds into different clusters. Therefore, the retrieval of all cluster co-member
-of a given compound does not necessarily result in the most similar compounds.</p>
+compounds into different clusters. Therefore, a list of all cluster co-members
+of a given compound has some overlap with, but differs from the set of its most similar compounds.</p>
 
-<p>The cluster algorithm implemented in <i>DataWarrior</i> is simple, reproducible,
-but computationally demanding and, therefore, best used if the dataset doesn't
-contain far beyond 10000 compounds. First the complete similarity matrix is calculated,
-which can be done with any descriptor. Then, in a stepwise process the most similar
-compounds or clusters are merged to form a new cluster, whose similarity to the
-remaining compounds and clusters is re-calculated as a weighted mean from its members.
-The merging process continues until a stop criterion is met. Stop criteria can be
-defined in the cluster dialog.</p>
+<p>The cluster algorithm implemented in <i>DataWarrior</i> uses a hierarchical, bottom-up
+approach. This simple algorithm gives perfect and reproducible results,
+but is computationally demanding and, therefore, best used if the dataset doesn't
+contain far beyond 10000 compounds.</p>
+<p>The algorithm works as follows: First the complete similarity matrix triangle
+over all n compounds is calculated using a descriptor of choice.
+Then, the most similar compounds are joined into the first cluster. The similarity
+matrix is updated by removing all similarity values related to these two compounds
+and replacing them by a new set of similarities between luster center and any other compound.
+The new values are calculated as mean of the two original similarity values.
+Step by step the process continues by joining the most similar compound/cluster pair
+and merging the corresponding similarity values as a weighted mean based on the number
+of cluster members. The merging process continues until a stop criterion is met.
+Two possible stop criteria can be defined in the cluster dialog.</p>
 
 <p align="center"><img src="help/img/chem/clusterDialog.jpeg"></p>
 
-<p>The clustering process may be defined to stop when the cluster count reaches
-a desired number or when the similarity needed to join two clusters falls below
-a definable limit. If both criteria are defined, then the clustering stops if any
-of both criteria are met.</p>
+<p>The clustering process can be configured to stop when the cluster count went down to
+reaches a predefined number or when the similarity needed to join two clusters falls below
+a definable limit. If both criteria are defined, then the clustering stops once any
+of the two criteria are met.</p>
 <br>
 
 <h3><a name="MolecularProperties"></a>Calculating Molecular Properties</h3>
@@ -697,7 +707,7 @@ of Robust Organic Synthesis Reactions for In Silico Molecule Design.; <i>J Chem 
 structures with a molecular weight in the drug-like range is about 10<sup>60</sup>.
 It will never be possible to compute all these structures to search them for the one
 with the most promising property profile for a particular purpose. Nevertheless,
-fishing for unknown promising structures in this vast compound space may be successful
+fishing for yet unknown promising structures in this vast compound space may be successful
 if the approach is right. It may then lead to completely new ideas or starting points, which
 would not be possible with the traditional structurally constrained virtual screening
 of existing or virtual combinatorial libraries.</p>
@@ -707,17 +717,14 @@ they aim for suggesting entirely new molecules, which are supposedly active on a
 <span class="keyword">DataWarrior</span> uses an <span class="keyword">evolutionary algorithm</span>
 for this purpose, which somewhat mimicks nature's evolution of plants and animals. The algorithm starts
 with a small initial set of molecules called the <span class="keyword">first generation</span>.
-From any of these molecules it creates multiple derived, new, but similar molecules by applying a
-small random structure modification. All derived structures together form the first offspring generation,
-which is much larger that its parent one. In detail the algorithm uses structure
-modifications like single atom replacements, atom insertions, bond order changes, substituent migrations,
-ring aromatisations, etc. These modifications are selected randomly from a large list of possible changes.</p>
-
-<p>However, the probability values for this random selection and, therefore, the likelyhood that a certain
-modification is selected, also depends on another factor. When the list of all modifications is built,
-then the change is evaluated in regard to as how much it increases or decreases the structure's
-<i>drug-likeness</i> (or optionally <i>natural-product-likeness</i>). Modifications that increase the
-<i>drug-likeness</i> are assigned a higher probability than mutations that decrease it.
+From any of these molecules it then creates multiple derived, new, but similar molecules by applying a
+small random structural modification. All derived structures together form the first offspring generation,
+which is much larger that its parent one. The kind of modifications applied are single atom replacements,
+atom insertions, bond order changes, substituent migrations, ring aromatisations, stereo center inversions,
+etc. Whenever <span class="keyword">DataWarrior</span> needs to create derived structures from a parent one,
+it first compiles a list of all possible modifications. Each modification is then evaluated in regard to as
+how much it increases or decreases the structure's <i>drug-likeness</i> (or optionally <i>natural-product-likeness</i>).
+Modifications that increase the <i>drug-likeness</i> are assigned a higher probability than mutations that decrease it.
 Changes, which would create high ring strains are removed from the list. These modulation of modification
 propabilities ensures that the algorithm stays in the chemical space of drug-like (or natural-product-like)
 compounds.</p>
@@ -729,9 +736,8 @@ Typically, after a few hundred molecule generations <span class="keyword">DataWa
 has arrived at structures that optimally match the defined fitness criteria.</p>
 
 <p>You may define multiple fitness criteria in the <i>Evolutionaly Library Dialog</i>. Criteria may
-be weighted to make them more or less important than others. Together all defined criterial build the
+be weighted to make them more important or less important than others. Together all defined criteria form the
 desired compound property profile.
-
 For simple properties one may define an optimal
 numerical range. One may also require compounds to be similar or dissimilar to
 a definable set of compounds using any descriptor. All individual fitness criteria

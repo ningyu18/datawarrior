@@ -18,27 +18,25 @@
 
 package com.actelion.research.table.model;
 
-import com.actelion.research.chem.IDCodeParser;
-import com.actelion.research.chem.reaction.ReactionEncoder;
-import com.actelion.research.table.CompoundTableChemistryCellRenderer;
-
 import javax.swing.event.TableModelEvent;
 import javax.swing.event.TableModelListener;
 import javax.swing.table.DefaultTableModel;
 
 public class DetailTableModel extends DefaultTableModel
-            implements CompoundTableListener,TableModelListener {
+            implements CompoundTableListener,HighlightListener,TableModelListener {
     private static final long serialVersionUID = 0x20060929;
 
     private static final String[] cColumnName = {"Column Name", "Value"};
 
 	private CompoundTableModel  mParentModel;
 	private CompoundRecord      mParentRecord;
+	private int[]               mColumnToDetailRow,mDetailRowToColumn;
 
     public DetailTableModel(CompoundTableModel parentModel) {
 		super(cColumnName, 0);
 		mParentModel = parentModel;
-        parentModel.addTableModelListener(this);
+        parentModel.addHighlightListener(this);
+	    parentModel.addTableModelListener(this);
 		parentModel.addCompoundTableListener(this);
 		initialize();
 		}
@@ -51,18 +49,37 @@ public class DetailTableModel extends DefaultTableModel
 		return mParentModel;
 		}
 
+	public int getParentColumn(int row) {
+    	return mDetailRowToColumn[row];
+		}
+
 	private void initialize() {
 		mParentRecord = mParentModel.getHighlightedRow();
-		int rowCount = mParentModel.getColumnCount();
+
+		mColumnToDetailRow = new int[mParentModel.getTotalColumnCount()];
+
+		int rowCount = 0;
+		for (int column=0; column<mColumnToDetailRow.length; column++)
+			mColumnToDetailRow[column] = (mParentModel.getColumnSpecialType(column) == null) ? rowCount++ : -1;
+
+		mDetailRowToColumn = new int[rowCount];
+
+		rowCount = 0;
+		for (int column=0; column<mColumnToDetailRow.length; column++)
+			if (mParentModel.getColumnSpecialType(column) == null)
+				mDetailRowToColumn[rowCount++] = column;
+
 		setRowCount(rowCount);
-	    for (int row=0; row<rowCount; row++) {
-	    	int column = mParentModel.convertFromDisplayableColumnIndex(row);
 
-	    	// we show a title without summary mode indication, i.e. 'xxxx' instead of 'mean of xxxx'
-	    	String alias = mParentModel.getColumnAlias(column);
-			setValueAt(alias != null ? alias : mParentModel.getColumnTitleNoAlias(column), row, 0);
+		for (int column=0; column<mColumnToDetailRow.length; column++) {
+			if (mParentModel.getColumnSpecialType(column) == null) {
+				int row = mColumnToDetailRow[column];
 
-			setValueAt(getSecondColumnValue(mParentRecord, row), row, 1);
+				// we show a title without summary mode indication, i.e. 'xxxx' instead of 'mean of xxxx'
+				String alias = mParentModel.getColumnAlias(column);
+				setValueAt(alias != null ? alias : mParentModel.getColumnTitleNoAlias(column), row, 0);
+				setValueAt(getSecondColumnValue(mParentRecord, row), row, 1);
+				}
 			}
 		}
 
@@ -70,6 +87,7 @@ public class DetailTableModel extends DefaultTableModel
 		return false;
 		}
 
+	@Override
     public void tableChanged(TableModelEvent e) {
         if (e.getFirstRow() == TableModelEvent.HEADER_ROW) {
             initialize();
@@ -77,6 +95,7 @@ public class DetailTableModel extends DefaultTableModel
             }
         }
 
+	@Override
     public void compoundTableChanged(CompoundTableEvent e) {
 		if (e.getType() == CompoundTableEvent.cAddColumns
 		 || e.getType() == CompoundTableEvent.cRemoveColumns) {
@@ -84,19 +103,20 @@ public class DetailTableModel extends DefaultTableModel
 			}
 		else if (e.getType() == CompoundTableEvent.cChangeColumnData) {
             int column = e.getColumn();
-            int row = mParentModel.convertToDisplayableColumnIndex(column);
+			int row = mColumnToDetailRow[column];
 			if (row != -1 && row < getRowCount())
 	    		setValueAt(getSecondColumnValue(mParentRecord, row), row, 1);
 			}
 		else if (e.getType() == CompoundTableEvent.cChangeColumnName) {
             int column = e.getColumn();
-            int row = mParentModel.convertToDisplayableColumnIndex(column);
+			int row = mColumnToDetailRow[column];
 			if (row != -1 && mParentRecord != null)
 			    setValueAt(mParentModel.getColumnTitle(column), row, 0);
 			}
 		}
 
-	public void detailChanged(CompoundRecord record) {
+	@Override
+	public void highlightChanged(CompoundRecord record) {
 		mParentRecord = record;
 		for (int row=0; row<getRowCount(); row++)
 			setValueAt(getSecondColumnValue(record, row), row, 1);
@@ -108,8 +128,8 @@ public class DetailTableModel extends DefaultTableModel
 		if (record == null)
 			return "";
 
-		int column = mParentModel.convertFromDisplayableColumnIndex(row);
-		String type = mParentModel.getColumnSpecialType(column);
+		int column = mDetailRowToColumn[row];
+/*		String type = mParentModel.getColumnSpecialType(column);
 		if (CompoundTableModel.cColumnTypeIDCode.equals(type)) {
 			int coordinateColumn = (column == -1) ? -1
 					: mParentModel.getChildColumn(column, CompoundTableModel.cColumnType2DCoordinates);
@@ -127,7 +147,7 @@ public class DetailTableModel extends DefaultTableModel
 			byte[] rxncode = (byte[])record.getData(column);
 			if (rxncode != null)
 				return ReactionEncoder.decode(new String(rxncode), true);
-			}
+			}*/
 
 		// we show the data also as it is, without calculation of a summary value etc.
 		return mParentModel.encodeData(record, column);
